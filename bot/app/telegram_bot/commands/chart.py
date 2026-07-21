@@ -1,4 +1,10 @@
 """Telegram /chart command — generates branded price charts using local chart_generator."""
+
+# ⚠️ DEAD CODE — NOT WIRED INTO MAIN BOT
+# This module is NOT imported or registered by bot.py.
+# Kept as reference for future migration to rmi-backend.
+# DO NOT add production credentials to this file.
+
 import logging
 import sys
 
@@ -6,7 +12,8 @@ from telegram import ParseMode, Update
 from telegram.ext import CommandHandler, ContextTypes
 
 logger = logging.getLogger("telegram.chart")
-sys.path.insert(0, '/opt/rmi-tools/lib/python3.12/site-packages')
+sys.path.insert(0, "/opt/rmi-tools/lib/python3.12/site-packages")
+
 
 async def chart_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /chart <token> [chain] [days] — generate branded price chart."""
@@ -33,6 +40,7 @@ async def chart_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         from app.chart_generator import chart_command as gen_chart
+
         png, caption = await gen_chart(f"{token}/USDT", chain, days)
 
         if png:
@@ -47,5 +55,6 @@ async def chart_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Chart failed: {e}")
         await msg.edit_text(f"❌ Error: {str(e)[:100]}")
+
 
 handlers = [CommandHandler("chart", chart_command)]

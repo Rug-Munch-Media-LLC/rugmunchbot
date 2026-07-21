@@ -1,0 +1,21 @@
+[Unit]
+Description=RMI Admin ChatOps Bot - @rmi_admin_bot server management
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/srv/work/repos/rugmunchbot/bot/app/telegram_bot
+EnvironmentFile=/srv/work/repos/rugmunchbot/bot/app/telegram_bot/.env
+ExecStart=/usr/bin/python3 -u admin_bot.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rmi-admin-bot
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

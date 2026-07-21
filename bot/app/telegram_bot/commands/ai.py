@@ -1,8 +1,11 @@
-"""
-🧠 RMI Crypto AI Agent — DataBus-Powered
-==========================================
-THE consumer-facing AI for Telegram and web. All data flows through DataBus.
+"""🧠 RMI Crypto AI Agent — DataBus-Powered."""
 
+# ⚠️ DEAD CODE — NOT WIRED INTO MAIN BOT
+# This module is NOT imported or registered by bot.py.
+# Kept as reference for future migration to rmi-backend.
+# DO NOT add production credentials to this file.
+
+"""
 Architecture:
   User Query → Sanitize → Intent Detection → DataBus.fetch() → RAG → DeepSeek → Reply
                               ↓                    ↓            ↓
@@ -63,7 +66,10 @@ def _databus_fetch(data_type: str, **params) -> dict | None:
         req = Request(
             f"{BACKEND_URL}/api/v1/databus/fetch",
             data=payload,
-            headers={"Content-Type": "application/json", "X-RMI-Key": "rmi-internal-2026"},
+            headers={
+                "Content-Type": "application/json",
+                "X-RMI-Key": os.getenv("RMI_INTERNAL_API_KEY", ""),
+            },
         )
         resp = urlopen(req, timeout=8)
         return json.loads(resp.read())
@@ -77,7 +83,7 @@ def _rag_search(query: str, limit: int = 3) -> str:
     try:
         req = Request(
             f"{BACKEND_URL}/api/v1/rag/search?q={query}&limit={limit}",
-            headers={"X-RMI-Key": "rmi-internal-2026"},
+            headers={"X-RMI-Key": os.getenv("RMI_INTERNAL_API_KEY", "")},
         )
         resp = urlopen(req, timeout=5)
         data = json.loads(resp.read())
@@ -93,7 +99,9 @@ def _detect_intent(text: str) -> dict:
     chains_to_query = []
     if any(w in t for w in ["price", "worth", "value", "cost", "how much"]):
         chains_to_query.append("token_price")
-    if any(w in t for w in ["safe", "scam", "rug", "honeypot", "risk", "audit", "security"]):
+    if any(
+        w in t for w in ["safe", "scam", "rug", "honeypot", "risk", "audit", "security"]
+    ):
         chains_to_query.append("token_security")
     if any(w in t for w in ["trending", "hot", "popular", "mover", "gainer"]):
         chains_to_query.append("trending")
@@ -118,7 +126,9 @@ async def cmd_ai(update, ctx):
     text = " ".join(ctx.args) if ctx.args else ""
 
     if not text:
-        chains_list = "\n".join(f"<code>{k}</code> — {v}" for k, v in list(AGENT_CHAINS.items())[:6])
+        chains_list = "\n".join(
+            f"<code>{k}</code> — {v}" for k, v in list(AGENT_CHAINS.items())[:6]
+        )
         await msg.reply_text(
             f"<b>🧠 RMI Crypto AI</b>\n\n"
             f"Ask anything. I query DataBus for real-time data:\n\n{chains_list}\n\n"
@@ -178,7 +188,10 @@ async def cmd_ai(update, ctx):
         req = Request(
             DEEPSEEK_URL,
             data=body,
-            headers={"Authorization": f"Bearer {DEEPSEEK_KEY}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {DEEPSEEK_KEY}",
+                "Content-Type": "application/json",
+            },
         )
         resp = urlopen(req, timeout=20)
         reply = json.loads(resp.read())["choices"][0]["message"]["content"]
@@ -186,4 +199,7 @@ async def cmd_ai(update, ctx):
         await msg.reply_text(reply, parse_mode="HTML", disable_web_page_preview=True)
     except Exception as e:
         logger.error(f"AI failed: {e}")
-        await msg.reply_text("❌ AI temporarily unavailable. Try /security, /trending, or /news.", parse_mode="HTML")
+        await msg.reply_text(
+            "❌ AI temporarily unavailable. Try /security, /trending, or /news.",
+            parse_mode="HTML",
+        )

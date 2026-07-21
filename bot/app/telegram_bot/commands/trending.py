@@ -4,8 +4,14 @@
 Fetch trending tokens across chains from the RMI backend.
 """
 
+# ⚠️ DEAD CODE — NOT WIRED INTO MAIN BOT
+# This module is NOT imported or registered by bot.py.
+# Kept as reference for future migration to rmi-backend.
+# DO NOT add production credentials to this file.
+
 import json
 import logging
+import os
 from urllib.request import Request, urlopen
 
 logger = logging.getLogger("rmi.trending")
@@ -20,14 +26,19 @@ async def cmd_trending(update, ctx):
         req = Request(
             f"{BACKEND_URL}/api/v1/databus/fetch",
             data=json.dumps({"data_type": "trending", "limit": 10}).encode(),
-            headers={"Content-Type": "application/json", "X-RMI-Key": "rmi-internal-2026"},
+            headers={
+                "Content-Type": "application/json",
+                "X-RMI-Key": os.getenv("RMI_INTERNAL_API_KEY", ""),
+            },
         )
         resp = urlopen(req, timeout=10)
         data = json.loads(resp.read())
         tokens = data.get("data", data.get("tokens", []))[:10]
 
         if not tokens:
-            await update.message.reply_text("📈 No trending data available right now.", parse_mode="HTML")
+            await update.message.reply_text(
+                "📈 No trending data available right now.", parse_mode="HTML"
+            )
             return
 
         lines = ["<b>📈 Trending Tokens</b>\n"]
@@ -43,10 +54,14 @@ async def cmd_trending(update, ctx):
         if len(text) > 4000:
             text = text[:4000] + "\n\n<i>…more on rugmunch.io</i>"
 
-        await update.message.reply_text(text, parse_mode="HTML", disable_web_page_preview=True)
+        await update.message.reply_text(
+            text, parse_mode="HTML", disable_web_page_preview=True
+        )
     except Exception as e:
         logger.error(f"Trending failed: {e}")
-        await update.message.reply_text("❌ Could not fetch trending data.", parse_mode="HTML")
+        await update.message.reply_text(
+            "❌ Could not fetch trending data.", parse_mode="HTML"
+        )
 
 
 async def cmd_launches(update, ctx):
@@ -56,14 +71,19 @@ async def cmd_launches(update, ctx):
         req = Request(
             f"{BACKEND_URL}/api/v1/databus/fetch",
             data=json.dumps({"data_type": "token_launches", "limit": 10}).encode(),
-            headers={"Content-Type": "application/json", "X-RMI-Key": "rmi-internal-2026"},
+            headers={
+                "Content-Type": "application/json",
+                "X-RMI-Key": os.getenv("RMI_INTERNAL_API_KEY", ""),
+            },
         )
         resp = urlopen(req, timeout=10)
         data = json.loads(resp.read())
         tokens = data.get("data", data.get("tokens", []))[:10]
 
         if not tokens:
-            await update.message.reply_text("🚀 No new launches detected recently.", parse_mode="HTML")
+            await update.message.reply_text(
+                "🚀 No new launches detected recently.", parse_mode="HTML"
+            )
             return
 
         lines = ["<b>🚀 New Token Launches</b>\n"]
@@ -76,7 +96,11 @@ async def cmd_launches(update, ctx):
             lines.append(f"{i}. <b>{symbol}</b> on {chain} — {age_str} old")
 
         text = "\n".join(lines)
-        await update.message.reply_text(text, parse_mode="HTML", disable_web_page_preview=True)
+        await update.message.reply_text(
+            text, parse_mode="HTML", disable_web_page_preview=True
+        )
     except Exception as e:
         logger.error(f"Launches failed: {e}")
-        await update.message.reply_text("❌ Could not fetch launch data.", parse_mode="HTML")
+        await update.message.reply_text(
+            "❌ Could not fetch launch data.", parse_mode="HTML"
+        )

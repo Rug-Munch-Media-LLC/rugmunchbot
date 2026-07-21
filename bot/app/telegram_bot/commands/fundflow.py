@@ -1,8 +1,13 @@
+# ⚠️ DEAD CODE — NOT WIRED INTO MAIN BOT
+# This module is NOT imported or registered by bot.py.
+# Kept as reference for future migration to rmi-backend.
+# DO NOT add production credentials to this file.
+
 ANVIL_URL = "http://127.0.0.1:8549"
 from app.databus.chain_data import
 from app.databus.local_rpc import simulate_tx get_wallet_history, get_token_data
 """Cross-chain fund flow — traces money movement using Ponder + Helius + Neo4j."""
-import logging, asyncio
+import logging, asyncio, os
 import httpx
 import asyncpg
 from telegram import Update, ParseMode
@@ -29,7 +34,7 @@ async def query_ponder_transfers(address: str, chain: str, limit: int = 10) -> l
     
     try:
         conn = await asyncpg.connect(
-            f"postgresql://rmi:RMI_PROD_POSTGRES_2026@127.0.0.1:5432/{db}", timeout=5)
+            f"postgresql://{os.getenv('POSTGRES_USER', 'rmi')}:{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('POSTGRES_HOST', '127.0.0.1')}:{os.getenv('POSTGRES_PORT', '5432')}/{db}", timeout=5)
         
         # Find the latest token_transfer view
         view = await conn.fetchval(
@@ -54,7 +59,6 @@ async def query_ponder_transfers(address: str, chain: str, limit: int = 10) -> l
 
 async def get_solana_transactions(address: str) -> list:
     """Get Solana tx history from Helius (free)."""
-    import os
     key = os.getenv("HELIUS_API_KEY", "")
     if not key:
         return []

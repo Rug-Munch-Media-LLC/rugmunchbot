@@ -1,5 +1,10 @@
 """Telegram /scan command — v2 using Rug Muncher Scanner via port 8002."""
 
+# ⚠️ DEAD CODE — NOT WIRED INTO MAIN BOT
+# This module is NOT imported or registered by bot.py.
+# Kept as reference for future migration to rmi-backend.
+# DO NOT add production credentials to this file.
+
 import logging
 
 import httpx
@@ -23,11 +28,15 @@ async def cmd_scan_v2(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     chain = ctx.args[1] if len(ctx.args) > 1 else "ethereum"
     tier = ctx.args[2] if len(ctx.args) > 2 else "free"
 
-    msg = await update.message.reply_text(f"Scanning {address[:8]}... on {chain} tier={tier}")
+    msg = await update.message.reply_text(
+        f"Scanning {address[:8]}... on {chain} tier={tier}"
+    )
 
     try:
         async with httpx.AsyncClient(timeout=60) as c:
-            r = await c.post(SCANNER_URL, json={"address": address, "chain": chain, "tier": tier})
+            r = await c.post(
+                SCANNER_URL, json={"address": address, "chain": chain, "tier": tier}
+            )
             if r.status_code == 200:
                 data = r.json()
                 if data.get("success"):

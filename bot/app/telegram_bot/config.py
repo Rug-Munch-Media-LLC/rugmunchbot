@@ -11,7 +11,12 @@ import os
 # BOT
 # ══════════════════════════════════════════════
 BOT_TOKEN = os.getenv("RUGMUNCH_BOT_TOKEN", "")
-OWNER_IDS = {int(x.strip()) for x in os.getenv("TELEGRAM_ALLOWED_USERS", "7075336557").split(",") if x.strip()}
+ADMIN_BOT_TOKEN = os.getenv("ADMIN_BOT_TOKEN", "")
+OWNER_IDS = {
+    int(x.strip())
+    for x in os.getenv("TELEGRAM_ALLOWED_USERS", "7075336557").split(",")
+    if x.strip()
+}
 BOT_USERNAME = "rugmunchbot"
 
 # ══════════════════════════════════════════════
@@ -34,7 +39,7 @@ SOCIAL_LINKS = {
 
 # Bot profile (set via BotFather API on startup)
 BOT_DESCRIPTION = (
-    "\U0001F3DB RMI: the open-source Bloomberg Terminal of Crypto. "
+    "\U0001f3db RMI: the open-source Bloomberg Terminal of Crypto. "
     "234 tools, 77 chains. Now shipping: x402 micropayments, MCP server, "
     "AI rug detection. Chat: t.me/crmunchers - t.me/cryptorugmuncher | "
     "Links: rugmunch.io/links"
@@ -47,6 +52,9 @@ BOT_SHORT_DESCRIPTION = "🛡️ Crypto scam detection & token intelligence acro
 BACKEND_URL = os.getenv("RMI_BACKEND_URL", "http://localhost:8000")
 DATABUS_URL = f"{BACKEND_URL}/api/v1/databus"
 RAG_URL = f"{BACKEND_URL}/api/v1/rag"
+
+# Auth for backend calls (must match rmi-backend's RMI_AUTH_TOKEN)
+RMI_AUTH_TOKEN = os.getenv("RMI_AUTH_TOKEN", "")
 
 # External APIs
 DEXSCREENER = "https://api.dexscreener.com/latest/dex"
@@ -347,14 +355,30 @@ DEX_REF_LINKS = {
         "name": "DexScreener",
         "emoji": "📈",
         "url": "https://dexscreener.com/{chain}/{token}",
-        "chains": ["solana", "ethereum", "base", "bsc", "arbitrum", "polygon", "avalanche"],
+        "chains": [
+            "solana",
+            "ethereum",
+            "base",
+            "bsc",
+            "arbitrum",
+            "polygon",
+            "avalanche",
+        ],
         "description": "Real-time price charts",
     },
     "dextools": {
         "name": "DexTools",
         "emoji": "🔧",
         "url": "https://www.dextools.io/app/en/{chain}/pair-explorer/{token}",
-        "chains": ["solana", "ethereum", "base", "bsc", "arbitrum", "polygon", "avalanche"],
+        "chains": [
+            "solana",
+            "ethereum",
+            "base",
+            "bsc",
+            "arbitrum",
+            "polygon",
+            "avalanche",
+        ],
         "description": "DEX trading tools & charts",
     },
 }
@@ -375,11 +399,31 @@ CHAIN_IDS = {
 # CHANNELS
 # ══════════════════════════════════════════════
 CHANNELS = {
-    "main":   {"id": "-1002056885429", "name": "RMI Community Hub",         "handle": "@cryptorugmuncher"},
-    "news":   {"id": "-1003982391578", "name": "RMI Crypto News 24/7",     "handle": "@rmicryptonews"},
-    "alerts": {"id": "-1003818352164", "name": "RMI Crypto Rug Alerts",    "handle": "@rmialerts"},
-    "alpha":  {"id": "-1003762675055", "name": "RMI Crypto Alpha Signals", "handle": "@rmialpha"},
-    "scans":  {"id": "-1003937506770", "name": "RMI Token Scanner",        "handle": "@rmiscans"},
+    "main": {
+        "id": "-1002056885429",
+        "name": "RMI Community Hub",
+        "handle": "@cryptorugmuncher",
+    },
+    "news": {
+        "id": "-1003982391578",
+        "name": "RMI Crypto News 24/7",
+        "handle": "@rmicryptonews",
+    },
+    "alerts": {
+        "id": "-1003818352164",
+        "name": "RMI Crypto Rug Alerts",
+        "handle": "@rmialerts",
+    },
+    "alpha": {
+        "id": "-1003762675055",
+        "name": "RMI Crypto Alpha Signals",
+        "handle": "@rmialpha",
+    },
+    "scans": {
+        "id": "-1003937506770",
+        "name": "RMI Token Scanner",
+        "handle": "@rmiscans",
+    },
 }
 
 # ══════════════════════════════════════════════

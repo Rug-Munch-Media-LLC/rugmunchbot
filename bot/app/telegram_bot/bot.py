@@ -59,6 +59,7 @@ from config import (
     GOPLUS,
     HONEYPOT,
     OWNER_IDS,
+    RMI_AUTH_TOKEN,
     SCAM_SCHOOL_TOPICS,
     SUPPORT_EMAIL,
     TELEGRAM_CHANNEL,
@@ -169,7 +170,9 @@ def dex_buttons(token: str, chain: str) -> list[InlineKeyboardButton]:
                 chain=chain,
                 chain_id=CHAIN_IDS.get(chain.lower(), 1),
             )
-            buttons.append(InlineKeyboardButton(f"{dex['emoji']} {dex['name']}", url=url))
+            buttons.append(
+                InlineKeyboardButton(f"{dex['emoji']} {dex['name']}", url=url)
+            )
     return buttons
 
 
@@ -178,7 +181,9 @@ def social_proof_text() -> str:
     try:
         conn = db.get_db()
         total_users = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
-        total_scans = conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
+        total_scans = (
+            conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
+        )
         conn.close()
         users_str = f"{total_users:,}" if total_users else "1,000+"
         scans_str = f"{total_scans:,}" if total_scans else "50,000+"
@@ -192,9 +197,15 @@ def paywall_text(user_id: int, action: str = "scan") -> str:
     scans, ai = db.get_weekly_usage(user_id)
     user = db.get_or_create_user(user_id)
     tc = TIERS.get(tier, TIERS["free"])
-    limit = tc.get("scans_per_week", 25) if action == "scan" else tc.get("ai_msgs_per_week", 15)
+    limit = (
+        tc.get("scans_per_week", 25)
+        if action == "scan"
+        else tc.get("ai_msgs_per_week", 15)
+    )
     used = scans if action == "scan" else ai
-    bonus = user.get("bonus_scans", 0) if action == "scan" else user.get("bonus_ai_msgs", 0)
+    bonus = (
+        user.get("bonus_scans", 0) if action == "scan" else user.get("bonus_ai_msgs", 0)
+    )
 
     return (
         f"⚡ <b>Weekly {action.title()} Limit Reached</b>\n\n"
@@ -307,7 +318,9 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
                     "fantom": "250",
                 }
                 cid = chain_id_map.get(result["chain"].lower(), "1")
-                r = await client.get(f"{GOPLUS}/token_security/{cid}?contract_addresses={address}")
+                r = await client.get(
+                    f"{GOPLUS}/token_security/{cid}?contract_addresses={address}"
+                )
                 if r.status_code == 200:
                     sec = r.json().get("result", {}).get(address.lower(), {})
                     if sec:
@@ -323,7 +336,9 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
                         result["owner_renounced"] = sec.get("is_owner_renounced") != "0"
                         lp_locks = sec.get("lp_holders", [])
                         locked_pct = sum(
-                            float(h.get("percent", 0)) for h in lp_locks if h.get("is_locked") == 1
+                            float(h.get("percent", 0))
+                            for h in lp_locks
+                            if h.get("is_locked") == 1
                         )
                         result["lp_locked"] = locked_pct
                         holders_data = sec.get("holders", [])
@@ -363,7 +378,9 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
                             )
                             result["risk_score"] += 15
                         if locked_pct < 0.5 and result["mcap"] > 10000:
-                            result["threats"].append(f"Low LP lock: {locked_pct * 100:.0f}%")
+                            result["threats"].append(
+                                f"Low LP lock: {locked_pct * 100:.0f}%"
+                            )
                             result["risk_score"] += 15
             except Exception as e:
                 result["errors"].append(f"GoPlus: {e}")
@@ -383,7 +400,11 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
 
         # ── RMI Backend ──
         try:
-            r = await client.get(f"{BACKEND_URL}/api/v1/databus/token/{address}", timeout=10)
+            r = await client.get(
+                f"{BACKEND_URL}/api/v1/databus/token/{address}",
+                timeout=10,
+                headers={"X-API-Key": RMI_AUTH_TOKEN},
+            )
             if r.status_code == 200:
                 rmi = r.json()
                 if rmi.get("bundle_detected"):
@@ -560,7 +581,11 @@ async def analyze_wallet(address: str, chain: str | None = None) -> dict:
     }
     async with httpx.AsyncClient(timeout=15) as client:
         try:
-            r = await client.get(f"{BACKEND_URL}/api/v1/databus/wallet/{address}", timeout=10)
+            r = await client.get(
+                f"{BACKEND_URL}/api/v1/databus/wallet/{address}",
+                timeout=10,
+                headers={"X-API-Key": RMI_AUTH_TOKEN},
+            )
             if r.status_code == 200:
                 data = r.json()
                 for k in [
@@ -581,7 +606,9 @@ async def analyze_wallet(address: str, chain: str | None = None) -> dict:
                 result["connected_wallets"] = data.get("connected_wallets", [])[:5]
                 if result["first_seen"]:
                     try:
-                        first = datetime.fromisoformat(result["first_seen"].replace("Z", "+00:00"))
+                        first = datetime.fromisoformat(
+                            result["first_seen"].replace("Z", "+00:00")
+                        )
                         result["wallet_age_days"] = (datetime.now(UTC) - first).days
                         result["is_fresh"] = result["wallet_age_days"] < 7
                     except Exception:
@@ -614,7 +641,9 @@ def format_wallet_report(r: dict) -> str:
         "📊 <b>Overview</b>",
         d,
         f"💰 Balance: <b>{fmt_number(r['balance_usd'])}</b>",
-        f"📝 Transactions: <b>{r['tx_count']:,}</b>" if r["tx_count"] else "📝 Transactions: N/A",
+        f"📝 Transactions: <b>{r['tx_count']:,}</b>"
+        if r["tx_count"]
+        else "📝 Transactions: N/A",
         f"🏷️ Type: {'Exchange' if r['is_exchange'] else 'Contract' if r['is_contract'] else 'EOA (Wallet)'}",
     ]
     if r["is_fresh"]:
@@ -625,7 +654,9 @@ def format_wallet_report(r: dict) -> str:
             lines.append(f"  🔴 {flag}")
     if r["pnl_estimate"] is not None:
         pnl_e = "📈" if r["pnl_estimate"] >= 0 else "📉"
-        lines.extend(["", f"{pnl_e} <b>Estimated P&L:</b> {fmt_number(r['pnl_estimate'])}"])
+        lines.extend(
+            ["", f"{pnl_e} <b>Estimated P&L:</b> {fmt_number(r['pnl_estimate'])}"]
+        )
     if r["top_tokens"]:
         lines.extend(["", "🪙 <b>Top Holdings</b>", d])
         for i, t in enumerate(r["top_tokens"][:5], 1):
@@ -682,7 +713,9 @@ def scan_result_kb(address: str, chain: str) -> InlineKeyboardMarkup:
     rows = [
         [web_scan_button(address, chain)],
         [
-            InlineKeyboardButton("🔬 Deep Scan (250★)", callback_data=f"deep_{address}_{chain}"),
+            InlineKeyboardButton(
+                "🔬 Deep Scan (250★)", callback_data=f"deep_{address}_{chain}"
+            ),
             InlineKeyboardButton("⭐ Watch", callback_data=f"watch_{address}_{chain}"),
         ],
     ]
@@ -705,7 +738,13 @@ def pricing_kb() -> InlineKeyboardMarkup:
                 )
             ]
         )
-    rows.append([InlineKeyboardButton("🌐 Compare Plans on Website", url=f"{WEBSITE_URL}/pricing")])
+    rows.append(
+        [
+            InlineKeyboardButton(
+                "🌐 Compare Plans on Website", url=f"{WEBSITE_URL}/pricing"
+            )
+        ]
+    )
     rows.append([InlineKeyboardButton("📧 Enterprise", url=f"mailto:{SUPPORT_EMAIL}")])
     rows.append([InlineKeyboardButton("◀️ Back", callback_data="menu_main")])
     return InlineKeyboardMarkup(rows)
@@ -735,7 +774,9 @@ def scamschool_kb() -> InlineKeyboardMarkup:
 
 
 def back_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Main Menu", callback_data="menu_main")]])
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("◀️ Main Menu", callback_data="menu_main")]]
+    )
 
 
 def social_kb() -> InlineKeyboardMarkup:
@@ -809,8 +850,12 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         [
             [InlineKeyboardButton("🔍 Scan a Token", callback_data="menu_scan")],
             [
-                InlineKeyboardButton("⭐ View Premium Plans", callback_data="menu_pricing"),
-                InlineKeyboardButton("📚 Learn About Scams", callback_data="menu_scamschool"),
+                InlineKeyboardButton(
+                    "⭐ View Premium Plans", callback_data="menu_pricing"
+                ),
+                InlineKeyboardButton(
+                    "📚 Learn About Scams", callback_data="menu_scamschool"
+                ),
             ],
             [
                 InlineKeyboardButton("🌐 rugmunch.io", url=WEBSITE_URL),
@@ -894,7 +939,9 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         allowed, _used, _limit = db.check_rate_limit(user.id, "scan")
         if not allowed:
             await update.message.reply_text(
-                paywall_text(user.id, "scan"), parse_mode=ParseMode.HTML, reply_markup=paywall_kb()
+                paywall_text(user.id, "scan"),
+                parse_mode=ParseMode.HTML,
+                reply_markup=paywall_kb(),
             )
             return
     msg = await update.message.reply_text(
@@ -950,20 +997,26 @@ async def cmd_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         allowed, _, _ = db.check_rate_limit(user.id, "scan")
         if not allowed:
             await update.message.reply_text(
-                paywall_text(user.id, "scan"), parse_mode=ParseMode.HTML, reply_markup=paywall_kb()
+                paywall_text(user.id, "scan"),
+                parse_mode=ParseMode.HTML,
+                reply_markup=paywall_kb(),
             )
             return
     addr = ctx.args[0]
     chain = ctx.args[1] if len(ctx.args) > 1 else None
     msg = await update.message.reply_text(
-        "👛 <b>Analyzing wallet...</b>\n⏳ Querying on-chain data...", parse_mode=ParseMode.HTML
+        "👛 <b>Analyzing wallet...</b>\n⏳ Querying on-chain data...",
+        parse_mode=ParseMode.HTML,
     )
     try:
         result = await analyze_wallet(addr, chain)
         report = format_wallet_report(result)
         db.increment_usage(user.id, scan=True)
         await msg.edit_text(
-            report, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
+            report,
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+            disable_web_page_preview=True,
         )
     except Exception as e:
         logger.error(f"Wallet error: {e}")
@@ -986,7 +1039,9 @@ async def cmd_ta(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         allowed, _, _ = db.check_rate_limit(user.id, "scan")
         if not allowed:
             await update.message.reply_text(
-                paywall_text(user.id, "scan"), parse_mode=ParseMode.HTML, reply_markup=paywall_kb()
+                paywall_text(user.id, "scan"),
+                parse_mode=ParseMode.HTML,
+                reply_markup=paywall_kb(),
             )
             return
     target = ctx.args[0]
@@ -997,11 +1052,15 @@ async def cmd_ta(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.get(f"{DEXSCREENER}/tokens/{target}")
             if r.status_code != 200:
-                await msg.edit_text("❌ Token not found on DexScreener.", parse_mode=ParseMode.HTML)
+                await msg.edit_text(
+                    "❌ Token not found on DexScreener.", parse_mode=ParseMode.HTML
+                )
                 return
             pairs = r.json().get("pairs", [])
             if not pairs:
-                await msg.edit_text("❌ No trading pairs found.", parse_mode=ParseMode.HTML)
+                await msg.edit_text(
+                    "❌ No trading pairs found.", parse_mode=ParseMode.HTML
+                )
                 return
             p = pairs[0]
             name = p.get("baseToken", {}).get("name", "???")
@@ -1036,13 +1095,17 @@ async def cmd_ta(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if total_tx > 0:
                 buy_ratio = buys / total_tx
                 if buy_ratio > 0.7:
-                    signals.append(f"🟢 Buy pressure dominant ({buy_ratio * 100:.0f}% buys)")
+                    signals.append(
+                        f"🟢 Buy pressure dominant ({buy_ratio * 100:.0f}% buys)"
+                    )
                 elif buy_ratio < 0.3:
                     signals.append(
                         f"🔴 Sell pressure dominant ({(1 - buy_ratio) * 100:.0f}% sells)"
                     )
                 else:
-                    signals.append(f"⚪ Balanced buy/sell ({buy_ratio * 100:.0f}% buys)")
+                    signals.append(
+                        f"⚪ Balanced buy/sell ({buy_ratio * 100:.0f}% buys)"
+                    )
             text = (
                 f"📊 <b>Technical Analysis</b>\n{sep()}\n"
                 f"<b>{name}</b> ({symbol})\n<code>{target}</code>\n\n"
@@ -1061,12 +1124,17 @@ async def cmd_ta(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             text += footer_links()
         db.increment_usage(user.id, scan=True)
         await msg.edit_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+            disable_web_page_preview=True,
         )
     except Exception as e:
         logger.error(f"TA error: {e}")
         await msg.edit_text(
-            f"❌ TA failed: {str(e)[:200]}", parse_mode=ParseMode.HTML, reply_markup=back_kb()
+            f"❌ TA failed: {str(e)[:200]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
         )
 
 
@@ -1082,10 +1150,14 @@ async def cmd_compare(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         allowed, _, _ = db.check_rate_limit(user.id, "scan")
         if not allowed:
             await update.message.reply_text(
-                paywall_text(user.id, "scan"), parse_mode=ParseMode.HTML, reply_markup=paywall_kb()
+                paywall_text(user.id, "scan"),
+                parse_mode=ParseMode.HTML,
+                reply_markup=paywall_kb(),
             )
             return
-    msg = await update.message.reply_text("⚖️ <b>Comparing tokens...</b>", parse_mode=ParseMode.HTML)
+    msg = await update.message.reply_text(
+        "⚖️ <b>Comparing tokens...</b>", parse_mode=ParseMode.HTML
+    )
     try:
         r1, r2 = await asyncio.gather(scan_token(ctx.args[0]), scan_token(ctx.args[1]))
 
@@ -1108,11 +1180,16 @@ async def cmd_compare(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         text += footer_links()
         db.increment_usage(user.id, scan=True)
         await msg.edit_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+            disable_web_page_preview=True,
         )
     except Exception as e:
         await msg.edit_text(
-            f"❌ Compare failed: {str(e)[:200]}", parse_mode=ParseMode.HTML, reply_markup=back_kb()
+            f"❌ Compare failed: {str(e)[:200]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
         )
 
 
@@ -1120,7 +1197,8 @@ async def cmd_quick(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Quick price check — same as $TOKEN but as a command."""
     if not ctx.args:
         await update.message.reply_text(
-            "🪙 Usage: /quick <code>SYMBOL</code>\nExample: /quick PEPE", parse_mode=ParseMode.HTML
+            "🪙 Usage: /quick <code>SYMBOL</code>\nExample: /quick PEPE",
+            parse_mode=ParseMode.HTML,
         )
         return
     symbol = ctx.args[0].upper().lstrip("$")
@@ -1198,7 +1276,10 @@ async def cmd_rugcheck(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"{footer_links()}"
     )
     await update.message.reply_text(
-        text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+        disable_web_page_preview=True,
     )
 
 
@@ -1212,7 +1293,9 @@ async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if r.status_code == 200:
                 pairs = r.json().get("pairs", [])[:8]
                 if not pairs:
-                    await msg.edit_text("❌ No trending data available.", parse_mode=ParseMode.HTML)
+                    await msg.edit_text(
+                        "❌ No trending data available.", parse_mode=ParseMode.HTML
+                    )
                     return
                 lines = ["🔥 <b>Trending Tokens</b>", sep(), thin_sep()]
                 for i, p in enumerate(pairs, 1):
@@ -1237,7 +1320,9 @@ async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     disable_web_page_preview=True,
                 )
             else:
-                await msg.edit_text("❌ Could not fetch trending data.", parse_mode=ParseMode.HTML)
+                await msg.edit_text(
+                    "❌ Could not fetch trending data.", parse_mode=ParseMode.HTML
+                )
     except Exception as e:
         await msg.edit_text(f"❌ Error: {str(e)[:200]}", parse_mode=ParseMode.HTML)
 
@@ -1245,7 +1330,10 @@ async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(f"{BACKEND_URL}/api/v1/news/latest?limit=5")
+            r = await client.get(
+                f"{BACKEND_URL}/api/v1/news/latest?limit=5",
+                headers={"X-API-Key": RMI_AUTH_TOKEN},
+            )
             if r.status_code == 200:
                 articles = r.json()
                 if articles:
@@ -1352,7 +1440,10 @@ async def cmd_pricing(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"📧 Enterprise: {SUPPORT_EMAIL}"
     )
     await update.message.reply_text(
-        text, parse_mode=ParseMode.HTML, reply_markup=pricing_kb(), disable_web_page_preview=True
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=pricing_kb(),
+        disable_web_page_preview=True,
     )
 
 
@@ -1373,7 +1464,9 @@ async def cmd_topup(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"  🤖 100 messages — ⭐700\n\n"
         f"💳 Pay with Telegram Stars ⭐"
     )
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=topup_kb())
+    await update.message.reply_text(
+        text, parse_mode=ParseMode.HTML, reply_markup=topup_kb()
+    )
 
 
 async def cmd_scamschool(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1384,7 +1477,10 @@ async def cmd_scamschool(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"Select a topic below 👇"
     )
     await update.message.reply_text(
-        text, parse_mode=ParseMode.HTML, reply_markup=scamschool_kb(), disable_web_page_preview=True
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=scamschool_kb(),
+        disable_web_page_preview=True,
     )
 
 
@@ -1429,7 +1525,8 @@ async def cmd_refer(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             [
                 [
                     InlineKeyboardButton(
-                        "📤 Share Link", url=f"https://t.me/share/url?url={link}&text={share_text}"
+                        "📤 Share Link",
+                        url=f"https://t.me/share/url?url={link}&text={share_text}",
                     )
                 ],
                 [InlineKeyboardButton("🌐 rugmunch.io", url=WEBSITE_URL)],
@@ -1463,7 +1560,10 @@ async def cmd_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         text += f"{i}. <b>{w.get('symbol') or '???'}</b> <code>{short_addr(w['token_address'])}</code> ({w['chain']}){alert}\n"
     text += f"\n{footer_links()}"
     await update.message.reply_text(
-        text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+        disable_web_page_preview=True,
     )
 
 
@@ -1496,7 +1596,8 @@ async def cmd_watch(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await update.message.reply_text(
-                "❌ Could not add. Limit reached or already added.", parse_mode=ParseMode.HTML
+                "❌ Could not add. Limit reached or already added.",
+                parse_mode=ParseMode.HTML,
             )
 
 
@@ -1511,7 +1612,8 @@ async def cmd_unwatch(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ok = db.remove_watchlist(user.id, addr)
     if ok:
         await update.message.reply_text(
-            f"✅ Removed <code>{short_addr(addr)}</code> from watchlist.", parse_mode=ParseMode.HTML
+            f"✅ Removed <code>{short_addr(addr)}</code> from watchlist.",
+            parse_mode=ParseMode.HTML,
         )
     else:
         await update.message.reply_text(
@@ -1546,7 +1648,9 @@ async def cmd_alerts(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     for a in alerts:
         arrow = "↑" if a.get("alert_direction") == "above" else "↓"
         text += f"• <b>{a.get('symbol', '???')}</b> {arrow} {fmt_number(a['alert_price'])}\n"
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=back_kb())
+    await update.message.reply_text(
+        text, parse_mode=ParseMode.HTML, reply_markup=back_kb()
+    )
 
 
 # ══════════════════════════════════════════════
@@ -1557,7 +1661,9 @@ async def cmd_admin_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     conn = db.get_db()
     total = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
-    tiers = conn.execute("SELECT tier, COUNT(*) as c FROM users GROUP BY tier").fetchall()
+    tiers = conn.execute(
+        "SELECT tier, COUNT(*) as c FROM users GROUP BY tier"
+    ).fetchall()
     scans_today = (
         conn.execute(
             "SELECT SUM(scans) as c FROM weekly_usage WHERE week_start = ?",
@@ -1565,8 +1671,12 @@ async def cmd_admin_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ).fetchone()["c"]
         or 0
     )
-    total_scans = conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
-    banned = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_banned = 1").fetchone()["c"]
+    total_scans = (
+        conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
+    )
+    banned = conn.execute(
+        "SELECT COUNT(*) as c FROM users WHERE is_banned = 1"
+    ).fetchone()["c"]
     conn.close()
     tier_str = "\n".join(f"  {t['tier']}: {t['c']}" for t in tiers)
     await update.message.reply_text(
@@ -1582,12 +1692,16 @@ async def cmd_admin_set_tier(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update.effective_user.id):
         return
     if len(ctx.args) < 2:
-        await update.message.reply_text("Usage: /admin_set_tier <user_id> <tier> [days]")
+        await update.message.reply_text(
+            "Usage: /admin_set_tier <user_id> <tier> [days]"
+        )
         return
     uid, tier = int(ctx.args[0]), ctx.args[1].lower()
     days = int(ctx.args[2]) if len(ctx.args) > 2 else 30
     if tier not in TIERS:
-        await update.message.reply_text(f"Invalid tier. Options: {', '.join(TIERS.keys())}")
+        await update.message.reply_text(
+            f"Invalid tier. Options: {', '.join(TIERS.keys())}"
+        )
         return
     db.set_user_tier(uid, tier, days)
     await update.message.reply_text(f"✅ Set user {uid} to {tier} ({days} days)")
@@ -1606,12 +1720,16 @@ async def cmd_admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     sent = failed = 0
     for u in users:
         try:
-            await ctx.bot.send_message(u["user_id"], msg_text, parse_mode=ParseMode.HTML)
+            await ctx.bot.send_message(
+                u["user_id"], msg_text, parse_mode=ParseMode.HTML
+            )
             sent += 1
             await asyncio.sleep(0.05)
         except Exception:
             failed += 1
-    await update.message.reply_text(f"📢 Broadcast complete.\n✅ Sent: {sent}\n❌ Failed: {failed}")
+    await update.message.reply_text(
+        f"📢 Broadcast complete.\n✅ Sent: {sent}\n❌ Failed: {failed}"
+    )
 
 
 async def cmd_admin_ban(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1684,7 +1802,8 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                                     [
                                         [
                                             InlineKeyboardButton(
-                                                "🔍 Full Scan", callback_data=f"scan_{addr}_{chain}"
+                                                "🔍 Full Scan",
+                                                callback_data=f"scan_{addr}_{chain}",
                                             )
                                         ],
                                         [web_scan_button(addr, chain)],
@@ -1727,6 +1846,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             r = await client.post(
                 f"{BACKEND_URL}/api/v1/rag/query",
                 json={"query": text, "user_id": user.id, "context": "telegram_bot"},
+                headers={"X-API-Key": RMI_AUTH_TOKEN},
             )
             if r.status_code == 200:
                 data = r.json()
@@ -1867,7 +1987,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(
                 [
                     [
-                        InlineKeyboardButton("⭐ Upgrade", callback_data="menu_pricing"),
+                        InlineKeyboardButton(
+                            "⭐ Upgrade", callback_data="menu_pricing"
+                        ),
                         InlineKeyboardButton("🔋 Top Up", callback_data="menu_topup"),
                     ],
                     [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
@@ -1893,7 +2015,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             reply_markup=scamschool_kb(),
         )
     elif data == "menu_trending":
-        await query.edit_message_text("🔥 <b>Fetching trending...</b>", parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            "🔥 <b>Fetching trending...</b>", parse_mode=ParseMode.HTML
+        )
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 r = await client.get(f"{DEXSCREENER}/search/?q=trending")
@@ -1910,7 +2034,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                             f"{emoji} <b>{name}</b> ({sym}) {fmt_pct(h24)}\n   <code>{short_addr(addr)}</code>"
                         )
                     await query.edit_message_text(
-                        "\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=back_kb()
+                        "\n".join(lines),
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=back_kb(),
                     )
                 else:
                     await query.edit_message_text(
@@ -1920,7 +2046,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     )
         except Exception:
             await query.edit_message_text(
-                "❌ Trending unavailable.", parse_mode=ParseMode.HTML, reply_markup=back_kb()
+                "❌ Trending unavailable.",
+                parse_mode=ParseMode.HTML,
+                reply_markup=back_kb(),
             )
     elif data == "menu_watchlist":
         items = db.get_watchlist(user.id)
@@ -1935,7 +2063,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 f"• {w.get('symbol', '???')} <code>{short_addr(w['token_address'])}</code>"
                 for w in items
             )
-            await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=back_kb())
+            await query.edit_message_text(
+                text, parse_mode=ParseMode.HTML, reply_markup=back_kb()
+            )
     elif data == "menu_refer":
         u = db.get_or_create_user(user.id)
         link = f"https://t.me/{BOT_USERNAME}?start=ref_{u.get('referral_code', '')}"
@@ -1949,7 +2079,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         topic = SCAM_SCHOOL_TOPICS.get(topic_key)
         if topic:
             await query.edit_message_text(
-                topic["content"], parse_mode=ParseMode.MARKDOWN, reply_markup=scamschool_kb()
+                topic["content"],
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=scamschool_kb(),
             )
     elif data.startswith("scan_"):
         parts = data.split("_", 2)
@@ -1965,7 +2097,8 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             addr, chain = parts[1], parts[2]
             ok = db.add_watchlist(user.id, addr, chain)
             await query.answer(
-                "Added to watchlist!" if ok else "Could not add (limit reached?)", show_alert=True
+                "Added to watchlist!" if ok else "Could not add (limit reached?)",
+                show_alert=True,
             )
     elif data.startswith("sub_"):
         tier_key = data[4:]
@@ -1986,7 +2119,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if pack:
             u = db.get_or_create_user(user.id)
             if u.get("stars_balance", 0) >= pack["stars"]:
-                ok = db.apply_top_up(user.id, pack["type"], pack["amount"], pack["stars"])
+                ok = db.apply_top_up(
+                    user.id, pack["type"], pack["amount"], pack["stars"]
+                )
                 if ok:
                     await query.edit_message_text(
                         f"✅ <b>Top Up Applied!</b>\n\n"
@@ -2018,7 +2153,9 @@ async def precheckout(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
     user = update.effective_user
-    db.add_stars(user.id, payment.total_amount, "payment", payment.telegram_payment_charge_id)
+    db.add_stars(
+        user.id, payment.total_amount, "payment", payment.telegram_payment_charge_id
+    )
     await update.message.reply_text(
         f"✅ <b>Payment Received!</b>\n\n"
         f"⭐ {payment.total_amount} Stars added to your balance.\n"
@@ -2100,7 +2237,10 @@ async def daily_scam_tip(ctx: ContextTypes.DEFAULT_TYPE):
     )
     try:
         await ctx.bot.send_message(
-            CHANNELS["main"], text, parse_mode=ParseMode.HTML, disable_web_page_preview=True
+            CHANNELS["main"],
+            text,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
         )
     except Exception as e:
         logger.error(f"Daily tip failed: {e}")
