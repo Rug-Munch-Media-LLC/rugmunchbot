@@ -1,0 +1,40 @@
+# CODEOWNERS — Rug Munch Intelligence
+# Last line matching a pattern takes precedence.
+# Order: specific paths first, wildcards last.
+
+# ── Core infrastructure ──
+/main.py                    @cryptorugmunch
+/Dockerfile                 @cryptorugmunch
+/Dockerfile.worker          @cryptorugmunch
+/requirements.txt           @cryptorugmunch
+/.github/                   @cryptorugmunch
+
+# ── API routes ──
+/app/routers/               @cryptorugmunch
+/app/main.py                @cryptorugmunch
+
+# ── Scanner modules ──
+/app/scanners/              @cryptorugmunch
+/app/token_scanner.py       @cryptorugmunch
+/app/unified_scanner.py     @cryptorugmunch
+
+# ── Data services ──
+/app/services/              @cryptorugmunch
+/app/news_service.py        @cryptorugmunch
+/app/rag_service.py         @cryptorugmunch
+
+# ── Security & auth ──
+/app/auth.py                @cryptorugmunch
+/app/payments.py            @cryptorugmunch
+/app/scan_rate_limiter.py   @cryptorugmunch
+
+# ── Frontend (monorepo) ──
+/rmi-frontend/              @cryptorugmunch
+
+# ── Documentation ──
+/docs/                      @cryptorugmunch
+/README.md                  @cryptorugmunch
+/SECURITY.md                @cryptorugmunch
+
+# ── CI/CD ──
+/.github/workflows/         @cryptorugmunch
