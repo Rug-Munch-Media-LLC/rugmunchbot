@@ -12,11 +12,7 @@ import os
 # ══════════════════════════════════════════════
 BOT_TOKEN = os.getenv("RUGMUNCH_BOT_TOKEN", "")
 ADMIN_BOT_TOKEN = os.getenv("ADMIN_BOT_TOKEN", "")
-OWNER_IDS = {
-    int(x.strip())
-    for x in os.getenv("TELEGRAM_ALLOWED_USERS", "7075336557").split(",")
-    if x.strip()
-}
+OWNER_IDS = {int(x.strip()) for x in os.getenv("TELEGRAM_ALLOWED_USERS", "7075336557").split(",") if x.strip()}
 BOT_USERNAME = "rugmunchbot"
 
 # ══════════════════════════════════════════════
@@ -55,15 +51,6 @@ RAG_URL = f"{BACKEND_URL}/api/v1/rag"
 
 # Auth for backend calls (must match rmi-backend's RMI_AUTH_TOKEN)
 RMI_AUTH_TOKEN = os.getenv("RMI_AUTH_TOKEN", "")
-
-# External APIs
-DEXSCREENER = "https://api.dexscreener.com/latest/dex"
-COINGECKO = "https://api.coingecko.com/api/v3"
-DEFILLAMA = "https://api.llama.fi"
-GOPLUS = "https://api.gopluslabs.com/api/v1"
-HONEYPOT = "https://api.honeypot.is/v2"
-BUBBLE_MAPS = "https://api.bubblemaps.io"
-DEXTOOLS = "https://public-api.dextools.io/trial/v2"
 
 # ══════════════════════════════════════════════
 # SUBSCRIPTION TIERS (Weekly Allotments)

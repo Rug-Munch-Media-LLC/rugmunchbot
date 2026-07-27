@@ -55,10 +55,8 @@ from config import (
     BOT_USERNAME,
     CHAIN_IDS,
     CHANNELS,
+    DATABUS_URL,
     DEX_REF_LINKS,
-    DEXSCREENER,
-    GOPLUS,
-    HONEYPOT,
     OWNER_IDS,
     RMI_AUTH_TOKEN,
     SCAM_SCHOOL_TOPICS,
@@ -130,6 +128,13 @@ def short_addr(addr: str) -> str:
     if len(addr) > 12:
         return f"{addr[:6]}...{addr[-4:]}"
     return addr
+
+
+# Inline constant for symbol-search features (cmd_quick, $TOKEN, cmd_trending).
+# All data-fetching routes through DataBus; DexScreener is only used here
+# for symbol-based search lookups that DataBus does not yet expose.
+# TODO: remove when DataBus adds symbol-search endpoint.
+_DEXSCREENER = "https://api.dexscreener.com/latest/dex"
 
 
 def is_owner(uid: int) -> bool:
@@ -225,6 +230,13 @@ def paywall_kb() -> InlineKeyboardMarkup:
 # ══════════════════════════════════════════════
 # SCAN ENGINE
 # ══════════════════════════════════════════════
+def _db_payload(response: dict) -> dict:
+    """Extract the actual data payload from a DataBus response (handles wrapper)."""
+    if isinstance(response, dict) and "data" in response:
+        return response["data"] if isinstance(response["data"], dict) else response
+    return response
+
+
 async def scan_token(address: str, chain: str | None = None) -> dict:
     result = {
         "address": address,
@@ -262,80 +274,132 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
         "dev_other_tokens": [],
         "errors": [],
         "socials": {},
+        "_data_source": {"price": None, "security": None, "detail": None},
     }
 
     async with httpx.AsyncClient(timeout=15) as client:
-        # ── DexScreener ──
+        # ══════════════════════════════════════════════
+        # PHASE 1: DataBus Token Price (cached + fallback chain)
+        # Replaces direct DexScreener call — DataBus routes to DexScreener
+        # internally with caching, circuit breakers, and rate limiting.
+        # Response is the same DexScreener format (pairs array).
+        # ══════════════════════════════════════════════
         try:
-            r = await client.get(f"{DEXSCREENER}/tokens/{address}")
+            r = await client.get(
+                f"{DATABUS_URL}/fetch/token_price",
+                params={"mint": address},
+                timeout=10,
+            )
             if r.status_code == 200:
-                data = r.json()
-                pairs = data.get("pairs", [])
-                if pairs:
-                    p = pairs[0]
-                    result["name"] = p.get("baseToken", {}).get("name", "Unknown")
-                    result["symbol"] = p.get("baseToken", {}).get("symbol", "???")
-                    result["price"] = float(p.get("priceUsd", 0))
-                    result["mcap"] = float(p.get("marketCap") or p.get("fdv") or 0)
-                    result["fdv"] = float(p.get("fdv") or result["mcap"])
-                    vol = p.get("volume", {})
-                    result["volume_24h"] = float(vol.get("h24") or 0)
-                    liq = p.get("liquidity", {})
-                    result["liquidity"] = float(liq.get("usd") or 0)
-                    pc = p.get("priceChange", {})
-                    result["price_change_1h"] = pc.get("h1") or 0
-                    result["price_change_24h"] = pc.get("h24") or 0
-                    result["price_change_7d"] = pc.get("d7") or 0
-                    result["pair_address"] = p.get("pairAddress", "")
-                    result["dex"] = p.get("dexId", "")
-                    result["chain"] = p.get("chainId", result["chain"])
-                    result["created_at"] = p.get("pairCreatedAt")
-                    socials = p.get("info", {}).get("socials", [])
-                    result["socials"] = {s.get("type"): s.get("url") for s in socials}
+                payload = _db_payload(r.json())
+                if payload and isinstance(payload, dict):
+                    pairs = payload.get("pairs", [])
+                    if pairs:
+                        p = pairs[0]
+                        result["name"] = p.get("baseToken", {}).get("name", "Unknown")
+                        result["symbol"] = p.get("baseToken", {}).get("symbol", "???")
+                        result["price"] = float(p.get("priceUsd", 0))
+                        result["mcap"] = float(p.get("marketCap") or p.get("fdv") or 0)
+                        result["fdv"] = float(p.get("fdv") or result["mcap"])
+                        vol = p.get("volume", {})
+                        result["volume_24h"] = float(vol.get("h24") or 0)
+                        liq = p.get("liquidity", {})
+                        result["liquidity"] = float(liq.get("usd") or 0)
+                        pc = p.get("priceChange", {})
+                        result["price_change_1h"] = pc.get("h1") or 0
+                        result["price_change_24h"] = pc.get("h24") or 0
+                        result["price_change_7d"] = pc.get("d7") or 0
+                        result["pair_address"] = p.get("pairAddress", "")
+                        result["dex"] = p.get("dexId", "")
+                        result["chain"] = p.get("chainId", result["chain"])
+                        result["created_at"] = p.get("pairCreatedAt")
+                        socials = p.get("info", {}).get("socials", [])
+                        result["socials"] = {s.get("type"): s.get("url") for s in socials}
+                        result["_data_source"]["price"] = "databus"
+                        logger.info("scan: DataBus token_price OK for %s", short_addr(address))
         except Exception as e:
-            result["errors"].append(f"DexScreener: {e}")
+            result["errors"].append(f"DataBus token_price: {e}")
 
-        # ── GoPlus Security (EVM) ──
+        # ══════════════════════════════════════════════
+        # PHASE 2: DataBus Token Detail (metadata + security summary + on-chain signals)
+        # ══════════════════════════════════════════════
+        try:
+            r = await client.get(
+                f"{DATABUS_URL}/token/{address}",
+                timeout=10,
+                headers={"X-API-Key": RMI_AUTH_TOKEN},
+            )
+            if r.status_code == 200:
+                td = _db_payload(r.json())
+                if td:
+                    # Fill in missing metadata (Phase 1 DexScreener covers most)
+                    if not result["name"] or result["name"] == "Unknown":
+                        result["name"] = td.get("name", "Unknown")
+                    if not result["symbol"] or result["symbol"] == "???":
+                        result["symbol"] = td.get("symbol", "???")
+                    if result["price"] == 0 and td.get("price_usd"):
+                        result["price"] = float(td["price_usd"])
+                    if result["mcap"] == 0 and td.get("market_cap"):
+                        result["mcap"] = float(td["market_cap"])
+                    if result["liquidity"] == 0 and td.get("liquidity_usd"):
+                        result["liquidity"] = float(td["liquidity_usd"])
+                if td.get("bundle_detected"):
+                    result["bundle_detected"] = True
+                    result["threats"].append("Bundle activity detected")
+                    result["risk_score"] += 20
+                if td.get("fresh_wallet_pct"):
+                    result["fresh_wallet_pct"] = td["fresh_wallet_pct"]
+                    if td["fresh_wallet_pct"] > 50:
+                        result["threats"].append(f"High fresh wallet ratio: {td['fresh_wallet_pct']:.0f}%")
+                        result["risk_score"] += 10
+                if td.get("dev_wallet"):
+                    result["dev_wallet"] = td["dev_wallet"]
+                result["_data_source"]["detail"] = "databus"
+                logger.info("scan: DataBus token_detail OK for %s", short_addr(address))
+        except Exception:
+            pass
+
+        # ══════════════════════════════════════════════
+        # PHASE 3: DataBus Token Security (replaces GoPlus + Honeypot.is)
+        # ══════════════════════════════════════════════
         if is_evm(address):
             try:
-                chain_id_map = {
-                    "ethereum": "1",
-                    "bsc": "56",
-                    "polygon": "137",
-                    "arbitrum": "42161",
-                    "avalanche": "43114",
-                    "base": "8453",
-                    "optimism": "10",
-                    "fantom": "250",
-                }
-                cid = chain_id_map.get(result["chain"].lower(), "1")
-                r = await client.get(f"{GOPLUS}/token_security/{cid}?contract_addresses={address}")
+                r = await client.get(
+                    f"{DATABUS_URL}/fetch/token_security",
+                    params={"address": address, "chain": result["chain"]},
+                    timeout=10,
+                )
                 if r.status_code == 200:
-                    sec = r.json().get("result", {}).get(address.lower(), {})
+                    sec = _db_payload(r.json())
                     if sec:
-                        result["contract_verified"] = sec.get("is_open_source") == "1"
-                        result["honeypot"] = sec.get("is_honeypot") == "1"
-                        result["buy_tax"] = float(sec.get("buy_tax") or 0)
-                        result["sell_tax"] = float(sec.get("sell_tax") or 0)
-                        result["mintable"] = sec.get("is_mintable") == "1"
+                        result["contract_verified"] = sec.get("is_open_source") or sec.get("contract_verified")
+                        result["honeypot"] = sec.get("is_honeypot") or sec.get("honeypot")
+                        bt = sec.get("buy_tax") or sec.get("buy_tax_pct")
+                        result["buy_tax"] = float(bt) if bt else None
+                        st = sec.get("sell_tax") or sec.get("sell_tax_pct")
+                        result["sell_tax"] = float(st) if st else None
+                        result["mintable"] = sec.get("mintable") or sec.get("is_mintable")
                         result["can_blacklist"] = (
-                            sec.get("is_blacklisted") == "1" or sec.get("can_take_back_ownership") == "1"
+                            sec.get("can_blacklist") or sec.get("is_blacklisted") or sec.get("can_take_back_ownership")
                         )
-                        result["owner_renounced"] = sec.get("is_owner_renounced") != "0"
-                        lp_locks = sec.get("lp_holders", [])
-                        locked_pct = sum(float(h.get("percent", 0)) for h in lp_locks if h.get("is_locked") == 1)
-                        result["lp_locked"] = locked_pct
-                        holders_data = sec.get("holders", [])
-                        result["holders"] = len(holders_data) if holders_data else 0
-                        for h in holders_data[:10]:
-                            result["top_holders"].append(
-                                {
-                                    "address": h.get("address", ""),
-                                    "pct": float(h.get("percent") or 0) * 100,
-                                    "is_contract": h.get("is_contract") == 1,
-                                    "tag": h.get("tag", ""),
-                                }
-                            )
+                        result["owner_renounced"] = sec.get("owner_renounced") or sec.get("is_owner_renounced")
+                        ll = sec.get("lp_locked") or sec.get("lp_locked_pct")
+                        result["lp_locked"] = float(ll) if ll else None
+                        holders_data = sec.get("holders") or sec.get("top_holders", [])
+                        result["holders"] = len(holders_data) if isinstance(holders_data, list) else 0
+                        for h in (holders_data or [])[:10]:
+                            if isinstance(h, dict):
+                                raw_pct = float(h.get("pct") or h.get("percent") or 0)
+                                # pct is already 0-100 in bot format; DataBus sometimes sends 0-1
+                                result["top_holders"].append(
+                                    {
+                                        "address": h.get("address", ""),
+                                        "pct": raw_pct * 100 if "percent" in h and raw_pct < 1 else raw_pct,
+                                        "is_contract": bool(h.get("is_contract") or h.get("contract")),
+                                        "tag": h.get("tag", ""),
+                                    }
+                                )
+                        # Risk flags from token_security
                         if result["honeypot"]:
                             result["threats"].append("HONEYPOT DETECTED")
                             result["risk_score"] += 40
@@ -348,7 +412,7 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
                         if result["can_blacklist"]:
                             result["threats"].append("Owner can blacklist")
                             result["risk_score"] += 15
-                        if not result["owner_renounced"]:
+                        if result["owner_renounced"] is False:
                             result["threats"].append("Ownership not renounced")
                             result["risk_score"] += 10
                         if result["buy_tax"] and result["buy_tax"] > 0.1:
@@ -357,47 +421,14 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
                         if result["sell_tax"] and result["sell_tax"] > 0.1:
                             result["threats"].append(f"High sell tax: {result['sell_tax'] * 100:.1f}%")
                             result["risk_score"] += 15
-                        if locked_pct < 0.5 and result["mcap"] > 10000:
-                            result["threats"].append(f"Low LP lock: {locked_pct * 100:.0f}%")
+                        lp_val = result["lp_locked"] if result["lp_locked"] is not None else 1.0
+                        if lp_val < 0.5 and result["mcap"] > 10000:
+                            result["threats"].append(f"Low LP lock: {lp_val * 100:.0f}%")
                             result["risk_score"] += 15
+                        result["_data_source"]["security"] = "databus"
+                        logger.info("scan: DataBus token_security OK for %s", short_addr(address))
             except Exception as e:
-                result["errors"].append(f"GoPlus: {e}")
-
-        # ── Honeypot.is (EVM fallback) ──
-        if is_evm(address) and result["honeypot"] is None:
-            try:
-                r = await client.get(f"{HONEYPOT}/IsHoneypot?address={address}")
-                if r.status_code == 200:
-                    hp = r.json()
-                    result["honeypot"] = hp.get("isHoneypot", False)
-                    if result["honeypot"]:
-                        result["threats"].append("HONEYPOT (honeypot.is)")
-                        result["risk_score"] += 40
-            except Exception as e:
-                result["errors"].append(f"Honeypot.is: {e}")
-
-        # ── RMI Backend ──
-        try:
-            r = await client.get(
-                f"{BACKEND_URL}/api/v1/databus/token/{address}",
-                timeout=10,
-                headers={"X-API-Key": RMI_AUTH_TOKEN},
-            )
-            if r.status_code == 200:
-                rmi = r.json()
-                if rmi.get("bundle_detected"):
-                    result["bundle_detected"] = True
-                    result["threats"].append("Bundle activity detected")
-                    result["risk_score"] += 20
-                if rmi.get("fresh_wallet_pct"):
-                    result["fresh_wallet_pct"] = rmi["fresh_wallet_pct"]
-                    if rmi["fresh_wallet_pct"] > 50:
-                        result["threats"].append(f"High fresh wallet ratio: {rmi['fresh_wallet_pct']:.0f}%")
-                        result["risk_score"] += 10
-                if rmi.get("dev_wallet"):
-                    result["dev_wallet"] = rmi["dev_wallet"]
-        except Exception:
-            pass
+                result["errors"].append(f"DataBus token_security: {e}")
 
     # ── Volume authenticity ──
     if result["volume_24h"] > 0 and result["mcap"] > 0:
@@ -891,13 +922,21 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             )
             return
     msg = await update.message.reply_text(
-        f"🔍 <b>Scanning token...</b>\n"
-        f"<code>{short_addr(target)}</code>\n\n"
-        f"⏳ Querying DexScreener, GoPlus, Honeypot.is, RMI...",
+        f"🔍 <b>Scanning token...</b>\n<code>{short_addr(target)}</code>\n\n⏳ Querying RMI DataBus...",
         parse_mode=ParseMode.HTML,
     )
     try:
         result = await scan_token(target, chain)
+        # DataBus completely failed — no price or detail data
+        if result["_data_source"]["price"] is None and result["_data_source"]["detail"] is None:
+            await msg.edit_text(
+                f"❌ <b>Scanner Temporarily Unavailable</b>\n\n"
+                f"RMI DataBus could not fetch data for <code>{short_addr(target)}</code>.\n\n"
+                f"Please try again later.",
+                parse_mode=ParseMode.HTML,
+                reply_markup=back_kb(),
+            )
+            return
         if result["name"] == "Unknown" and not result["errors"]:
             await msg.edit_text(
                 f"❌ <b>Token Not Found</b>\n\n"
@@ -994,11 +1033,16 @@ async def cmd_ta(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text("📊 <b>Running Technical Analysis...</b>", parse_mode=ParseMode.HTML)
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.get(f"{DEXSCREENER}/tokens/{target}")
+            r = await client.get(
+                f"{DATABUS_URL}/fetch/token_price",
+                params={"mint": target},
+                timeout=10,
+            )
             if r.status_code != 200:
-                await msg.edit_text("❌ Token not found on DexScreener.", parse_mode=ParseMode.HTML)
+                await msg.edit_text("❌ Token not found via RMI DataBus.", parse_mode=ParseMode.HTML)
                 return
-            pairs = r.json().get("pairs", [])
+            payload = _db_payload(r.json())
+            pairs = payload.get("pairs", []) if isinstance(payload, dict) else []
             if not pairs:
                 await msg.edit_text("❌ No trading pairs found.", parse_mode=ParseMode.HTML)
                 return
@@ -1138,7 +1182,7 @@ async def cmd_quick(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     symbol = ctx.args[0].upper().lstrip("$")
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(f"{DEXSCREENER}/search/?q={symbol}")
+            r = await client.get(f"{_DEXSCREENER}/search/?q={symbol}")
             if r.status_code == 200:
                 pairs = r.json().get("pairs", [])
                 if pairs:
@@ -1215,7 +1259,7 @@ async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text("🔥 <b>Fetching trending tokens...</b>", parse_mode=ParseMode.HTML)
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(f"{DEXSCREENER}/search/?q=trending")
+            r = await client.get(f"{_DEXSCREENER}/search/?q=trending")
             if r.status_code == 200:
                 pairs = r.json().get("pairs", [])[:8]
                 if not pairs:
@@ -1663,7 +1707,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.chat.send_action("typing")
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                r = await client.get(f"{DEXSCREENER}/search/?q={symbol}")
+                r = await client.get(f"{_DEXSCREENER}/search/?q={symbol}")
                 if r.status_code == 200:
                     pairs = r.json().get("pairs", [])
                     if pairs:
@@ -1902,7 +1946,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🔥 <b>Fetching trending...</b>", parse_mode=ParseMode.HTML)
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                r = await client.get(f"{DEXSCREENER}/search/?q=trending")
+                r = await client.get(f"{_DEXSCREENER}/search/?q=trending")
                 if r.status_code == 200:
                     pairs = r.json().get("pairs", [])[:6]
                     lines = ["🔥 <b>Trending</b>", thin_sep()]
