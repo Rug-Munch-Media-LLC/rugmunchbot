@@ -6,8 +6,10 @@ Live system dashboard, Prometheus/Grafana integration,
 service health matrix, resource trend alerts.
 """
 
-import subprocess, os, json, time, httpx
-from datetime import datetime, timezone, timedelta
+import subprocess
+from datetime import datetime
+
+import httpx
 
 # ══════════════════════════════════════════════
 # LIVE FLEET SNAPSHOT
@@ -198,12 +200,12 @@ def format_snapshot(snap: dict) -> str:
         f"🖥️ *RMI Fleet Dashboard* — `{snap['hostname']}`",
         f"⏱ Uptime: {snap['uptime']}  |  {snap['time']}",
         "",
-        f"*Resources*",
+        "*Resources*",
         f"{disk_emoji} Disk: `{disk_bar}` {snap['disk_pct']}  ({snap['disk_used']}/{snap['disk_total']})",
         f"{mem_emoji} RAM:  `{mem_bar}` {mem_used}/{mem_total}",
         f"💻 CPU Load: `{snap['load_1m']:.1f}` / `{snap['load_5m']:.1f}` / `{snap['load_15m']:.1f}`",
         "",
-        f"*Services*",
+        "*Services*",
         *service_lines,
         "",
         f"🐳 *Docker* ({snap['docker_running']}/{snap['docker_total']} running)",

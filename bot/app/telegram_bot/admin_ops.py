@@ -7,11 +7,11 @@ system monitoring, backup control, and deployment.
 No Telegram dependencies — callable from anywhere.
 """
 
-import subprocess
 import os
-import time
 import shlex
-from datetime import datetime, timezone, timedelta
+import subprocess
+import time
+from datetime import datetime, timezone
 
 # ══════════════════════════════════════════════
 # CONFIG
@@ -117,7 +117,7 @@ def run_shell(cmd: str, timeout: int = 30) -> dict:
         return {
             "ok": False,
             "output": "",
-            "error": f"⛔ BLOCKED: Command matches dangerous pattern. Not executed.",
+            "error": "⛔ BLOCKED: Command matches dangerous pattern. Not executed.",
             "duration": time.time() - start,
         }
 
@@ -344,18 +344,18 @@ def format_status(s: dict) -> str:
 
     lines = [
         f"🖥️ *RMI Fleet Status* — {s['hostname']}",
-        f"",
+        "",
         f"⏱ Uptime: `{s['uptime']}`",
         f"🕐 Time: `{s['time']}`",
-        f"",
-        f"*Resources:*",
+        "",
+        "*Resources:*",
         f"{disk_emoji} Disk: `{s['disk']['used']}/{s['disk']['total']}` ({s['disk']['pct']})",
         f"{mem_emoji} Memory: `{s['memory']['used']}/{s['memory']['total']}` (free: {s['memory']['available']})",
         f"💻 CPU: load `{s['cpu']['load_1m']}/{s['cpu']['load_5m']}/{s['cpu']['load_15m']}` ({s['cpu']['cores']} cores)",
-        f"",
+        "",
         f"🐳 Docker: *{s['docker']['running']}* running / *{s['docker']['total']}* total",
-        f"",
-        f"*Critical Services:*",
+        "",
+        "*Critical Services:*",
     ]
     for svc, status in s["services"].items():
         lines.append(f"  {status} `{svc}`")
@@ -475,11 +475,11 @@ def deploy_service(service: str) -> dict:
             "docker compose up -d rmi-backend 2>&1"
         ),
         "bot": (
-            f"cd /srv/work/repos/rugmunchbot/bot/app/telegram_bot && "
+            "cd /srv/work/repos/rugmunchbot/bot/app/telegram_bot && "
             "docker compose build 2>&1 && docker compose up -d 2>&1"
         ),
         "admin": (
-            f"cd /srv/work/repos/rugmunchbot/bot/app/telegram_bot && "
+            "cd /srv/work/repos/rugmunchbot/bot/app/telegram_bot && "
             "docker compose build 2>&1 && docker compose up -d 2>&1"
         ),
         "infra": (

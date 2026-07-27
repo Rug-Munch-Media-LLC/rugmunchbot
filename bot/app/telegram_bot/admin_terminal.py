@@ -7,9 +7,10 @@ Features: working directory state, command history, safety filter,
 output streaming, session isolation per user.
 """
 
-import subprocess, os, shlex, time, re
+import os
+import subprocess
+import time
 from datetime import datetime, timezone
-from collections import defaultdict
 
 # ══════════════════════════════════════════════
 # PER-USER SESSIONS
@@ -89,7 +90,7 @@ def check_command(cmd: str) -> tuple[bool, str]:
     cmd_clean = cmd.lower().replace(" ", "")
     for blocked in BLOCKED:
         if blocked.lower().replace(" ", "") in cmd_clean:
-            return False, f"⛔ BLOCKED: Command matches dangerous pattern"
+            return False, "⛔ BLOCKED: Command matches dangerous pattern"
     for pattern, warning in WARNING_PATTERNS:
         if pattern.lower().replace(" ", "") in cmd_clean:
             return True, warning  # Allow but warn
@@ -226,7 +227,7 @@ def execute(session: TerminalSession, cmd: str, timeout: int = 30) -> dict:
     except Exception as e:
         return {
             "ok": False,
-            "output": f"❌ Error: {str(e)}",
+            "output": f"❌ Error: {e!s}",
             "cwd": session.cwd,
             "duration": time.time() - start,
             "warning": "",

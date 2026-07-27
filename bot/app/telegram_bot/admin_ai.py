@@ -6,9 +6,10 @@ Query DeepSeek, Ollama (local), OpenRouter from the admin bot.
 Streaming responses, model switching, usage tracking.
 """
 
-import os, json, time, httpx
-from collections import defaultdict
+import os
 from datetime import datetime, timezone
+
+import httpx
 
 # ══════════════════════════════════════════════
 # AVAILABLE MODELS

@@ -19,12 +19,12 @@ Callback data conventions (wired in admin_bot.py):
   compose_restart          Compose restart
 """
 
-import subprocess, os, time, shlex
+import os
+import shlex
 from datetime import datetime
 
 # Import our shell executor
 import admin_ops
-
 
 # ══════════════════════════════════════════════
 # CONTAINER DISCOVERY
@@ -360,7 +360,7 @@ def container_detail_keyboard(name: str) -> tuple[str, "InlineKeyboardMarkup"]:
 
     lines = [
         f"🐳 *{name}*",
-        f"",
+        "",
         f"State: `{container['state']}`{uptime_str}",
         f"Image: `{container['image']}`",
         f"Started: `{started_raw[:30]}`",

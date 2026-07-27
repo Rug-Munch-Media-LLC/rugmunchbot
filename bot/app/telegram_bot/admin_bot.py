@@ -18,25 +18,25 @@ Commands:
 Owner-only — rejects non-owner users immediately.
 """
 
-import logging, os, sys, traceback
+import logging
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+import admin_ops
+import admin_terminal
+from config import ADMIN_BOT_TOKEN, OWNER_IDS
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
-    CommandHandler,
     CallbackQueryHandler,
-    MessageHandler,
+    CommandHandler,
     ContextTypes,
+    MessageHandler,
     filters,
 )
-
-from config import ADMIN_BOT_TOKEN, OWNER_IDS
-import admin_ops
-import admin_terminal
 
 try:
     import admin_ai

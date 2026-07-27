@@ -6,8 +6,13 @@ Git ops, Docker rebuild, service orchestration.
 Progress tracking, rollback capability.
 """
 
-import subprocess, os, time, shlex, re
+import os
+import re
+import shlex
+import subprocess
+import time
 from datetime import datetime, timezone
+
 import admin_ops
 
 # ══════════════════════════════════════════════
