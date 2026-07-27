@@ -18,5 +18,12 @@ COPY admin_bot.py .
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
+# Create non-root user
+RUN groupadd --gid 1001 rugmunch && \
+    useradd --uid 1001 --gid rugmunch --shell /bin/false --create-home rugmunch && \
+    chown -R rugmunch:rugmunch /app
+
+USER rugmunch
+
 # Run the bot
 CMD ["python3", "-u", "bot.py"]
