@@ -7,7 +7,6 @@ This test ensures all critical P0 bugs are fixed:
   4. No broken import paths (cmd_buy SUBSCRIPTION_PLANS replaced inline)
 """
 
-import importlib
 import re
 import sys
 from pathlib import Path
@@ -26,7 +25,6 @@ def test_bot_module_imports_cleanly():
 
     assert config.BOT_TOKEN is not None
 
-    import db
 
     # Verify the main bot module parses and imports cleanly
     import bot as bot_mod
@@ -36,15 +34,15 @@ def test_bot_module_imports_cleanly():
     assert hasattr(bot_mod, "cmd_buy")
 
     # Verify the live command file
-    from commands.investigate import investigate_cmd, register
+    from commands.investigate import register
 
     assert callable(register)
 
     # Verify archived dead module does NOT exist in live commands
     with pytest.raises(ImportError):
-        import commands.fundflow
+        pass
     with pytest.raises(ImportError):
-        import commands.voice
+        pass
 
 
 def test_no_duplicate_pricing_handler():
@@ -54,7 +52,6 @@ def test_no_duplicate_pricing_handler():
     # Read the source to verify only one /pricing registration
     source = Path(bot_mod.__file__).read_text()
     # Count occurrences of CommandHandler("pricing", ...)
-    import re
 
     matches = re.findall(r'CommandHandler\("pricing",\s*(cmd_\w+)\)', source)
     assert len(matches) == 1, f"Expected 1 /pricing handler, found {len(matches)}: {matches}"

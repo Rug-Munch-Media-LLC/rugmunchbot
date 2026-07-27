@@ -15,7 +15,10 @@ WHAT IT BLOCKS:
 - Private API keys and tokens (gopass references)
 """
 
-import subprocess, sys, re, os
+import subprocess
+import sys
+import re
+import os
 
 BLOCKED_PATTERNS = [
     # Private repo names

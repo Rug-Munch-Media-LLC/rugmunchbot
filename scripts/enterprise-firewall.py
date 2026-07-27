@@ -28,9 +28,13 @@ BLOCKED CONTENT CATEGORIES:
   HIGH_ENTROPY — Suspicious high-entropy strings
 """
 
-import subprocess, sys, re, os, hashlib, struct, json, math
+import subprocess
+import sys
+import re
+import os
+import hashlib
+import math
 from pathlib import Path
-from datetime import datetime, timezone
 
 # ─── L1: CONTENT FINGERPRINTING ──────────────────────────────────────────────
 # SimHash implementation — detects near-duplicate proprietary code
