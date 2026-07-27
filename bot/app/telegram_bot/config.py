@@ -12,7 +12,11 @@ import os
 # ══════════════════════════════════════════════
 BOT_TOKEN = os.getenv("RUGMUNCH_BOT_TOKEN", "")
 ADMIN_BOT_TOKEN = os.getenv("ADMIN_BOT_TOKEN", "")
-OWNER_IDS = {int(x.strip()) for x in os.getenv("TELEGRAM_ALLOWED_USERS", "7075336557").split(",") if x.strip()}
+OWNER_IDS = {
+    int(x.strip())
+    for x in os.getenv("TELEGRAM_ALLOWED_USERS", "7075336557").split(",")
+    if x.strip()
+}
 BOT_USERNAME = "rugmunchbot"
 
 # ══════════════════════════════════════════════

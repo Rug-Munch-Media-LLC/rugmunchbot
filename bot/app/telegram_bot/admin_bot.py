@@ -257,7 +257,7 @@ async def cmd_shell(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text(
         f"⏳ Running: `{cmd[:100]}`...", parse_mode=ParseMode.MARKDOWN
     )
-    result = admin_ops.run_shell(cmd, timeout=30)
+    result = admin_ops.run_shell_safe(cmd, timeout=30)
     output = result["output"] or result["error"]
     status_line = (
         f"{'✅' if result['ok'] else '❌'} `{cmd[:80]}` ({result['duration']:.1f}s)"

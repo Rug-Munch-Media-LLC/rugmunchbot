@@ -6,6 +6,7 @@ Live system dashboard, Prometheus/Grafana integration,
 service health matrix, resource trend alerts.
 """
 
+import shlex
 import subprocess
 from datetime import datetime
 
@@ -21,8 +22,9 @@ def fleet_snapshot() -> dict:
 
     def run(cmd, timeout=5):
         try:
+            args = shlex.split(cmd)
             r = subprocess.run(
-                cmd, shell=True, timeout=timeout, capture_output=True, text=True
+                args, shell=False, timeout=timeout, capture_output=True, text=True
             )
             return r.stdout.strip() or r.stderr.strip()
         except Exception:

@@ -69,17 +69,18 @@ def _clean_output(result: dict) -> dict:
 
 
 def _git_cmd(repo_path: str, git_args: str, timeout: int = 30) -> dict:
-    """Run a git command robustly with clean environment (no shell rc pollution)."""
+    """Run a git command robustly with clean environment (no shell rc pollution).
+    Uses shell=False + shlex.split() to prevent shell injection."""
     start = time.time()
     try:
+        args_list = ["git", "-C", repo_path, "--no-pager"] + shlex.split(git_args)
         result = subprocess.run(
-            f"git -C {shlex.quote(repo_path)} --no-pager {git_args}",
-            shell=True,
+            args_list,
+            shell=False,
             timeout=timeout,
             capture_output=True,
             text=True,
             env={
-                "BASH_ENV": "/dev/null",
                 "PATH": "/usr/local/bin:/usr/bin:/bin",
                 "HOME": os.path.expanduser("~"),
             },
@@ -94,7 +95,7 @@ def _git_cmd(repo_path: str, git_args: str, timeout: int = 30) -> dict:
             "error": "",
             "duration": time.time() - start,
         }
-    except _sp.TimeoutExpired:
+    except subprocess.TimeoutExpired:
         return {
             "ok": False,
             "output": "",
@@ -133,7 +134,7 @@ def git_status(repo_path: str) -> dict:
         timeout=10,
     )
 
-    changes = len([l for l in status["output"].split("\n") if l.strip()])
+    changes = len([ln for ln in status["output"].split("\n") if ln.strip()])
 
     return {
         "ok": True,

@@ -41,14 +41,20 @@ async def investigate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lines = [f"*Investigation Report: `{address[:12]}...`*", ""]
             if "sanctions" in results:
                 s = results["sanctions"]
-                lines.append(f"*Sanctions:* {'🚫 FLAGGED' if s.get('flags') else '✅ Clean'}")
+                lines.append(
+                    f"*Sanctions:* {'🚫 FLAGGED' if s.get('flags') else '✅ Clean'}"
+                )
             if "deployer" in results:
                 d = results["deployer"]
-                lines.append(f"*Deployer Rep:* {d.get('reputation', '?')} ({d.get('total_tokens', 0)} tokens)")
+                lines.append(
+                    f"*Deployer Rep:* {d.get('reputation', '?')} ({d.get('total_tokens', 0)} tokens)"
+                )
             if "decompile" in results:
                 dc = results["decompile"]
                 if dc.get("is_contract"):
-                    lines.append(f"*Contract:* {dc.get('code_size', '?')} bytes, ERC20: {dc.get('is_erc20', '?')}")
+                    lines.append(
+                        f"*Contract:* {dc.get('code_size', '?')} bytes, ERC20: {dc.get('is_erc20', '?')}"
+                    )
                     if dc.get("risk_indicators"):
                         for r in dc["risk_indicators"][:3]:
                             lines.append(f"  ⚠️ {r['finding']}")
@@ -62,7 +68,9 @@ async def investigate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]
             ]
             await update.message.reply_text(
-                "\n".join(lines), parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard)
+                "\n".join(lines),
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(keyboard),
             )
     except Exception as e:
         await update.message.reply_text(f"Investigation failed: {str(e)[:100]}")

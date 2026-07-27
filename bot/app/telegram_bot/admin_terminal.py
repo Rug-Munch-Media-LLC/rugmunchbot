@@ -8,6 +8,7 @@ output streaming, session isolation per user.
 """
 
 import os
+import shlex
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -177,20 +178,20 @@ def execute(session: TerminalSession, cmd: str, timeout: int = 30) -> dict:
             "exit": False,
         }
 
-    # Execute
+    # Execute — use shell=False with shlex.split() to prevent shell injection
     start = time.time()
     session.history.append(cmd)
     if len(session.history) > 100:
         session.history = session.history[-100:]
 
     try:
+        args = shlex.split(cmd)
         result = subprocess.run(
-            cmd,
-            shell=True,
+            args,
+            shell=False,
             timeout=timeout,
             capture_output=True,
             text=True,
-            executable="/bin/bash",
             cwd=session.cwd,
         )
         output = result.stdout.strip()
@@ -213,6 +214,16 @@ def execute(session: TerminalSession, cmd: str, timeout: int = 30) -> dict:
             "cwd": session.cwd,
             "duration": time.time() - start,
             "warning": msg if msg else "",
+            "exit": False,
+        }
+    except ValueError as e:
+        # shlex.split failed (unterminated quotes)
+        return {
+            "ok": False,
+            "output": f"❌ Invalid command syntax: {e!s}",
+            "cwd": session.cwd,
+            "duration": time.time() - start,
+            "warning": "",
             "exit": False,
         }
     except subprocess.TimeoutExpired:

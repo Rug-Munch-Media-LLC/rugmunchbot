@@ -93,7 +93,9 @@ def init_db():
 # ── User Management ──
 
 
-def get_or_create_user(user_id: int, username: str | None = None, first_name: str | None = None) -> dict:
+def get_or_create_user(
+    user_id: int, username: str | None = None, first_name: str | None = None
+) -> dict:
     conn = get_db()
     row = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
     if row:
@@ -113,7 +115,9 @@ def get_or_create_user(user_id: int, username: str | None = None, first_name: st
             (user_id, username, first_name, now, now, ref_code),
         )
         conn.commit()
-        row = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM users WHERE user_id = ?", (user_id,)
+        ).fetchone()
         result = dict(row)
     conn.close()
     return result
@@ -121,13 +125,22 @@ def get_or_create_user(user_id: int, username: str | None = None, first_name: st
 
 def get_user_tier(user_id: int) -> str:
     conn = get_db()
-    row = conn.execute("SELECT tier, tier_expires FROM users WHERE user_id = ?", (user_id,)).fetchone()
+    row = conn.execute(
+        "SELECT tier, tier_expires FROM users WHERE user_id = ?", (user_id,)
+    ).fetchone()
     conn.close()
     if not row:
         return "free"
-    if row["tier"] != "free" and row["tier_expires"] > 0 and time.time() > row["tier_expires"]:
+    if (
+        row["tier"] != "free"
+        and row["tier_expires"] > 0
+        and time.time() > row["tier_expires"]
+    ):
         conn = get_db()
-        conn.execute("UPDATE users SET tier = 'free', tier_expires = 0 WHERE user_id = ?", (user_id,))
+        conn.execute(
+            "UPDATE users SET tier = 'free', tier_expires = 0 WHERE user_id = ?",
+            (user_id,),
+        )
         conn.commit()
         conn.close()
         return "free"
@@ -135,9 +148,14 @@ def get_user_tier(user_id: int) -> str:
 
 
 def set_user_tier(user_id: int, tier: str, days: int = 30):
-    expires = int(time.time() + timedelta(days=days).total_seconds()) if tier != "free" else 0
+    expires = (
+        int(time.time() + timedelta(days=days).total_seconds()) if tier != "free" else 0
+    )
     conn = get_db()
-    conn.execute("UPDATE users SET tier = ?, tier_expires = ? WHERE user_id = ?", (tier, expires, user_id))
+    conn.execute(
+        "UPDATE users SET tier = ?, tier_expires = ? WHERE user_id = ?",
+        (tier, expires, user_id),
+    )
     conn.commit()
     conn.close()
 
@@ -171,9 +189,12 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False):
     if scan:
         # Check if weekly allotment has room
         row = conn.execute(
-            "SELECT scans FROM weekly_usage WHERE user_id = ? AND week_start = ?", (user_id, week)
+            "SELECT scans FROM weekly_usage WHERE user_id = ? AND week_start = ?",
+            (user_id, week),
         ).fetchone()
-        user = conn.execute("SELECT bonus_scans FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        user = conn.execute(
+            "SELECT bonus_scans FROM users WHERE user_id = ?", (user_id,)
+        ).fetchone()
         from config import TIERS
 
         tier = get_user_tier(user_id)
@@ -192,18 +213,27 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False):
             )
         elif user and user["bonus_scans"] > 0:
             # Use bonus balance
-            conn.execute("UPDATE users SET bonus_scans = bonus_scans - 1 WHERE user_id = ?", (user_id,))
+            conn.execute(
+                "UPDATE users SET bonus_scans = bonus_scans - 1 WHERE user_id = ?",
+                (user_id,),
+            )
         else:
             conn.close()
             return False  # No quota available
 
-        conn.execute("UPDATE users SET total_scans = total_scans + 1 WHERE user_id = ?", (user_id,))
+        conn.execute(
+            "UPDATE users SET total_scans = total_scans + 1 WHERE user_id = ?",
+            (user_id,),
+        )
 
     if ai_msg:
         row = conn.execute(
-            "SELECT ai_msgs FROM weekly_usage WHERE user_id = ? AND week_start = ?", (user_id, week)
+            "SELECT ai_msgs FROM weekly_usage WHERE user_id = ? AND week_start = ?",
+            (user_id, week),
         ).fetchone()
-        user = conn.execute("SELECT bonus_ai_msgs FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        user = conn.execute(
+            "SELECT bonus_ai_msgs FROM users WHERE user_id = ?", (user_id,)
+        ).fetchone()
         from config import TIERS
 
         tier = get_user_tier(user_id)
@@ -220,12 +250,18 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False):
                 (user_id, week),
             )
         elif user and user["bonus_ai_msgs"] > 0:
-            conn.execute("UPDATE users SET bonus_ai_msgs = bonus_ai_msgs - 1 WHERE user_id = ?", (user_id,))
+            conn.execute(
+                "UPDATE users SET bonus_ai_msgs = bonus_ai_msgs - 1 WHERE user_id = ?",
+                (user_id,),
+            )
         else:
             conn.close()
             return False
 
-        conn.execute("UPDATE users SET total_ai_msgs = total_ai_msgs + 1 WHERE user_id = ?", (user_id,))
+        conn.execute(
+            "UPDATE users SET total_ai_msgs = total_ai_msgs + 1 WHERE user_id = ?",
+            (user_id,),
+        )
 
     conn.commit()
     conn.close()
@@ -242,7 +278,9 @@ def check_rate_limit(user_id: int, action: str = "scan") -> tuple[bool, int, int
     scans_used, ai_used = get_weekly_usage(user_id)
 
     conn = get_db()
-    user = conn.execute("SELECT bonus_scans, bonus_ai_msgs FROM users WHERE user_id = ?", (user_id,)).fetchone()
+    user = conn.execute(
+        "SELECT bonus_scans, bonus_ai_msgs FROM users WHERE user_id = ?", (user_id,)
+    ).fetchone()
     conn.close()
     bonus_s = user["bonus_scans"] if user else 0
     bonus_a = user["bonus_ai_msgs"] if user else 0
@@ -278,14 +316,23 @@ def add_watchlist(
         return False
     conn = get_db()
     count = conn.execute(
-        "SELECT COUNT(*) as c FROM watchlists WHERE user_id = ? AND is_active = 1", (user_id,)
+        "SELECT COUNT(*) as c FROM watchlists WHERE user_id = ? AND is_active = 1",
+        (user_id,),
     ).fetchone()["c"]
     if max_items != -1 and count >= max_items:
         conn.close()
         return False
     conn.execute(
         "INSERT INTO watchlists (user_id, token_address, chain, symbol, alert_price, alert_direction, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (user_id, token_address, chain, symbol, alert_price, alert_dir, int(time.time())),
+        (
+            user_id,
+            token_address,
+            chain,
+            symbol,
+            alert_price,
+            alert_dir,
+            int(time.time()),
+        ),
     )
     conn.commit()
     conn.close()
@@ -317,7 +364,9 @@ def remove_watchlist(user_id: int, token_address: str) -> bool:
 # ── Scan History ──
 
 
-def log_scan(user_id: int, token_address: str, chain: str, scan_type: str, risk_score: float):
+def log_scan(
+    user_id: int, token_address: str, chain: str, scan_type: str, risk_score: float
+):
     conn = get_db()
     conn.execute(
         "INSERT INTO scan_history (user_id, token_address, chain, scan_type, risk_score, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -332,7 +381,10 @@ def log_scan(user_id: int, token_address: str, chain: str, scan_type: str, risk_
 
 def add_stars(user_id: int, amount: int, action: str, payment_id: str | None = None):
     conn = get_db()
-    conn.execute("UPDATE users SET stars_balance = stars_balance + ? WHERE user_id = ?", (amount, user_id))
+    conn.execute(
+        "UPDATE users SET stars_balance = stars_balance + ? WHERE user_id = ?",
+        (amount, user_id),
+    )
     conn.execute(
         "INSERT INTO star_transactions (user_id, amount, action, telegram_payment_id, created_at) VALUES (?, ?, ?, ?, ?)",
         (user_id, amount, action, payment_id, int(time.time())),
@@ -343,11 +395,16 @@ def add_stars(user_id: int, amount: int, action: str, payment_id: str | None = N
 
 def spend_stars(user_id: int, amount: int, action: str) -> bool:
     conn = get_db()
-    row = conn.execute("SELECT stars_balance FROM users WHERE user_id = ?", (user_id,)).fetchone()
+    row = conn.execute(
+        "SELECT stars_balance FROM users WHERE user_id = ?", (user_id,)
+    ).fetchone()
     if not row or row["stars_balance"] < amount:
         conn.close()
         return False
-    conn.execute("UPDATE users SET stars_balance = stars_balance - ? WHERE user_id = ?", (amount, user_id))
+    conn.execute(
+        "UPDATE users SET stars_balance = stars_balance - ? WHERE user_id = ?",
+        (amount, user_id),
+    )
     conn.execute(
         "INSERT INTO star_transactions (user_id, amount, action, created_at) VALUES (?, ?, ?, ?)",
         (user_id, -amount, action, int(time.time())),
@@ -357,10 +414,18 @@ def spend_stars(user_id: int, amount: int, action: str) -> bool:
     return True
 
 
-def apply_top_up(user_id: int, pack_type: str, amount: int, stars_cost: int, payment_id: str | None = None) -> bool:
+def apply_top_up(
+    user_id: int,
+    pack_type: str,
+    amount: int,
+    stars_cost: int,
+    payment_id: str | None = None,
+) -> bool:
     """Apply a top-up purchase: deduct stars, credit bonus balance."""
     conn = get_db()
-    row = conn.execute("SELECT stars_balance FROM users WHERE user_id = ?", (user_id,)).fetchone()
+    row = conn.execute(
+        "SELECT stars_balance FROM users WHERE user_id = ?", (user_id,)
+    ).fetchone()
     if not row or row["stars_balance"] < stars_cost:
         conn.close()
         return False
@@ -371,7 +436,10 @@ def apply_top_up(user_id: int, pack_type: str, amount: int, stars_cost: int, pay
     )
     # Credit bonus
     if pack_type == "scans":
-        conn.execute("UPDATE users SET bonus_scans = bonus_scans + ? WHERE user_id = ?", (amount, user_id))
+        conn.execute(
+            "UPDATE users SET bonus_scans = bonus_scans + ? WHERE user_id = ?",
+            (amount, user_id),
+        )
     elif pack_type == "ai_msgs":
         conn.execute(
             "UPDATE users SET bonus_ai_msgs = bonus_ai_msgs + ? WHERE user_id = ?",
@@ -380,7 +448,13 @@ def apply_top_up(user_id: int, pack_type: str, amount: int, stars_cost: int, pay
     # Log transaction
     conn.execute(
         "INSERT INTO star_transactions (user_id, amount, action, telegram_payment_id, created_at) VALUES (?, ?, ?, ?, ?)",
-        (user_id, -stars_cost, f"top_up_{pack_type}_{amount}", payment_id, int(time.time())),
+        (
+            user_id,
+            -stars_cost,
+            f"top_up_{pack_type}_{amount}",
+            payment_id,
+            int(time.time()),
+        ),
     )
     conn.commit()
     conn.close()
@@ -394,7 +468,8 @@ def get_user_stats(user_id: int) -> dict:
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
     watchlist_count = conn.execute(
-        "SELECT COUNT(*) as c FROM watchlists WHERE user_id = ? AND is_active = 1", (user_id,)
+        "SELECT COUNT(*) as c FROM watchlists WHERE user_id = ? AND is_active = 1",
+        (user_id,),
     ).fetchone()["c"]
     conn.close()
     if not user:

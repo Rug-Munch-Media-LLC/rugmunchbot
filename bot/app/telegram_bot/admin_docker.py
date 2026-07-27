@@ -19,9 +19,15 @@ Callback data conventions (wired in admin_bot.py):
   compose_restart          Compose restart
 """
 
+from __future__ import annotations
+
 import os
 import shlex
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from telegram import InlineKeyboardMarkup  # noqa: F401 (used in type hints)
 
 # Import our shell executor
 import admin_ops

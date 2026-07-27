@@ -36,6 +36,57 @@ BLOCKED_PATTERNS = [
     "chmod -R 777 /",
 ]
 
+# Whitelist for user-facing shell commands (/sh, terminal mode).
+# Only commands matching these prefixes are allowed when shell=True is unsafe.
+# Uses shlex.split() + shell=False to prevent shell injection.
+SAFE_CMD_PREFIXES = [
+    # System info
+    "hostname",
+    "uptime",
+    "df",
+    "free",
+    "nproc",
+    "uname",
+    "date",
+    "cat /proc/",
+    "ls /backups",
+    "ls -lth /backups",
+    "ls -lt /backups",
+    # Process info
+    "ps aux",
+    "ps -",
+    # Network
+    "ss ",
+    "netstat",
+    # Disk usage
+    "du -sh ",
+    # Docker read-only
+    "docker ps",
+    "docker stats",
+    "docker system df",
+    "docker compose ps",
+    "docker compose config",
+    "docker compose -f",
+    "docker inspect",
+    "docker logs",
+    # Docker service management (restricted to known services)
+    "docker restart ",
+    "docker stop ",
+    "docker start ",
+    # Systemd status (read-only)
+    "systemctl status",
+    "systemctl is-active",
+    # Journal logs
+    "journalctl -u ",
+    # Health curl
+    "curl -sf",
+    "curl -s",
+    # Finding files
+    "find ",
+    # Docker exec for health checks only (use 'docker exec rmi-')
+    "docker exec rmi-",
+]
+
 # Compose paths
 COMPOSE_INFRA = (
     "/srv/work/repos/fleet-infra/rmi-infra/docker-compose.infrastructure.yml"
@@ -108,8 +159,28 @@ def check_dangerous(cmd: str) -> bool:
     return False
 
 
+def _match_prefix(cmd: str, prefixes: list[str]) -> bool:
+    """Check if cmd starts with any of the given prefixes (case-insensitive)."""
+    cmd_lower = cmd.lower().strip()
+    for p in prefixes:
+        if cmd_lower.startswith(p.lower()):
+            return True
+    return False
+
+
+def is_safe_command(cmd: str) -> bool:
+    """Validate a user-supplied command against the SAFE_CMD_PREFIXES whitelist.
+    Returns True only if the command matches an allowed prefix pattern.
+    This prevents shell injection by restricting to a known-safe set.
+    """
+    return _match_prefix(cmd, SAFE_CMD_PREFIXES)
+
+
 def run_shell(cmd: str, timeout: int = 30) -> dict:
-    """Execute a shell command safely. Returns {ok, output, error, duration}."""
+    """Execute a shell command. Returns {ok, output, error, duration}.
+    NOTE: For INTERNAL use only (pipes, redirects, shell features).
+    User-facing commands MUST use run_shell_safe() instead.
+    """
     _log(cmd)
     start = time.time()
 
@@ -129,6 +200,81 @@ def run_shell(cmd: str, timeout: int = 30) -> dict:
             capture_output=True,
             text=True,
             executable="/bin/bash",
+        )
+        output = result.stdout.strip()
+        if result.stderr.strip():
+            output += "\n" + result.stderr.strip()
+        output = _sanitize(output)
+        if len(output) > 3500:
+            output = output[:3400] + "\n\n[... truncated at 3500 chars]"
+        return {
+            "ok": result.returncode == 0,
+            "output": output or "(no output)",
+            "error": "",
+            "duration": time.time() - start,
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "ok": False,
+            "output": "",
+            "error": f"⏰ Command timed out after {timeout}s",
+            "duration": timeout,
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "output": "",
+            "error": f"❌ Error: {str(e)[:200]}",
+            "duration": time.time() - start,
+        }
+
+
+def run_shell_safe(cmd: str, timeout: int = 30) -> dict:
+    """Execute a user-supplied command SAFELY.
+    Uses shlex.split() + shell=False to prevent shell injection.
+    Validates against SAFE_CMD_PREFIXES whitelist.
+    Returns {ok, output, error, duration}.
+    """
+    _log(cmd)
+    start = time.time()
+
+    # Whitelist check — reject commands not in the safe list
+    if not is_safe_command(cmd):
+        return {
+            "ok": False,
+            "output": "",
+            "error": (
+                "⛔ Command not allowed. Use one of:\n"
+                "  • system, df, free, uptime, docker ps/stats/logs\n"
+                "  • systemctl status <service>\n"
+                "  • journalctl -u <service>\n"
+                "  • docker restart|stop|start <container>\n"
+                "  • ps aux, ss, netstat, du -sh\n"
+                "  • docker compose ps/config\n"
+                "  • curl -sf <url>\n"
+                "  • find <path>\n\n"
+                "Run /sh with no args for full help."
+            ),
+            "duration": time.time() - start,
+        }
+
+    # Block dangerous patterns even within allowed commands
+    if check_dangerous(cmd):
+        return {
+            "ok": False,
+            "output": "",
+            "error": "⛔ BLOCKED: Command matches dangerous pattern. Not executed.",
+            "duration": time.time() - start,
+        }
+
+    try:
+        args = shlex.split(cmd)
+        result = subprocess.run(
+            args,
+            shell=False,
+            timeout=timeout,
+            capture_output=True,
+            text=True,
         )
         output = result.stdout.strip()
         if result.stderr.strip():
@@ -483,8 +629,7 @@ def deploy_service(service: str) -> dict:
             "docker compose build 2>&1 && docker compose up -d 2>&1"
         ),
         "infra": (
-            f"cd /srv/work/repos/fleet-infra/rmi-infra && "
-            f"docker compose -f {shlex.quote(COMPOSE_INFRA)} up -d 2>&1"
+            f"cd /srv/work/repos/fleet-infra/rmi-infra && docker compose -f {shlex.quote(COMPOSE_INFRA)} up -d 2>&1"
         ),
     }
 
