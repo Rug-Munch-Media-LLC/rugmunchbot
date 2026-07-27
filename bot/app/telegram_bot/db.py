@@ -11,6 +11,12 @@ import sqlite3
 import time
 from datetime import UTC, datetime, timedelta
 
+# Import TIERS with fallback for different run modes (bot vs test)
+try:
+    from config import TIERS
+except ImportError:
+    from bot.app.telegram_bot.config import TIERS  # type: ignore[assignment]
+
 DB_PATH = os.getenv("BOT_DB_PATH", "/root/backend/data/bot_users.db")
 
 
@@ -182,44 +188,40 @@ def get_weekly_usage(user_id: int) -> tuple[int, int]:
 
 
 def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False):
-    """Consume 1 scan or AI msg. Tries weekly allotment first, then bonus balance."""
+    """Consume 1 scan or AI msg. Tries weekly allotment first, then bonus balance.
+
+    Uses atomic UPDATE with WHERE guard to prevent TOCTOU races.
+    """
     week = _current_week_start()
     conn = get_db()
 
     if scan:
-        # Check if weekly allotment has room
-        row = conn.execute(
-            "SELECT scans FROM weekly_usage WHERE user_id = ? AND week_start = ?",
-            (user_id, week),
-        ).fetchone()
-        user = conn.execute(
-            "SELECT bonus_scans FROM users WHERE user_id = ?", (user_id,)
-        ).fetchone()
-        from config import TIERS
-
         tier = get_user_tier(user_id)
         limit = TIERS.get(tier, TIERS["free"]).get("scans_per_week", 25)
-        current = row["scans"] if row else 0
 
-        if current < limit:
-            # Use weekly allotment
-            conn.execute(
-                """
-                INSERT INTO weekly_usage (user_id, week_start, scans, ai_msgs)
-                VALUES (?, ?, 1, 0)
-                ON CONFLICT(user_id, week_start) DO UPDATE SET scans = scans + 1
-            """,
-                (user_id, week),
-            )
-        elif user and user["bonus_scans"] > 0:
-            # Use bonus balance
-            conn.execute(
-                "UPDATE users SET bonus_scans = bonus_scans - 1 WHERE user_id = ?",
+        # Ensure a weekly_usage row exists
+        conn.execute(
+            """INSERT INTO weekly_usage (user_id, week_start, scans, ai_msgs)
+               VALUES (?, ?, 0, 0)
+               ON CONFLICT(user_id, week_start) DO NOTHING""",
+            (user_id, week),
+        )
+        # Atomic: only increment if under the weekly limit
+        c = conn.execute(
+            """UPDATE weekly_usage SET scans = scans + 1
+               WHERE user_id = ? AND week_start = ? AND scans < ?""",
+            (user_id, week, limit),
+        )
+        if c.rowcount == 0:
+            # Weekly allotment full — try bonus balance atomically
+            c = conn.execute(
+                """UPDATE users SET bonus_scans = bonus_scans - 1
+                   WHERE user_id = ? AND bonus_scans > 0""",
                 (user_id,),
             )
-        else:
-            conn.close()
-            return False  # No quota available
+            if c.rowcount == 0:
+                conn.close()
+                return False  # No quota available
 
         conn.execute(
             "UPDATE users SET total_scans = total_scans + 1 WHERE user_id = ?",
@@ -227,36 +229,32 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False):
         )
 
     if ai_msg:
-        row = conn.execute(
-            "SELECT ai_msgs FROM weekly_usage WHERE user_id = ? AND week_start = ?",
-            (user_id, week),
-        ).fetchone()
-        user = conn.execute(
-            "SELECT bonus_ai_msgs FROM users WHERE user_id = ?", (user_id,)
-        ).fetchone()
-        from config import TIERS
-
         tier = get_user_tier(user_id)
         limit = TIERS.get(tier, TIERS["free"]).get("ai_msgs_per_week", 15)
-        current = row["ai_msgs"] if row else 0
 
-        if current < limit:
-            conn.execute(
-                """
-                INSERT INTO weekly_usage (user_id, week_start, scans, ai_msgs)
-                VALUES (?, ?, 0, 1)
-                ON CONFLICT(user_id, week_start) DO UPDATE SET ai_msgs = ai_msgs + 1
-            """,
-                (user_id, week),
-            )
-        elif user and user["bonus_ai_msgs"] > 0:
-            conn.execute(
-                "UPDATE users SET bonus_ai_msgs = bonus_ai_msgs - 1 WHERE user_id = ?",
+        # Ensure a weekly_usage row exists
+        conn.execute(
+            """INSERT INTO weekly_usage (user_id, week_start, scans, ai_msgs)
+               VALUES (?, ?, 0, 0)
+               ON CONFLICT(user_id, week_start) DO NOTHING""",
+            (user_id, week),
+        )
+        # Atomic: only increment if under the weekly limit
+        c = conn.execute(
+            """UPDATE weekly_usage SET ai_msgs = ai_msgs + 1
+               WHERE user_id = ? AND week_start = ? AND ai_msgs < ?""",
+            (user_id, week, limit),
+        )
+        if c.rowcount == 0:
+            # Weekly allotment full — try bonus balance atomically
+            c = conn.execute(
+                """UPDATE users SET bonus_ai_msgs = bonus_ai_msgs - 1
+                   WHERE user_id = ? AND bonus_ai_msgs > 0""",
                 (user_id,),
             )
-        else:
-            conn.close()
-            return False
+            if c.rowcount == 0:
+                conn.close()
+                return False  # No quota available
 
         conn.execute(
             "UPDATE users SET total_ai_msgs = total_ai_msgs + 1 WHERE user_id = ?",
@@ -271,8 +269,6 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False):
 def check_rate_limit(user_id: int, action: str = "scan") -> tuple[bool, int, int]:
     """Returns (allowed, current_used, max_allowed).
     'allowed' is True if weekly allotment OR bonus balance has room."""
-    from config import TIERS
-
     tier = get_user_tier(user_id)
     tier_config = TIERS.get(tier, TIERS["free"])
     scans_used, ai_used = get_weekly_usage(user_id)
@@ -395,16 +391,14 @@ def add_stars(user_id: int, amount: int, action: str, payment_id: str | None = N
 
 def spend_stars(user_id: int, amount: int, action: str) -> bool:
     conn = get_db()
-    row = conn.execute(
-        "SELECT stars_balance FROM users WHERE user_id = ?", (user_id,)
-    ).fetchone()
-    if not row or row["stars_balance"] < amount:
+    # Atomic: only deduct if balance is sufficient (WHERE stars_balance >= ?)
+    c = conn.execute(
+        "UPDATE users SET stars_balance = stars_balance - ? WHERE user_id = ? AND stars_balance >= ?",
+        (amount, user_id, amount),
+    )
+    if c.rowcount == 0:
         conn.close()
         return False
-    conn.execute(
-        "UPDATE users SET stars_balance = stars_balance - ? WHERE user_id = ?",
-        (amount, user_id),
-    )
     conn.execute(
         "INSERT INTO star_transactions (user_id, amount, action, created_at) VALUES (?, ?, ?, ?)",
         (user_id, -amount, action, int(time.time())),
@@ -421,30 +415,24 @@ def apply_top_up(
     stars_cost: int,
     payment_id: str | None = None,
 ) -> bool:
-    """Apply a top-up purchase: deduct stars, credit bonus balance."""
+    """Apply a top-up purchase: deduct stars, credit bonus balance.
+
+    Uses atomic UPDATE with WHERE guard to prevent TOCTOU races.
+    """
     conn = get_db()
-    row = conn.execute(
-        "SELECT stars_balance FROM users WHERE user_id = ?", (user_id,)
-    ).fetchone()
-    if not row or row["stars_balance"] < stars_cost:
+    # Atomic: only deduct if balance is sufficient
+    bonus_scan_inc = amount if pack_type == "scans" else 0
+    bonus_ai_inc = amount if pack_type == "ai_msgs" else 0
+    c = conn.execute(
+        """UPDATE users SET stars_balance = stars_balance - ?,
+               bonus_scans = bonus_scans + ?,
+               bonus_ai_msgs = bonus_ai_msgs + ?
+           WHERE user_id = ? AND stars_balance >= ?""",
+        (stars_cost, bonus_scan_inc, bonus_ai_inc, user_id, stars_cost),
+    )
+    if c.rowcount == 0:
         conn.close()
         return False
-    # Deduct stars
-    conn.execute(
-        "UPDATE users SET stars_balance = stars_balance - ? WHERE user_id = ?",
-        (stars_cost, user_id),
-    )
-    # Credit bonus
-    if pack_type == "scans":
-        conn.execute(
-            "UPDATE users SET bonus_scans = bonus_scans + ? WHERE user_id = ?",
-            (amount, user_id),
-        )
-    elif pack_type == "ai_msgs":
-        conn.execute(
-            "UPDATE users SET bonus_ai_msgs = bonus_ai_msgs + ? WHERE user_id = ?",
-            (amount, user_id),
-        )
     # Log transaction
     conn.execute(
         "INSERT INTO star_transactions (user_id, amount, action, telegram_payment_id, created_at) VALUES (?, ?, ?, ?, ?)",

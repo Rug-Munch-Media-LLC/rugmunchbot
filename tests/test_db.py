@@ -10,7 +10,6 @@ real BOT_DB_PATH file.
 import os
 import tempfile
 import time
-from unittest import mock
 
 import pytest
 
@@ -18,7 +17,7 @@ import pytest
 _db_fd, _db_path = tempfile.mkstemp(suffix=".db")
 os.environ["BOT_DB_PATH"] = _db_path
 
-from bot.app.telegram_bot import db
+from bot.app.telegram_bot import db  # noqa: E402 — must come after BOT_DB_PATH override
 
 
 @pytest.fixture(autouse=True)
@@ -84,7 +83,9 @@ class TestUserCRUD:
         # The UPDATE *does* happen in the DB, but the return value is stale.
         # Verify by checking directly:
         conn = db.get_db()
-        row = conn.execute("SELECT username FROM users WHERE user_id = ?", (1002,)).fetchone()
+        row = conn.execute(
+            "SELECT username FROM users WHERE user_id = ?", (1002,)
+        ).fetchone()
         conn.close()
         assert row["username"] == "alice_updated"
 
@@ -201,7 +202,6 @@ class TestWeeklyUsage:
         user = db.get_or_create_user(3006)
         assert user["total_ai_msgs"] == 3
 
-    @pytest.mark.skip(reason="TOCTOU bug: increment_usage does not use atomic UPDATE with guard")
     def test_increment_usage_respects_weekly_limit(self):
         """Free tier: 25 scans/week. Should return False after exhausting."""
         db.get_or_create_user(3007)
@@ -228,7 +228,9 @@ class TestWeeklyUsage:
         # Next scan should use bonus
         assert db.increment_usage(3008, scan=True) is True
         conn = db.get_db()
-        row = conn.execute("SELECT bonus_scans FROM users WHERE user_id = ?", (3008,)).fetchone()
+        row = conn.execute(
+            "SELECT bonus_scans FROM users WHERE user_id = ?", (3008,)
+        ).fetchone()
         conn.close()
         assert row["bonus_scans"] == 4
 
@@ -239,8 +241,7 @@ class TestWeeklyUsage:
         for _ in range(150):
             assert db.increment_usage(3009, scan=True) is True
         # 151st should fail (no bonus)
-        # NOTE: skip due to TOCTOU bug; un-skip after the atomic fix
-        # assert db.increment_usage(3009, scan=True) is False
+        assert db.increment_usage(3009, scan=True) is False
 
 
 # ── Rate Limiting ────────────────────────────────────────────────────────────
@@ -320,7 +321,9 @@ class TestWatchlist:
         db.get_or_create_user(5006)
         db.set_user_tier(5006, "scout")
         for i in range(10):
-            assert db.add_watchlist(5006, f"0x{i:03d}", "ethereum"), f"Failed on item {i}"
+            assert db.add_watchlist(5006, f"0x{i:03d}", "ethereum"), (
+                f"Failed on item {i}"
+            )
         assert db.add_watchlist(5006, "0x999", "ethereum") is False
 
     def test_watchlist_pro_unlimited(self):
@@ -339,7 +342,9 @@ class TestScanHistory:
         db.get_or_create_user(6001)
         db.log_scan(6001, "0xabc", "ethereum", "quick", 25.0)
         conn = db.get_db()
-        rows = conn.execute("SELECT * FROM scan_history WHERE user_id = ?", (6001,)).fetchall()
+        rows = conn.execute(
+            "SELECT * FROM scan_history WHERE user_id = ?", (6001,)
+        ).fetchall()
         conn.close()
         assert len(rows) == 1
         assert rows[0]["token_address"] == "0xabc"
@@ -350,7 +355,9 @@ class TestScanHistory:
         db.get_or_create_user(6002)
         db.log_scan(6002, "0xabc", "solana", "deep", 80.0)
         conn = db.get_db()
-        rows = conn.execute("SELECT * FROM scan_history WHERE user_id = ?", (6002,)).fetchall()
+        rows = conn.execute(
+            "SELECT * FROM scan_history WHERE user_id = ?", (6002,)
+        ).fetchall()
         conn.close()
         assert len(rows) == 1
         assert rows[0]["scan_type"] == "deep"
@@ -397,7 +404,6 @@ class TestStarsBalance:
         user = db.get_or_create_user(7004)
         assert user["stars_balance"] == 0
 
-    @pytest.mark.skip(reason="TOCTOU bug: spend_stars reads balance, then deducts without atomic guard")
     def test_spend_stars_insufficient_race(self):
         """Balance check and deduction are NOT atomic — race window exists."""
         db.get_or_create_user(7005)
@@ -440,7 +446,9 @@ class TestTopUpPacks:
         user = db.get_or_create_user(8001)
         assert user["stars_balance"] == 200  # 500 - 300
         conn = db.get_db()
-        row = conn.execute("SELECT bonus_scans FROM users WHERE user_id = ?", (8001,)).fetchone()
+        row = conn.execute(
+            "SELECT bonus_scans FROM users WHERE user_id = ?", (8001,)
+        ).fetchone()
         conn.close()
         assert row["bonus_scans"] == 50
 
@@ -449,7 +457,9 @@ class TestTopUpPacks:
         db.add_stars(8002, 1000, "purchase")
         assert db.apply_top_up(8002, "ai_msgs", 100, 400) is True
         conn = db.get_db()
-        row = conn.execute("SELECT bonus_ai_msgs FROM users WHERE user_id = ?", (8002,)).fetchone()
+        row = conn.execute(
+            "SELECT bonus_ai_msgs FROM users WHERE user_id = ?", (8002,)
+        ).fetchone()
         conn.close()
         assert row["bonus_ai_msgs"] == 100
 
@@ -473,7 +483,9 @@ class TestTopUpPacks:
         db.apply_top_up(8005, "scans", 50, 300)
         db.apply_top_up(8005, "scans", 50, 300)
         conn = db.get_db()
-        row = conn.execute("SELECT bonus_scans FROM users WHERE user_id = ?", (8005,)).fetchone()
+        row = conn.execute(
+            "SELECT bonus_scans FROM users WHERE user_id = ?", (8005,)
+        ).fetchone()
         conn.close()
         assert row["bonus_scans"] == 100
 
@@ -491,7 +503,6 @@ class TestTopUpPacks:
         assert row["bonus_scans"] == 0
         assert row["bonus_ai_msgs"] == 0
 
-    @pytest.mark.skip(reason="TOCTOU bug: apply_top_up reads balance then deducts without atomic WHERE guard")
     def test_apply_top_up_race_condition(self):
         """Stars balance is read, checked, then deducted — not atomic."""
         db.get_or_create_user(8007)

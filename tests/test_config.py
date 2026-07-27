@@ -5,8 +5,6 @@ Tests for config.py — env var loading, TIERS validation, formatting helpers.
 import os
 from unittest import mock
 
-import pytest
-
 
 # Import the config module — it runs at import time so we need to
 # set env vars before importing. We'll use fresh copies of the module.
@@ -69,7 +67,9 @@ class TestEnvVarLoading:
             assert config.BACKEND_URL == "http://localhost:8000"
 
     def test_backend_url_from_env(self):
-        with mock.patch.dict(os.environ, {"RMI_BACKEND_URL": "https://api.rugmunch.io"}):
+        with mock.patch.dict(
+            os.environ, {"RMI_BACKEND_URL": "https://api.rugmunch.io"}
+        ):
             import importlib
 
             from bot.app.telegram_bot import config
@@ -116,19 +116,31 @@ class TestTIERSValidation:
 
     def test_pro_tier_highest_limits(self):
         config = _import_config()
-        assert config.TIERS["pro"]["scans_per_week"] >= config.TIERS["hunter"]["scans_per_week"]
-        assert config.TIERS["pro"]["ai_msgs_per_week"] >= config.TIERS["hunter"]["ai_msgs_per_week"]
+        assert (
+            config.TIERS["pro"]["scans_per_week"]
+            >= config.TIERS["hunter"]["scans_per_week"]
+        )
+        assert (
+            config.TIERS["pro"]["ai_msgs_per_week"]
+            >= config.TIERS["hunter"]["ai_msgs_per_week"]
+        )
 
     def test_tier_prices_increase_with_tier(self):
         config = _import_config()
-        prices = [config.TIERS[t]["price_monthly"] for t in ["free", "scout", "hunter", "pro"]]
+        prices = [
+            config.TIERS[t]["price_monthly"] for t in ["free", "scout", "hunter", "pro"]
+        ]
         for i in range(1, len(prices)):
-            assert prices[i] > prices[i - 1], f"Price not increasing at index {i}: {prices}"
+            assert prices[i] > prices[i - 1], (
+                f"Price not increasing at index {i}: {prices}"
+            )
 
     def test_tier_features_are_lists(self):
         config = _import_config()
         for tier_name, tier in config.TIERS.items():
-            assert isinstance(tier["features"], list), f"{tier_name} features must be list"
+            assert isinstance(tier["features"], list), (
+                f"{tier_name} features must be list"
+            )
 
     def test_all_top_up_packs_have_required_fields(self):
         config = _import_config()
@@ -227,4 +239,8 @@ class TestFormattingHelpers:
     def test_fmt_chain_unknown(self):
         config = _import_config()
         result = config.fmt_chain("unknown_chain")
-        assert "Unknown_chain" in result or "Unknown chain" in result or "Unknown" in result
+        assert (
+            "Unknown_chain" in result
+            or "Unknown chain" in result
+            or "Unknown" in result
+        )
