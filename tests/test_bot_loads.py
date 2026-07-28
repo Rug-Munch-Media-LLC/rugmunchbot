@@ -13,10 +13,24 @@ from pathlib import Path
 
 
 def _add_bot_to_path():
-    """Add the bot package dir to sys.path."""
+    """Add the bot package dir to sys.path and purge cached 'config'.
+
+    The /root/config namespace package (from the standards repo) can shadow
+    the bot's config.py when running tests in batch. We must clear the
+    import cache and put the bot dir first so from config import ...
+    resolves to the correct module.
+    """
+    import importlib
+
     bot_dir = Path(__file__).parent.parent / "bot" / "app" / "telegram_bot"
     if str(bot_dir) not in sys.path:
         sys.path.insert(0, str(bot_dir))
+
+    # Purge cached 'config' module so bot.py's from config import
+    # picks up the real config.py from the bot dir.
+    if "config" in sys.modules:
+        del sys.modules["config"]
+    importlib.invalidate_caches()
 
 
 def _load_bot_module():

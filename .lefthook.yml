@@ -17,7 +17,7 @@ pre-commit:
         - merge
         - rebase
     envsitter:
-      run: envsitter validate --filePath .env.example
+      run: envsitter validate --file .env.example
     gitleaks:
       run: gitleaks detect --verbose --redact --no-git
     ruff:
