@@ -85,6 +85,9 @@ paths = [
   # Security scanner scripts (contain secret-matching patterns — known FP)
   '''scripts/enterprise-firewall\.py''',
   '''scripts/proprietary-firewall\.py''',
+  # Dead archived bot code (old paths in git history + new _ARCHIVED/ path)
+  '''bot/app/telegram_bot/admin_monitor\.py''',
+  '''bot/app/telegram_bot/\.env''',
   '''_ARCHIVED/.*''',
 ]
 

@@ -27,7 +27,7 @@ pre-push:
   parallel: true
   commands:
     mypy:
-      run: mypy --strict .
+      run: mypy --strict --exclude '_ARCHIVED/' .
       tags: [python]
     bandit:
       run: bandit -r .
