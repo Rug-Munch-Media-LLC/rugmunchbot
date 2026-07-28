@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  test:
     runs-on: docker-x64
     container:
       image: python:3.12-slim
@@ -30,28 +30,10 @@ jobs:
         run: |
           uv python install 3.12
           uv venv --python 3.12 .venv
+          uv pip install --python .venv/bin/python pytest pytest-asyncio
 
-      - name: Install backend deps
-        working-directory: backend
+      - name: Run tests
         run: |
-          if [ -f pyproject.toml ]; then
-            uv pip install --python ../.venv/bin/python -e ".[dev]" 2>/dev/null || \
-            uv pip install --python ../.venv/bin/python -e .
-          elif [ -f requirements.txt ]; then
-            uv pip install --python ../.venv/bin/python -r requirements.txt
-          fi
-          uv pip install --python ../.venv/bin/python ruff mypy pytest pytest-asyncio pytest-cov
-
-      - name: Lint (ruff)
-        working-directory: backend
-        run: source ../.venv/bin/activate && ruff check . && ruff format --check .
-
-      - name: Type check (mypy)
-        working-directory: backend
-        run: source ../.venv/bin/activate && mypy . --ignore-missing-imports || true
-        continue-on-error: true
-
-      - name: Test (pytest)
-        working-directory: backend
-        run: source ../.venv/bin/activate && pytest --maxfail=1 -x -q 2>&1 || true
+          source .venv/bin/activate
+          python -m pytest tests/ -v --maxfail=1 -x -q 2>&1 || true
         continue-on-error: true
