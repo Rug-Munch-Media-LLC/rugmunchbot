@@ -2162,7 +2162,15 @@ async def precheckout(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.pre_checkout_query.answer(ok=True)
 
 
-async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle a successful Telegram Stars payment.
+
+    Credits the user's star balance and confirms the transaction.
+
+    Args:
+        update: The incoming Telegram update (contains successful_payment).
+        ctx: The application context.
+    """
     payment = update.message.successful_payment
     user = update.effective_user
     db.add_stars(user.id, payment.total_amount, "payment", payment.telegram_payment_charge_id)
@@ -2177,7 +2185,15 @@ async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ══════════════════════════════════════════════
 # GLOBAL ERROR HANDLER
 # ══════════════════════════════════════════════
-async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE):
+async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Global error handler for unhandled exceptions.
+
+    Logs the error with stack trace and notifies the user if possible.
+
+    Args:
+        update: The update that caused the error (may be None).
+        ctx: The application context containing the error.
+    """
     logger.error(f"Exception: {ctx.error}", exc_info=ctx.error)
     if isinstance(update, Update) and update.effective_message:
         with contextlib.suppress(Exception):
