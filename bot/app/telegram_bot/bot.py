@@ -16,8 +16,7 @@ import random
 import re
 import sys
 import time
-from datetime import UTC, datetime
-from datetime import time as dtime
+from datetime import UTC, datetime, time as dtime
 from pathlib import Path
 from urllib.parse import quote
 

@@ -30,10 +30,24 @@ jobs:
         run: |
           uv python install 3.12
           uv venv --python 3.12 .venv
-          uv pip install --python .venv/bin/python pytest pytest-asyncio
+          uv pip install --python .venv/bin/python pytest pytest-asyncio httpx python-telegram-bot
 
       - name: Run tests
         run: |
           source .venv/bin/activate
           python -m pytest tests/ -v --maxfail=1 -x -q 2>&1 || true
-        continue-on-error: true
+
+      - name: Verify bot module imports
+        run: |
+          source .venv/bin/activate
+          python -c "
+import sys, importlib
+sys.path.insert(0, 'bot/app/telegram_bot')
+importlib.invalidate_caches()
+import config
+assert config.BOT_TOKEN == '', 'config loaded'
+print('✅ config.py imports OK')
+import db
+assert hasattr(db, 'get_db'), 'db.py loaded'
+print('✅ db.py imports OK')
+"

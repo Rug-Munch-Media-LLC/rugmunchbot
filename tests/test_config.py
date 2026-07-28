@@ -55,7 +55,7 @@ class TestEnvVarLoading:
             from bot.app.telegram_bot import config
 
             importlib.reload(config)
-            assert config.OWNER_IDS == {111, 222, 333}
+            assert {111, 222, 333} == config.OWNER_IDS
 
     def test_backend_url_default(self):
         with mock.patch.dict(os.environ, {}, clear=True):

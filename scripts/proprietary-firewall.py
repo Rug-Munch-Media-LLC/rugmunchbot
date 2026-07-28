@@ -15,10 +15,10 @@ WHAT IT BLOCKS:
 - Private API keys and tokens (gopass references)
 """
 
+import os
+import re
 import subprocess
 import sys
-import re
-import os
 
 BLOCKED_PATTERNS = [
     # Private repo names
@@ -60,7 +60,7 @@ def check_file(filepath):
     """Check a single file for blocked patterns."""
     findings = []
     try:
-        with open(filepath, "r", errors="ignore") as f:
+        with open(filepath, errors="ignore") as f:
             for lineno, line in enumerate(f, 1):
                 for pattern, rule in BLOCKED_PATTERNS:
                     if re.search(pattern, line, re.IGNORECASE):

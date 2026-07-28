@@ -11,7 +11,7 @@ import re
 import shlex
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import admin_ops
 
@@ -168,7 +168,7 @@ class DeployStatus:
     def __init__(self, service: str):
         self.service = service
         self.steps: list[dict] = []
-        self.started = datetime.now(timezone.utc)
+        self.started = datetime.now(UTC)
         self.complete = False
 
     def add_step(self, name: str, ok: bool, output: str = ""):
@@ -177,7 +177,7 @@ class DeployStatus:
                 "name": name,
                 "ok": ok,
                 "output": output[:500],
-                "time": datetime.now(timezone.utc),
+                "time": datetime.now(UTC),
             }
         )
 
@@ -189,7 +189,7 @@ class DeployStatus:
             if s["output"]:
                 lines.append(f"   `{s['output'][:80]}`")
         lines.append("")
-        elapsed = (datetime.now(timezone.utc) - self.started).total_seconds()
+        elapsed = (datetime.now(UTC) - self.started).total_seconds()
         status = "\u2705 Complete" if self.complete else "\u23f3 In progress..."
         lines.append(f"{status} ({elapsed:.0f}s)")
         return "\n".join(lines)

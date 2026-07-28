@@ -11,7 +11,7 @@ import os
 import shlex
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 # ══════════════════════════════════════════════
 # CONFIG
@@ -117,7 +117,7 @@ KNOWN_SERVICES = [
 
 
 def _log(cmd: str, user: str = "admin"):
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
         with open(LOG_FILE, "a") as f:
             f.write(f"[{ts}] user={user} cmd={shlex.quote(cmd)[:200]}\n")

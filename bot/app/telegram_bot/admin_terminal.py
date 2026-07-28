@@ -11,7 +11,7 @@ import os
 import shlex
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 # ══════════════════════════════════════════════
 # PER-USER SESSIONS
@@ -23,7 +23,7 @@ class TerminalSession:
         self.user_id = user_id
         self.cwd = "/root"
         self.history: list[str] = []
-        self.created = datetime.now(timezone.utc)
+        self.created = datetime.now(UTC)
 
 
 # In-memory session store (resets on bot restart — acceptable for admin tool)

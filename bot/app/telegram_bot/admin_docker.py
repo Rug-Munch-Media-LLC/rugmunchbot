@@ -27,7 +27,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from telegram import InlineKeyboardMarkup  # noqa: F401 (used in type hints)
+    from telegram import InlineKeyboardMarkup
 
 # Import our shell executor
 import admin_ops
@@ -274,7 +274,7 @@ def docker_disk_usage() -> str:
 
 def container_list_keyboard(
     all_containers: bool = False,
-) -> tuple[str, "InlineKeyboardMarkup"]:
+) -> tuple[str, InlineKeyboardMarkup]:
     """Generate a paginated container list with per-container action buttons.
 
     Returns ``(message_text, InlineKeyboardMarkup)``.
@@ -329,7 +329,7 @@ def container_list_keyboard(
     return "\n".join(lines), InlineKeyboardMarkup(buttons)
 
 
-def container_detail_keyboard(name: str) -> tuple[str, "InlineKeyboardMarkup"]:
+def container_detail_keyboard(name: str) -> tuple[str, InlineKeyboardMarkup]:
     """Generate a detail view for a specific container with action buttons.
 
     Returns ``(message_text, InlineKeyboardMarkup)``.

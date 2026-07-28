@@ -1,7 +1,7 @@
 [project]
 name = "rugmunchbot"
 version = "0.1.0"
-description = "RugMunch Telegram Bot — embedded bot with archived standalone version"
+description = "RugMunch Telegram Bot (@rugmunchbot) — token scanner, wallet forensics, market intelligence"
 requires-python = ">=3.11"
 
 [build-system]
@@ -18,7 +18,6 @@ extend-exclude = [
     "__pycache__",
     ".mypy_cache",
     ".ruff_cache",
-    "bot/app/telegram_bot/_ARCHIVED/",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -36,7 +35,6 @@ exclude = [
     ".git/",
     "__pycache__/",
     ".venv/",
-    "bot/app/telegram_bot/_ARCHIVED/",
 ]
 
 [tool.pytest.ini_options]

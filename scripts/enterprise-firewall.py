@@ -28,12 +28,12 @@ BLOCKED CONTENT CATEGORIES:
   HIGH_ENTROPY — Suspicious high-entropy strings
 """
 
-import subprocess
-import sys
-import re
-import os
 import hashlib
 import math
+import os
+import re
+import subprocess
+import sys
 from pathlib import Path
 
 # ─── L1: CONTENT FINGERPRINTING ──────────────────────────────────────────────
@@ -255,7 +255,7 @@ def check_encrypted_patterns(content):
 def check_file(filepath):
     """Run ALL layers against a single file."""
     try:
-        with open(filepath, "r", errors="ignore") as f:
+        with open(filepath, errors="ignore") as f:
             content = f.read()
     except Exception:
         return []

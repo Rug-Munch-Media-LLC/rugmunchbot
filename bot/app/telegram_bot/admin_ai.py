@@ -7,7 +7,7 @@ Streaming responses, model switching, usage tracking.
 """
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -80,7 +80,7 @@ class AISession:
         self.history: list[dict] = []  # [{role, content}]
         self.total_tokens = 0
         self.total_cost = 0.0
-        self.last_used = datetime.now(timezone.utc)
+        self.last_used = datetime.now(UTC)
 
 
 _sessions: dict[int, AISession] = {}
@@ -163,7 +163,7 @@ async def chat(user_id: int, prompt: str, system_prompt: str = "") -> dict:
             session.history.append({"role": "user", "content": prompt})
             session.history.append({"role": "assistant", "content": content})
             session.total_tokens += tokens
-            session.last_used = datetime.now(timezone.utc)
+            session.last_used = datetime.now(UTC)
 
             # Keep history manageable
             if len(session.history) > 20:
