@@ -194,7 +194,7 @@ def social_proof_text() -> str:
         users_str = f"{total_users:,}" if total_users else "1,000+"
         scans_str = f"{total_scans:,}" if total_scans else "50,000+"
         return f"👥 {users_str} users | 🔍 {scans_str} scans completed"
-    except Exception as exc:
+    except Exception:
         logger.debug("social_proof_text failed", exc_info=True)
         return "👥 1,000+ users | 🔍 50,000+ scans completed"
 
@@ -475,7 +475,9 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
 
     # ── Fire-and-forget: report user-intel to backend scanner ──
     with contextlib.suppress(Exception):
-        _bg_task = asyncio.create_task(_report_to_scanner(address, result.get("chain", "solana")))
+        _t = asyncio.create_task(_report_to_scanner(address, result.get("chain", "solana")))
+        _bg_tasks.add(_t)
+        _t.add_done_callback(_bg_tasks.discard)
 
     return result
 
@@ -511,8 +513,8 @@ def format_scan_report(r: dict) -> str:
                 age_str = f" | Age: {age.days}d"
             else:
                 age_str = f" | Age: {age.seconds // 3600}h"
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Age calculation failed: %s", exc)
 
     lines = [
         "🛡️ <b>RMI Token Scan</b>",
@@ -660,11 +662,11 @@ async def analyze_wallet(address: str, chain: str | None = None) -> dict:
                         first = datetime.fromisoformat(result["first_seen"].replace("Z", "+00:00"))
                         result["wallet_age_days"] = (datetime.now(UTC) - first).days
                         result["is_fresh"] = result["wallet_age_days"] < 7
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Wallet age parsing failed: %s", exc)
                 return result
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Wallet backend check failed: %s", exc)
         if is_sol(address):
             try:
                 r = await client.get(f"https://api.solana.fm/v0/accounts/{address}")
@@ -859,7 +861,7 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         scan_count = conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
         conn.close()
         db_ok = True
-    except Exception as exc:
+    except Exception:
         logger.debug("Status DB check failed", exc_info=True)
 
     # Backend health
@@ -1346,8 +1348,8 @@ async def cmd_quick(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                         disable_web_page_preview=True,
                     )
                     return
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("cmd_quick: DexScreener lookup failed for %s: %s", symbol, exc)
     await update.message.reply_text(
         f"❌ Could not find token: <b>{symbol}</b>", parse_mode=ParseMode.HTML
     )
@@ -1454,8 +1456,8 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                         disable_web_page_preview=True,
                     )
                     return
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("cmd_news: backend fetch failed: %s", exc)
     await update.message.reply_text(
         f"📰 <b>Crypto News</b>\n\n"
         f"News feed loading...\n\n"
@@ -1896,8 +1898,8 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                                 disable_web_page_preview=True,
                             )
                             return
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("handle_message: DexScreener symbol lookup failed: %s", exc)
 
     # Natural language address extraction
     evm_match = EVM_RE.search(text)
@@ -1949,8 +1951,8 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                             answer, parse_mode=ParseMode.HTML, reply_markup=back_kb()
                         )
                         return
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("handle_message: RAG backend failed: %s", exc)
 
     # Smart fallback responses
     text_lower = text.lower()
@@ -2378,7 +2380,7 @@ async def cmd_buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """
     try:
         # Inline subscription plans
-        SUBSCRIPTION_PLANS = {
+        subscription_plans = {
             "free": {
                 "name": "Free",
                 "pricing": {"usdc": {"monthly": 0}},
@@ -2401,7 +2403,7 @@ async def cmd_buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             },
         }
         text = "<b>RMI Subscription Plans</b>\n\n"
-        for plan in SUBSCRIPTION_PLANS.values():
+        for plan in subscription_plans.values():
             price = plan["pricing"]["usdc"]["monthly"]
             text += "<b>" + plan["name"] + "</b> - $" + str(price) + "/mo\n"
             text += "  " + str(plan["credits_per_day"]) + " credits/day\n\n"
