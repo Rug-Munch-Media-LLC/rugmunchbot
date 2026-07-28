@@ -88,6 +88,9 @@ logger = logging.getLogger("rmi_bot")
 # ══════════════════════════════════════════════
 START_TIME: float = time.time()
 
+# Background task tracking — prevents garbage collection of fire-and-forget tasks
+_bg_tasks: set[asyncio.Task] = set()
+
 _user_last_action: dict[int, float] = {}
 SPAM_COOLDOWN = 3
 
@@ -360,8 +363,8 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
                     result["dev_wallet"] = td["dev_wallet"]
                 result["_data_source"]["detail"] = "databus"
                 logger.info("scan: DataBus token_detail OK for %s", short_addr(address))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("scan: DataBus token_detail failed for %s: %s", short_addr(address), exc)
 
         # ══════════════════════════════════════════════
         # PHASE 3: DataBus Token Security (replaces GoPlus + Honeypot.is)
@@ -471,10 +474,8 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
     result["risk_score"] = min(result["risk_score"], 100)
 
     # ── Fire-and-forget: report user-intel to backend scanner ──
-    try:
-        asyncio.create_task(_report_to_scanner(address, result.get("chain", "solana")))
-    except Exception:
-        pass
+    with contextlib.suppress(Exception):
+        _bg_task = asyncio.create_task(_report_to_scanner(address, result.get("chain", "solana")))
 
     return result
 
