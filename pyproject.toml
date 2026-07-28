@@ -1,0 +1,45 @@
+[project]
+name = "rugmunchbot"
+version = "0.1.0"
+description = "RugMunch Telegram Bot — embedded bot with archived standalone version"
+requires-python = ">=3.11"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+extend = "../standards/templates/ruff-base.toml"
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    "bot/app/telegram_bot/_ARCHIVED/",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = [
+    "build/",
+    "dist/",
+    ".git/",
+    "__pycache__/",
+    ".venv/",
+    "bot/app/telegram_bot/_ARCHIVED/",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+asyncio_mode = "auto"
+testpaths = ["tests"]
