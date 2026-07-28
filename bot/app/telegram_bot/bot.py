@@ -156,7 +156,7 @@ def footer_links() -> str:
         f"\n{thin_sep('·', 28)}\n"
         f'🌐 <a href="{WEBSITE_URL}">rugmunch.io</a> | '
         f'<a href="{TELEGRAM_CHANNEL}">📢 Alerts</a> | '
-        f'<a href="{TWITTER_URL}">𝕏</a>'
+        f'<a href="{TWITTER_URL}">X</a>'
     )
 
 
@@ -191,7 +191,8 @@ def social_proof_text() -> str:
         users_str = f"{total_users:,}" if total_users else "1,000+"
         scans_str = f"{total_scans:,}" if total_scans else "50,000+"
         return f"👥 {users_str} users | 🔍 {scans_str} scans completed"
-    except Exception:
+    except Exception as exc:
+        logger.debug("social_proof_text failed", exc_info=True)
         return "👥 1,000+ users | 🔍 50,000+ scans completed"
 
 
@@ -588,7 +589,7 @@ def format_scan_report(r: dict) -> str:
         soc_parts = []
         for stype, surl in socials.items():
             if stype == "twitter":
-                soc_parts.append(f'<a href="{surl}">𝕏</a>')
+                soc_parts.append(f'<a href="{surl}">X</a>')
             elif stype == "telegram":
                 soc_parts.append(f'<a href="{surl}">📱</a>')
             elif stype == "website":
@@ -817,7 +818,7 @@ def social_kb() -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton("🌐 Website", url=WEBSITE_URL),
-                InlineKeyboardButton("𝕏 Twitter", url=TWITTER_URL),
+                InlineKeyboardButton("X Twitter", url=TWITTER_URL),
             ],
             [
                 InlineKeyboardButton("📢 Alerts", url=TELEGRAM_CHANNEL),
@@ -830,8 +831,78 @@ def social_kb() -> InlineKeyboardMarkup:
 # ══════════════════════════════════════════════
 # COMMAND HANDLERS
 # ══════════════════════════════════════════════
-async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
+
+async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show bot health status: uptime, database, and backend connectivity.
+
+    Provides operators and users with a quick overview of service health.
+
+    Args:
+        update: The incoming Telegram update.
+        ctx: The application context.
+    """
+    uptime_seconds = int(time.time() - START_TIME)
+    days, remainder = divmod(uptime_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    uptime_str = f"{days}d {hours}h {minutes}m {seconds}s"
+
+    # Database status
+    db_ok = False
+    user_count = 0
+    scan_count = 0
+    try:
+        conn = db.get_db()
+        user_count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+        scan_count = conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
+        conn.close()
+        db_ok = True
+    except Exception as exc:
+        logger.debug("Status DB check failed", exc_info=True)
+
+    # Backend health
+    backend_ok = False
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(f"{BACKEND_URL}/api/v1/health")
+            backend_ok = r.status_code == 200
+    except Exception:
+        backend_ok = False
+
+    db_status = "✅ Connected" if db_ok else "❌ Disconnected"
+    backend_status = "✅ Connected" if backend_ok else "❌ Unreachable"
+
+    text = (
+        f"📊 <b>Bot Status</b>\n{sep()}\n\n"
+        f"⏱ <b>Uptime:</b> {uptime_str}\n"
+        f"🗄 <b>Database:</b> {db_status}\n"
+        f"🔗 <b>Backend:</b> {backend_status}\n"
+        f"👥 <b>Users:</b> {user_count:,}\n"
+        f"🔍 <b>Total Scans:</b> {scan_count:,}\n\n"
+        f"{footer_links()}"
+    )
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+        disable_web_page_preview=True,
+    )
+
+
+async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Welcome message with quick-start guide and referral handling.
+
+    Displays an overview of bot capabilities and a menu of actions.
+    Processes referral codes from /start ref_<code> links.
+
+    Args:
+        update: The incoming Telegram update.
+        ctx: The application context (args may contain referral code).
+    """
     user = update.effective_user
+    if user is None:
+        return
     u = db.get_or_create_user(user.id, user.username, user.first_name)
 
     # Referral handling
@@ -2206,8 +2277,15 @@ async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 # ══════════════════════════════════════════════
 # BOT PROFILE SETUP (BotFather API)
 # ══════════════════════════════════════════════
-async def setup_bot_profile(app: Application):
-    """Set bot description, about text, and command list via BotFather API."""
+async def setup_bot_profile(app: Application) -> None:
+    """Set bot description, about text, and command list via BotFather API.
+
+    Configures the bot's public profile including description text,
+    short description, and the full command list shown in Telegram UI.
+
+    Args:
+        app: The Telegram application instance.
+    """
     bot = app.bot
     try:
         await bot.set_my_description(description=BOT_DESCRIPTION)
@@ -2223,6 +2301,7 @@ async def setup_bot_profile(app: Application):
         commands = [
             BotCommand("start", "Welcome & quick start guide"),
             BotCommand("help", "Full command reference"),
+            BotCommand("status", "Bot health & uptime"),
             BotCommand("scan", "Scan token for scams & risks"),
             BotCommand("wallet", "Wallet forensics & analysis"),
             BotCommand("ta", "Technical analysis & signals"),
@@ -2249,10 +2328,19 @@ async def setup_bot_profile(app: Application):
 # ══════════════════════════════════════════════
 # SCHEDULED JOBS
 # ══════════════════════════════════════════════
-async def daily_scam_tip(ctx: ContextTypes.DEFAULT_TYPE):
+async def daily_scam_tip(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Post a daily scam awareness tip to the main channel.
+
+    Selects a random topic from the Scam School curriculum and sends
+    an educational message with links to learn more.
+
+    Args:
+        ctx: The application context (provides bot reference).
+    """
     if not CHANNELS.get("main"):
         return
-    topic_key = random.choice(list(SCAM_SCHOOL_TOPICS.keys()))
+    topic_keys = list(SCAM_SCHOOL_TOPICS.keys())
+    topic_key = secrets.choice(topic_keys)
     topic = SCAM_SCHOOL_TOPICS[topic_key]
     text = (
         f"🛡️ <b>Daily Scam Tip</b>\n{sep()}\n\n"
@@ -2277,8 +2365,16 @@ async def daily_scam_tip(ctx: ContextTypes.DEFAULT_TYPE):
 # ══════════════════════════════════════════════
 
 
-async def cmd_buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Show payment methods and subscription plans."""
+async def cmd_buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show payment methods and subscription plans.
+
+    Displays available subscription tiers with pricing and accepted
+    payment methods (crypto, card, Telegram Stars).
+
+    Args:
+        update: The incoming Telegram update.
+        ctx: The application context.
+    """
     try:
         # Inline subscription plans
         SUBSCRIPTION_PLANS = {
@@ -2329,6 +2425,7 @@ def main():
     # ── Commands ──
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("scan", cmd_scan))
     app.add_handler(CommandHandler("wallet", cmd_wallet))
     app.add_handler(CommandHandler("ta", cmd_ta))
