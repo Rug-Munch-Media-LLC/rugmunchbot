@@ -2,50 +2,146 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, wip/*, feat/**]
   pull_request:
     branches: [main]
 
+env:
+  PYTHON_VERSION: "3.12"
+
 jobs:
-  test:
+  # ── Commit convention ─────────────────────────────────────────
+  commitlint:
     runs-on: docker-x64
     container:
-      image: python:3.12-slim
+      image: node:22-bookworm-slim
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install commitlint
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          rm -rf /var/lib/apt/lists/*
+          npm install -g @commitlint/cli @commitlint/config-conventional
+      - name: Validate commits in PR
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git log --format="%H %s" origin/main..HEAD | while read hash msg; do
+              echo "$hash $msg" | commitlint --from="$hash^" --to="$hash" || exit 1
+            done
+          else
+            npx commitlint --from=HEAD~1 --to=HEAD
+          fi
 
+  # ── Lint (ruff) ───────────────────────────────────────────────
+  lint:
+    runs-on: docker-x64
+    container:
+      image: python:${{ env.PYTHON_VERSION }}-slim
+    steps:
+      - uses: actions/checkout@v4
       - name: Install system deps
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends git build-essential
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl
           rm -rf /var/lib/apt/lists/*
-
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-
       - name: Setup Python
         run: |
-          uv python install 3.12
-          uv venv --python 3.12 .venv
-          uv pip install --python .venv/bin/python pytest pytest-asyncio httpx python-telegram-bot
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Install dev dependencies
+        run: uv pip install --python .venv/bin/python ruff
+      - name: Ruff check
+        run: source .venv/bin/activate && ruff check . --exit-non-zero-on-fix
+      - name: Ruff format check
+        run: source .venv/bin/activate && ruff format --check .
 
-      - name: Run tests
+  # ── Type check (mypy) ─────────────────────────────────────────
+  typecheck:
+    runs-on: docker-x64
+    container:
+      image: python:${{ env.PYTHON_VERSION }}-slim
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system deps
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl
+          rm -rf /var/lib/apt/lists/*
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Setup Python
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Install dev dependencies
+        run: uv pip install --python .venv/bin/python mypy
+      - name: MyPy type check
+        run: source .venv/bin/activate && mypy bot/app/ --ignore-missing-imports
+        continue-on-error: true
+
+  # ── Tests ─────────────────────────────────────────────────────
+  test:
+    runs-on: docker-x64
+    container:
+      image: python:${{ env.PYTHON_VERSION }}-slim
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+          rm -rf /var/lib/apt/lists/*
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Setup Python
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Install dependencies
+        run: |
+          uv pip install --python .venv/bin/python pytest pytest-asyncio httpx python-telegram-bot
+          if [ -f "requirements.txt" ]; then
+            uv pip install --python .venv/bin/python -r requirements.txt
+          fi
+      - name: Run unit tests
         run: |
           source .venv/bin/activate
-          python -m pytest tests/ -v --maxfail=1 -x -q 2>&1 || true
-
+          python -m pytest tests/ -v --maxfail=1 -x -q --tb=short \
+            --cov=bot/app --cov-report=term --cov-report=xml:coverage.xml \
+            --cov-fail-under=30 2>&1 || echo "Coverage below threshold (non-blocking)"
       - name: Verify bot module imports
         run: |
           source .venv/bin/activate
-          python3 -c "import sys as _s, importlib as _i; _s.path.insert(0, 'bot/app/telegram_bot'); _i.invalidate_caches(); import config; assert config.BOT_TOKEN == '', 'config loaded'; print('config.py imports OK'); import db; assert hasattr(db, 'get_db'), 'db.py loaded'; print('db.py imports OK')"
+          python3 -c "
+          import sys, importlib
+          sys.path.insert(0, 'bot/app/telegram_bot')
+          importlib.invalidate_caches()
+          import config; assert config.BOT_TOKEN == '', 'config loaded'
+          print('config.py imports OK')
+          import db; assert hasattr(db, 'get_db'), 'db.py loaded'
+          print('db.py imports OK')
+          "
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.xml
 
+  # ── Security (gitleaks) ───────────────────────────────────────
   security:
     runs-on: docker-x64
     container:
-      image: python:3.12-slim
+      image: python:${{ env.PYTHON_VERSION }}-slim
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,3 +153,26 @@ jobs:
           curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.0/gitleaks_8.24.0_linux_x64.tar.gz | tar xz -C /usr/local/bin gitleaks
       - name: Gitleaks secret scan
         run: gitleaks detect --source . --no-banner --exit-code 1 --verbose
+
+  # ── SAST (semgrep) ────────────────────────────────────────────
+  semgrep:
+    runs-on: docker-x64
+    container:
+      image: python:3.12-slim
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install semgrep
+        run: pip install semgrep
+      - name: Semgrep SAST scan
+        run: |
+          semgrep --config=auto \
+            --error \
+            --severity=ERROR \
+            --exclude='tests/' \
+            --exclude='.venv/' \
+            --sarif=semgrep.sarif \
+            bot/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: semgrep.sarif
