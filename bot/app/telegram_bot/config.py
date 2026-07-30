@@ -17,6 +17,7 @@ OWNER_IDS = {
     for x in os.getenv("TELEGRAM_ALLOWED_USERS", "7075336557").split(",")
     if x.strip()
 }
+OWNER_USERNAME = "cryptorugmunch"  # Only this user gets admin access
 BOT_USERNAME = "rugmunchbot"
 
 # ══════════════════════════════════════════════
@@ -44,7 +45,9 @@ BOT_DESCRIPTION = (
     "AI rug detection. Chat: t.me/crmunchers - t.me/cryptorugmuncher | "
     "Links: rugmunch.io/links"
 )
-BOT_SHORT_DESCRIPTION = "🛡️ Crypto scam detection & token intelligence across 77+ chains. Free tier available."
+BOT_SHORT_DESCRIPTION = (
+    "🛡️ Crypto scam detection & token intelligence across 77+ chains. Free tier available."
+)
 
 # ══════════════════════════════════════════════
 # API ENDPOINTS

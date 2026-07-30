@@ -18,6 +18,7 @@ import secrets
 import sys
 import time
 from datetime import UTC, datetime, time as dtime
+from functools import wraps
 from pathlib import Path
 from urllib.parse import quote
 
@@ -57,6 +58,7 @@ from config import (
     DATABUS_URL,
     DEX_REF_LINKS,
     OWNER_IDS,
+    OWNER_USERNAME,
     RMI_AUTH_TOKEN,
     SCAM_SCHOOL_TOPICS,
     SUPPORT_EMAIL,
@@ -94,12 +96,58 @@ _bg_tasks: set[asyncio.Task] = set()
 _user_last_action: dict[int, float] = {}
 SPAM_COOLDOWN = 3
 
+# ── Owner / Admin Access Control ──
+# Only @cryptorugmunch (by username) or IDs in TELEGRAM_ALLOWED_USERS have admin access.
+# Resolved user IDs are cached here for fast subsequent checks.
+_owner_ids_cache: set[int] = set(OWNER_IDS)
 
-def check_spam(user_id: int) -> bool:
+
+def is_owner(uid: int) -> bool:
+    """Check if a user_id is in the owner cache.
+
+    The cache is pre-populated from the TELEGRAM_ALLOWED_USERS env var
+    and extended at runtime when @cryptorugmunch is resolved by username.
+    """
+    return uid in _owner_ids_cache
+
+
+def _resolve_owner(user) -> None:
+    """If *user* matches @cryptorugmunch by username, cache their ID.
+
+    Call this in any handler that wants username-based owner detection
+    before the ID-only check.
+    """
+    if user and user.username and user.username.lower() == OWNER_USERNAME.lower():
+        _owner_ids_cache.add(user.id)
+
+
+def owner_only(func):
+    """Decorator: only @cryptorugmunch can invoke this command.
+
+    Resolves by username on first call, then caches the user ID.
+    Non-owners get a polite rejection message.
+    """
+
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = update.effective_user
+        _resolve_owner(user)
+        if not is_owner(user.id if user else 0):
+            await update.message.reply_text("🔒 This command is restricted to the bot owner.")
+            return None
+        return await func(update, context)
+
+    return wrapper
+
+
+def check_spam(user_id: int, user=None) -> bool:
     now = time.time()
     last = _user_last_action.get(user_id, 0)
     if now - last < SPAM_COOLDOWN and not is_owner(user_id):
-        return True
+        if user:
+            _resolve_owner(user)
+        if not is_owner(user_id):
+            return True
     _user_last_action[user_id] = now
     return False
 
@@ -139,10 +187,6 @@ def short_addr(addr: str) -> str:
 # for symbol-based search lookups that DataBus does not yet expose.
 # TODO: remove when DataBus adds symbol-search endpoint.
 _DEXSCREENER = "https://api.dexscreener.com/latest/dex"
-
-
-def is_owner(uid: int) -> bool:
-    return uid in OWNER_IDS
 
 
 def sep(char: str = "━", length: int = 28) -> str:
@@ -1023,7 +1067,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     db.get_or_create_user(user.id, user.username, user.first_name)
-    if check_spam(user.id):
+    if check_spam(user.id, user):
         return
     if not ctx.args:
         await update.message.reply_text(
@@ -1754,54 +1798,19 @@ async def cmd_alerts(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ══════════════════════════════════════════════
-# OWNER COMMANDS
+# ADMIN COMMANDS (owner-only — @cryptorugmunch)
 # ══════════════════════════════════════════════
-async def cmd_admin_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id):
-        return
-    conn = db.get_db()
-    total = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
-    tiers = conn.execute("SELECT tier, COUNT(*) as c FROM users GROUP BY tier").fetchall()
-    scans_today = (
-        conn.execute(
-            "SELECT SUM(scans) as c FROM weekly_usage WHERE week_start = ?",
-            (db._current_week_start(),),
-        ).fetchone()["c"]
-        or 0
-    )
-    total_scans = conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
-    banned = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_banned = 1").fetchone()["c"]
-    conn.close()
-    tier_str = "\n".join(f"  {t['tier']}: {t['c']}" for t in tiers)
-    await update.message.reply_text(
-        f"📊 <b>Bot Stats</b>\n{thin_sep()}\n"
-        f"👥 Total Users: {total}\n🚫 Banned: {banned}\n\n"
-        f"📈 <b>Tiers:</b>\n{tier_str}\n\n"
-        f"🔍 This Week: {scans_today}\n🔍 All-Time: {total_scans}",
-        parse_mode=ParseMode.HTML,
-    )
 
 
-async def cmd_admin_set_tier(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id):
-        return
-    if len(ctx.args) < 2:
-        await update.message.reply_text("Usage: /admin_set_tier <user_id> <tier> [days]")
-        return
-    uid, tier = int(ctx.args[0]), ctx.args[1].lower()
-    days = int(ctx.args[2]) if len(ctx.args) > 2 else 30
-    if tier not in TIERS:
-        await update.message.reply_text(f"Invalid tier. Options: {', '.join(TIERS.keys())}")
-        return
-    db.set_user_tier(uid, tier, days)
-    await update.message.reply_text(f"✅ Set user {uid} to {tier} ({days} days)")
+@owner_only
+async def cmd_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Send a message to ALL bot users.
 
-
-async def cmd_admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id):
-        return
+    Usage: /broadcast <message>
+    Uses HTML parse mode; supports \\n for line breaks.
+    """
     if not ctx.args:
-        await update.message.reply_text("Usage: /admin_broadcast <message>")
+        await update.message.reply_text("📢 <b>Broadcast</b>\n\nUsage: /broadcast <message>")
         return
     msg_text = " ".join(ctx.args).replace("\\n", "\n")
     conn = db.get_db()
@@ -1810,28 +1819,339 @@ async def cmd_admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     sent = failed = 0
     for u in users:
         try:
-            await ctx.bot.send_message(u["user_id"], msg_text, parse_mode=ParseMode.HTML)
+            await ctx.bot.send_message(
+                u["user_id"], f"📢 <b>Broadcast</b>\n\n{msg_text}", parse_mode=ParseMode.HTML
+            )
             sent += 1
             await asyncio.sleep(0.05)
         except Exception:
             failed += 1
-    await update.message.reply_text(f"📢 Broadcast complete.\n✅ Sent: {sent}\n❌ Failed: {failed}")
+    await update.message.reply_text(
+        f"📢 Broadcast complete\n✅ Sent: {sent}\n❌ Failed: {failed}\n👥 Total: {len(users)}",
+    )
 
 
-async def cmd_admin_ban(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id):
-        return
-    if not ctx.args:
-        await update.message.reply_text("Usage: /admin_ban <user_id> [0|1]")
-        return
-    uid, state = int(ctx.args[0]), int(ctx.args[1]) if len(ctx.args) > 1 else 1
+@owner_only
+async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Full bot usage statistics.
+
+    Shows total users, banned users, tier distribution,
+    weekly/all-time scan counts, and AI message usage.
+    """
     conn = db.get_db()
-    conn.execute("UPDATE users SET is_banned = ? WHERE user_id = ?", (state, uid))
+    total = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+    tiers = conn.execute("SELECT tier, COUNT(*) as c FROM users GROUP BY tier").fetchall()
+    scans_week = (
+        conn.execute(
+            "SELECT SUM(scans) as c FROM weekly_usage WHERE week_start = ?",
+            (db._current_week_start(),),
+        ).fetchone()["c"]
+        or 0
+    )
+    ai_week = (
+        conn.execute(
+            "SELECT SUM(ai_msgs) as c FROM weekly_usage WHERE week_start = ?",
+            (db._current_week_start(),),
+        ).fetchone()["c"]
+        or 0
+    )
+    total_scans = conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
+    total_ai = conn.execute("SELECT SUM(total_ai_msgs) as c FROM users").fetchone()["c"] or 0
+    banned = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_banned = 1").fetchone()["c"]
+    active_today = conn.execute(
+        "SELECT COUNT(*) as c FROM users WHERE last_active > ?",
+        (int(time.time()) - 86400,),
+    ).fetchone()["c"]
+    conn.close()
+
+    tier_str = "\n".join(f"  {t['tier']}: {t['c']}" for t in tiers)
+    uptime_seconds = int(time.time() - START_TIME)
+    days, remainder = divmod(uptime_seconds, 86400)
+    hours, minutes = divmod(remainder, 3600)
+    minutes, _seconds = divmod(minutes, 60)
+    uptime_str = f"{days}d {hours}h {minutes}m"
+
+    await update.message.reply_text(
+        f"📊 <b>Bot Statistics</b>\n{sep()}\n"
+        f"⏱ <b>Uptime:</b> {uptime_str}\n\n"
+        f"👥 <b>Users</b>\n{thin_sep()}\n"
+        f"  Total: {total:,}\n"
+        f"  Active (24h): {active_today:,}\n"
+        f"  Banned: {banned:,}\n\n"
+        f"📈 <b>Tier Distribution</b>\n{thin_sep()}\n{tier_str}\n\n"
+        f"🔍 <b>Scans</b>\n{thin_sep()}\n"
+        f"  This Week: {scans_week:,}\n"
+        f"  All-Time: {total_scans:,}\n\n"
+        f"🤖 <b>AI Messages</b>\n{thin_sep()}\n"
+        f"  This Week: {ai_week:,}\n"
+        f"  All-Time: {total_ai:,}\n"
+        f"{footer_links()}",
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
+    )
+
+
+@owner_only
+async def cmd_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """List recent users.
+
+    Usage: /users [limit=10]
+    Shows user_id, username, tier, scans, and last active time.
+    """
+    limit = 10
+    if ctx.args:
+        with contextlib.suppress(ValueError):
+            limit = min(int(ctx.args[0]), 50)
+
+    conn = db.get_db()
+    rows = conn.execute(
+        "SELECT user_id, username, first_name, tier, total_scans, last_active, is_banned "
+        "FROM users ORDER BY last_active DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        await update.message.reply_text("📋 No users found.")
+        return
+
+    lines = [f"👥 <b>Recent Users</b> (last {limit})\n{sep()}\n"]
+    for r in rows:
+        ban = "🚫" if r["is_banned"] else ""
+        last = (
+            datetime.fromtimestamp(r["last_active"], tz=UTC).strftime("%m-%d %H:%M")
+            if r["last_active"]
+            else "?"
+        )
+        username = f"@{r['username']}" if r["username"] else r["first_name"] or "?"
+        lines.append(
+            f"• <code>{r['user_id']}</code> {username} {ban}\n"
+            f"  {r['tier'].upper()} | 🔍{r['total_scans']} | 🕐{last}"
+        )
+    lines.append(f"\n{footer_links()}")
+
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
+    )
+
+
+@owner_only
+async def cmd_block(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Block a user by Telegram user_id.
+
+    Usage: /block <user_id>
+    Blocked users cannot interact with the bot.
+    """
+    if not ctx.args:
+        await update.message.reply_text(
+            "🚫 <b>Block User</b>\n\nUsage: /block <user_id>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    try:
+        uid = int(ctx.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user_id. Must be a numeric ID.")
+        return
+
+    conn = db.get_db()
+    conn.execute("UPDATE users SET is_banned = 1 WHERE user_id = ?", (uid,))
     conn.commit()
     conn.close()
     await update.message.reply_text(
-        f"{'🚫' if state else '✅'} User {uid} {'banned' if state else 'unbanned'}."
+        f"🚫 User <code>{uid}</code> has been blocked.", parse_mode=ParseMode.HTML
     )
+
+
+@owner_only
+async def cmd_unblock(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Unblock a user by Telegram user_id.
+
+    Usage: /unblock <user_id>
+    Restores bot access for a previously blocked user.
+    """
+    if not ctx.args:
+        await update.message.reply_text(
+            "✅ <b>Unblock User</b>\n\nUsage: /unblock <user_id>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    try:
+        uid = int(ctx.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user_id. Must be a numeric ID.")
+        return
+
+    conn = db.get_db()
+    conn.execute("UPDATE users SET is_banned = 0 WHERE user_id = ?", (uid,))
+    conn.commit()
+    conn.close()
+    await update.message.reply_text(
+        f"✅ User <code>{uid}</code> has been unblocked.", parse_mode=ParseMode.HTML
+    )
+
+
+@owner_only
+async def cmd_scanstats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Scanner usage statistics.
+
+    Shows most scanned tokens, chain distribution,
+    and average risk scores.
+    """
+    conn = db.get_db()
+    # Most scanned tokens
+    top_tokens = conn.execute(
+        "SELECT token_address, chain, COUNT(*) as cnt, AVG(risk_score) as avg_risk "
+        "FROM scan_history GROUP BY token_address ORDER BY cnt DESC LIMIT 10"
+    ).fetchall()
+    # Chain distribution
+    chain_dist = conn.execute(
+        "SELECT chain, COUNT(*) as cnt FROM scan_history GROUP BY chain ORDER BY cnt DESC"
+    ).fetchall()
+    total_scans_today = conn.execute(
+        "SELECT COUNT(*) as c FROM scan_history WHERE created_at > ?",
+        (int(time.time()) - 86400,),
+    ).fetchone()["c"]
+    total_scans_all = conn.execute("SELECT COUNT(*) as c FROM scan_history").fetchone()["c"]
+    avg_risk = conn.execute("SELECT AVG(risk_score) as c FROM scan_history").fetchone()["c"] or 0
+    conn.close()
+
+    lines = [
+        f"🔍 <b>Scanner Statistics</b>\n{sep()}\n"
+        f"📊 Total Scans: {total_scans_all:,}\n"
+        f"📅 Scans (24h): {total_scans_today:,}\n"
+        f"⚠️ Avg Risk Score: {avg_risk:.1f}%\n\n"
+        f"📈 <b>Chain Distribution</b>\n{thin_sep()}"
+    ]
+    for c in chain_dist:
+        pct = c["cnt"] / total_scans_all * 100 if total_scans_all else 0
+        lines.append(f"  {fmt_chain(c['chain'])}: {c['cnt']:,} ({pct:.1f}%)")
+
+    if top_tokens:
+        lines.extend(["", f"🔝 <b>Most Scanned Tokens</b>\n{thin_sep()}"])
+        for i, t in enumerate(top_tokens, 1):
+            lines.append(
+                f"  {i}. <code>{short_addr(t['token_address'])}</code> "
+                f"({t['chain']}) — {t['cnt']} scans | Risk: {t['avg_risk']:.0f}%"
+            )
+
+    lines.append(footer_links())
+
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
+    )
+
+
+@owner_only
+async def cmd_bothealth(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Detailed bot health status for the owner.
+
+    Shows uptime, database connectivity, backend health,
+    user/scan counts, and memory usage info.
+    """
+    uptime_seconds = int(time.time() - START_TIME)
+    days, remainder = divmod(uptime_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    uptime_str = f"{days}d {hours}h {minutes}m {seconds}s"
+
+    # Database status
+    db_ok = False
+    user_count = 0
+    scan_count = 0
+    try:
+        conn = db.get_db()
+        user_count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+        scan_count = conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
+        conn.close()
+        db_ok = True
+    except Exception:
+        logger.debug("bothealth DB check failed", exc_info=True)
+
+    # Backend health
+    backend_ok = False
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(f"{BACKEND_URL}/api/v1/health")
+            backend_ok = r.status_code == 200
+    except Exception:
+        backend_ok = False
+
+    db_status = "✅ Connected" if db_ok else "❌ Disconnected"
+    backend_status = "✅ Connected" if backend_ok else "❌ Unreachable"
+
+    await update.message.reply_text(
+        f"🩺 <b>Bot Health</b>\n{sep()}\n\n"
+        f"⏱ <b>Uptime:</b> {uptime_str}\n"
+        f"🗄 <b>Database:</b> {db_status}\n"
+        f"🔗 <b>Backend:</b> {backend_status}\n"
+        f"👥 <b>Total Users:</b> {user_count:,}\n"
+        f"🔍 <b>Total Scans:</b> {scan_count:,}\n"
+        f"\n✅ All systems operational"
+        f"{footer_links()}",
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
+    )
+
+
+@owner_only
+async def cmd_settier(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Set a user's subscription tier.
+
+    Usage: /settier <user_id> <tier> [days=30]
+    Tiers: free, scout, hunter, pro
+    """
+    if len(ctx.args) < 2:
+        await update.message.reply_text(
+            "🎚 <b>Set Tier</b>\n\nUsage: /settier <user_id> <tier> [days]\n"
+            f"Tiers: {', '.join(TIERS.keys())}",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    try:
+        uid = int(ctx.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user_id. Must be a numeric ID.")
+        return
+    tier = ctx.args[1].lower()
+    days = int(ctx.args[2]) if len(ctx.args) > 2 else 30
+    if tier not in TIERS:
+        await update.message.reply_text(
+            f"❌ Invalid tier. Options: {', '.join(TIERS.keys())}",
+        )
+        return
+    db.set_user_tier(uid, tier, days)
+    await update.message.reply_text(
+        f"✅ User <code>{uid}</code> set to <b>{tier}</b> ({days} days)",
+        parse_mode=ParseMode.HTML,
+    )
+
+
+# ── Legacy aliases (admin_ prefix) for backward compatibility ──
+
+
+async def cmd_admin_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Legacy alias — delegates to /stats."""
+    await cmd_stats(update, ctx)
+
+
+async def cmd_admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Legacy alias — delegates to /broadcast."""
+    await cmd_broadcast(update, ctx)
+
+
+async def cmd_admin_ban(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Legacy alias — delegates to /block."""
+    await cmd_block(update, ctx)
+
+
+async def cmd_admin_set_tier(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Legacy alias — delegates to /settier."""
+    await cmd_settier(update, ctx)
 
 
 # ══════════════════════════════════════════════
@@ -1845,7 +2165,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     u = db.get_or_create_user(user.id, user.username, user.first_name)
     if u.get("is_banned"):
         return
-    if check_spam(user.id):
+    if check_spam(user.id, user):
         return
 
     # Auto-detect contract address
@@ -2449,7 +2769,16 @@ def main():
     app.add_handler(CommandHandler("buy", cmd_buy))
     app.add_handler(CommandHandler("subscribe", cmd_buy))
 
-    # ── Owner Commands ──
+    # ── Admin Commands (owner-only — @cryptorugmunch) ──
+    app.add_handler(CommandHandler("broadcast", cmd_broadcast))
+    app.add_handler(CommandHandler("stats", cmd_stats))
+    app.add_handler(CommandHandler("users", cmd_users))
+    app.add_handler(CommandHandler("block", cmd_block))
+    app.add_handler(CommandHandler("unblock", cmd_unblock))
+    app.add_handler(CommandHandler("scanstats", cmd_scanstats))
+    app.add_handler(CommandHandler("bothealth", cmd_bothealth))
+    app.add_handler(CommandHandler("settier", cmd_settier))
+    # Legacy admin_ prefix aliases
     app.add_handler(CommandHandler("admin_stats", cmd_admin_stats))
     app.add_handler(CommandHandler("admin_set_tier", cmd_admin_set_tier))
     app.add_handler(CommandHandler("admin_broadcast", cmd_admin_broadcast))
