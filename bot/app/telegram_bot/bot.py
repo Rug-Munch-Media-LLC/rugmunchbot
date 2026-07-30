@@ -7,7 +7,7 @@ Telegram Stars payments, DEX ref revenue, referral system, AI chat,
 inline queries, scheduled tips, trending tokens, spam protection,
 website integration, social links, bot profile setup.
 
-Run: cd /root/backend/app/telegram_bot && python3 bot.py
+Run: cd [APP_DIR]/telegram_bot && python3 bot.py
 """
 
 import asyncio

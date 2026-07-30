@@ -188,10 +188,10 @@ def exec_in_container(name: str, cmd: str) -> dict:
 # ══════════════════════════════════════════════
 
 COMPOSE_FILES: dict[str, str | None] = {
-    "infra": "/srv/work/repos/fleet-infra/rmi-infra/docker-compose.infrastructure.yml",
+    "infra": "$COMPOSE_INFRA",
     "backend": (
-        "/srv/work/repos/rmi-backend/docker-compose.yml"
-        if os.path.exists("/srv/work/repos/rmi-backend/docker-compose.yml")
+        "$BACKEND_COMPOSE"
+        if os.path.exists("$BACKEND_COMPOSE")
         else None
     ),
 }

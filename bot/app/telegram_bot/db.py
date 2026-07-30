@@ -17,7 +17,7 @@ try:
 except ImportError:
     from bot.app.telegram_bot.config import TIERS  # type: ignore[assignment]
 
-DB_PATH = os.getenv("BOT_DB_PATH", "/root/backend/data/bot_users.db")
+DB_PATH = os.getenv("BOT_DB_PATH", "/var/data/rugmunchbot/bot_users.db")
 
 
 def get_db() -> sqlite3.Connection:

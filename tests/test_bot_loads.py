@@ -15,7 +15,7 @@ from pathlib import Path
 def _add_bot_to_path():
     """Add the bot package dir to sys.path and purge cached 'config'.
 
-    The /root/config namespace package (from the standards repo) can shadow
+    The config namespace package can shadow
     the bot's config.py when running tests in batch. We must clear the
     import cache and put the bot dir first so from config import ...
     resolves to the correct module.

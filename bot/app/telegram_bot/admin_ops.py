@@ -88,10 +88,10 @@ SAFE_CMD_PREFIXES = [
 ]
 
 # Compose paths
-COMPOSE_INFRA = (
-    "/srv/work/repos/fleet-infra/rmi-infra/docker-compose.infrastructure.yml"
+COMPOSE_INFRA = os.getenv("COMPOSE_INFRA_PATH", "/etc/docker/compose/infrastructure.yml")
+    COMPOSE_INFRA
 )
-COMPOSE_BACKEND_DIR = "/srv/work/repos/rmi-backend"
+COMPOSE_BACKEND_DIR = os.getenv("COMPOSE_BACKEND_DIR", "/etc/docker/rmi-backend")
 LOG_FILE = "/var/log/rmi-admin.log"
 
 KNOWN_SERVICES = [
@@ -371,7 +371,7 @@ def docker_compose(action: str, project: str = "infra") -> dict:
         }
 
     compose_file = COMPOSE_INFRA
-    workdir = "/srv/work/repos/fleet-infra/rmi-infra"
+    workdir = os.getenv("FLEET_INFRA_DIR", "/etc/docker/fleet-infra")
     if project == "backend":
         compose_file = f"{COMPOSE_BACKEND_DIR}/docker-compose.yml"
         workdir = COMPOSE_BACKEND_DIR
@@ -590,9 +590,9 @@ def trigger_backup(backup_type: str = "full") -> dict:
         }
 
     if backup_type == "db":
-        script = "/srv/work/repos/fleet-infra/scripts/backup/db-backup.sh"
+        script = os.getenv("BACKUP_SCRIPT", "/usr/local/bin/db-backup.sh")
     else:  # full
-        script = "/srv/work/repos/fleet-infra/scripts/backup/db-backup.sh"
+        script = os.getenv("BACKUP_SCRIPT", "/usr/local/bin/db-backup.sh")
 
     if not os.path.exists(script):
         return {
@@ -621,15 +621,15 @@ def deploy_service(service: str) -> dict:
             "docker compose up -d rmi-backend 2>&1"
         ),
         "bot": (
-            "cd /srv/work/repos/rugmunchbot/bot/app/telegram_bot && "
+            "cd $RUGMUNCHBOT_DIR && python3 run_bot.py &"
             "docker compose build 2>&1 && docker compose up -d 2>&1"
         ),
         "admin": (
-            "cd /srv/work/repos/rugmunchbot/bot/app/telegram_bot && "
+            "cd $RUGMUNCHBOT_DIR && python3 run_bot.py &"
             "docker compose build 2>&1 && docker compose up -d 2>&1"
         ),
         "infra": (
-            f"cd /srv/work/repos/fleet-infra/rmi-infra && docker compose -f {shlex.quote(COMPOSE_INFRA)} up -d 2>&1"
+            ff"cd $FLEET_INFRA_DIR && docker compose -f {shlex.quote(COMPOSE_INFRA)} up -d 2>&1"
         ),
     }
 

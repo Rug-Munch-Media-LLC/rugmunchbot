@@ -15,7 +15,7 @@ tags = ["rmi", "infrastructure"]
 [[rules]]
 id = "internal-hostname"
 description = "Internal server hostnames and IPs"
-regex = '''(talos\.rugmunch\.io|100\.104\.\d+\.\d+|100\.64\.\d+\.\d+|100\.74\.\d+\.\d+|cinnabox)'''
+regex = '''(internal-1\.example\.com|100\.64\.\d+\.\d+|100\.64\.\d+\.\d+|100\.74\.\d+\.\d+|cinnabox)'''
 tags = ["rmi", "infrastructure"]
 
 [[rules]]

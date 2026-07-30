@@ -22,29 +22,29 @@ import admin_ops
 SERVICES = {
     "backend": {
         "name": "RMI Backend API",
-        "repo": "/srv/work/repos/rmi-backend",
-        "compose_dir": "/srv/work/repos/rmi-backend",
+        "repo": os.getenv("BACKEND_REPO_DIR", "/opt/rmi-backend"),
+        "compose_dir": os.getenv("BACKEND_COMPOSE_DIR", "/opt/rmi-backend"),
         "compose_service": "rmi-backend",
         "dockerfile": "Dockerfile",
     },
     "bot": {
         "name": "RugMunchBot",
-        "repo": "/srv/work/repos/rugmunchbot",
-        "compose_dir": "/srv/work/repos/rugmunchbot/bot/app/telegram_bot",
+        "repo": os.getenv("BOT_REPO_DIR", "/opt/rugmunchbot"),
+        "compose_dir": os.getenv("BOT_COMPOSE_DIR", "/opt/rugmunchbot/bot"),
         "compose_service": "rugmunchbot",
         "dockerfile": "Dockerfile",
     },
     "admin": {
         "name": "RMI Admin Bot",
-        "repo": "/srv/work/repos/rugmunchbot",
-        "compose_dir": "/srv/work/repos/rugmunchbot/bot/app/telegram_bot",
+        "repo": os.getenv("BOT_REPO_DIR", "/opt/rugmunchbot"),
+        "compose_dir": os.getenv("BOT_COMPOSE_DIR", "/opt/rugmunchbot/bot"),
         "compose_service": "rmi-admin-bot",
         "dockerfile": "Dockerfile",
     },
     "infra": {
         "name": "Fleet Infrastructure",
-        "repo": "/srv/work/repos/fleet-infra",
-        "compose_dir": "/srv/work/repos/fleet-infra/rmi-infra",
+        "repo": os.getenv("FLEET_INFRA_DIR", "/opt/fleet-infra"),
+        "compose_dir": os.getenv("FLEET_INFRA_COMPOSE", "/opt/fleet-infra/rmi-infra"),
         "compose_service": None,  # Full stack
         "dockerfile": None,
     },
