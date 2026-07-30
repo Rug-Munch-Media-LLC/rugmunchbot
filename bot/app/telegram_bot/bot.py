@@ -2688,6 +2688,157 @@ async def daily_scam_tip(ctx: ContextTypes.DEFAULT_TYPE) -> None:
 # ══════════════════════════════════════════════
 
 
+async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/research <query> — RAG-powered intelligence search across threat intel, wallet labels, and scam databases."""
+    user = update.effective_user
+    db.get_or_create_user(user.id, user.username, user.first_name)
+
+    if not ctx.args:
+        await update.message.reply_text(
+            "🧠 <b>Research Mode</b>\n\n"
+            "Search across RMI's threat intelligence database using natural language.\n\n"
+            "Usage: /research <code>your query</code>\n\n"
+            "<b>Examples:</b>\n"
+            "  /research tokens with honeypot patterns on Solana\n"
+            "  /research deployers who launched multiple rug pulls\n"
+            "  /research phishing campaigns targeting DeFi protocols\n"
+            "  /research suspicious wallet clusters\n"
+            "  /research similar scam patterns to PEPE\n\n"
+            "Powered by RAG (Retrieval-Augmented Generation) across 17K+ scam docs.",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
+    query = " ".join(ctx.args)
+    if len(query) > 500:
+        await update.message.reply_text(
+            "❌ Query too long (max 500 chars).", parse_mode=ParseMode.HTML
+        )
+        return
+
+    # Tier gating — check limits
+    if not is_owner(user.id):
+        allowed, _used, _limit = db.check_rate_limit(user.id, "ai_msg")
+        if not allowed:
+            await update.message.reply_text(
+                paywall_text(user.id, "ai_msg"),
+                parse_mode=ParseMode.HTML,
+                reply_markup=paywall_kb(),
+            )
+            return
+
+    msg = await update.message.reply_text(
+        "🧠 <b>Researching RAG database...</b>\n\n"
+        f"<i>Query:</i> <code>{query[:100]}{'…' if len(query) > 100 else ''}</code>\n"
+        f"⏳ Scanning threat intel, wallet labels, and scam archives...",
+        parse_mode=ParseMode.HTML,
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                f"{BACKEND_URL}/api/v1/rag/v2/search",
+                json={
+                    "query": query,
+                    "collection": "scam_intel",
+                    "top_k": 8,
+                    "min_similarity": 0.35,
+                    "filters": {},
+                },
+                headers={"X-API-Key": RMI_AUTH_TOKEN},
+            )
+
+            if r.status_code != 200:
+                await msg.edit_text(
+                    f"❌ <b>Research Failed</b>\n\nBackend returned HTTP {r.status_code}.\n"
+                    f"Please try again later or use /help.",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                )
+                return
+
+            data = r.json()
+            hits = data.get("hits", [])
+            total = data.get("total", 0)
+            took_ms = data.get("took_ms", 0)
+
+            if not hits:
+                await msg.edit_text(
+                    "🔍 <b>No Results Found</b>\n\n"
+                    f"No relevant intelligence found for: <code>{query[:100]}</code>\n\n"
+                    "Try:\n"
+                    "• Using different keywords\n"
+                    "• Shorter, more specific queries\n"
+                    "• Checking /scan for token-specific data",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                )
+                return
+
+            # Format results
+            lines = [
+                f"🧠 <b>RAG Intelligence Report</b>\n"
+                f"<i>Query:</i> <code>{query[:100]}{'…' if len(query) > 100 else ''}</code>\n"
+                f"<i>Found:</i> {total} matches in {took_ms}ms\n"
+                f"{'─' * 32}\n"
+            ]
+
+            for i, hit in enumerate(hits[:8], 1):
+                content = hit.get("content", "")
+                score = hit.get("score", 0)
+                meta = hit.get("metadata", {})
+
+                # Truncate content for readability
+                if len(content) > 250:
+                    content = content[:247] + "…"
+
+                # Build metadata prefix
+                meta_parts = []
+                if meta.get("scam_type"):
+                    meta_parts.append(f"Type: {meta['scam_type']}")
+                if meta.get("chain"):
+                    meta_parts.append(f"Chain: {meta['chain']}")
+                if meta.get("token_address"):
+                    addr = meta["token_address"]
+                    meta_parts.append(f"Token: <code>{addr[:8]}…{addr[-4:]}</code>")
+                if meta.get("risk_score"):
+                    meta_parts.append(f"Risk: {meta['risk_score']}")
+
+                score_bar = "🟢" if score > 0.7 else "🟡" if score > 0.5 else "⚪"
+                lines.append(
+                    f"{i}. {score_bar} <b>Match {score:.0%}</b>\n"
+                    f"   <code>{content}</code>\n"
+                    + (f"   {' | '.join(meta_parts)}\n" if meta_parts else "")
+                )
+
+            lines.append(
+                f"\n{'─' * 32}\n"
+                f"💡 <i>Tip: Use /scan &lt;address&gt; for detailed token analysis</i>"
+            )
+
+            db.increment_usage(user.id, ai_msg=True)
+            await msg.edit_text(
+                "\n".join(lines),
+                parse_mode=ParseMode.HTML,
+                reply_markup=back_kb(),
+            )
+
+    except httpx.TimeoutException:
+        await msg.edit_text(
+            "⏰ <b>Research Timed Out</b>\n\n"
+            "The RAG backend took too long to respond. Please try a simpler query.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+    except Exception as e:
+        logger.exception("cmd_research failed")
+        await msg.edit_text(
+            f"❌ <b>Research Failed</b>\n\nError: {str(e)[:150]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
 async def cmd_buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Show payment methods and subscription plans.
 
@@ -2768,6 +2919,7 @@ def main():
     app.add_handler(CommandHandler("alerts", cmd_alerts))
     app.add_handler(CommandHandler("buy", cmd_buy))
     app.add_handler(CommandHandler("subscribe", cmd_buy))
+    app.add_handler(CommandHandler("research", cmd_research))
 
     # ── Admin Commands (owner-only — @cryptorugmunch) ──
     app.add_handler(CommandHandler("broadcast", cmd_broadcast))
