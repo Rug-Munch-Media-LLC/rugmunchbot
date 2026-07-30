@@ -1,0 +1,1 @@
+/root/scripts/pre-commit-methodology-check.sh
