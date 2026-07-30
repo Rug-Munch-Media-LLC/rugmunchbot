@@ -40,14 +40,20 @@ jobs:
       - name: Verify bot module imports
         run: |
           source .venv/bin/activate
-          python -c "
-import sys, importlib
-sys.path.insert(0, 'bot/app/telegram_bot')
-importlib.invalidate_caches()
-import config
-assert config.BOT_TOKEN == '', 'config loaded'
-print('✅ config.py imports OK')
-import db
-assert hasattr(db, 'get_db'), 'db.py loaded'
-print('✅ db.py imports OK')
-"
+          python3 -c "import sys as _s, importlib as _i; _s.path.insert(0, 'bot/app/telegram_bot'); _i.invalidate_caches(); import config; assert config.BOT_TOKEN == '', 'config loaded'; print('config.py imports OK'); import db; assert hasattr(db, 'get_db'), 'db.py loaded'; print('db.py imports OK')"
+
+  security:
+    runs-on: docker-x64
+    container:
+      image: python:3.12-slim
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+          rm -rf /var/lib/apt/lists/*
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.0/gitleaks_8.24.0_linux_x64.tar.gz | tar xz -C /usr/local/bin gitleaks
+      - name: Gitleaks secret scan
+        run: gitleaks detect --source . --no-banner --exit-code 1 --verbose
