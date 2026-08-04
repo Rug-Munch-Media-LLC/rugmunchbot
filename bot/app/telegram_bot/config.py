@@ -59,6 +59,12 @@ RAG_URL = f"{BACKEND_URL}/api/v1/rag"
 # Auth for backend calls (must match rmi-backend's RMI_AUTH_TOKEN)
 RMI_AUTH_TOKEN = os.getenv("RMI_AUTH_TOKEN", "")
 
+# Local llama.cpp chat backend (compose/chat — Qwen3.5-9B on host loopback)
+# [REVIEW] host port 8093: 8085 in the original brief is owned by the
+# degenfeed nostr relay. Container port unchanged (8085 inside docker).
+LLM_CHAT_URL = os.getenv("LLM_CHAT_URL", "http://localhost:8093/v1/chat/completions")
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen3.5-9b")
+
 # ══════════════════════════════════════════════
 # SUBSCRIPTION TIERS (Weekly Allotments)
 # ══════════════════════════════════════════════
