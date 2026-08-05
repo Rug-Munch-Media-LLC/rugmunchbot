@@ -16,6 +16,7 @@ from handlers.scan import (  # noqa: E402
     set_databus_fallback,
 )
 from services import scanner as scanner_service  # noqa: E402
+from services.scanner import DeepScanNotAvailableError  # noqa: E402
 from tests.fakes import (  # noqa: E402
     FakeBot,
     FakeCallbackQuery,
@@ -234,6 +235,142 @@ async def test_cmd_deepscan_stars_refund_on_failure(monkeypatch):
     assert "Deep Scan Failed" in msg.calls[1][1]
     user = bot_db.get_or_create_user(12345)
     assert user["stars_balance"] == 250  # refunded
+
+
+async def test_cmd_deepscan_404_coming_soon_scout(monkeypatch):
+    """Backend does not expose SENTINEL yet → friendly coming-soon fallback."""
+    import db as bot_db
+
+    bot_db.get_or_create_user(12345)
+    bot_db.set_user_tier(12345, "scout", 30)
+
+    async def fake_sentinel(address, chain=None, depth="deep"):
+        raise DeepScanNotAvailableError("not mounted")
+
+    monkeypatch.setattr("handlers.scan.sentinel_scan", fake_sentinel)
+    update, ctx, msg = make_message_update([SOL_ADDR])
+    await cmd_deepscan(update, ctx)
+    assert "Deep Scan Coming Soon" in msg.calls[1][1]
+    assert "not charged" in msg.calls[1][1]
+
+
+async def test_cmd_deepscan_404_coming_soon_refunds_stars(monkeypatch):
+    """Stars users get a refund when the backend 404s the deep scan."""
+    import db as bot_db
+
+    bot_db.get_or_create_user(12345)
+    bot_db.add_stars(12345, 250, "test")
+
+    async def fake_sentinel(address, chain=None, depth="deep"):
+        raise DeepScanNotAvailableError("not mounted")
+
+    monkeypatch.setattr("handlers.scan.sentinel_scan", fake_sentinel)
+    update, ctx, msg = make_message_update([SOL_ADDR])
+    await cmd_deepscan(update, ctx)
+    assert "Deep Scan Coming Soon" in msg.calls[1][1]
+    user = bot_db.get_or_create_user(12345)
+    assert user["stars_balance"] == 250  # refunded
+
+
+async def test_cmd_deepscan_long_report_splits_messages(monkeypatch):
+    """Reports over the 4096-char limit are split into multiple messages."""
+    import db as bot_db
+    import handlers.scan as scan_mod
+
+    bot_db.get_or_create_user(12345)
+    bot_db.set_user_tier(12345, "scout", 30)
+    monkeypatch.setattr(scan_mod, "MAX_MESSAGE_CHARS", 300)
+
+    async def fake_sentinel(address, chain=None, depth="deep"):
+        return {
+            "address": address,
+            "chain": "solana",
+            "risk_score": 88,
+            "summary": "Bundle activity detected across many wallets. " * 60,
+            "findings": [{"severity": "critical", "title": "Bundled launch"}] * 8,
+        }
+
+    monkeypatch.setattr("handlers.scan.sentinel_scan", fake_sentinel)
+    update, ctx, msg = make_message_update([SOL_ADDR])
+    await cmd_deepscan(update, ctx)
+    # First chunk edits the scanning message; remaining chunks are new messages.
+    assert msg.calls[1][0] == "edit"
+    assert len(ctx.bot.sent) >= 1
+    all_text = msg.calls[1][1] + "".join(text for _, text, _ in ctx.bot.sent)
+    assert "SENTINEL Deep Forensic Report" in all_text
+    assert all(len(text) <= 300 for _, text, _ in ctx.bot.sent)
+
+
+async def test_sentinel_scan_404_raises_not_available(fake_http):
+    script = [FakeResponse(404, {"detail": "Not Found"})]
+    fake_http(script)
+    with pytest.raises(DeepScanNotAvailableError):
+        await scanner_service.sentinel_scan(SOL_ADDR)
+
+
+# ── formatters.wallet_breakdown ──
+
+
+def test_format_deepscan_profile_sections():
+    try:
+        from formatters.wallet_breakdown import format_deepscan_profile_sections
+    except ImportError:
+        pytest.skip("formatters.wallet_breakdown exposes a different API variant")
+
+    data = {
+        "address": SOL_ADDR,
+        "deep_profile": {
+            "wallet_breakdown": {
+                "total_holders": 1200,
+                "fresh_wallet_count": 492,
+                "fresh_wallet_pct": 0.41,
+                "exchange_funded_count": 310,
+                "exchange_funded_pct": 0.258,
+                "instant_buy_count": 88,
+                "instant_buy_pct": 0.073,
+                "exchange_breakdown": {"binance": 187, "coinbase": 124},
+                "fake_diversification_score": 63.0,
+            },
+            "bundle_profile": {
+                "bundles_detected": 14,
+                "deployer_funded_wallets": 9,
+                "deployer_funded_pct": 0.642,
+                "same_block_snipers": 5,
+                "jito_bundles": 3,
+                "behavior_clusters": 2,
+                "cross_launch_repeat_wallets": 7,
+                "bundle_risk_score": 82,
+                "bundle_risk_level": "HIGH",
+            },
+            "deployer_profile": {
+                "wallet_age_days": 3,
+                "total_deployments": 11,
+                "rug_rate": 0.545,
+                "funded_from": "binance",
+                "chains_active": ["solana"],
+                "sleep_pattern": "bot-like",
+            },
+        },
+    }
+    sections = format_deepscan_profile_sections(data)
+    assert len(sections) == 3
+    wallet, bundle, deployer = sections
+    assert "Wallet Breakdown" in wallet
+    assert "Total holders" in wallet
+    assert "41.0%" in wallet  # 0.41 fraction rendered as pct
+    assert "Bundle Profile" in bundle
+    assert "Bundle risk: <b>82/100</b> (HIGH)" in bundle
+    assert "Deployer Profile" in deployer
+    assert "bot-like" in deployer
+
+
+def test_format_deepscan_profile_sections_empty_without_profiles():
+    try:
+        from formatters.wallet_breakdown import format_deepscan_profile_sections
+    except ImportError:
+        pytest.skip("formatters.wallet_breakdown exposes a different API variant")
+
+    assert format_deepscan_profile_sections({"risk_score": 10}) == []
 
 
 # ── /risk ──

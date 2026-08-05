@@ -42,6 +42,10 @@ class ScanUnavailableError(Exception):
     """Scanner backend unreachable after v2 and v1 fallback attempts."""
 
 
+class DeepScanNotAvailableError(Exception):
+    """SENTINEL deep scan is not implemented/enabled on the backend (HTTP 404)."""
+
+
 def backend_headers() -> dict[str, str]:
     """Auth headers for backend calls (X-API-Key from env, never hardcoded)."""
     headers = {"Content-Type": "application/json"}
@@ -145,10 +149,19 @@ async def scan_token_v2(address: str, chain: str | None = None, depth: str = "qu
 
 
 async def sentinel_scan(address: str, chain: str | None = None, depth: str = "deep") -> dict:
-    """SENTINEL deep forensic scan (premium — Scout+ or ⭐250)."""
+    """SENTINEL deep forensic scan (premium — Scout+ or ⭐250).
+
+    Raises DeepScanNotAvailableError when the backend does not expose the
+    SENTINEL endpoint yet (HTTP 404), so callers can fall back to a friendly
+    "coming soon" message instead of a generic failure.
+    """
     payload = {"chain": chain or detect_chain(address), "address": address, "depth": depth}
     async with httpx.AsyncClient(timeout=SENTINEL_TIMEOUT) as client:
         r = await client.post(SENTINEL_URL, json=payload, headers=backend_headers())
+        if r.status_code == 404:
+            raise DeepScanNotAvailableError(
+                "SENTINEL deep scan endpoint not available on the backend"
+            )
         r.raise_for_status()
         body = r.json()
         if not isinstance(body, dict):

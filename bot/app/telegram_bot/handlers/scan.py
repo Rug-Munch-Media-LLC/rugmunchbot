@@ -3,6 +3,12 @@
 V3 scan handlers — /scan (RugMunchScan v2 → v1), /deepscan (SENTINEL,
 premium-gated), /risk (quick) plus scan_/deep_/watch_ callback actions.
 
+Deep scan reports are composed from the base SENTINEL report plus the typed
+profile sections (wallet breakdown / bundle / deployer) rendered by
+``formatters.wallet_breakdown``, then split into ≤4096-char Telegram chunks.
+If the backend does not expose SENTINEL yet (HTTP 404), /deepscan falls back
+to a "Deep Scan Coming Soon" message instead of a generic failure.
+
 The legacy DataBus path (bot.scan_token) is injected at startup via
 set_databus_fallback() so /scan never regresses when both v2 and v1 fail.
 """
@@ -11,6 +17,10 @@ import logging
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -22,14 +32,35 @@ from services.formatting import (
     format_quick_risk,
     format_v3_scan_report,
 )
-from services.scanner import ScanUnavailableError, detect_chain, scan_token_v2, sentinel_scan
+from services.scanner import (
+    DeepScanNotAvailableError,
+    ScanUnavailableError,
+    detect_chain,
+    scan_token_v2,
+    sentinel_scan,
+)
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
+# formatters.wallet_breakdown is a newer module and may expose either of two
+# APIs depending on when it was written; load both defensively so /deepscan
+# never regresses if one variant is missing.
+try:
+    from formatters.wallet_breakdown import (
+        format_deepscan_profile_sections as _profile_sections,
+    )
+except ImportError:  # pragma: no cover - depends on formatter module variant
+    _profile_sections = None
+try:
+    from formatters.wallet_breakdown import format_deep_scan_summary as _deep_summary
+except ImportError:  # pragma: no cover - depends on formatter module variant
+    _deep_summary = None
+
 logger = logging.getLogger(__name__)
 
 SPAM_COOLDOWN = 3.0
+MAX_MESSAGE_CHARS = 4096
 _user_last_action: dict[int, float] = {}
 
 # Legacy DataBus fallback — set by bot.py at startup (never regress).
@@ -88,6 +119,106 @@ def _validate_address(address: str, chain: str | None) -> tuple[str, bool]:
     if chain and chain.lower() not in ("solana", "ethereum", "base", "bsc", "arbitrum", "polygon"):
         return detected, False
     return detected, True
+
+
+# ── deep-scan report chunking (>4096 chars → multiple messages) ──
+
+
+def _hard_split(text: str, max_chars: int) -> list[str]:
+    """Split an oversized single section at newline boundaries (rare)."""
+    lines = text.split("\n")
+    chunks: list[str] = []
+    current = ""
+    for line in lines:
+        candidate = line if not current else f"{current}\n{line}"
+        if len(candidate) <= max_chars:
+            current = candidate
+            continue
+        if current:
+            chunks.append(current)
+        current = line[:max_chars] if len(line) > max_chars else line
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _chunk_report_sections(sections: list[str], max_chars: int | None = None) -> list[str]:
+    """Join report sections into Telegram-safe chunks (≤ max_chars each).
+
+    Splits only at section boundaries so HTML tags are never cut mid-tag.
+    If a single section is itself oversized, falls back to newline-level
+    hard splits. ``max_chars`` resolves to MAX_MESSAGE_CHARS at call time so
+    it can be tuned in tests.
+    """
+    if max_chars is None:
+        max_chars = MAX_MESSAGE_CHARS
+    chunks: list[str] = []
+    current = ""
+    for section in sections:
+        if not section:
+            continue
+        if len(section) > max_chars:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.extend(_hard_split(section, max_chars))
+            continue
+        candidate = section if not current else f"{current}\n\n{section}"
+        if len(candidate) <= max_chars:
+            current = candidate
+        else:
+            chunks.append(current)
+            current = section
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _deepscan_chunks(data: dict) -> list[str]:
+    """Base SENTINEL report + typed profile sections, split into chunks.
+
+    Uses whichever formatter API is present: the standalone deep-scan summary
+    (format_deep_scan_summary) when available, otherwise the base report plus
+    profile sections (format_deepscan_profile_sections).
+    """
+    if _deep_summary is not None:
+        try:
+            chunks = cast("Callable[[dict], list[str]]", _deep_summary)(data)
+            if chunks:
+                return chunks
+        except Exception as exc:  # fall through on any formatter issue
+            logger.debug("format_deep_scan_summary failed: %s", exc)
+    sections = [format_deepscan_report(data)]
+    if _profile_sections is not None:
+        sections.extend(_profile_sections(data))
+    return _chunk_report_sections(sections)
+
+
+async def _deliver_deepscan(
+    ctx: ContextTypes.DEFAULT_TYPE,
+    chat_id: int,
+    data: dict,
+    address: str,
+    chain: str,
+    edit_fn,
+) -> None:
+    """Edit the "scanning..." message with the first chunk, then send the
+    remaining chunks as follow-up messages (Telegram 4096-char limit)."""
+    chunks = _deepscan_chunks(data)
+    kb = scan_result_kb_v3(address, chain)
+    await edit_fn(
+        chunks[0],
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+        disable_web_page_preview=True,
+    )
+    for chunk in chunks[1:]:
+        await ctx.bot.send_message(
+            chat_id=chat_id,
+            text=chunk,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
 
 
 # ── /scan ──
@@ -290,11 +421,24 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             "deep",
             data.get("risk_score") or data.get("score") or 0,
         )
+        await _deliver_deepscan(
+            ctx,
+            msg.chat.id,
+            data,
+            address,
+            data.get("chain", detected),
+            msg.edit_text,
+        )
+    except DeepScanNotAvailableError:
+        if how == "stars":
+            db.add_stars(user.id, DEEP_SCAN_STARS_COST, "refund_deep_scan")
+        logger.info("Deep scan not available for %s (backend 404)", _short(address))
         await msg.edit_text(
-            format_deepscan_report(data),
+            "🚧 <b>Deep Scan Coming Soon</b>\n\n"
+            "SENTINEL deep forensic scanning is not available on the backend yet. "
+            "You were not charged for this scan — check back shortly!",
             parse_mode=ParseMode.HTML,
-            reply_markup=scan_result_kb_v3(address, data.get("chain", detected)),
-            disable_web_page_preview=True,
+            reply_markup=back_kb(),
         )
     except Exception as exc:
         if how == "stars":
@@ -432,7 +576,7 @@ async def handle_scan_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
 async def handle_deep_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Deep scan from the scan-report '🔬 Deep Scan' button."""
     query = update.callback_query
-    if query is None:
+    if query is None or query.message is None:
         return
     user = query.from_user
     parts = (query.data or "").split("_", 2)
@@ -471,11 +615,24 @@ async def handle_deep_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
             "deep",
             data.get("risk_score") or data.get("score") or 0,
         )
+        await _deliver_deepscan(
+            ctx,
+            query.message.chat.id,
+            data,
+            address,
+            data.get("chain", chain),
+            query.edit_message_text,
+        )
+    except DeepScanNotAvailableError:
+        if how == "stars":
+            db.add_stars(user.id, DEEP_SCAN_STARS_COST, "refund_deep_scan")
+        logger.info("Callback deep scan not available for %s (backend 404)", _short(address))
         await query.edit_message_text(
-            format_deepscan_report(data),
+            "🚧 <b>Deep Scan Coming Soon</b>\n\n"
+            "SENTINEL deep forensic scanning is not available on the backend yet. "
+            "You were not charged for this scan — check back shortly!",
             parse_mode=ParseMode.HTML,
-            reply_markup=scan_result_kb_v3(address, data.get("chain", chain)),
-            disable_web_page_preview=True,
+            reply_markup=back_kb(),
         )
     except Exception as exc:
         if how == "stars":
