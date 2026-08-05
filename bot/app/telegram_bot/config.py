@@ -60,10 +60,30 @@ RAG_URL = f"{BACKEND_URL}/api/v1/rag"
 RMI_AUTH_TOKEN = os.getenv("RMI_AUTH_TOKEN", "")
 
 # Local llama.cpp chat backend (compose/chat — Qwen3.5-9B on host loopback)
-# [REVIEW] host port 8093: 8085 in the original brief is owned by the
-# degenfeed nostr relay. Container port unchanged (8085 inside docker).
-LLM_CHAT_URL = os.getenv("LLM_CHAT_URL", "http://localhost:8093/v1/chat/completions")
+# V3 default: host port 8095 (llama-server /v1/chat/completions, OpenAI-compatible).
+LLM_CHAT_URL = os.getenv("LLM_CHAT_URL", "http://localhost:8095/v1/chat/completions")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen3.5-9b")
+# Market rundown endpoint served by the same llama-server backend (chat mode).
+MARKET_RUNDOWN_URL = os.getenv("MARKET_RUNDOWN_URL", "http://localhost:8095/chat/rundown")
+
+# ══════════════════════════════════════════════
+# V3 — SCANNER & SENTINEL ENDPOINTS
+# ══════════════════════════════════════════════
+# RugMunchScan v2 (synchronous full report) with v1 (async + poll) fallback.
+SCANNER_V2_URL = os.getenv("SCANNER_V2_URL", f"{BACKEND_URL}/api/v2/scanner/token/scan")
+SCANNER_V1_URL = os.getenv("SCANNER_V1_URL", f"{BACKEND_URL}/api/v1/scanner/scan")
+# SENTINEL deep forensic scan (premium — Scout+ or ⭐250).
+SENTINEL_URL = os.getenv("SENTINEL_URL", f"{BACKEND_URL}/api/v1/x402-tools/sentinel_scan")
+
+# ══════════════════════════════════════════════
+# V3 — ALERT PIPELINE
+# ══════════════════════════════════════════════
+# Backend alert queue polled by the bot's alert delivery job (polling keeps the
+# bot stateless; the design recommends webhook delivery as a later upgrade).
+ALERT_POLL_URL = os.getenv("ALERT_POLL_URL", f"{BACKEND_URL}/api/v1/intelligence/my-alerts")
+ALERT_POLL_INTERVAL = int(os.getenv("ALERT_POLL_INTERVAL", "30"))  # seconds
+ALERT_MAX_PER_HOUR = int(os.getenv("ALERT_MAX_PER_HOUR", "5"))  # hard anti-spam cap
+ALERT_DEDUPE_WINDOW = int(os.getenv("ALERT_DEDUPE_WINDOW", "1800"))  # 30 min per (token,type)
 
 # ══════════════════════════════════════════════
 # SUBSCRIPTION TIERS (Weekly Allotments)
@@ -260,6 +280,9 @@ SCAN_PACKS = {
         "stars": 500,
     },
 }
+
+# Deep scan unlock: one-time Stars cost when the user is not on a paid tier.
+DEEP_SCAN_STARS_COST = SCAN_PACKS["deep_scan"]["stars"]
 
 # ══════════════════════════════════════════════
 # DEX REFERRAL LINKS

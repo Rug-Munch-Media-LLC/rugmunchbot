@@ -76,6 +76,11 @@ from config import (
     threat_indicator,
 )
 
+# ── V3 modular handlers (registered before legacy handlers in main()) ──
+from handlers import register_v3_handlers
+from handlers.alerts import alert_delivery_job as v3_alert_delivery_job
+from handlers.scan import cmd_scan as cmd_scan_v3, set_databus_fallback as _set_databus_fallback
+
 # ══════════════════════════════════════════════
 # LOGGING
 # ══════════════════════════════════════════════
@@ -1021,7 +1026,10 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"📖 <b>RugMunch Intelligence — Command Guide</b>\n"
         f"{sep()}\n\n"
         f"🔍 <b>TOKEN ANALYSIS</b>\n{d}\n"
-        f"/scan <code>address</code> — Full security scan\n"
+        f"/scan <code>address</code> — Full security scan (RugMunchScan)\n"
+        f"/deepscan <code>address</code> — SENTINEL deep forensic scan (premium)\n"
+        f"/analyze <code>address</code> — AI analysis (Qwen3.5-9B)\n"
+        f"/risk <code>address</code> — Quick risk score only\n"
         f"/ta <code>address</code> — Technical analysis & signals\n"
         f"/compare <code>addr1</code> <code>addr2</code> — Side-by-side\n"
         f"/quick <code>symbol</code> — Quick price check (same as $TOKEN)\n\n"
@@ -1030,10 +1038,11 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"/watch <code>address</code> [chain] — Add to watchlist\n"
         f"/unwatch <code>address</code> — Remove from watchlist\n"
         f"/watchlist — View your watchlist\n"
-        f"/alerts — Price & activity alerts\n\n"
+        f"/alerts [on|off] [security|whale|price] — Alert subscriptions\n\n"
         f"📊 <b>MARKET DATA</b>\n{d}\n"
+        f"/market — Market rundown\n"
         f"/trending — Hot tokens right now\n"
-        f"/news — Latest crypto news\n\n"
+        f"/news — Latest rated news\n\n"
         f"💳 <b>ACCOUNT & BILLING</b>\n{d}\n"
         f"/account — Dashboard & usage stats\n"
         f"/pricing — Subscription plans\n"
@@ -2171,7 +2180,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Auto-detect contract address
     if is_evm(text) or is_sol(text):
         ctx.args = [text]
-        await cmd_scan(update, ctx)
+        await cmd_scan_v3(update, ctx)
         return
 
     # Token symbol detection ($TOKEN)
@@ -2226,11 +2235,11 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     sol_match = SOL_RE.search(text)
     if evm_match:
         ctx.args = [evm_match.group()]
-        await cmd_scan(update, ctx)
+        await cmd_scan_v3(update, ctx)
         return
     if sol_match:
         ctx.args = [sol_match.group()]
-        await cmd_scan(update, ctx)
+        await cmd_scan_v3(update, ctx)
         return
 
     # AI Chat
@@ -2623,9 +2632,15 @@ async def setup_bot_profile(app: Application) -> None:
     try:
         commands = [
             BotCommand("start", "Welcome & quick start guide"),
+            BotCommand("scan", "Scan token for scams & risks"),
+            BotCommand("deepscan", "SENTINEL deep forensic scan (premium)"),
+            BotCommand("analyze", "AI analysis of a token (Qwen3.5-9B)"),
+            BotCommand("risk", "Quick risk score only"),
+            BotCommand("market", "Market rundown & overview"),
+            BotCommand("alerts", "Manage alert subscriptions (security/whale/price)"),
+            BotCommand("news", "Latest rated crypto news"),
             BotCommand("help", "Full command reference"),
             BotCommand("status", "Bot health & uptime"),
-            BotCommand("scan", "Scan token for scams & risks"),
             BotCommand("wallet", "Wallet forensics & analysis"),
             BotCommand("ta", "Technical analysis & signals"),
             BotCommand("compare", "Compare two tokens side-by-side"),
@@ -2634,13 +2649,12 @@ async def setup_bot_profile(app: Application) -> None:
             BotCommand("rugcheck", "Rug pull red flag checklist"),
             BotCommand("watch", "Add token to watchlist"),
             BotCommand("watchlist", "View your watchlist"),
-            BotCommand("alerts", "Price & activity alerts"),
             BotCommand("account", "Your dashboard & usage"),
             BotCommand("pricing", "Subscription plans"),
             BotCommand("topup", "Buy extra scans (no expiry)"),
             BotCommand("refer", "Invite friends, earn scans"),
             BotCommand("scamschool", "Learn about crypto scams"),
-            BotCommand("news", "Latest crypto news"),
+            BotCommand("research", "RAG intelligence search"),
         ]
         await bot.set_my_commands(commands)
         logger.info("Bot commands registered")
@@ -2896,11 +2910,16 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
+    # ── V3 handlers (scan/deepscan/analyze/risk/market/alerts + menu callbacks) ──
+    # /scan now routes through RugMunchScan v2 (→ v1 fallback); the legacy
+    # DataBus scan_token stays wired as the final fallback so /scan never regresses.
+    _set_databus_fallback(scan_token)
+    register_v3_handlers(app)
+
     # ── Commands ──
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("status", cmd_status))
-    app.add_handler(CommandHandler("scan", cmd_scan))
     app.add_handler(CommandHandler("wallet", cmd_wallet))
     app.add_handler(CommandHandler("ta", cmd_ta))
     app.add_handler(CommandHandler("compare", cmd_compare))
@@ -2916,7 +2935,6 @@ def main():
     app.add_handler(CommandHandler("watchlist", cmd_watchlist))
     app.add_handler(CommandHandler("watch", cmd_watch))
     app.add_handler(CommandHandler("unwatch", cmd_unwatch))
-    app.add_handler(CommandHandler("alerts", cmd_alerts))
     app.add_handler(CommandHandler("buy", cmd_buy))
     app.add_handler(CommandHandler("subscribe", cmd_buy))
     app.add_handler(CommandHandler("research", cmd_research))
@@ -2940,6 +2958,8 @@ def main():
     app.add_handler(InlineQueryHandler(handle_inline))
 
     # ── Callbacks & Messages ──
+    # V3 callback handler is registered first (handles menu_*/scan_/deep_/ai_/
+    # watch_/alerts_ prefixes); the legacy handler below picks up the rest.
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
@@ -2953,6 +2973,8 @@ def main():
     # ── Scheduled Jobs ──
     job_queue = app.job_queue
     job_queue.run_daily(daily_scam_tip, dtime(hour=14, minute=0, tzinfo=UTC))
+    # V3 alert delivery — poll backend alert queue and fan out to subscribers.
+    job_queue.run_repeating(v3_alert_delivery_job, interval=30, first=15)
 
     # ── Startup: set bot profile ──
     app.post_init = setup_bot_profile

@@ -83,9 +83,25 @@ def init_db():
             telegram_payment_id TEXT,
             created_at INTEGER
         );
+        CREATE TABLE IF NOT EXISTS alert_subscriptions (
+            user_id INTEGER NOT NULL,
+            category TEXT NOT NULL,
+            channel_id INTEGER NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            created_at INTEGER,
+            PRIMARY KEY (user_id, category)
+        );
+        CREATE TABLE IF NOT EXISTS alert_sent_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token_address TEXT,
+            alert_type TEXT,
+            sent_at INTEGER
+        );
         CREATE INDEX IF NOT EXISTS idx_weekly_user ON weekly_usage(user_id, week_start);
         CREATE INDEX IF NOT EXISTS idx_watchlist_user ON watchlists(user_id, is_active);
         CREATE INDEX IF NOT EXISTS idx_scan_user ON scan_history(user_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_alert_subs_user ON alert_subscriptions(user_id, is_active);
+        CREATE INDEX IF NOT EXISTS idx_alert_sent_dedupe ON alert_sent_log(token_address, alert_type, sent_at);
     """)
     # Migration: add bonus columns if they don't exist (SQLite safe)
     with contextlib.suppress(sqlite3.OperationalError):
@@ -121,9 +137,7 @@ def get_or_create_user(
             (user_id, username, first_name, now, now, ref_code),
         )
         conn.commit()
-        row = conn.execute(
-            "SELECT * FROM users WHERE user_id = ?", (user_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
         result = dict(row)
     conn.close()
     return result
@@ -137,11 +151,7 @@ def get_user_tier(user_id: int) -> str:
     conn.close()
     if not row:
         return "free"
-    if (
-        row["tier"] != "free"
-        and row["tier_expires"] > 0
-        and time.time() > row["tier_expires"]
-    ):
+    if row["tier"] != "free" and row["tier_expires"] > 0 and time.time() > row["tier_expires"]:
         conn = get_db()
         conn.execute(
             "UPDATE users SET tier = 'free', tier_expires = 0 WHERE user_id = ?",
@@ -154,9 +164,7 @@ def get_user_tier(user_id: int) -> str:
 
 
 def set_user_tier(user_id: int, tier: str, days: int = 30):
-    expires = (
-        int(time.time() + timedelta(days=days).total_seconds()) if tier != "free" else 0
-    )
+    expires = int(time.time() + timedelta(days=days).total_seconds()) if tier != "free" else 0
     conn = get_db()
     conn.execute(
         "UPDATE users SET tier = ?, tier_expires = ? WHERE user_id = ?",
@@ -360,9 +368,7 @@ def remove_watchlist(user_id: int, token_address: str) -> bool:
 # ── Scan History ──
 
 
-def log_scan(
-    user_id: int, token_address: str, chain: str, scan_type: str, risk_score: float
-):
+def log_scan(user_id: int, token_address: str, chain: str, scan_type: str, risk_score: float):
     conn = get_db()
     conn.execute(
         "INSERT INTO scan_history (user_id, token_address, chain, scan_type, risk_score, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -469,6 +475,84 @@ def get_user_stats(user_id: int) -> dict:
         "scans_this_week": scans_used,
         "ai_msgs_this_week": ai_used,
     }
+
+
+# ── Alert Subscriptions (V3) ──
+
+ALERT_CATEGORIES = ("security", "whale", "price", "news_defi", "news_security")
+
+
+def set_alert_subscription(
+    user_id: int, category: str, channel_id: int, active: bool = True
+) -> bool:
+    """Insert or update an alert subscription (UPSERT on (user_id, category))."""
+    if category not in ALERT_CATEGORIES:
+        return False
+    conn = get_db()
+    conn.execute(
+        """INSERT INTO alert_subscriptions (user_id, category, channel_id, is_active, created_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, category) DO UPDATE SET
+               channel_id = excluded.channel_id,
+               is_active = excluded.is_active""",
+        (user_id, category, channel_id, 1 if active else 0, int(time.time())),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_alert_subscriptions(user_id: int) -> list[dict]:
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM alert_subscriptions WHERE user_id = ? ORDER BY category",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_alert_subscribers(category: str) -> list[dict]:
+    """All active subscribers for a category (used by the alert delivery job)."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM alert_subscriptions WHERE category = ? AND is_active = 1",
+        (category,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def remove_alert_subscription(user_id: int, category: str) -> bool:
+    conn = get_db()
+    cur = conn.execute(
+        "DELETE FROM alert_subscriptions WHERE user_id = ? AND category = ?",
+        (user_id, category),
+    )
+    conn.commit()
+    conn.close()
+    return cur.rowcount > 0
+
+
+def was_alert_sent(token_address: str, alert_type: str, window_s: int = 1800) -> bool:
+    """True if this (token, type) alert was delivered within the dedupe window."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT 1 as c FROM alert_sent_log WHERE token_address = ? AND alert_type = ? AND sent_at > ?",
+        (token_address, alert_type, int(time.time()) - window_s),
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def log_alert_sent(token_address: str, alert_type: str) -> None:
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO alert_sent_log (token_address, alert_type, sent_at) VALUES (?, ?, ?)",
+        (token_address, alert_type, int(time.time())),
+    )
+    conn.commit()
+    conn.close()
 
 
 # Init on import
