@@ -808,7 +808,7 @@ def format_comprehensive_deepscan(data: dict) -> list[str]:
 
     # ── Chunk 1: Header + Safety Score + Category Breakdown ──
     lines: list[str] = [
-        f"🧠 <b>DEEP FORENSIC SCAN — FULL REPORT</b>",
+        "🧠 <b>DEEP FORENSIC SCAN — FULL REPORT</b>",
         s,
     ]
     if address:

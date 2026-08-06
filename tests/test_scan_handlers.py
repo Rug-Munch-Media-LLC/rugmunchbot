@@ -5,8 +5,7 @@ and the RugMunchScan v2 → v1 fallback client. All external APIs are mocked.
 
 import httpx
 import pytest
-
-from handlers.scan import (  # noqa: E402
+from handlers.scan import (
     cmd_deepscan,
     cmd_risk,
     cmd_scan,
@@ -15,10 +14,10 @@ from handlers.scan import (  # noqa: E402
     handle_watch_callback,
     set_databus_fallback,
 )
-from services import scanner as scanner_service  # noqa: E402
-from services.scanner import DeepScanNotAvailableError  # noqa: E402
-from tests.fakes import (  # noqa: E402
-    FakeBot,
+from services import scanner as scanner_service
+from services.scanner import DeepScanNotAvailableError
+
+from tests.fakes import (
     FakeCallbackQuery,
     FakeContext,
     FakeUpdate,
@@ -52,7 +51,7 @@ def _fresh_db(clean_db):
     import handlers.scan as scan_mod
 
     scan_mod._user_last_action.clear()
-    yield
+    return
 
 
 @pytest.fixture(autouse=True)

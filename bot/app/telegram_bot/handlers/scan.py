@@ -28,18 +28,16 @@ import db
 from config import DEEP_SCAN_STARS_COST, OWNER_IDS, TIERS
 from handlers.menu import back_kb, pricing_kb, scan_result_kb_v3
 from services.formatting import (
+    format_comprehensive_deepscan,
     format_deepscan_report,
     format_quick_risk,
     format_v3_scan_report,
 )
-from services.formatting import format_comprehensive_deepscan
 from services.scanner import (
-    DeepScanNotAvailableError,
     ScanUnavailableError,
     detect_chain,
     run_deep_scan_aggregate,
     scan_token_v2,
-    sentinel_scan,
 )
 from telegram import Update
 from telegram.constants import ParseMode
