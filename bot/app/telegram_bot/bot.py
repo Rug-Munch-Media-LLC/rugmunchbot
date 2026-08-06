@@ -1035,6 +1035,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"/quick <code>symbol</code> — Quick price check (same as $TOKEN)\n\n"
         f"👛 <b>WALLET INTELLIGENCE</b>\n{d}\n"
         f"/wallet <code>address</code> — Forensic wallet analysis\n"
+        f"/check <code>address</code> — Quick wallet check\n"
         f"/watch <code>address</code> [chain] — Add to watchlist\n"
         f"/unwatch <code>address</code> — Remove from watchlist\n"
         f"/watchlist — View your watchlist\n"
@@ -1042,7 +1043,8 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"📊 <b>MARKET DATA</b>\n{d}\n"
         f"/market — Market rundown\n"
         f"/trending — Hot tokens right now\n"
-        f"/news — Latest rated news\n\n"
+        f"/news — Latest rated news\n"
+        f"/fear — Fear & Greed index\n\n"
         f"💳 <b>ACCOUNT & BILLING</b>\n{d}\n"
         f"/account — Dashboard & usage stats\n"
         f"/pricing — Subscription plans\n"
@@ -1050,6 +1052,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"/refer — Invite friends, earn scans\n\n"
         f"📚 <b>EDUCATION</b>\n{d}\n"
         f"/scamschool — Learn about crypto scams\n"
+        f"/rehab — Rug Pull Rehab recovery course\n"
         f"/rugcheck — Quick rug pull checklist\n\n"
         f"💡 <b>PRO TIPS</b>\n{d}\n"
         f"• Paste any <code>0x...</code> address to auto-scan\n"
@@ -2639,9 +2642,11 @@ async def setup_bot_profile(app: Application) -> None:
             BotCommand("market", "Market rundown & overview"),
             BotCommand("alerts", "Manage alert subscriptions (security/whale/price)"),
             BotCommand("news", "Latest rated crypto news"),
+            BotCommand("fear", "Fear & Greed index"),
             BotCommand("help", "Full command reference"),
             BotCommand("status", "Bot health & uptime"),
             BotCommand("wallet", "Wallet forensics & analysis"),
+            BotCommand("check", "Quick wallet check"),
             BotCommand("ta", "Technical analysis & signals"),
             BotCommand("compare", "Compare two tokens side-by-side"),
             BotCommand("quick", "Quick token price check"),
@@ -2654,6 +2659,7 @@ async def setup_bot_profile(app: Application) -> None:
             BotCommand("topup", "Buy extra scans (no expiry)"),
             BotCommand("refer", "Invite friends, earn scans"),
             BotCommand("scamschool", "Learn about crypto scams"),
+            BotCommand("rehab", "Rug Pull Rehab course"),
             BotCommand("research", "RAG intelligence search"),
         ]
         await bot.set_my_commands(commands)
@@ -2695,6 +2701,189 @@ async def daily_scam_tip(ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
     except Exception as e:
         logger.error(f"Daily tip failed: {e}")
+
+
+# ══════════════════════════════════════════════
+# NEW PUBLIC COMMANDS (v6.1)
+# ══════════════════════════════════════════════
+
+
+async def cmd_fear(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/fear — Current Fear & Greed Index from alternative.me (free API)."""
+    msg = await update.message.reply_text(
+        "😱 <b>Fetching Fear & Greed Index...</b>",
+        parse_mode=ParseMode.HTML,
+    )
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get("https://api.alternative.me/fng/?limit=1")
+            if r.status_code == 200:
+                data = r.json().get("data", [])
+                if data:
+                    d = data[0]
+                    val = int(d.get("value", 50))
+                    classification = d.get("value_classification", "Neutral")
+                    timestamp = datetime.fromtimestamp(int(d.get("timestamp", 0)), tz=UTC).strftime(
+                        "%b %d, %Y"
+                    )
+                    # Emoji + bar
+                    if val <= 25:
+                        emoji = "😱"
+                        tag = "Extreme Fear"
+                    elif val <= 45:
+                        emoji = "😨"
+                        tag = "Fear"
+                    elif val <= 55:
+                        emoji = "😐"
+                        tag = "Neutral"
+                    elif val <= 75:
+                        emoji = "😊"
+                        tag = "Greed"
+                    else:
+                        emoji = "🤑"
+                        tag = "Extreme Greed"
+                    bar = "🟥" * (val // 15) + "⬜" * (6 - val // 15)
+                    text = (
+                        f"{emoji} <b>Crypto Fear & Greed Index</b>\n{sep()}\n\n"
+                        f"<b>Index:</b> {val}/100 — {tag}\n"
+                        f"<b>Classification:</b> {classification}\n"
+                        f"<b>Updated:</b> {timestamp}\n\n"
+                        f"{bar}\n\n"
+                        f"💡 <i>Extreme Fear = good buying opportunity\n"
+                        f"Extreme Greed = market may correct</i>\n"
+                        f"{footer_links()}"
+                    )
+                    await msg.edit_text(
+                        text,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=back_kb(),
+                    )
+                    return
+    except Exception as e:
+        logger.debug("cmd_fear: API fetch failed: %s", e)
+    await msg.edit_text(
+        "😱 <b>Fear & Greed Index</b>\n\n"
+        "Could not fetch live data.\n\n"
+        f'Check <a href="{WEBSITE_URL}">rugmunch.io</a> for market sentiment.',
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+    )
+
+
+async def cmd_check(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/check [address] — Quick wallet check (alias for /wallet)."""
+    await cmd_wallet(update, ctx)
+
+
+async def cmd_rehab(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/rehab — Link to Rug Pull Rehab course."""
+    _s = sep()
+    text = (
+        f"🏥 <b>Rug Pull Rehab — Recovery Course</b>\n{_s}\n\n"
+        "Got rugged? You're not alone. We've built a free course to help "
+        "you recover — emotionally, financially, and strategically.\n\n"
+        "📚 <b>What you'll learn:</b>\n"
+        "  • How to verify tokens BEFORE buying\n"
+        "  • Wallet hygiene and security best practices\n"
+        "  • LP analysis without coding\n"
+        "  • Spotting honeypot contracts at a glance\n"
+        "  • Understanding bundle detection & holder analysis\n"
+        "  • Building a risk-scored watchlist\n\n"
+        f'🔗 <a href="{WEBSITE_URL}/rehab">Start Rug Pull Rehab →</a>\n\n'
+        f'💬 Join <a href="{TELEGRAM_GROUP}">our community</a> for support.\n'
+        f"🔍 Use /scan to check tokens before you ape.\n"
+        f"{footer_links()}"
+    )
+    kb = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("🏥 Start Rehab", url=f"{WEBSITE_URL}/rehab"),
+                InlineKeyboardButton("💬 Community", url=TELEGRAM_GROUP),
+            ],
+            [InlineKeyboardButton("📚 Scam School", callback_data="menu_scamschool")],
+            [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+        ]
+    )
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+        disable_web_page_preview=True,
+    )
+
+
+# ══════════════════════════════════════════════
+# NEW ADMIN COMMANDS (owner-only — @cryptorugmunch)
+# ══════════════════════════════════════════════
+
+
+@owner_only
+async def cmd_alert_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/alert <message> — Send a rug pull alert to ALL subscribers."""
+    if not ctx.args:
+        await update.message.reply_text(
+            "🚨 <b>Alert Broadcast</b>\n\n"
+            "Usage: /alert <message>\n\n"
+            "Sends a rug pull alert to ALL active subscribers.\n"
+            "Use \\\\n for line breaks.",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    msg_text = " ".join(ctx.args).replace("\\n", "\n")
+    conn = db.get_db()
+    users = conn.execute(
+        "SELECT DISTINCT user_id FROM alert_subscriptions WHERE is_active = 1"
+    ).fetchall()
+    conn.close()
+    if not users:
+        await update.message.reply_text("📋 No active alert subscribers.")
+        return
+    await update.message.reply_text(f"🚨 Sending alert to {len(users)} subscribers...")
+    sent = failed = 0
+    for u in users:
+        try:
+            await ctx.bot.send_message(
+                u["user_id"],
+                f"🚨 <b>Rug Pull Alert</b>\n\n{msg_text}\n\n"
+                f"🔍 <i>Check tokens with /scan before trading</i>",
+                parse_mode=ParseMode.HTML,
+            )
+            sent += 1
+            await asyncio.sleep(0.05)
+        except Exception:
+            failed += 1
+    await update.message.reply_text(
+        f"🚨 Alert sent\n✅ Sent: {sent}\n❌ Failed: {failed}\n👥 Total subscribers: {len(users)}",
+    )
+
+
+@owner_only
+async def cmd_admin(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/admin — Show admin command panel."""
+    _s = sep()
+    _ts = thin_sep()
+    text = (
+        f"🛡️ <b>Admin Panel</b> — @cryptorugmunch\n{_s}\n\n"
+        f"<b>User Management:</b>\n{_ts}\n"
+        f"  /users [limit] — List recent users\n"
+        f"  /block <id> — Block a user\n"
+        f"  /unblock <id> — Unblock a user\n"
+        f"  /settier <id> <tier> — Change user tier\n\n"
+        f"<b>Communication:</b>\n{_ts}\n"
+        f"  /broadcast <msg> — Send to all users\n"
+        f"  /alert <msg> — Send rug pull alert to subscribers\n\n"
+        f"<b>Analytics:</b>\n{_ts}\n"
+        f"  /stats — Full bot statistics\n"
+        f"  /scanstats — Scanner analytics\n"
+        f"  /bothealth — Health check\n\n"
+        f"{footer_links()}"
+    )
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+        disable_web_page_preview=True,
+    )
 
 
 # ══════════════════════════════════════════════
@@ -2927,6 +3116,9 @@ def main():
     app.add_handler(CommandHandler("rugcheck", cmd_rugcheck))
     app.add_handler(CommandHandler("trending", cmd_trending))
     app.add_handler(CommandHandler("news", cmd_news))
+    app.add_handler(CommandHandler("fear", cmd_fear))
+    app.add_handler(CommandHandler("check", cmd_check))
+    app.add_handler(CommandHandler("rehab", cmd_rehab))
     app.add_handler(CommandHandler("account", cmd_account))
     app.add_handler(CommandHandler("pricing", cmd_pricing))
     app.add_handler(CommandHandler("topup", cmd_topup))
@@ -2940,7 +3132,9 @@ def main():
     app.add_handler(CommandHandler("research", cmd_research))
 
     # ── Admin Commands (owner-only — @cryptorugmunch) ──
+    app.add_handler(CommandHandler("admin", cmd_admin))
     app.add_handler(CommandHandler("broadcast", cmd_broadcast))
+    app.add_handler(CommandHandler("alert", cmd_alert_broadcast))
     app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(CommandHandler("users", cmd_users))
     app.add_handler(CommandHandler("block", cmd_block))
