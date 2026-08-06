@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """
-CryptoRugMunch Bot v6 — The Bloomberg Terminal of Shitcoins
+CryptoRugMunch Bot v7 — Rug Muncher: AI Scam Detective
 ============================================================
+Personality-driven security bot with cynicism and wit.
 Production-grade: multi-chain scanning, wallet forensics, tiered subs,
 Telegram Stars payments, DEX ref revenue, referral system, AI chat,
 inline queries, scheduled tips, trending tokens, spam protection,
 website integration, social links, bot profile setup.
+
+SECURITY: All AI/RAG calls flow through guardrails.pre_process()
+and guardrails.post_process(). Injection, code exploits, and phishing
+are blocked at the input layer. See guardrails.py for the full ruleset.
 
 Run: cd [APP_DIR]/telegram_bot && python3 bot.py
 """
@@ -47,6 +52,7 @@ from telegram.ext import (
 sys.path.insert(0, str(Path(__file__).parent))
 
 import db
+import guardrails
 from config import (
     BACKEND_URL,
     BOT_DESCRIPTION,
@@ -59,6 +65,8 @@ from config import (
     DEX_REF_LINKS,
     OWNER_IDS,
     OWNER_USERNAME,
+    RAG_COLLECTIONS,
+    RAG_SEARCH_URL,
     RMI_AUTH_TOKEN,
     SCAM_SCHOOL_TOPICS,
     SUPPORT_EMAIL,
@@ -253,7 +261,7 @@ def paywall_text(user_id: int, action: str = "scan") -> str:
     scans, ai = db.get_weekly_usage(user_id)
     user = db.get_or_create_user(user_id)
     tc = TIERS.get(tier, TIERS["free"])
-    limit = tc.get("scans_per_week", 25) if action == "scan" else tc.get("ai_msgs_per_week", 15)
+    limit = tc.get("scans_per_week", 15) if action == "scan" else tc.get("ai_msgs_per_week", 10)
     used = scans if action == "scan" else ai
     bonus = user.get("bonus_scans", 0) if action == "scan" else user.get("bonus_ai_msgs", 0)
 
@@ -261,10 +269,9 @@ def paywall_text(user_id: int, action: str = "scan") -> str:
         f"⚡ <b>Weekly {action.title()} Limit Reached</b>\n\n"
         f"📊 <b>{tc['name']} Tier:</b> {used}/{limit} used this week\n"
         f"🎁 <b>Bonus Balance:</b> {bonus} extra\n\n"
-        f"<b>Unlock more power:</b>\n\n"
-        f"🔍 <b>Scout ($29.99/mo)</b> — 150 scans/wk + bundle detection\n"
-        f"🎯 <b>Hunter ($49.99/mo)</b> — 400 scans/wk + wallet forensics\n"
-        f"👑 <b>Pro ($99.99/mo)</b> — 1,000 scans/wk + smart money alerts\n\n"
+        f"<b>Pro tiers coming soon!</b>\n\n"
+        f"During beta, enjoy {TIERS['free']['scans_per_week']} free scans/week. "
+        f"We're polishing the paid tiers — join @crmunchers to get early access when we launch.\n\n"
         f"Or buy one-time top-ups — <b>never expire!</b>\n"
         f"🔋 10 scans = ⭐75 | 50 scans = ⭐300 | 100 scans = ⭐500"
     )
@@ -332,6 +339,42 @@ async def scan_token(address: str, chain: str | None = None) -> dict:
     }
 
     async with httpx.AsyncClient(timeout=15) as client:
+        # ══════════════════════════════════════════════
+        # PHASE 0: DexScreener direct (fastest, always works for price data)
+        # ══════════════════════════════════════════════
+        try:
+            r = await client.get(
+                f"{_DEXSCREENER}/search/?q={address}",
+                timeout=8,
+            )
+            if r.status_code == 200:
+                pairs = r.json().get("pairs", [])
+                if pairs:
+                    p = pairs[0]
+                    result["name"] = p.get("baseToken", {}).get("name", "Unknown")
+                    result["symbol"] = p.get("baseToken", {}).get("symbol", "???")
+                    result["price"] = float(p.get("priceUsd", 0))
+                    result["mcap"] = float(p.get("marketCap") or p.get("fdv") or 0)
+                    result["fdv"] = float(p.get("fdv") or result["mcap"])
+                    vol = p.get("volume", {})
+                    result["volume_24h"] = float(vol.get("h24") or 0)
+                    liq = p.get("liquidity", {})
+                    result["liquidity"] = float(liq.get("usd") or 0)
+                    pc = p.get("priceChange", {})
+                    result["price_change_1h"] = pc.get("h1") or 0
+                    result["price_change_24h"] = pc.get("h24") or 0
+                    result["price_change_7d"] = pc.get("d7") or 0
+                    result["pair_address"] = p.get("pairAddress", "")
+                    result["dex"] = p.get("dexId", "")
+                    result["chain"] = p.get("chainId", result["chain"])
+                    result["created_at"] = p.get("pairCreatedAt")
+                    socials = p.get("info", {}).get("socials", [])
+                    result["socials"] = {s.get("type"): s.get("url") for s in socials}
+                    result["_data_source"]["price"] = "dexscreener"
+                    logger.info("scan: DexScreener direct OK for %s", short_addr(address))
+        except Exception as e:
+            result["errors"].append(f"DexScreener: {e}")
+
         # ══════════════════════════════════════════════
         # PHASE 1: DataBus Token Price (cached + fallback chain)
         # Replaces direct DexScreener call — DataBus routes to DexScreener
@@ -565,8 +608,23 @@ def format_scan_report(r: dict) -> str:
         except Exception as exc:
             logger.debug("Age calculation failed: %s", exc)
 
+    # Personality-driven intro based on risk level
+    if risk >= 80:
+        intro_line = "🛡️ <b>Rug Muncher Verdict: STAY AWAY</b>"
+        intro_tag = "I've seen exit scams with better disguises. Here's what I found:"
+    elif risk >= 50:
+        intro_line = "⚠️ <b>Rug Muncher Verdict: HIGH RISK</b>"
+        intro_tag = "This one's waving more red flags than a communist parade. Details:"
+    elif risk >= 25:
+        intro_line = "🔍 <b>Rug Muncher Verdict: PROCEED WITH CAUTION</b>"
+        intro_tag = "Not a complete disaster, but keep your expectations low. Breakdown:"
+    else:
+        intro_line = "✅ <b>Rug Muncher Verdict: LOOKS CLEAN</b>"
+        intro_tag = "Surprisingly, this one doesn't look like a scam. Don't get used to it."
+
     lines = [
-        "🛡️ <b>RMI Token Scan</b>",
+        intro_line,
+        f"<i>{intro_tag}</i>",
         s,
         f"<b>{r['name']}</b> ({r['symbol']}) {chain_str}{age_str}",
         f"<code>{r['address']}</code>",
@@ -775,27 +833,40 @@ def format_wallet_report(r: dict) -> str:
 # KEYBOARD BUILDERS
 # ══════════════════════════════════════════════
 def main_menu_kb() -> InlineKeyboardMarkup:
+    """V8 Main Menu — professional layout with clear sections."""
     return InlineKeyboardMarkup(
         [
             [
                 InlineKeyboardButton("🔍 Scan Token", callback_data="menu_scan"),
-                InlineKeyboardButton("👛 Wallet Check", callback_data="menu_wallet"),
+                InlineKeyboardButton("🔬 Deep Scan", callback_data="menu_deepscan"),
             ],
             [
-                InlineKeyboardButton("📊 Technical Analysis", callback_data="menu_ta"),
+                InlineKeyboardButton("📊 Chart", callback_data="menu_chart"),
+                InlineKeyboardButton("🗺️ Bubble Map", callback_data="menu_map"),
+            ],
+            [
+                InlineKeyboardButton("📈 Market Pulse", callback_data="menu_market"),
+                InlineKeyboardButton("😱 Fear & Greed", callback_data="menu_fear"),
+            ],
+            [
+                InlineKeyboardButton("📰 Crypto News", callback_data="menu_news"),
                 InlineKeyboardButton("🔥 Trending", callback_data="menu_trending"),
             ],
             [
-                InlineKeyboardButton("👀 Watchlist", callback_data="menu_watchlist"),
-                InlineKeyboardButton("🔔 Alerts", callback_data="menu_alerts"),
+                InlineKeyboardButton("🤖 Ask Rug Muncher", callback_data="menu_analyze"),
+                InlineKeyboardButton("🎓 Scam School", callback_data="menu_scamschool"),
             ],
             [
-                InlineKeyboardButton("📋 My Account", callback_data="menu_account"),
+                InlineKeyboardButton("👛 Wallet Check", callback_data="menu_wallet"),
+                InlineKeyboardButton("🕵️ Deployer", callback_data="menu_deployer"),
+            ],
+            [
+                InlineKeyboardButton("👤 Account", callback_data="menu_account"),
                 InlineKeyboardButton("⭐ Upgrade", callback_data="menu_pricing"),
             ],
             [
-                InlineKeyboardButton("📚 Scam School", callback_data="menu_scamschool"),
-                InlineKeyboardButton("🤝 Refer & Earn", callback_data="menu_refer"),
+                InlineKeyboardButton("💬 Community", callback_data="menu_chat"),
+                InlineKeyboardButton("📋 Report Card", callback_data="menu_report"),
             ],
             [
                 InlineKeyboardButton("🌐 rugmunch.io", url=WEBSITE_URL),
@@ -809,8 +880,8 @@ def scan_result_kb(address: str, chain: str) -> InlineKeyboardMarkup:
     rows = [
         [web_scan_button(address, chain)],
         [
-            InlineKeyboardButton("🔬 Deep Scan (250★)", callback_data=f"deep_{address}_{chain}"),
-            InlineKeyboardButton("⭐ Watch", callback_data=f"watch_{address}_{chain}"),
+            InlineKeyboardButton("🔬 Deep Scan", callback_data=f"deep_{address}_{chain}"),
+            InlineKeyboardButton("🧠 AI Analysis", callback_data=f"ai_{address}_{chain}"),
         ],
     ]
     dex_btns = dex_buttons(address, chain)
@@ -821,9 +892,11 @@ def scan_result_kb(address: str, chain: str) -> InlineKeyboardMarkup:
 
 
 def pricing_kb() -> InlineKeyboardMarkup:
+    from config import TIER_DETAILS
+
     rows = []
-    for key in ["scout", "hunter", "pro"]:
-        t = TIERS[key]
+    for key in ["pro", "hunter"]:
+        t = TIER_DETAILS[key]
         rows.append(
             [
                 InlineKeyboardButton(
@@ -978,40 +1051,74 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             conn.close()
 
     proof = social_proof_text()
+    s_div = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    t_div = "──────────────────────"
     text = (
-        f"🛡️ <b>RugMunch Intelligence</b>\n"
-        f"<i>The Bloomberg Terminal of Shitcoins</i>\n\n"
-        f"{proof}\n\n"
-        f"<b>What I can do for you:</b>\n\n"
-        f"🔍 <b>Token Scanning</b>\n"
-        f"  Honeypots, rug pulls, bundles, fake volume\n"
-        f"  across 77+ chains in seconds\n\n"
-        f"👛 <b>Wallet Forensics</b>\n"
-        f"  Track smart money, dev wallets, funding sources\n\n"
-        f"📊 <b>Market Intelligence</b>\n"
-        f"  Technical analysis, trending tokens, alerts\n\n"
-        f"🤖 <b>AI-Powered Risk Scoring</b>\n"
-        f"  Advanced detection that goes beyond surface-level\n\n"
-        f"<b>Quick Start:</b>\n"
-        f"  📌 Paste any contract address → auto-scan\n"
-        f"  📌 Type <code>$TOKEN</code> → quick price lookup\n"
-        f"  📌 /scan <code>address</code> → full analysis\n"
-        f"  📌 /help → see all commands\n\n"
-        f"🆓 <b>Free:</b> {TIERS['free']['scans_per_week']} scans + {TIERS['free']['ai_msgs_per_week']} AI msgs/week\n"
-        f"⭐ <b>Premium from $29.99/mo</b> — unlock everything\n\n"
-        f'🌐 <a href="{WEBSITE_URL}">rugmunch.io</a> — full web scanner'
+        "🛡️ <b>Rug Muncher — AI Crypto Security</b>\n"
+        + s_div
+        + "\n"
+        + guardrails.PERSONALITY["start_intro"]
+        + "\n"
+        + s_div
+        + "\n"
+        + proof
+        + "\n\n"
+        "🔍 <b>SCAN & ANALYZE</b>\n" + t_div + "\n"
+        "/scan — Full token security scan\n"
+        "/report — A-F Safety Report Card 🆕\n"
+        "/chart — Price chart with OHLCV\n"
+        "/map — Holder bubble map 🆕\n"
+        "/compare — Side-by-side token comparison\n"
+        "/deployer — Deployer investigation 🆕\n"
+        "/trades — Live trades feed 🆕\n\n"
+        "📊 <b>MARKET</b>\n" + t_div + "\n"
+        "/trending — Top trending tokens\n"
+        "/fear — Fear & Greed Index\n"
+        "/news — Latest rated crypto news\n"
+        "/market — Market overview & AI rundown\n"
+        "/history — Token time machine 🆕\n\n"
+        "👛 <b>WALLET</b>\n" + t_div + "\n"
+        "/wallet — Wallet forensics & profile\n"
+        "/watchlist — View your watchlist\n\n"
+        "🤖 <b>AI & LEARN</b>\n" + t_div + "\n"
+        "/ask — Ask the crypto expert (RAG-powered)\n"
+        "/scamschool — Free Scam School (36 lessons)\n"
+        "/rugcheck — Rug pull red flag checklist\n"
+        "/chat — Community & AI chat 🆕\n\n"
+        "💡 <b>PRO TIPS</b>\n" + t_div + "\n"
+        "• Paste any <code>0x...</code> address → auto-scan\n"
+        "• Type <code>$TOKEN</code> for instant price check\n"
+        "• Just chat naturally — I understand crypto!\n\n"
+        "🆓 <b>Free Beta:</b> "
+        + str(TIERS["free"]["scans_per_week"])
+        + " scans + "
+        + str(TIERS["free"]["ai_msgs_per_week"])
+        + " AI msgs/week\n"
+        "⭐ <b>Pro tiers coming soon</b> — join @crmunchers for early access"
     )
 
     kb = InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("🔍 Scan a Token", callback_data="menu_scan")],
             [
-                InlineKeyboardButton("⭐ View Premium Plans", callback_data="menu_pricing"),
-                InlineKeyboardButton("📚 Learn About Scams", callback_data="menu_scamschool"),
+                InlineKeyboardButton("📊 Chart", callback_data="menu_chart"),
+                InlineKeyboardButton("🗺️ Bubble Map", callback_data="menu_map"),
+            ],
+            [
+                InlineKeyboardButton("📋 Report Card", callback_data="menu_report"),
+                InlineKeyboardButton("🕵️ Deployer", callback_data="menu_deployer"),
+            ],
+            [
+                InlineKeyboardButton("🔥 Trending", callback_data="menu_trending"),
+                InlineKeyboardButton("😱 Fear & Greed", callback_data="menu_fear"),
+            ],
+            [
+                InlineKeyboardButton("🤖 Ask Rug Muncher", callback_data="menu_analyze"),
+                InlineKeyboardButton("🎓 Scam School", callback_data="menu_scamschool"),
             ],
             [
                 InlineKeyboardButton("🌐 rugmunch.io", url=WEBSITE_URL),
-                InlineKeyboardButton("📢 Join Alerts", url=TELEGRAM_CHANNEL),
+                InlineKeyboardButton("📢 Alerts Channel", url=TELEGRAM_CHANNEL),
             ],
         ]
     )
@@ -1022,45 +1129,44 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     d = thin_sep()
+    s_d = sep()
     text = (
-        f"📖 <b>RugMunch Intelligence — Command Guide</b>\n"
-        f"{sep()}\n\n"
-        f"🔍 <b>TOKEN ANALYSIS</b>\n{d}\n"
-        f"/scan <code>address</code> — Full security scan (RugMunchScan)\n"
-        f"/deepscan <code>address</code> — SENTINEL deep forensic scan (premium)\n"
-        f"/analyze <code>address</code> — AI analysis (Qwen3.5-9B)\n"
+        f"{guardrails.PERSONALITY['help_intro']}\n"
+        f"{s_d}\n\n"
+        f"🔍 <b>SCAN & ANALYZE</b>\n{d}\n"
+        f"/scan <code>address</code> — Full security scan\n"
+        f"/report <code>address</code> — 🆕 A-F Safety Report Card\n"
+        f"/chart <code>address</code> — Price chart with OHLCV candles\n"
+        f"/map <code>address</code> — 🆕 Holder bubble map with clusters\n"
+        f"/deployer <code>address</code> — 🆕 Trace deployer wallet history\n"
+        f"/trades <code>address</code> — 🆕 Live trades with whale alerts\n"
+        f"/history <code>address</code> — 🆕 Token price journey timeline\n"
+        f"/compare <code>addr1</code> <code>addr2</code> — Side-by-side comparison\n"
+        f"/deepscan <code>address</code> — SENTINEL deep forensic (premium)\n"
         f"/risk <code>address</code> — Quick risk score only\n"
-        f"/ta <code>address</code> — Technical analysis & signals\n"
-        f"/compare <code>addr1</code> <code>addr2</code> — Side-by-side\n"
-        f"/quick <code>symbol</code> — Quick price check (same as $TOKEN)\n\n"
-        f"👛 <b>WALLET INTELLIGENCE</b>\n{d}\n"
-        f"/wallet <code>address</code> — Forensic wallet analysis\n"
-        f"/check <code>address</code> — Quick wallet check\n"
-        f"/watch <code>address</code> [chain] — Add to watchlist\n"
-        f"/unwatch <code>address</code> — Remove from watchlist\n"
+        f"/ta <code>address</code> — Technical analysis & signals\n\n"
+        f"📊 <b>MARKET INTELLIGENCE</b>\n{d}\n"
+        f"/trending — Top trending tokens\n"
+        f"/top — Volume rankings by chain\n"
+        f"/fear — Fear & Greed Index\n"
+        f"/news — Latest rated crypto news\n"
+        f"/market — Market overview & AI rundown\n\n"
+        f"👛 <b>WALLET & TRACKING</b>\n{d}\n"
+        f"/wallet <code>address</code> — 🆕 Wallet profile, PnL, labels\n"
         f"/watchlist — View your watchlist\n"
-        f"/alerts [on|off] [security|whale|price] — Alert subscriptions\n\n"
-        f"📊 <b>MARKET DATA</b>\n{d}\n"
-        f"/market — Market rundown\n"
-        f"/trending — Hot tokens right now\n"
-        f"/news — Latest rated news\n"
-        f"/fear — Fear & Greed index\n\n"
-        f"💳 <b>ACCOUNT & BILLING</b>\n{d}\n"
-        f"/account — Dashboard & usage stats\n"
-        f"/pricing — Subscription plans\n"
-        f"/topup — Buy extra scans (no expiry)\n"
-        f"/refer — Invite friends, earn scans\n\n"
-        f"📚 <b>EDUCATION</b>\n{d}\n"
-        f"/scamschool — Learn about crypto scams\n"
-        f"/rehab — Rug Pull Rehab recovery course\n"
-        f"/rugcheck — Quick rug pull checklist\n\n"
+        f"/watch <code>address</code> — Add to watchlist\n\n"
+        f"🤖 <b>AI & EDUCATION</b>\n{d}\n"
+        f"/ask <code>question</code> — RAG-powered AI expert\n"
+        f"/explain <code>concept</code> — Deep-dive explanation\n"
+        f"/scamschool — Free Scam School (36 lessons)\n"
+        f"/rugcheck — Rug pull checklist\n"
+        f"/rehab — Rug Pull Rehab course\n"
+        f"/chat — 🆕 Community & AI chat\n\n"
         f"💡 <b>PRO TIPS</b>\n{d}\n"
-        f"• Paste any <code>0x...</code> address to auto-scan\n"
-        f"• Type <code>$PEPE</code> for instant price check\n"
-        f"• Use inline mode: <code>@RugMunchBot address</code> in any chat\n"
-        f"• Upgrade for bundle detection, wallet forensics & more\n"
-        f"• Use /refer to earn free scans\n\n"
-        f'🌐 <a href="{WEBSITE_URL}">rugmunch.io</a> — Full web scanner with charts'
+        f"• Paste any <code>0x...</code> address → auto-scan\n"
+        f"• Type <code>$TOKEN</code> for instant price check\n"
+        f"• Just chat naturally — I understand crypto questions!\n\n"
+        f'🌐 <a href="{WEBSITE_URL}">rugmunch.io</a> — Full web scanner'
     )
     kb = InlineKeyboardMarkup(
         [
@@ -1445,46 +1551,6 @@ async def cmd_rugcheck(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         reply_markup=back_kb(),
         disable_web_page_preview=True,
     )
-
-
-async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = await update.message.reply_text(
-        "🔥 <b>Fetching trending tokens...</b>", parse_mode=ParseMode.HTML
-    )
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(f"{_DEXSCREENER}/search/?q=trending")
-            if r.status_code == 200:
-                pairs = r.json().get("pairs", [])[:8]
-                if not pairs:
-                    await msg.edit_text("❌ No trending data available.", parse_mode=ParseMode.HTML)
-                    return
-                lines = ["🔥 <b>Trending Tokens</b>", sep(), thin_sep()]
-                for i, p in enumerate(pairs, 1):
-                    name = p.get("baseToken", {}).get("name", "???")[:15]
-                    symbol = p.get("baseToken", {}).get("symbol", "???")
-                    price = float(p.get("priceUsd", 0))
-                    h24 = p.get("priceChange", {}).get("h24") or 0
-                    vol = float(p.get("volume", {}).get("h24") or 0)
-                    chain = p.get("chainId", "?")
-                    addr = p.get("baseToken", {}).get("address", "")
-                    emoji = "🟢" if h24 >= 0 else "🔴"
-                    lines.append(
-                        f"{i}. {emoji} <b>{name}</b> ({symbol}) {chain}\n   {fmt_number(price)} | {fmt_pct(h24)} | Vol: {fmt_number(vol)}\n   <code>{short_addr(addr)}</code>"
-                    )
-                lines.append(
-                    f'\n{thin_sep()}\nTap address to /scan | <a href="{WEB_APP_URL}">View all on rugmunch.io</a>'
-                )
-                await msg.edit_text(
-                    "\n".join(lines),
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=back_kb(),
-                    disable_web_page_preview=True,
-                )
-            else:
-                await msg.edit_text("❌ Could not fetch trending data.", parse_mode=ParseMode.HTML)
-    except Exception as e:
-        await msg.edit_text(f"❌ Error: {str(e)[:200]}", parse_mode=ParseMode.HTML)
 
 
 async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2167,159 +2233,8 @@ async def cmd_admin_set_tier(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ══════════════════════════════════════════════
-# MESSAGE HANDLER (Auto-detect + AI Chat)
+# MESSAGE HANDLER — see ENHANCED NATURAL CONVERSATION HANDLER below
 # ══════════════════════════════════════════════
-async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if not user or not update.message or not update.message.text:
-        return
-    text = update.message.text.strip()
-    u = db.get_or_create_user(user.id, user.username, user.first_name)
-    if u.get("is_banned"):
-        return
-    if check_spam(user.id, user):
-        return
-
-    # Auto-detect contract address
-    if is_evm(text) or is_sol(text):
-        ctx.args = [text]
-        await cmd_scan_v3(update, ctx)
-        return
-
-    # Token symbol detection ($TOKEN)
-    token_match = TOKEN_RE.search(text)
-    if token_match:
-        symbol = token_match.group(1).upper()
-        await update.message.chat.send_action("typing")
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                r = await client.get(f"{_DEXSCREENER}/search/?q={symbol}")
-                if r.status_code == 200:
-                    pairs = r.json().get("pairs", [])
-                    if pairs:
-                        p = pairs[0]
-                        addr = p.get("baseToken", {}).get("address", "")
-                        chain = p.get("chainId", "")
-                        price = float(p.get("priceUsd", 0))
-                        h24 = p.get("priceChange", {}).get("h24") or 0
-                        vol = float(p.get("volume", {}).get("h24") or 0)
-                        mcap = float(p.get("marketCap") or 0)
-                        name = p.get("baseToken", {}).get("name", symbol)
-                        quick_text = (
-                            f"🪙 <b>{name}</b> ({symbol}) {fmt_chain(chain)}\n"
-                            f"<code>{addr}</code>\n\n"
-                            f"💰 {fmt_number(price)} | 🔄 24h: {fmt_pct(h24)}\n"
-                            f"📈 MCap: {fmt_number(mcap)} | 💧 Vol: {fmt_number(vol)}"
-                            f"{footer_links()}"
-                        )
-                        if addr:
-                            await update.message.reply_text(
-                                quick_text,
-                                parse_mode=ParseMode.HTML,
-                                reply_markup=InlineKeyboardMarkup(
-                                    [
-                                        [
-                                            InlineKeyboardButton(
-                                                "🔍 Full Scan",
-                                                callback_data=f"scan_{addr}_{chain}",
-                                            )
-                                        ],
-                                        [web_scan_button(addr, chain)],
-                                    ]
-                                ),
-                                disable_web_page_preview=True,
-                            )
-                            return
-        except Exception as exc:
-            logger.debug("handle_message: DexScreener symbol lookup failed: %s", exc)
-
-    # Natural language address extraction
-    evm_match = EVM_RE.search(text)
-    sol_match = SOL_RE.search(text)
-    if evm_match:
-        ctx.args = [evm_match.group()]
-        await cmd_scan_v3(update, ctx)
-        return
-    if sol_match:
-        ctx.args = [sol_match.group()]
-        await cmd_scan_v3(update, ctx)
-        return
-
-    # AI Chat
-    if not is_owner(user.id):
-        allowed, _used, _limit = db.check_rate_limit(user.id, "ai_msg")
-        if not allowed:
-            await update.message.reply_text(
-                paywall_text(user.id, "ai_msg"),
-                parse_mode=ParseMode.HTML,
-                reply_markup=paywall_kb(),
-            )
-            return
-
-    await update.message.chat.send_action("typing")
-
-    # Try RMI RAG backend (v2 search endpoint)
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(
-                f"{BACKEND_URL}/api/v1/rag/v2/search",
-                json={
-                    "query": text,
-                    "collection": "scam_intel",
-                    "top_k": 5,
-                    "min_similarity": 0.0,
-                    "filters": {},
-                },
-                headers={"X-API-Key": RMI_AUTH_TOKEN},
-            )
-            if r.status_code == 200:
-                data = r.json()
-                hits = data.get("hits", [])
-                if hits:
-                    answer = hits[0].get("content", "")
-                    if answer:
-                        db.increment_usage(user.id, ai_msg=True)
-                        await update.message.reply_text(
-                            answer, parse_mode=ParseMode.HTML, reply_markup=back_kb()
-                        )
-                        return
-    except Exception as exc:
-        logger.debug("handle_message: RAG backend failed: %s", exc)
-
-    # Smart fallback responses
-    text_lower = text.lower()
-    if any(w in text_lower for w in ["honeypot", "rug", "scam", "safe", "check"]):
-        await update.message.reply_text(
-            "🔍 Want me to check a token for scams?\n\n"
-            "Just paste the contract address or use:\n"
-            "/scan <code>address</code>",
-            parse_mode=ParseMode.HTML,
-            reply_markup=back_kb(),
-        )
-    elif any(w in text_lower for w in ["price", "how much", "worth", "pump", "dump"]):
-        await update.message.reply_text(
-            "📊 Looking for a token price?\n\nSend me the symbol (e.g. <code>$PEPE</code>) or contract address!",
-            parse_mode=ParseMode.HTML,
-            reply_markup=back_kb(),
-        )
-    elif any(w in text_lower for w in ["help", "how", "what can", "commands"]):
-        await cmd_help(update, ctx)
-    else:
-        db.increment_usage(user.id, ai_msg=True)
-        await update.message.reply_text(
-            f"🤖 I'm here to help with crypto safety!\n\n"
-            f"Try:\n"
-            f"• Paste a contract address → auto-scan\n"
-            f"• <code>$TOKEN</code> → quick price\n"
-            f"• /scan <code>address</code> → full analysis\n"
-            f"• /wallet <code>address</code> → wallet check\n"
-            f"• /scamschool → learn about scams\n"
-            f"• /trending → hot tokens right now"
-            f"{footer_links()}",
-            parse_mode=ParseMode.HTML,
-            reply_markup=main_menu_kb(),
-            disable_web_page_preview=True,
-        )
 
 
 # ══════════════════════════════════════════════
@@ -2364,7 +2279,12 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if data == "menu_main":
         await query.edit_message_text(
-            "🛡️ <b>RugMunch Intelligence</b>\n\nWhat would you like to do?",
+            "🛡️ <b>Rug Muncher — AI Crypto Security</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "<i>Protecting degens from rug pulls since 2024.</i>\n\n"
+            "💡 Paste any <code>0x...</code> address → auto-scan\n"
+            "💡 Type <code>$TOKEN</code> for instant price check\n\n"
+            "<b>Select an action below:</b>",
             parse_mode=ParseMode.HTML,
             reply_markup=main_menu_kb(),
         )
@@ -2383,6 +2303,46 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "menu_ta":
         await query.edit_message_text(
             "📊 <b>Technical Analysis</b>\n\nUsage: /ta <code>address</code>\n\nAnalyzes momentum, volume, buy/sell pressure.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+    elif data == "menu_news":
+        await query.edit_message_text(
+            "📰 <b>News</b>\n\nFetching latest rated crypto news...",
+            parse_mode=ParseMode.HTML,
+        )
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(
+                    f"{BACKEND_URL}/api/v1/internal/news-feed",
+                    params={"limit": 5, "min_score": 0},
+                    headers={"X-API-Key": RMI_AUTH_TOKEN} if RMI_AUTH_TOKEN else {},
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    items = data.get("items", []) if isinstance(data, dict) else (data or [])
+                    if items:
+                        lines = ["📰 <b>Rated Crypto News</b>", sep(), ""]
+                        for article in items[:5]:
+                            title = article.get("title", "Untitled")[:80]
+                            source = article.get("source", "News")
+                            fact = article.get("factual_rating") or article.get("quality_score")
+                            fact_str = f" · Factuality: <b>{fact}</b>" if fact else ""
+                            lines.append(f"🔥 <b>{title}</b>")
+                            lines.append(f"  <i>{source}</i>{fact_str}")
+                            lines.append("")
+                        lines.append(f'🌐 <a href="{WEBSITE_URL}">More on rugmunch.io</a>')
+                        await query.edit_message_text(
+                            "\n".join(lines),
+                            parse_mode=ParseMode.HTML,
+                            reply_markup=back_kb(),
+                            disable_web_page_preview=True,
+                        )
+                        return
+        except Exception as exc:
+            logger.debug("news fetch failed: %s", exc)
+        await query.edit_message_text(
+            "📰 <b>News unavailable</b>\n\nPlease try /news later.",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -2439,6 +2399,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             reply_markup=scamschool_kb(),
         )
     elif data == "menu_trending":
+        # V3 handler already handles this — fallback only
         await query.edit_message_text("🔥 <b>Fetching trending...</b>", parse_mode=ParseMode.HTML)
         try:
             async with httpx.AsyncClient(timeout=10) as client:
@@ -2494,6 +2455,34 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
+    elif data == "menu_report":
+        await query.edit_message_text(
+            "📋 <b>Safety Report Card</b>\n\n"
+            "Comprehensive A-F grade across:\n"
+            "🔒 Contract Safety | 💧 Liquidity | 👥 Holders\n"
+            "👨‍💻 Deployer | 📣 Social | 📊 Trading\n\n"
+            "Usage: /report <code>address</code>\n\n"
+            "<i>Each category scored 0-100 with color-coded grade.</i>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+    elif data == "menu_chat":
+        await query.edit_message_text(
+            "💬 <b>Rug Muncher Community</b>\n\n"
+            "Join our community channels:\n\n"
+            f'📢 <a href="{TELEGRAM_CHANNEL}">Alerts Channel</a>\n'
+            f'💬 <a href="{TELEGRAM_GROUP}">Community Chat</a>\n\n'
+            "<b>Or just chat with me right here!</b> I understand crypto questions naturally.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [InlineKeyboardButton("📢 Alerts", url=TELEGRAM_CHANNEL)],
+                    [InlineKeyboardButton("💬 Chat", url=TELEGRAM_GROUP)],
+                    [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+                ]
+            ),
+            disable_web_page_preview=True,
+        )
     elif data.startswith("scam_"):
         topic_key = data[5:]
         topic = SCAM_SCHOOL_TOPICS.get(topic_key)
@@ -2522,14 +2511,12 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             )
     elif data.startswith("sub_"):
         tier_key = data[4:]
-        tier = TIERS.get(tier_key)
+        from config import BETA_DEEP_SCAN_GATE, TIER_DETAILS
+
+        tier = TIER_DETAILS.get(tier_key)
         if tier:
             await query.edit_message_text(
-                f"💳 <b>Subscribe to {tier['name']}</b>\n\n"
-                f"${tier['price_monthly']}/month\n"
-                f"or ⭐{tier.get('price_stars', 0)} Stars\n\n"
-                f"<i>Payment integration coming next update.\n"
-                f"Contact {SUPPORT_EMAIL} for now.</i>",
+                BETA_DEEP_SCAN_GATE,
                 parse_mode=ParseMode.HTML,
                 reply_markup=pricing_kb(),
             )
@@ -2559,6 +2546,208 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     parse_mode=ParseMode.HTML,
                     reply_markup=topup_kb(),
                 )
+    elif data.startswith("mapaddr_"):
+        parts = data.split("_", 2)
+        if len(parts) >= 3:
+            await _show_map_inline(query, parts[1], parts[2])
+    elif data.startswith("topchain_"):
+        await _show_top_inline(query, data[9:])
+
+
+# ══════════════════════════════════════════════
+# CALLBACK SUB-HANDLERS (chart/map/top inline)
+# ══════════════════════════════════════════════
+
+
+async def _show_map_inline(query, address: str, chain: str) -> None:
+    """Show bubble map inline from a callback button."""
+    await query.edit_message_text(
+        f"🗺️ <b>Loading holder data...</b>\n<code>{short_addr(address)}</code>",
+        parse_mode=ParseMode.HTML,
+    )
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Try RugMaps endpoint
+            map_data = None
+            holders_info = ""
+            try:
+                r = await client.post(
+                    f"{BACKEND_URL}/api/v1/rugmaps/token-graph",
+                    json={"chain": chain, "address": address},
+                    timeout=10,
+                    headers={"X-API-Key": RMI_AUTH_TOKEN},
+                )
+                if r.status_code == 200:
+                    map_data = r.json()
+            except Exception:
+                pass
+
+            # Fall back to DataBus holders
+            if not map_data:
+                try:
+                    r = await client.get(
+                        f"{DATABUS_URL}/token/{address}",
+                        timeout=8,
+                        headers={"X-API-Key": RMI_AUTH_TOKEN},
+                    )
+                    if r.status_code == 200:
+                        detail = _db_payload(r.json())
+                        if detail:
+                            holders = detail.get("top_holders") or detail.get("holders", [])
+                            if holders:
+                                total = detail.get("holders_count") or len(holders)
+                                holders_info = (
+                                    f"👥 <b>Total Holders:</b> {total}\n"
+                                    f"{thin_sep()}\n<b>Top Holders:</b>\n"
+                                )
+                                for i, h in enumerate(holders[:10], 1):
+                                    h_addr = h.get("address") or h.get("holder", "")
+                                    h_pct = h.get("pct") or h.get("percentage") or h.get("share", 0)
+                                    tag = f" [{h.get('tag', '')}]" if h.get("tag") else ""
+                                    holders_info += (
+                                        f"  {i}. <code>{short_addr(h_addr)}</code>"
+                                        f" — {float(h_pct):.1f}%{tag}\n"
+                                    )
+                except Exception:
+                    pass
+
+            if not map_data and not holders_info:
+                await query.edit_message_text(
+                    "❌ <b>Map Data Unavailable</b>\n\n"
+                    f'🌐 <a href="{WEBSITE_URL}/rugmaps?token={address}">View on website</a>',
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                    disable_web_page_preview=True,
+                )
+                return
+
+            lines = [f"🗺️ <b>Holder Bubble Map</b>\n{sep()}"]
+            if map_data:
+                name = map_data.get("name", "")
+                symbol = map_data.get("symbol", "")
+                if name:
+                    lines.append(f"<b>{name}</b> ({symbol}) {fmt_chain(chain)}")
+                lines.append(f"<code>{address}</code>\n")
+                total_h = map_data.get("total_holders") or map_data.get("holders_count", 0)
+                clusters = map_data.get("clusters") or map_data.get("wallet_clusters", [])
+                top10 = map_data.get("top10_holder_pct") or map_data.get("top10_concentration", 0)
+                lines.append(f"👥 Total Holders: <b>{total_h}</b>")
+                lines.append(f"📊 Top 10 Concentration: <b>{float(top10):.1f}%</b>")
+                if clusters:
+                    lines.append(f"🕸️ Wallet Clusters: <b>{len(clusters)}</b>")
+                lines.append("")
+
+            if holders_info:
+                lines.append(holders_info)
+            elif map_data:
+                holders = map_data.get("top_holders") or map_data.get("holders", [])
+                if holders:
+                    lines.append(f"{thin_sep()}\n<b>Top Holders:</b>")
+                    for i, h in enumerate(holders[:10], 1):
+                        h_addr = h.get("address") or h.get("holder", "")
+                        h_pct = h.get("pct") or h.get("percentage") or h.get("share", 0)
+                        tag = f" [{h.get('tag', '')}]" if h.get("tag") else ""
+                        lines.append(
+                            f"  {i}. <code>{short_addr(h_addr)}</code> — {float(h_pct):.1f}%{tag}"
+                        )
+
+            lines.append(
+                f"\n{thin_sep()}\n"
+                f'🌐 <a href="{WEBSITE_URL}/rugmaps?token={address}">Full bubble map on rugmunch.io</a>'
+            )
+            kb = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "🗺️ Full Map", url=f"{WEBSITE_URL}/rugmaps?token={address}"
+                        )
+                    ],
+                    [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+                ]
+            )
+            await query.edit_message_text(
+                "\n".join(lines),
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+                disable_web_page_preview=True,
+            )
+    except Exception as e:
+        await query.edit_message_text(
+            f"❌ Map error: {str(e)[:200]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+async def _show_top_inline(query, chain: str) -> None:
+    """Show top volume rankings for a given chain from a callback button."""
+    await query.edit_message_text(
+        f"📈 <b>Fetching top {chain.capitalize()} tokens...</b>",
+        parse_mode=ParseMode.HTML,
+    )
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            r = await client.get(f"{_DEXSCREENER}/search/?q=trending%20{chain}")
+            if r.status_code != 200:
+                await query.edit_message_text(
+                    "❌ Could not fetch rankings.",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                )
+                return
+            pairs = r.json().get("pairs", [])[:10]
+            if not pairs:
+                await query.edit_message_text(
+                    f"❌ No data for chain: {chain}",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                )
+                return
+
+            lines = [
+                f"📈 <b>Top {chain.capitalize()} by Volume</b>",
+                sep(),
+            ]
+            for i, p in enumerate(pairs, 1):
+                bt = p.get("baseToken", {})
+                name = bt.get("name", "???")[:20]
+                symbol = bt.get("symbol", "???")
+                price = float(p.get("priceUsd", 0))
+                h24 = p.get("priceChange", {}).get("h24") or 0
+                vol = float(p.get("volume", {}).get("h24") or 0)
+                addr = bt.get("address", "")
+                emoji = "🟢" if h24 >= 0 else "🔴"
+                rank_badge = ["🥇", "🥈", "🥉"][i - 1] if i <= 3 else f"{i}."
+                lines.append(
+                    f"{rank_badge} {emoji} <b>{name}</b> ({symbol})\n"
+                    f"   💰 {fmt_number(price)} | 24h: {fmt_pct(h24)}\n"
+                    f"   📊 Vol: {fmt_number(vol)} | <code>{short_addr(addr)}</code>"
+                )
+
+            chain_buttons = [
+                InlineKeyboardButton("◎ SOL", callback_data="topchain_solana"),
+                InlineKeyboardButton("⟠ ETH", callback_data="topchain_ethereum"),
+                InlineKeyboardButton("🔷 BASE", callback_data="topchain_base"),
+                InlineKeyboardButton("🔶 BSC", callback_data="topchain_bsc"),
+            ]
+            kb = InlineKeyboardMarkup(
+                [
+                    chain_buttons,
+                    [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+                ]
+            )
+            await query.edit_message_text(
+                "\n".join(lines),
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+                disable_web_page_preview=True,
+            )
+    except Exception as e:
+        await query.edit_message_text(
+            f"❌ Error: {str(e)[:200]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
 
 
 # ══════════════════════════════════════════════
@@ -2635,32 +2824,39 @@ async def setup_bot_profile(app: Application) -> None:
     try:
         commands = [
             BotCommand("start", "Welcome & quick start guide"),
-            BotCommand("scan", "Scan token for scams & risks"),
-            BotCommand("deepscan", "SENTINEL deep forensic scan (premium)"),
-            BotCommand("analyze", "AI analysis of a token (Qwen3.5-9B)"),
-            BotCommand("risk", "Quick risk score only"),
-            BotCommand("market", "Market rundown & overview"),
-            BotCommand("alerts", "Manage alert subscriptions (security/whale/price)"),
-            BotCommand("news", "Latest rated crypto news"),
-            BotCommand("fear", "Fear & Greed index"),
-            BotCommand("help", "Full command reference"),
-            BotCommand("status", "Bot health & uptime"),
-            BotCommand("wallet", "Wallet forensics & analysis"),
-            BotCommand("check", "Quick wallet check"),
-            BotCommand("ta", "Technical analysis & signals"),
+            BotCommand("scan", "Full token security scan — RugMunchScan"),
+            BotCommand("report", "A-F Safety Report Card — comprehensive grades"),
+            BotCommand("chart", "Token price chart with OHLCV candles"),
+            BotCommand("map", "Holder bubble map with cluster detection"),
+            BotCommand("deployer", "Deployer investigation — trace wallet history"),
+            BotCommand("trades", "Live trades feed with whale detection"),
+            BotCommand("wallet", "Wallet forensics — PnL, labels, win rate"),
+            BotCommand("history", "Token time machine — price journey & events"),
             BotCommand("compare", "Compare two tokens side-by-side"),
-            BotCommand("quick", "Quick token price check"),
-            BotCommand("trending", "Hot tokens right now"),
+            BotCommand("deepscan", "SENTINEL deep forensic scan (premium)"),
+            BotCommand("risk", "Quick risk score only"),
+            BotCommand("ask", "Ask the crypto expert (RAG-powered AI)"),
+            BotCommand("explain", "Crypto concept deep-dive explainer"),
+            BotCommand("trending", "Top trending tokens across chains"),
+            BotCommand("fear", "Fear & Greed Index — market sentiment"),
+            BotCommand("news", "Latest rated crypto news"),
+            BotCommand("market", "Market overview & AI rundown"),
+            BotCommand("top", "Volume rankings by chain"),
+            BotCommand("quick", "Quick token price check by symbol"),
+            BotCommand("ta", "Technical analysis & trading signals"),
+            BotCommand("scamschool", "Free Scam School — 36 crypto scam lessons"),
             BotCommand("rugcheck", "Rug pull red flag checklist"),
+            BotCommand("rehab", "Rug Pull Rehab recovery course"),
+            BotCommand("research", "RAG intelligence search across threat DBs"),
+            BotCommand("chat", "Community & AI chat"),
             BotCommand("watch", "Add token to watchlist"),
             BotCommand("watchlist", "View your watchlist"),
-            BotCommand("account", "Your dashboard & usage"),
+            BotCommand("account", "Your dashboard & usage stats"),
             BotCommand("pricing", "Subscription plans"),
             BotCommand("topup", "Buy extra scans (no expiry)"),
-            BotCommand("refer", "Invite friends, earn scans"),
-            BotCommand("scamschool", "Learn about crypto scams"),
-            BotCommand("rehab", "Rug Pull Rehab course"),
-            BotCommand("research", "RAG intelligence search"),
+            BotCommand("refer", "Invite friends — both earn scans"),
+            BotCommand("help", "Full command reference & guide"),
+            BotCommand("status", "Bot health & uptime"),
         ]
         await bot.set_my_commands(commands)
         logger.info("Bot commands registered")
@@ -2730,27 +2926,31 @@ async def cmd_fear(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                     if val <= 25:
                         emoji = "😱"
                         tag = "Extreme Fear"
+                        commentary = "Everyone's hiding under their desk. Historically, this is where the smart money buys. But I don't give trading advice — I just scan contracts.\n\n💡 <i>Extreme Fear = good buying opportunity</i>"
                     elif val <= 45:
                         emoji = "😨"
                         tag = "Fear"
+                        commentary = "The market's nervous. Degens are hesitating. Scammers love this — they target the uncertain.\n\n💡 <i>Fear = stay defensive, scan everything</i>"
                     elif val <= 55:
                         emoji = "😐"
                         tag = "Neutral"
+                        commentary = "Nobody knows which way this goes. Perfect time to /scan tokens instead of staring at charts.\n\n💡 <i>Neutral = wait and watch</i>"
                     elif val <= 75:
                         emoji = "😊"
                         tag = "Greed"
+                        commentary = "Apes are getting confident. Confidence breeds carelessness. Carelessness breeds rug pulls. You see where I'm going with this.\n\n💡 <i>Greed = be cautious, run /scan on everything</i>"
                     else:
                         emoji = "🤑"
                         tag = "Extreme Greed"
+                        commentary = "Everyone's aping into dog coins again. I've seen this movie — it ends with screenshots of -99% portfolios and a lot of crying on Telegram.\n\n💡 <i>Extreme Greed = market may correct</i>"
                     bar = "🟥" * (val // 15) + "⬜" * (6 - val // 15)
                     text = (
-                        f"{emoji} <b>Crypto Fear & Greed Index</b>\n{sep()}\n\n"
-                        f"<b>Index:</b> {val}/100 — {tag}\n"
+                        f"{emoji} <b>Rug Muncher's Sentiment Check</b>\n{sep()}\n\n"
+                        f"<b>Fear & Greed Index:</b> {val}/100 — {tag}\n"
                         f"<b>Classification:</b> {classification}\n"
                         f"<b>Updated:</b> {timestamp}\n\n"
                         f"{bar}\n\n"
-                        f"💡 <i>Extreme Fear = good buying opportunity\n"
-                        f"Extreme Greed = market may correct</i>\n"
+                        f"{commentary}\n"
                         f"{footer_links()}"
                     )
                     await msg.edit_text(
@@ -2813,22 +3013,496 @@ async def cmd_rehab(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 # ══════════════════════════════════════════════
+# V7 NEW COMMANDS — /trending, /chart, /map, /top
+# ══════════════════════════════════════════════
+
+
+async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Fetch trending tokens from rugmunch.io RugCharts API, fall back to DexScreener."""
+    msg = await update.message.reply_text(
+        "🔥 <b>Fetching trending tokens...</b>", parse_mode=ParseMode.HTML
+    )
+    chain_filter = (ctx.args[0].lower() if ctx.args else None) or None
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            # ── Try RugCharts trending API first ──
+            params = {}
+            if chain_filter:
+                params["chain"] = chain_filter
+            try:
+                r = await client.get(
+                    f"{BACKEND_URL}/api/v1/rugcharts/trending",
+                    params=params,
+                    timeout=8,
+                    headers={"X-API-Key": RMI_AUTH_TOKEN},
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    tokens = data if isinstance(data, list) else data.get("tokens", [])
+                    if tokens:
+                        return await _render_trending(msg, tokens, from_rugcharts=True)
+            except Exception as exc:
+                logger.debug("RugCharts trending failed: %s", exc)
+
+            # ── Fall back to DexScreener ──
+            search_q = f"trending {chain_filter}" if chain_filter else "trending"
+            r = await client.get(f"{_DEXSCREENER}/search/?q={search_q}")
+            if r.status_code == 200:
+                pairs = r.json().get("pairs", [])[:10]
+                if not pairs:
+                    await msg.edit_text("❌ No trending data available.", parse_mode=ParseMode.HTML)
+                    return
+                return await _render_trending(msg, pairs, from_rugcharts=False)
+    except Exception as e:
+        await msg.edit_text(f"❌ Error loading trending: {str(e)[:200]}", parse_mode=ParseMode.HTML)
+
+
+async def _render_trending(msg, tokens: list, from_rugcharts: bool = False) -> None:
+    """Render trending tokens list from either RugCharts or DexScreener data."""
+    chain_label = (
+        f" on {tokens[0].get('chainId', tokens[0].get('chain', '')).capitalize()}"
+        if len(tokens) > 0
+        else ""
+    )
+    lines = [
+        f"🔥 <b>Trending Tokens{chain_label}</b>",
+        sep(),
+    ]
+    for i, t in enumerate(tokens[:10], 1):
+        if from_rugcharts:
+            name = t.get("name", "???")[:20]
+            symbol = t.get("symbol", "???")
+            price = float(t.get("price_usd") or t.get("price") or 0)
+            h24 = float(t.get("change_24h") or 0)
+            vol = float(t.get("volume_24h") or 0)
+            addr = t.get("address", "")
+            chain = t.get("chain", "")
+        else:
+            bt = t.get("baseToken", {})
+            name = bt.get("name", "???")[:20]
+            symbol = bt.get("symbol", "???")
+            price = float(t.get("priceUsd", 0))
+            h24 = t.get("priceChange", {}).get("h24") or 0
+            vol = float(t.get("volume", {}).get("h24") or 0)
+            addr = bt.get("address", "")
+            chain = t.get("chainId", "")
+        emoji = "🟢" if h24 >= 0 else "🔴"
+        rank_badge = ["❶", "❷", "❸"][i - 1] if i <= 3 else f"{i}"
+        lines.append(
+            f"{rank_badge} {emoji} <b>{name}</b> ({symbol}) "
+            f"{fmt_chain(chain)}\n"
+            f"   💰 {fmt_number(price)} | 24h: {fmt_pct(h24)} | Vol: {fmt_number(vol)}\n"
+            f"   <code>{short_addr(addr)}</code>"
+        )
+    lines.append(
+        f"\n{thin_sep()}\n"
+        f'🌐 <a href="{WEB_APP_URL}">View all on rugmunch.io</a> | '
+        f"<i>Tap address to /scan</i>"
+    )
+    kb = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🌐 View on RugMunch", url=WEB_APP_URL)],
+            [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+        ]
+    )
+    await msg.edit_text(
+        "\n".join(lines),
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+        disable_web_page_preview=True,
+    )
+
+
+async def cmd_chart(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/chart [address] — Show token price chart (OHLCV data)."""
+    if not ctx.args:
+        await update.message.reply_text(
+            "📊 <b>Token Chart</b>\n\n"
+            "Usage: /chart <code>address</code> [chain]\n\n"
+            "<b>Example:</b>\n"
+            "  /chart <code>0x6982508145454Ce325dDbE47a25d4ec3d2311933</code>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    address = ctx.args[0].strip()
+    chain = ctx.args[1] if len(ctx.args) > 1 else detect_chain(address)
+    msg = await update.message.reply_text(
+        f"📊 <b>Loading chart data...</b>\n<code>{short_addr(address)}</code>",
+        parse_mode=ParseMode.HTML,
+    )
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            # Fetch price data from DataBus (fast cached)
+            r = await client.get(
+                f"{DATABUS_URL}/fetch/token_price",
+                params={"mint": address},
+                timeout=8,
+            )
+            if r.status_code != 200:
+                await msg.edit_text("❌ Could not fetch token data.", parse_mode=ParseMode.HTML)
+                return
+            payload = _db_payload(r.json())
+            pairs = payload.get("pairs", []) if isinstance(payload, dict) else []
+            if not pairs:
+                await msg.edit_text(
+                    "❌ No trading pairs found for this token.", parse_mode=ParseMode.HTML
+                )
+                return
+            p = pairs[0]
+            name = p.get("baseToken", {}).get("name", "Unknown")
+            symbol = p.get("baseToken", {}).get("symbol", "???")
+            price = float(p.get("priceUsd", 0))
+            pc = p.get("priceChange", {})
+            h24 = pc.get("h24") or 0
+            h6 = pc.get("h6") or 0
+            d7 = pc.get("d7") or 0
+            vol = p.get("volume", {})
+            v24 = float(vol.get("h24") or 0)
+            liq_data = p.get("liquidity", {})
+            liq = float(liq_data.get("usd") or 0)
+            mcap = float(p.get("marketCap") or p.get("fdv") or 0)
+            pair_addr = p.get("pairAddress", "")
+
+            # Try to get OHLCV data
+            ohlcv_lines = ""
+            try:
+                ohlcv_r = await client.get(
+                    f"{BACKEND_URL}/api/v1/rugcharts/ohlcv/{chain}/{pair_addr or address}",
+                    timeout=5,
+                    headers={"X-API-Key": RMI_AUTH_TOKEN},
+                )
+                if ohlcv_r.status_code == 200:
+                    ohlcv_data = ohlcv_r.json()
+                    if ohlcv_data:
+                        ohlcv_lines = "\n\n📈 <b>Recent Candles (15m):</b>\n"
+                        candles = ohlcv_data[:5] if isinstance(ohlcv_data, list) else []
+                        for c in candles:
+                            close = float(c.get("close", 0))
+                            o, h, l = (
+                                float(c.get("open", 0)),
+                                float(c.get("high", 0)),
+                                float(c.get("low", 0)),
+                            )
+                            dir_emoji = "🟢" if close >= o else "🔴"
+                            ohlcv_lines += (
+                                f"  {dir_emoji} O:{fmt_number(o)} H:{fmt_number(h)} "
+                                f"L:{fmt_number(l)} C:{fmt_number(close)}\n"
+                            )
+            except Exception as exc:
+                logger.debug("OHLCV fetch failed: %s", exc)
+
+            text = (
+                f"📊 <b>Token Chart</b>\n{sep()}\n"
+                f"<b>{name}</b> ({symbol}) {fmt_chain(chain)}\n"
+                f"<code>{address}</code>\n\n"
+                f"💰 Price: <b>{fmt_number(price)}</b>\n"
+                f"📈 6h: {fmt_pct(h6)} | 24h: {fmt_pct(h24)} | 7d: {fmt_pct(d7)}\n"
+                f"💧 Liquidity: <b>{fmt_number(liq)}</b>\n"
+                f"📊 Volume 24h: <b>{fmt_number(v24)}</b>\n"
+                f"🏷️ MCap: <b>{fmt_number(mcap)}</b>"
+                f"{ohlcv_lines}\n"
+                f"{footer_links()}"
+            )
+            kb = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "📊 Full Chart", url=f"{WEBSITE_URL}/rugcharts?token={address}"
+                        ),
+                        InlineKeyboardButton(
+                            "🗺️ Bubble Map", callback_data=f"mapaddr_{address}_{chain}"
+                        ),
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "🔍 Scan Token", callback_data=f"scan_{address}_{chain}"
+                        ),
+                        InlineKeyboardButton(
+                            "📈 DexScreener", url=f"https://dexscreener.com/{chain}/{address}"
+                        ),
+                    ],
+                    [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+                ]
+            )
+            await msg.edit_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+                disable_web_page_preview=True,
+            )
+    except Exception as e:
+        await msg.edit_text(
+            f"❌ Chart failed: {str(e)[:200]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+async def cmd_map(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/map [address] — Token holder bubble map."""
+    if not ctx.args:
+        await update.message.reply_text(
+            "🗺️ <b>Holder Bubble Map</b>\n\n"
+            "Usage: /map <code>address</code> [chain]\n\n"
+            "<b>Example:</b>\n"
+            "  /map <code>EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v</code>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    address = ctx.args[0].strip()
+    chain = ctx.args[1] if len(ctx.args) > 1 else detect_chain(address)
+    msg = await update.message.reply_text(
+        f"🗺️ <b>Analyzing holder distribution...</b>\n<code>{short_addr(address)}</code>",
+        parse_mode=ParseMode.HTML,
+    )
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Try RugMaps token-graph endpoint
+            map_data = None
+            try:
+                r = await client.post(
+                    f"{BACKEND_URL}/api/v1/rugmaps/token-graph",
+                    json={"chain": chain, "address": address},
+                    timeout=10,
+                    headers={"X-API-Key": RMI_AUTH_TOKEN},
+                )
+                if r.status_code == 200:
+                    map_data = r.json()
+            except Exception as exc:
+                logger.debug("RugMaps token-graph failed: %s", exc)
+
+            # Fall back: get holders from DataBus token detail
+            holders_info = ""
+            if not map_data:
+                try:
+                    r = await client.get(
+                        f"{DATABUS_URL}/token/{address}",
+                        timeout=8,
+                        headers={"X-API-Key": RMI_AUTH_TOKEN},
+                    )
+                    if r.status_code == 200:
+                        detail = _db_payload(r.json())
+                        if detail:
+                            holders = detail.get("top_holders") or detail.get("holders", [])
+                            if holders:
+                                total_holders = detail.get("holders_count") or len(holders)
+                                holders_info = (
+                                    f"👥 <b>Total Holders:</b> {total_holders}\n"
+                                    f"{thin_sep()}\n"
+                                    f"<b>Top Holders:</b>\n"
+                                )
+                                for i, h in enumerate(holders[:10], 1):
+                                    h_addr = h.get("address") or h.get("holder", "")
+                                    h_pct = h.get("pct") or h.get("percentage") or h.get("share", 0)
+                                    tag = f" [{h.get('tag', '')}]" if h.get("tag") else ""
+                                    holders_info += (
+                                        f"  {i}. <code>{short_addr(h_addr)}</code>"
+                                        f" — {float(h_pct):.1f}%{tag}\n"
+                                    )
+                except Exception as exc:
+                    logger.debug("DataBus holder fallback failed: %s", exc)
+
+            if not map_data and not holders_info:
+                await msg.edit_text(
+                    "❌ <b>Map Data Unavailable</b>\n\n"
+                    "Could not fetch holder distribution for this token.\n\n"
+                    f'🌐 <a href="{WEBSITE_URL}/rugmaps">Try the full RugMaps website</a>',
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                    disable_web_page_preview=True,
+                )
+                return
+
+            # Render map results
+            lines = [f"🗺️ <b>Holder Bubble Map</b>\n{sep()}"]
+            if map_data:
+                name = map_data.get("name", "")
+                symbol = map_data.get("symbol", "")
+                if name:
+                    lines.append(f"<b>{name}</b> ({symbol}) {fmt_chain(chain)}")
+                lines.append(f"<code>{address}</code>\n")
+                total_holders = map_data.get("total_holders") or map_data.get("holders_count", 0)
+                clusters = map_data.get("clusters") or map_data.get("wallet_clusters", [])
+                top10_pct = map_data.get("top10_holder_pct") or map_data.get(
+                    "top10_concentration", 0
+                )
+                lines.append(f"👥 Total Holders: <b>{total_holders}</b>")
+                lines.append(f"📊 Top 10 Concentration: <b>{float(top10_pct):.1f}%</b>")
+                if clusters:
+                    lines.append(f"🕸️ Wallet Clusters: <b>{len(clusters)}</b>")
+                lines.append("")
+
+            if holders_info:
+                lines.append(holders_info)
+            elif map_data:
+                holders = map_data.get("top_holders") or map_data.get("holders", [])
+                if holders:
+                    lines.append(f"{thin_sep()}\n<b>Top Holders:</b>")
+                    for i, h in enumerate(holders[:10], 1):
+                        h_addr = h.get("address") or h.get("holder", "")
+                        h_pct = h.get("pct") or h.get("percentage") or h.get("share", 0)
+                        tag = f" [{h.get('tag', '')}]" if h.get("tag") else ""
+                        lines.append(
+                            f"  {i}. <code>{short_addr(h_addr)}</code> — {float(h_pct):.1f}%{tag}"
+                        )
+
+            lines.append(
+                f"\n{thin_sep()}\n"
+                f'🌐 <a href="{WEBSITE_URL}/rugmaps?token={address}">View full bubble map on rugmunch.io</a>'
+            )
+            kb = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "🗺️ Full Map", url=f"{WEBSITE_URL}/rugmaps?token={address}"
+                        ),
+                        InlineKeyboardButton(
+                            "📊 Chart", callback_data=f"mapaddr_{address}_{chain}"
+                        ),
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "🔍 Scan Token", callback_data=f"scan_{address}_{chain}"
+                        ),
+                    ],
+                    [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+                ]
+            )
+            await msg.edit_text(
+                "\n".join(lines),
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+                disable_web_page_preview=True,
+            )
+    except Exception as e:
+        await msg.edit_text(
+            f"❌ Map error: {str(e)[:200]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+async def cmd_top(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/top [chain] — Volume rankings per chain."""
+    chain = (ctx.args[0].lower() if ctx.args else "solana") or "solana"
+    msg = await update.message.reply_text(
+        f"📈 <b>Fetching top {chain.capitalize()} tokens by volume...</b>",
+        parse_mode=ParseMode.HTML,
+    )
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            # Use DexScreener for volume rankings
+            r = await client.get(f"{_DEXSCREENER}/search/?q=trending%20{chain}")
+            if r.status_code != 200:
+                await msg.edit_text("❌ Could not fetch rankings.", parse_mode=ParseMode.HTML)
+                return
+            pairs = r.json().get("pairs", [])[:10]
+            if not pairs:
+                await msg.edit_text(
+                    f"❌ No data for chain: {chain}",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                )
+                return
+
+            lines = [
+                f"📈 <b>Top {chain.capitalize()} by Volume</b>",
+                sep(),
+            ]
+            for i, p in enumerate(pairs, 1):
+                bt = p.get("baseToken", {})
+                name = bt.get("name", "???")[:20]
+                symbol = bt.get("symbol", "???")
+                price = float(p.get("priceUsd", 0))
+                h24 = p.get("priceChange", {}).get("h24") or 0
+                vol = float(p.get("volume", {}).get("h24") or 0)
+                addr = bt.get("address", "")
+                emoji = "🟢" if h24 >= 0 else "🔴"
+                rank_badge = ["🥇", "🥈", "🥉"][i - 1] if i <= 3 else f"{i}."
+                lines.append(
+                    f"{rank_badge} {emoji} <b>{name}</b> ({symbol})\n"
+                    f"   💰 {fmt_number(price)} | 24h: {fmt_pct(h24)}\n"
+                    f"   📊 Vol: {fmt_number(vol)} | <code>{short_addr(addr)}</code>"
+                )
+            lines.append(
+                f"\n{thin_sep()}\n"
+                f'🌐 <a href="{WEBSITE_URL}/rugcharts">Full rankings on rugmunch.io</a>'
+            )
+            chain_buttons = [
+                InlineKeyboardButton("◎ SOL", callback_data="topchain_solana"),
+                InlineKeyboardButton("⟠ ETH", callback_data="topchain_ethereum"),
+                InlineKeyboardButton("🔷 BASE", callback_data="topchain_base"),
+                InlineKeyboardButton("🔶 BSC", callback_data="topchain_bsc"),
+            ]
+            kb = InlineKeyboardMarkup(
+                [
+                    chain_buttons,
+                    [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+                ]
+            )
+            await msg.edit_text(
+                "\n".join(lines),
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+                disable_web_page_preview=True,
+            )
+    except Exception as e:
+        await msg.edit_text(
+            f"❌ Error: {str(e)[:200]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+# ══════════════════════════════════════════════
 # NEW ADMIN COMMANDS (owner-only — @cryptorugmunch)
 # ══════════════════════════════════════════════
 
 
 @owner_only
 async def cmd_alert_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """/alert <message> — Send a rug pull alert to ALL subscribers."""
+    """/alert <message> — Broadcast a rug pull alert to ALL subscribers.
+
+    Also handles user subscription management when used without a message:
+      /alert — show subscription status (routes to /alerts handler)
+      /alert on security — subscribe to security alerts
+      /alert off — unsubscribe from all alerts
+
+    Owner usage: /alert <message> broadcasts to all active alert subscribers.
+    """
+    user = update.effective_user
+
+    # If no args, show subscription status (route to V3 alerts handler)
     if not ctx.args:
+        from handlers.alerts import cmd_alerts as v3_cmd_alerts
+
+        await v3_cmd_alerts(update, ctx)
+        return
+
+    # If args look like subscription management (on/off), route to V3 handler
+    first_arg = ctx.args[0].lower()
+    if first_arg in ("on", "off", "status", "list"):
+        from handlers.alerts import cmd_alerts as v3_cmd_alerts
+
+        await v3_cmd_alerts(update, ctx)
+        return
+
+    # Only owner can broadcast
+    _resolve_owner(user)
+    if not is_owner(user.id if user else 0):
         await update.message.reply_text(
-            "🚨 <b>Alert Broadcast</b>\n\n"
-            "Usage: /alert <message>\n\n"
-            "Sends a rug pull alert to ALL active subscribers.\n"
-            "Use \\\\n for line breaks.",
+            "🔔 <b>Alert Subscriptions</b>\n\n"
+            "To manage your alert subscriptions, use:\n"
+            "• /alerts — manage alerts\n"
+            "• /alerts on security — enable security alerts\n"
+            "• /alerts off — disable alerts\n\n"
+            "<i>Premium tiers get real-time rug pull alerts!</i>\n\n"
+            "To broadcast alerts, you need owner access.",
             parse_mode=ParseMode.HTML,
+            reply_markup=pricing_kb(),
         )
         return
+
     msg_text = " ".join(ctx.args).replace("\\n", "\n")
     conn = db.get_db()
     users = conn.execute(
@@ -2919,20 +3593,31 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
+    # ── GUARDRAIL: pre-process input ──
+    gr = guardrails.pre_process(query)
+    if gr.blocked:
+        await update.message.reply_text(
+            gr.canned_response,
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+        return
+    safe_query = gr.sanitized_text
+
     # Tier gating — check limits
     if not is_owner(user.id):
         allowed, _used, _limit = db.check_rate_limit(user.id, "ai_msg")
         if not allowed:
             await update.message.reply_text(
-                paywall_text(user.id, "ai_msg"),
+                guardrails.PERSONALITY["limit_reached"],
                 parse_mode=ParseMode.HTML,
                 reply_markup=paywall_kb(),
             )
             return
 
     msg = await update.message.reply_text(
-        "🧠 <b>Researching RAG database...</b>\n\n"
-        f"<i>Query:</i> <code>{query[:100]}{'…' if len(query) > 100 else ''}</code>\n"
+        "🧠 <b>Rug Muncher is researching...</b>\n\n"
+        f"<i>Query:</i> <code>{safe_query[:100]}{'…' if len(safe_query) > 100 else ''}</code>\n"
         f"⏳ Scanning threat intel, wallet labels, and scam archives...",
         parse_mode=ParseMode.HTML,
     )
@@ -2942,7 +3627,7 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             r = await client.post(
                 f"{BACKEND_URL}/api/v1/rag/v2/search",
                 json={
-                    "query": query,
+                    "query": safe_query,
                     "collection": "scam_intel",
                     "top_k": 8,
                     "min_similarity": 0.35,
@@ -2967,8 +3652,8 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
             if not hits:
                 await msg.edit_text(
-                    "🔍 <b>No Results Found</b>\n\n"
-                    f"No relevant intelligence found for: <code>{query[:100]}</code>\n\n"
+                    "🔍 <b>Rug Muncher Found Nothing</b>\n\n"
+                    f"No relevant intelligence found for: <code>{safe_query[:100]}</code>\n\n"
                     "Try:\n"
                     "• Using different keywords\n"
                     "• Shorter, more specific queries\n"
@@ -2980,8 +3665,8 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
             # Format results
             lines = [
-                f"🧠 <b>RAG Intelligence Report</b>\n"
-                f"<i>Query:</i> <code>{query[:100]}{'…' if len(query) > 100 else ''}</code>\n"
+                f"🧠 <b>Rug Muncher's Intelligence Report</b>\n"
+                f"<i>Query:</i> <code>{safe_query[:100]}{'…' if len(safe_query) > 100 else ''}</code>\n"
                 f"<i>Found:</i> {total} matches in {took_ms}ms\n"
                 f"{'─' * 32}\n"
             ]
@@ -3020,8 +3705,10 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
 
             db.increment_usage(user.id, ai_msg=True)
+            # ── GUARDRAIL: post-process output ──
+            safe_output = guardrails.post_process("\n".join(lines))
             await msg.edit_text(
-                "\n".join(lines),
+                safe_output,
                 parse_mode=ParseMode.HTML,
                 reply_markup=back_kb(),
             )
@@ -3040,6 +3727,1012 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
+
+
+# ══════════════════════════════════════════════
+# V7 EXPERT CHATBOT COMMANDS — /ask, /explain, /pulse
+# ══════════════════════════════════════════════
+
+
+async def _search_rag(query: str, top_k: int = 5) -> list[dict]:
+    """Search all RAG collections and return merged + deduplicated results."""
+    all_hits: list[dict] = []
+    seen_ids: set[str] = set()
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            for collection in RAG_COLLECTIONS:
+                try:
+                    r = await client.post(
+                        RAG_SEARCH_URL,
+                        json={
+                            "query": query,
+                            "collection": collection,
+                            "top_k": top_k,
+                            "min_similarity": 0.0,
+                            "filters": {},
+                        },
+                        headers={"X-API-Key": RMI_AUTH_TOKEN},
+                        timeout=10,
+                    )
+                    if r.status_code == 200:
+                        data = r.json()
+                        for hit in data.get("hits", []):
+                            doc_id = hit.get("doc_id", "")
+                            if doc_id not in seen_ids:
+                                seen_ids.add(doc_id)
+                                hit["_collection"] = collection
+                                all_hits.append(hit)
+                except Exception:
+                    pass  # collection search failed — skip, not fatal
+    except Exception as exc:
+        logger.debug("_search_rag: global failure: %s", exc)
+    all_hits.sort(key=lambda h: h.get("score", 0), reverse=True)
+    return all_hits[: top_k * 2]  # return top results across all collections
+
+
+def _format_rag_hits(hits: list[dict], max_per: int = 6) -> str:
+    """Format RAG hits into a readable reference block."""
+    if not hits:
+        return ""
+    lines = [f"\n{'─' * 28}", "📚 <b>Sources & References:</b>"]
+    for i, hit in enumerate(hits[:max_per], 1):
+        score = hit.get("score", 0)
+        content = hit.get("content", "")[:200]
+        meta = hit.get("metadata", {})
+        coll = hit.get("_collection", "unknown")
+        coll_map = {
+            "scam_intel": "Scam Intel",
+            "wallet_labels": "Wallet Labels",
+            "contract_audit": "Contract Audit",
+            "phishing_db": "Phishing DB",
+            "deployer_history": "Deployer History",
+        }
+        coll_label = coll_map.get(coll, coll)
+        chain = f" [{meta.get('chain', '')}]" if meta.get("chain") else ""
+        score_bar = "🟢" if score > 0.7 else "🟡" if score > 0.5 else "⚪"
+        lines.append(
+            f"\n{score_bar} <b>{i}. {coll_label}{chain}</b> (match {score:.0%})\n"
+            f"   <code>{content}</code>"
+        )
+    return "\n".join(lines)
+
+
+def _follow_up_kb() -> InlineKeyboardMarkup:
+    """Follow-up suggestions keyboard after an expert response."""
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("🔍 Scan Token", callback_data="menu_scan"),
+                InlineKeyboardButton("📚 Scam School", callback_data="menu_scamschool"),
+            ],
+            [
+                InlineKeyboardButton("🔥 Trending", callback_data="menu_trending"),
+                InlineKeyboardButton("😱 Fear & Greed", callback_data="menu_fear"),
+            ],
+            [InlineKeyboardButton("◀️ Main Menu", callback_data="menu_main")],
+        ]
+    )
+
+
+async def cmd_ask(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/ask <question> — Ask the crypto expert bot anything about crypto.
+
+    Uses RAG (Retrieval-Augmented Generation) to search across scam intel,
+    wallet labels, contract audits, and phishing databases, then synthesizes
+    a natural expert response.
+
+    Examples:
+      /ask Is ETH going up?
+      /ask What is a honeypot?
+      /ask How do I spot a rug pull?
+      /ask Explain impermanent loss
+      /ask What happened with LUNA?
+    """
+    user = update.effective_user
+    db.get_or_create_user(user.id, user.username, user.first_name)
+
+    if not ctx.args:
+        await update.message.reply_text(
+            "🧠 <b>Ask the Crypto Expert</b>\n\n"
+            "Ask me anything about crypto! I search across threat intel, "
+            "scam databases, and DeFi knowledge to give you expert answers.\n\n"
+            "<b>Examples:</b>\n"
+            "  /ask Is ETH going up?\n"
+            "  /ask What is a honeypot?\n"
+            "  /ask How do I spot a rug pull?\n"
+            "  /ask Explain impermanent loss\n"
+            "  /ask What happened with LUNA?\n"
+            "  /ask Analyze 0x69825...\n\n"
+            "<i>Free: 10 AI questions/week | Premium: up to 500/week</i>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=_follow_up_kb(),
+        )
+        return
+
+    question = " ".join(ctx.args)
+    if len(question) > 500:
+        await update.message.reply_text(
+            "❌ Question too long (max 500 chars).", parse_mode=ParseMode.HTML
+        )
+        return
+
+    # ── GUARDRAIL: pre-process input ──
+    gr = guardrails.pre_process(question)
+    if gr.blocked:
+        await update.message.reply_text(
+            gr.canned_response,
+            parse_mode=ParseMode.HTML,
+            reply_markup=_follow_up_kb(),
+        )
+        return
+    safe_question = gr.sanitized_text
+
+    # Rate limit
+    if not is_owner(user.id):
+        allowed, used, limit = db.check_rate_limit(user.id, "ai_msg")
+        if not allowed:
+            await update.message.reply_text(
+                guardrails.PERSONALITY["limit_reached"],
+                parse_mode=ParseMode.HTML,
+                reply_markup=paywall_kb(),
+            )
+            return
+
+    msg = await update.message.reply_text(
+        "🧠 <b>Rug Muncher is thinking...</b>\n\n"
+        f"<i>Searching my scam database for:</i> <code>{safe_question[:100]}{'…' if len(safe_question) > 100 else ''}</code>",
+        parse_mode=ParseMode.HTML,
+    )
+
+    try:
+        hits = await _search_rag(safe_question, top_k=5)
+
+        if not hits:
+            # No RAG results — provide a helpful generic response based on question type
+            q_lower = safe_question.lower()
+            if any(
+                w in q_lower for w in ["price", "going up", "going down", "pump", "dump", "chart"]
+            ):
+                response = (
+                    "📊 <b>Market Analysis</b>\n\n"
+                    "I don't have real-time market predictions, but here's what I can help with:\n\n"
+                    "• Use /trending for hot tokens right now\n"
+                    "• Use /fear for market sentiment index\n"
+                    "• Use /chart <code>address</code> for OHLCV data\n"
+                    "• Use /ta <code>address</code> for technical analysis\n\n"
+                    "<i>Pro tip: Paste any contract address for an instant scan!</i>"
+                )
+            elif any(w in q_lower for w in ["scan", "check", "analyze", "safe", "rug", "scam"]):
+                response = (
+                    "🔍 <b>Token Analysis Help</b>\n\n"
+                    "I can analyze any token on Solana, Ethereum, Base, BSC, and more!\n\n"
+                    "Just <b>paste the contract address</b> directly or use:\n"
+                    "• /scan <code>address</code> — full security scan\n"
+                    "• /deepscan <code>address</code> — deep forensic scan\n"
+                    "• /risk <code>address</code> — quick risk score\n"
+                    "• /map <code>address</code> — holder bubble map\n\n"
+                    "<i>Free tier: 25 scans/week</i>"
+                )
+            elif any(w in q_lower for w in ["what is", "how", "explain", "why", "when", "who"]):
+                response = (
+                    f"🤔 <b>Good question, anon.</b>\n\n"
+                    f'I searched my scam database for "<code>{safe_question[:80]}</code>" '
+                    f"but didn't find a direct match.\n\n"
+                    f"Try:\n"
+                    f"• Rephrasing your question\n"
+                    f"• /scamschool — learn about common scams\n"
+                    f"• /rugcheck — rug pull red flags\n"
+                    f"• /rehab — recovery course for rug victims\n\n"
+                    f'🌐 <a href="{WEBSITE_URL}">rugmunch.io</a> has in-depth articles too!'
+                )
+            else:
+                response = (
+                    "🤔 <b>Rug Muncher isn't sure about that!</b>\n\n"
+                    "Here's what I CAN help with:\n\n"
+                    "🔍 <b>Token Analysis:</b> Paste any address → instant scan\n"
+                    "🧠 <b>Crypto Knowledge:</b> /scamschool, /rugcheck, /rehab\n"
+                    "📊 <b>Market Data:</b> /trending, /top, /fear, /chart\n"
+                    "👛 <b>Wallet Intel:</b> /wallet <code>address</code>\n\n"
+                    "Try /help for the full command list!"
+                )
+            await msg.edit_text(
+                response,
+                parse_mode=ParseMode.HTML,
+                reply_markup=_follow_up_kb(),
+                disable_web_page_preview=True,
+            )
+            db.increment_usage(user.id, ai_msg=True)
+            return
+
+        # Build expert response from RAG results
+        top_hit = hits[0]
+        top_content = top_hit.get("content", "")
+        top_meta = top_hit.get("metadata", {})
+        top_coll = top_hit.get("_collection", "scam_intel")
+
+        # Determine response type based on collection and content
+        if top_coll in ("scam_intel", "phishing_db"):
+            header = "🛡️ <b>Crypto Security Expert</b>"
+        elif top_coll in ("wallet_labels", "deployer_history"):
+            header = "🔍 <b>Blockchain Forensics</b>"
+        elif top_coll == "contract_audit":
+            header = "📋 <b>Smart Contract Analysis</b>"
+        else:
+            header = "🧠 <b>Crypto Expert Analysis</b>"
+
+        # Build main response
+        lines = [
+            header,
+            sep(),
+            f"<i>Q:</i> <code>{safe_question[:150]}{'…' if len(safe_question) > 150 else ''}</code>\n",
+            "<b>Rug Muncher says:</b>",
+        ]
+
+        # Try to build a synthesized response from top hits
+        answer_parts = []
+        for hit in hits[:3]:
+            content = hit.get("content", "")
+            if content and len(content) > 10:
+                # Clean up the content for display
+                cleaned = content[:400].strip()
+                if not cleaned.endswith("."):
+                    cleaned += "."
+                answer_parts.append(cleaned)
+
+        if answer_parts:
+            lines.append(answer_parts[0])
+            if len(answer_parts) > 1:
+                lines.append("\n💡 <b>Additional Context:</b>")
+                for part in answer_parts[1:]:
+                    lines.append(f"  • {part[:300]}")
+        else:
+            lines.append(
+                "I found relevant data but couldn't synthesize a clear answer. See the references below for details."
+            )
+
+        # Add sources
+        lines.append(_format_rag_hits(hits))
+
+        # Add follow-up suggestions
+        lines.append(
+            f"\n{'─' * 28}\n"
+            f"💡 <b>Try these:</b>\n"
+            f"• /ask [your follow-up question]\n"
+            f"• /scan &lt;address&gt; — scan any token\n"
+            f"• /explain &lt;concept&gt; — deep-dive on crypto concepts\n"
+            f"• /scamschool — learn about crypto scams"
+        )
+
+        db.increment_usage(user.id, ai_msg=True)
+        # ── GUARDRAIL: post-process output ──
+        safe_output = guardrails.post_process("\n".join(lines))
+        await msg.edit_text(
+            safe_output,
+            parse_mode=ParseMode.HTML,
+            reply_markup=_follow_up_kb(),
+            disable_web_page_preview=True,
+        )
+
+    except Exception as e:
+        logger.exception("cmd_ask failed")
+        await msg.edit_text(
+            f"❌ <b>Sorry, something went wrong!</b>\n\n"
+            f"Error: {str(e)[:150]}\n\n"
+            f"Try again or use /help for other options.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+async def cmd_explain(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/explain <concept> — Get a crypto expert explanation for any concept.
+
+    Uses RAG to pull relevant security patterns, scam data, and DeFi knowledge,
+    then presents a comprehensive educational explanation.
+
+    Examples:
+      /explain impermanent loss
+      /explain MEV
+      /explain flash loan attack
+      /explain liquidity pool
+      /explain rug pull
+    """
+    user = update.effective_user
+    db.get_or_create_user(user.id, user.username, user.first_name)
+
+    if not ctx.args:
+        await update.message.reply_text(
+            "🎓 <b>Crypto Concept Explainer</b>\n\n"
+            "I'll explain any crypto or DeFi concept in plain English!\n\n"
+            "<b>Examples:</b>\n"
+            "  /explain impermanent loss\n"
+            "  /explain MEV sandwich attack\n"
+            "  /explain flash loan\n"
+            "  /explain liquidity pool\n"
+            "  /explain rug pull\n"
+            "  /explain tokenomics\n\n"
+            "<i>Powered by RAG across 5 knowledge collections.</i>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=_follow_up_kb(),
+        )
+        return
+
+    concept = " ".join(ctx.args)
+    if len(concept) > 300:
+        await update.message.reply_text(
+            "❌ Concept too long (max 300 chars).", parse_mode=ParseMode.HTML
+        )
+        return
+
+    # ── GUARDRAIL: pre-process input ──
+    gr = guardrails.pre_process(concept)
+    if gr.blocked:
+        await update.message.reply_text(
+            gr.canned_response,
+            parse_mode=ParseMode.HTML,
+            reply_markup=_follow_up_kb(),
+        )
+        return
+    safe_concept = gr.sanitized_text
+
+    # Rate limit
+    if not is_owner(user.id):
+        allowed, used, limit = db.check_rate_limit(user.id, "ai_msg")
+        if not allowed:
+            await update.message.reply_text(
+                guardrails.PERSONALITY["limit_reached"],
+                parse_mode=ParseMode.HTML,
+                reply_markup=paywall_kb(),
+            )
+            return
+
+    msg = await update.message.reply_text(
+        f"🎓 <b>Rug Muncher is explaining:</b> <code>{safe_concept[:80]}</code>...\n\n"
+        "⏳ Searching knowledge base for relevant context...",
+        parse_mode=ParseMode.HTML,
+    )
+
+    try:
+        # Search with enhanced query to get broader context
+        enhanced_query = f"What is {safe_concept}? Definition and explanation of {safe_concept} in cryptocurrency and DeFi. How {safe_concept} works."
+        hits = await _search_rag(enhanced_query, top_k=6)
+
+        if not hits:
+            # Use Scam School topics if they match
+            q_lower = safe_concept.lower()
+            scam_match = None
+            for key, topic in SCAM_SCHOOL_TOPICS.items():
+                if (
+                    key in q_lower
+                    or q_lower in key
+                    or any(w in q_lower for w in topic.get("title", "").lower().split())
+                ):
+                    scam_match = topic
+                    break
+
+            if scam_match:
+                await msg.edit_text(
+                    f"🎓 <b>{scam_match['title']}</b>\n{sep()}\n\n"
+                    f"{scam_match['content']}\n\n"
+                    f"{'─' * 28}\n"
+                    f"💡 Source: Scam School | /scamschool for more topics"
+                    f"{footer_links()}",
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=_follow_up_kb(),
+                    disable_web_page_preview=True,
+                )
+                db.increment_usage(user.id, ai_msg=True)
+                return
+
+            # Generic fallback explanation
+            response = (
+                f"🎓 <b>Rug Muncher Explains: {safe_concept[:80]}</b>\n{sep()}\n\n"
+                f"I searched my knowledge base but couldn't find a direct match for this concept.\n\n"
+                f"Here are resources that might help:\n\n"
+                f"📚 <b>Scam School</b> — /scamschool\n"
+                f"🚩 <b>Rug Check Checklist</b> — /rugcheck\n"
+                f"🏥 <b>Rug Pull Rehab</b> — /rehab\n"
+                f"🧠 <b>Ask Expert</b> — /ask your question\n\n"
+                f'🌐 <a href="{WEBSITE_URL}">rugmunch.io</a> for in-depth guides'
+                f"{footer_links()}"
+            )
+            await msg.edit_text(
+                response,
+                parse_mode=ParseMode.HTML,
+                reply_markup=_follow_up_kb(),
+                disable_web_page_preview=True,
+            )
+            db.increment_usage(user.id, ai_msg=True)
+            return
+
+        # Build educational explanation
+        top_hit = hits[0]
+        top_meta = top_hit.get("metadata", {})
+        top_coll = top_hit.get("_collection", "scam_intel")
+
+        coll_map = {
+            "scam_intel": "Scam Intelligence",
+            "wallet_labels": "Wallet Forensics",
+            "contract_audit": "Smart Contract Security",
+            "phishing_db": "Phishing Analysis",
+            "deployer_history": "Deployer Analysis",
+        }
+        source_label = coll_map.get(top_coll, "Knowledge Base")
+
+        # Try to build explanation from RAG context
+        context_items = [h.get("content", "") for h in hits[:4] if len(h.get("content", "")) > 20]
+
+        lines = [
+            f"🎓 <b>Rug Muncher Explains:</b> <code>{safe_concept[:80]}</code>",
+            sep(),
+        ]
+
+        if context_items:
+            # Use the best content as the main explanation
+            main_explanation = context_items[0][:800].strip()
+            lines.append(f"<b>What it is:</b>\n{main_explanation}")
+
+            if len(context_items) > 1 and len(context_items[1]) > 20:
+                lines.append("\n<b>Key Details:</b>")
+                for item in context_items[1:3]:
+                    detail = item[:300].strip()
+                    if detail:
+                        lines.append(f"  • {detail}")
+
+            # Add security tips if relevant
+            if any(
+                w in safe_concept.lower()
+                for w in [
+                    "rug",
+                    "scam",
+                    "hack",
+                    "attack",
+                    "exploit",
+                    "phishing",
+                    "honeypot",
+                    "risk",
+                    "danger",
+                ]
+            ):
+                lines.append(
+                    "\n⚠️ <b>How to Protect Yourself:</b>\n"
+                    "  • Always /scan tokens before buying\n"
+                    "  • Check contract verification status\n"
+                    "  • Verify LP lock percentage\n"
+                    "  • Watch for unusual holder patterns\n"
+                    "  • Use /rugcheck for a quick safety checklist"
+                )
+        else:
+            lines.append(
+                "I found relevant data but the context is too technical for a clean explanation. "
+                "See the references below for detailed information."
+            )
+
+        # Sources
+        lines.append(_format_rag_hits(hits))
+
+        # Follow-up
+        lines.append(
+            f"\n{'─' * 28}\n"
+            f"💡 <b>Dig deeper:</b>\n"
+            f"• /explain [related concept]\n"
+            f"• /ask [follow-up question]\n"
+            f"• /scamschool — free crypto safety course"
+        )
+
+        db.increment_usage(user.id, ai_msg=True)
+        # ── GUARDRAIL: post-process output ──
+        safe_output = guardrails.post_process("\n".join(lines))
+        await msg.edit_text(
+            safe_output,
+            parse_mode=ParseMode.HTML,
+            reply_markup=_follow_up_kb(),
+            disable_web_page_preview=True,
+        )
+
+    except Exception as e:
+        logger.exception("cmd_explain failed")
+        await msg.edit_text(
+            f"❌ <b>Rug Muncher's brain short-circuited</b>\n\n{str(e)[:150]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+async def cmd_pulse(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/pulse — Market pulse: Fear & Greed index, top movers, and trending summary.
+
+    One command for a complete market overview. Combines sentiment data,
+    trending tokens, and key metrics into a single dashboard-style report.
+    """
+    msg = await update.message.reply_text(
+        "💓 <b>Taking the market pulse...</b>\n\n⏳ Fetching Fear & Greed, trending, and top movers...",
+        parse_mode=ParseMode.HTML,
+    )
+
+    try:
+        fear_val = 50
+        fear_class = "Neutral"
+        fear_emoji = "😐"
+        fear_tag = "Neutral"
+
+        # ── Fear & Greed ──
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r = await client.get("https://api.alternative.me/fng/?limit=1")
+                if r.status_code == 200:
+                    data = r.json().get("data", [])
+                    if data:
+                        d = data[0]
+                        fear_val = int(d.get("value", 50))
+                        fear_class = d.get("value_classification", "Neutral")
+                        if fear_val <= 25:
+                            fear_emoji, fear_tag = "😱", "Extreme Fear"
+                        elif fear_val <= 45:
+                            fear_emoji, fear_tag = "😨", "Fear"
+                        elif fear_val <= 55:
+                            fear_emoji, fear_tag = "😐", "Neutral"
+                        elif fear_val <= 75:
+                            fear_emoji, fear_tag = "😊", "Greed"
+                        else:
+                            fear_emoji, fear_tag = "🤑", "Extreme Greed"
+        except Exception as exc:
+            logger.debug("cmd_pulse: fear API failed: %s", exc)
+
+        # ── Trending ──
+        trending_lines = []
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(f"{_DEXSCREENER}/search/?q=trending")
+                if r.status_code == 200:
+                    pairs = r.json().get("pairs", [])[:6]
+                    if pairs:
+                        trending_lines = ["🔥 <b>Trending Right Now</b>", thin_sep()]
+                        for p in pairs:
+                            bt = p.get("baseToken", {})
+                            name = bt.get("name", "???")[:15]
+                            symbol = bt.get("symbol", "???")
+                            h24 = p.get("priceChange", {}).get("h24") or 0
+                            addr = bt.get("address", "")
+                            emoji = "🟢" if h24 > 0 else "🔴" if h24 < 0 else "⚪"
+                            trending_lines.append(
+                                f"{emoji} <b>{name}</b> ({symbol}) {fmt_pct(h24)}\n"
+                                f"   <code>{short_addr(addr)}</code>"
+                            )
+        except Exception as exc:
+            logger.debug("cmd_pulse: trending fetch failed: %s", exc)
+
+        # ── Build Pulse Report ──
+        fear_bar = "🟥" * (fear_val // 15) + "⬜" * (6 - fear_val // 15)
+        # Personality-driven sentiment commentary
+        if fear_val <= 25:
+            fear_commentary = (
+                "Everyone's hiding under their desk. Time to buy? I just scan contracts."
+            )
+        elif fear_val <= 45:
+            fear_commentary = "Fear is in the air. Scammers love panicked degens. Stay sharp."
+        elif fear_val <= 55:
+            fear_commentary = "The market can't decide if it wants to pump or dump. Classic."
+        elif fear_val <= 75:
+            fear_commentary = "Greed is creeping back. Perfect rug pull weather."
+        else:
+            fear_commentary = "Extreme greed. I've seen this movie. It ends with crying."
+
+        lines = [
+            "💓 <b>Rug Muncher's Market Pulse</b>",
+            sep(),
+            "",
+            f"{fear_emoji} <b>Fear & Greed Index:</b> {fear_val}/100 — {fear_tag}",
+            f"{fear_bar}",
+            f"<i>{fear_commentary}</i>",
+        ]
+
+        if trending_lines:
+            lines.append("")
+            lines.extend(trending_lines)
+
+        lines.extend(
+            [
+                "",
+                f"{'─' * 28}",
+                "💡 <b>Quick Actions:</b>",
+                "• /trending — full trending list",
+                "• /top — volume rankings by chain",
+                "• /fear — detailed sentiment report",
+                "• /news — latest crypto news",
+                "• /scan &lt;address&gt; — check any token",
+                f"{footer_links()}",
+            ]
+        )
+
+        await msg.edit_text(
+            "\n".join(lines),
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton("🔥 Trending", callback_data="menu_trending"),
+                        InlineKeyboardButton("😱 Fear & Greed", callback_data="menu_fear"),
+                    ],
+                    [
+                        InlineKeyboardButton("📈 Top Volume", callback_data="menu_top"),
+                        InlineKeyboardButton("📰 News", callback_data="menu_news"),
+                    ],
+                    [InlineKeyboardButton("◀️ Main Menu", callback_data="menu_main")],
+                ]
+            ),
+            disable_web_page_preview=True,
+        )
+
+    except Exception as e:
+        logger.exception("cmd_pulse failed")
+        await msg.edit_text(
+            f"❌ <b>Pulse check failed</b>\n\n{str(e)[:200]}\n\n"
+            f"Try /fear or /trending individually.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+# ══════════════════════════════════════════════
+# ENHANCED NATURAL CONVERSATION HANDLER
+# ══════════════════════════════════════════════
+
+# Intent detection keywords
+_GREETINGS = {
+    "gm",
+    "gn",
+    "hello",
+    "hi",
+    "hey",
+    "yo",
+    "sup",
+    "hola",
+    "howdy",
+    "morning",
+    "evening",
+    "good morning",
+    "good evening",
+    "good night",
+}
+_THANKS = {"thanks", "thank you", "thx", "ty", "tyvm", "appreciate"}
+_CRYPTO_QUESTION_WORDS = {
+    "what is",
+    "how does",
+    "how do",
+    "explain",
+    "why",
+    "when",
+    "who",
+    "where can",
+    "which",
+}
+_SCAN_INTENT_WORDS = {"scan", "check", "audit", "verify", "lookup", "investigate", "inspect"}
+_TRENDING_INTENT_WORDS = {
+    "trending",
+    "trends",
+    "popular",
+    "hot",
+    "what's hot",
+    "whats hot",
+    "what's popping",
+    "whats popping",
+    "movers",
+    "gaining",
+}
+_FEAR_INTENT_WORDS = {"fear", "greed", "sentiment", "market mood", "panic"}
+_PRICE_INTENT_WORDS = {"price", "cost", "worth", "value", "how much"}
+_HELP_INTENT_WORDS = {"help", "commands", "what can you do", "menu", "options"}
+
+
+async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user or not update.message or not update.message.text:
+        return
+    text = update.message.text.strip()
+    text_lower = text.lower()
+    u = db.get_or_create_user(user.id, user.username, user.first_name)
+    if u.get("is_banned"):
+        return
+    if check_spam(user.id, user):
+        return
+
+    # ── Community chat constraint: In groups, only respond when mentioned ──
+    if update.effective_chat and update.effective_chat.type in ("group", "supergroup"):
+        # Always respond to commands (they're handled by CommandHandler, not here)
+        # But for natural language messages in groups: only respond if mentioned
+        # Exception: contract addresses get auto-scanned regardless (useful for degens)
+        if not guardrails.is_mentioned(text):
+            # Still auto-detect addresses in groups (most requested feature)
+            if is_evm(text) or is_sol(text) or EVM_RE.search(text) or SOL_RE.search(text):
+                pass  # allow address scanning in groups
+            else:
+                return  # silently ignore non-mention, non-address messages in groups
+
+    # ── Auto-detect contract address ──
+    if is_evm(text) or is_sol(text):
+        ctx.args = [text]
+        await cmd_scan_v3(update, ctx)
+        return
+
+    # ── Token symbol detection ($TOKEN) ──
+    token_match = TOKEN_RE.search(text)
+    if token_match:
+        symbol = token_match.group(1).upper()
+        await update.message.chat.send_action("typing")
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(f"{_DEXSCREENER}/search/?q={symbol}")
+                if r.status_code == 200:
+                    pairs = r.json().get("pairs", [])
+                    if pairs:
+                        p = pairs[0]
+                        addr = p.get("baseToken", {}).get("address", "")
+                        chain = p.get("chainId", "")
+                        price = float(p.get("priceUsd", 0))
+                        h24 = p.get("priceChange", {}).get("h24") or 0
+                        vol = float(p.get("volume", {}).get("h24") or 0)
+                        mcap = float(p.get("marketCap") or 0)
+                        name = p.get("baseToken", {}).get("name", symbol)
+                        quick_text = (
+                            f"🪙 <b>{name}</b> ({symbol}) {fmt_chain(chain)}\n"
+                            f"<code>{addr}</code>\n\n"
+                            f"💰 {fmt_number(price)} | 🔄 24h: {fmt_pct(h24)}\n"
+                            f"📈 MCap: {fmt_number(mcap)} | 💧 Vol: {fmt_number(vol)}"
+                            f"{footer_links()}"
+                        )
+                        if addr:
+                            await update.message.reply_text(
+                                quick_text,
+                                parse_mode=ParseMode.HTML,
+                                reply_markup=InlineKeyboardMarkup(
+                                    [
+                                        [
+                                            InlineKeyboardButton(
+                                                "🔍 Full Scan",
+                                                callback_data=f"scan_{addr}_{chain}",
+                                            )
+                                        ],
+                                        [web_scan_button(addr, chain)],
+                                    ]
+                                ),
+                                disable_web_page_preview=True,
+                            )
+                            return
+        except Exception as exc:
+            logger.debug("handle_message: DexScreener symbol lookup failed: %s", exc)
+
+    # ── Natural language address extraction ──
+    evm_match = EVM_RE.search(text)
+    sol_match = SOL_RE.search(text)
+    if evm_match:
+        ctx.args = [evm_match.group()]
+        await cmd_scan_v3(update, ctx)
+        return
+    if sol_match:
+        ctx.args = [sol_match.group()]
+        await cmd_scan_v3(update, ctx)
+        return
+
+    # ── Intent-based Natural Conversation ──
+
+    # 1. Greetings
+    if text_lower in _GREETINGS or text_lower.rstrip("!") in _GREETINGS:
+        hour = datetime.now(UTC).hour
+        greeting = guardrails.PERSONALITY["greeting"](user.first_name, hour)
+        await update.message.reply_text(
+            greeting,
+            parse_mode=ParseMode.HTML,
+            reply_markup=main_menu_kb(),
+        )
+        return
+
+    # 2. Thanks
+    if any(t in text_lower for t in _THANKS):
+        await update.message.reply_text(
+            guardrails.PERSONALITY["thanks"],
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+        return
+
+    # 3. Trending/top movers intent
+    if any(w in text_lower for w in _TRENDING_INTENT_WORDS):
+        ctx.args = []
+        await cmd_trending(update, ctx)
+        return
+
+    # 4. Fear/greed/sentiment intent
+    if any(w in text_lower for w in _FEAR_INTENT_WORDS):
+        await cmd_fear(update, ctx)
+        return
+
+    # 5. Price check intent (without $ symbol)
+    if any(w in text_lower for w in _PRICE_INTENT_WORDS):
+        # Check if there's a symbol mentioned
+        words = text_lower.split()
+        for word in words:
+            clean = word.strip("?!.,").upper()
+            if 2 <= len(clean) <= 10 and clean.isalpha():
+                ctx.args = [clean]
+                await cmd_quick(update, ctx)
+                return
+        # Generic price inquiry response
+        await update.message.reply_text(
+            "📊 <b>Looking for a price?</b>\n\n"
+            "Send me the symbol or address:\n"
+            "• <code>$PEPE</code> — quick price\n"
+            "• <code>0x6982...</code> — full scan\n"
+            "• /quick <code>BTC</code> — price check\n"
+            "• /ta <code>address</code> — technical analysis\n\n"
+            f'🌐 <a href="{WEBSITE_URL}">rugmunch.io</a> for charts & deep analysis',
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+            disable_web_page_preview=True,
+        )
+        return
+
+    # 6. Scan intent ("scan this", "check token", etc.)
+    if any(w in text_lower for w in _SCAN_INTENT_WORDS):
+        # Look for address in text
+        addr_match = EVM_RE.search(text) or SOL_RE.search(text)
+        if addr_match:
+            ctx.args = [addr_match.group()]
+            await cmd_scan_v3(update, ctx)
+            return
+        await update.message.reply_text(
+            "🔍 <b>Ready to scan!</b>\n\n"
+            "Just send me the contract address and I'll check it for:\n"
+            "• Honeypots & rug pulls\n"
+            "• Liquidity lock status\n"
+            "• Buy/sell taxes\n"
+            "• Owner privileges\n"
+            "• Bundle detection\n"
+            "• Holder distribution\n\n"
+            "📋 Or use /scan <code>address</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🔍 Scan Example", callback_data="menu_scan")]]
+            ),
+        )
+        return
+
+    # 7. Help/menu intent
+    if any(w in text_lower for w in _HELP_INTENT_WORDS):
+        await cmd_help(update, ctx)
+        return
+
+    # 8. Crypto question detection — route to /ask (WITH GUARDRAILS)
+    is_question = "?" in text or any(w in text_lower for w in _CRYPTO_QUESTION_WORDS)
+    is_crypto_topic = any(
+        w in text_lower
+        for w in [
+            "token",
+            "coin",
+            "crypto",
+            "defi",
+            "nft",
+            "blockchain",
+            "dex",
+            "swap",
+            "liquidity",
+            "staking",
+            "yield",
+            "wallet",
+            "contract",
+            "bridge",
+            "layer",
+            "solana",
+            "ethereum",
+            "bsc",
+            "polygon",
+            "arbitrum",
+            "bitcoin",
+            "eth",
+            "meme",
+            "airdrop",
+            "launch",
+            "ido",
+            "ico",
+            "mining",
+            "validator",
+            "honeypot",
+            "rug",
+            "scam",
+            "phishing",
+            "exploit",
+            "hack",
+            "slippage",
+            "impermanent",
+            "sandwich",
+            "frontrun",
+            "mev",
+            "oracle",
+            "flash loan",
+        ]
+    )
+
+    if is_question or is_crypto_topic:
+        # ── GUARDRAIL: pre-process input ──
+        gr = guardrails.pre_process(text)
+        if gr.blocked:
+            await update.message.reply_text(
+                gr.canned_response,
+                parse_mode=ParseMode.HTML,
+                reply_markup=_follow_up_kb(),
+            )
+            return
+        safe_text = gr.sanitized_text
+
+        # Rate limit check
+        if not is_owner(user.id):
+            allowed, used, limit = db.check_rate_limit(user.id, "ai_msg")
+            if not allowed:
+                await update.message.reply_text(
+                    paywall_text(user.id, "ai_msg"),
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=paywall_kb(),
+                )
+                return
+
+        await update.message.chat.send_action("typing")
+
+        # Try RAG first
+        try:
+            hits = await _search_rag(safe_text, top_k=5)
+            if hits:
+                top_content = hits[0].get("content", "")[:800]
+
+                lines = [
+                    "🧠 <b>Rug Muncher's Analysis</b>",
+                    sep(),
+                    f"<i>Q:</i> {safe_text[:200]}{'…' if len(safe_text) > 200 else ''}",
+                    "",
+                    top_content,
+                ]
+                lines.append(_format_rag_hits(hits, max_per=3))
+                lines.append(
+                    f"\n{'─' * 28}\n"
+                    f"💡 <b>Try:</b> /ask for detailed answers | /explain for concepts | /scan to check tokens"
+                )
+
+                db.increment_usage(user.id, ai_msg=True)
+                # ── GUARDRAIL: post-process output ──
+                response_text = guardrails.post_process("\n".join(lines))
+                await update.message.reply_text(
+                    response_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=_follow_up_kb(),
+                    disable_web_page_preview=True,
+                )
+                return
+        except Exception as exc:
+            logger.debug("handle_message: RAG search failed: %s", exc)
+
+        # Fallback: generic AI response
+        db.increment_usage(user.id, ai_msg=True)
+        await update.message.reply_text(
+            f"🤔 <b>Rug Muncher here.</b>\n\n"
+            f"I searched my scam database but didn't find a direct match for that.\n\n"
+            f"Try these instead:\n"
+            f"• /ask {safe_text[:50]}{'…' if len(safe_text) > 50 else ''} — deeper research\n"
+            f"• /explain &lt;concept&gt; — detailed explanation\n"
+            f"• /scamschool — learn about crypto scams\n"
+            f"• /trending — see what's hot right now\n"
+            f"• /help — full command list\n\n"
+            f"Or just paste a contract address and I'll tear it apart.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=_follow_up_kb(),
+        )
+        return
+
+    # 9. Default fallback — helpful personality-driven menu
+    await update.message.reply_text(
+        guardrails.PERSONALITY["fallback"],
+        parse_mode=ParseMode.HTML,
+        reply_markup=main_menu_kb(),
+        disable_web_page_preview=True,
+    )
 
 
 async def cmd_buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3099,11 +4792,21 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # ── V3 handlers (scan/deepscan/analyze/risk/market/alerts + menu callbacks) ──
+    # ── V3 handlers (scan/deepscan/analyze/risk/market/alerts + V8 clever + menu callbacks) ──
     # /scan now routes through RugMunchScan v2 (→ v1 fallback); the legacy
     # DataBus scan_token stays wired as the final fallback so /scan never regresses.
     _set_databus_fallback(scan_token)
     register_v3_handlers(app)
+
+    # ── V8 Clever Commands (registered via V3, but we also register specific command names here
+    #     for discoverability — Telegram only shows 1 handler per command name) ──
+    from handlers.clever import (
+        cmd_chart_v8,
+        cmd_map_v8,
+    )
+
+    app.add_handler(CommandHandler("chart", cmd_chart_v8))
+    app.add_handler(CommandHandler("map", cmd_map_v8))
 
     # ── Commands ──
     app.add_handler(CommandHandler("start", cmd_start))
@@ -3117,6 +4820,9 @@ def main():
     app.add_handler(CommandHandler("trending", cmd_trending))
     app.add_handler(CommandHandler("news", cmd_news))
     app.add_handler(CommandHandler("fear", cmd_fear))
+    app.add_handler(CommandHandler("chart", cmd_chart))
+    app.add_handler(CommandHandler("map", cmd_map))
+    app.add_handler(CommandHandler("top", cmd_top))
     app.add_handler(CommandHandler("check", cmd_check))
     app.add_handler(CommandHandler("rehab", cmd_rehab))
     app.add_handler(CommandHandler("account", cmd_account))
@@ -3130,6 +4836,9 @@ def main():
     app.add_handler(CommandHandler("buy", cmd_buy))
     app.add_handler(CommandHandler("subscribe", cmd_buy))
     app.add_handler(CommandHandler("research", cmd_research))
+    app.add_handler(CommandHandler("ask", cmd_ask))
+    app.add_handler(CommandHandler("explain", cmd_explain))
+    app.add_handler(CommandHandler("pulse", cmd_pulse))
 
     # ── Admin Commands (owner-only — @cryptorugmunch) ──
     app.add_handler(CommandHandler("admin", cmd_admin))

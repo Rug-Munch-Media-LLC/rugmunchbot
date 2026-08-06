@@ -40,14 +40,13 @@ SOCIAL_LINKS = {
 
 # Bot profile (set via BotFather API on startup)
 BOT_DESCRIPTION = (
-    "\U0001f3db RMI: the open-source Bloomberg Terminal of Crypto. "
-    "234 tools, 77 chains. Now shipping: x402 micropayments, MCP server, "
-    "AI rug detection. Chat: t.me/crmunchers - t.me/cryptorugmuncher | "
-    "Links: rugmunch.io/links"
+    "🛡️ Rug Muncher — The best crypto scam detective on Telegram. "
+    "Scan any token across 77+ chains. Charts, bubble maps, deployer "
+    "investigation, wallet forensics, and live trade feeds — all inline. "
+    "AI-powered with RAG threat intel. Free tier available. "
+    "Chat: t.me/crmunchers | Alerts: t.me/cryptorugmuncher"
 )
-BOT_SHORT_DESCRIPTION = (
-    "🛡️ Crypto scam detection & token intelligence across 77+ chains. Free tier available."
-)
+BOT_SHORT_DESCRIPTION = "🛡️ AI Crypto Security — Token scanner, charts, bubble maps, deployer tracing. Better than every competitor. Free."
 
 # ══════════════════════════════════════════════
 # API ENDPOINTS
@@ -55,6 +54,21 @@ BOT_SHORT_DESCRIPTION = (
 BACKEND_URL = os.getenv("RMI_BACKEND_URL", "http://localhost:8000")
 DATABUS_URL = f"{BACKEND_URL}/api/v1/databus"
 RAG_URL = f"{BACKEND_URL}/api/v1/rag"
+RAG_SEARCH_URL = f"{BACKEND_URL}/api/v1/rag/v2/search"
+RAG_INGEST_URL = f"{BACKEND_URL}/api/v1/rag/v2/ingest"
+
+# ══════════════════════════════════════════════
+# RAG COLLECTIONS (crypto expert knowledge bases)
+# ══════════════════════════════════════════════
+RAG_COLLECTIONS = [
+    "scam_intel",  # rug pulls, honeypots, scam patterns
+    "wallet_labels",  # known scammer/exploiter wallets
+    "contract_audit",  # smart contract vulnerability patterns
+    "phishing_db",  # phishing sites and addresses
+    "deployer_history",  # deployer behavior analysis
+]
+# Max daily AI questions for free users
+FREE_AI_DAILY_LIMIT = int(os.getenv("FREE_AI_DAILY_LIMIT", "10"))
 
 # Auth for backend calls (must match rmi-backend's RMI_AUTH_TOKEN)
 RMI_AUTH_TOKEN = os.getenv("RMI_AUTH_TOKEN", "")
@@ -72,8 +86,26 @@ MARKET_RUNDOWN_URL = os.getenv("MARKET_RUNDOWN_URL", "http://localhost:8095/chat
 # RugMunchScan v2 (synchronous full report) with v1 (async + poll) fallback.
 SCANNER_V2_URL = os.getenv("SCANNER_V2_URL", f"{BACKEND_URL}/api/v2/scanner/token/scan")
 SCANNER_V1_URL = os.getenv("SCANNER_V1_URL", f"{BACKEND_URL}/api/v1/scanner/scan")
+# Cached scanner endpoints (instant from Redis — sub-second response):
+SCANNER_CACHE_RISK_URL = os.getenv(
+    "SCANNER_CACHE_RISK_URL", f"{BACKEND_URL}/api/v2/scanner/token/risk"
+)  # → /{chain}/{address}
+SCANNER_CACHE_FULL_URL = os.getenv(
+    "SCANNER_CACHE_FULL_URL", f"{BACKEND_URL}/api/v2/scanner/token/full"
+)  # → /{chain}/{address}
 # SENTINEL deep forensic scan (premium — Scout+ or ⭐250).
 SENTINEL_URL = os.getenv("SENTINEL_URL", f"{BACKEND_URL}/api/v1/x402-tools/sentinel_scan")
+
+# RugCharts & RugMaps endpoints (public website API):
+RUGCHARTS_TRENDING_URL = os.getenv(
+    "RUGCHARTS_TRENDING_URL", f"{WEBSITE_URL}/api/v1/rugcharts/trending"
+)
+RUGCHARTS_OHLCV_URL = os.getenv(
+    "RUGCHARTS_OHLCV_URL", f"{WEBSITE_URL}/api/v1/rugcharts/ohlcv"
+)  # → /{chain}/{pair}
+RUGMAPS_TOKEN_GRAPH_URL = os.getenv(
+    "RUGMAPS_TOKEN_GRAPH_URL", f"{WEBSITE_URL}/api/v1/rugmaps/token-graph"
+)
 
 # ══════════════════════════════════════════════
 # V3 — ALERT PIPELINE
@@ -90,16 +122,24 @@ ALERT_DEDUPE_WINDOW = int(os.getenv("ALERT_DEDUPE_WINDOW", "1800"))  # 30 min pe
 # ══════════════════════════════════════════════
 # Weekly model: resets every Monday 00:00 UTC.
 # Prevents day-one dump abuse and smooths API load.
+# Beta mode: Pro and Hunter are "Coming Soon" — gate with friendly messages.
 TIERS = {
+    "free": {"scans_per_week": 15, "ai_msgs_per_week": 10, "name": "🆓 Free Beta"},
+    "pro": {"scans_per_week": 150, "ai_msgs_per_week": 50, "name": "⭐ Pro (Coming Soon)"},
+    "hunter": {"scans_per_week": 400, "ai_msgs_per_week": 100, "name": "🎯 Hunter (Coming Soon)"},
+}
+
+# Legacy tier details for informational display only (features list, etc.)
+TIER_DETAILS = {
     "free": {
-        "name": "Free",
+        "name": "Free Beta",
         "emoji": "🆓",
-        "scans_per_week": 25,
-        "ai_msgs_per_week": 15,
+        "scans_per_week": 15,
+        "ai_msgs_per_week": 10,
         "price_monthly": 0,
         "features": [
-            "25 scans/week",
-            "15 AI questions/week",
+            "15 scans/week",
+            "10 AI questions/week",
             "Basic risk score",
             "Contract safety check",
             "Liquidity overview",
@@ -107,16 +147,16 @@ TIERS = {
             "Community access",
         ],
     },
-    "scout": {
-        "name": "Scout",
-        "emoji": "🔍",
+    "pro": {
+        "name": "Pro",
+        "emoji": "⭐",
         "scans_per_week": 150,
-        "ai_msgs_per_week": 75,
+        "ai_msgs_per_week": 50,
         "price_monthly": 29.99,
         "price_stars": 1500,
         "features": [
             "150 scans/week",
-            "75 AI questions/week",
+            "50 AI questions/week",
             "Advanced risk scoring",
             "Bundle detection",
             "Fake volume detection",
@@ -125,19 +165,20 @@ TIERS = {
             "Smart money alerts",
             "Watchlist (10 tokens)",
             "Export reports",
+            "🔒 Coming Soon — Free Beta Now",
         ],
     },
     "hunter": {
         "name": "Hunter",
         "emoji": "🎯",
         "scans_per_week": 400,
-        "ai_msgs_per_week": 250,
+        "ai_msgs_per_week": 100,
         "price_monthly": 49.99,
         "price_stars": 2500,
         "features": [
             "400 scans/week",
-            "250 AI questions/week",
-            "Everything in Scout, plus:",
+            "100 AI questions/week",
+            "Everything in Pro, plus:",
             "Full wallet forensics",
             "First buyer analysis",
             "Exchange flow tracking",
@@ -147,31 +188,35 @@ TIERS = {
             "Watchlist (50 tokens)",
             "Real-time alerts",
             "TA chart generation",
-        ],
-    },
-    "pro": {
-        "name": "Pro",
-        "emoji": "👑",
-        "scans_per_week": 1000,
-        "ai_msgs_per_week": 500,
-        "price_monthly": 99.99,
-        "price_stars": 5000,
-        "features": [
-            "1,000 scans/week",
-            "500 AI questions/week",
-            "Everything in Hunter, plus:",
-            "Smart money watch (live)",
-            "Cross-chain tracking",
-            "Custom alert rules",
-            "API access",
-            "Priority support",
-            "Early feature access",
-            "Unlimited watchlists",
-            "Multi-wallet tracking",
-            "White-label reports",
+            "🔒 Coming Soon — Free Beta Now",
         ],
     },
 }
+
+# ── Beta mode gate messages ──
+BETA_DEEP_SCAN_GATE = (
+    "🔒 <b>Pro membership coming soon!</b>\n\n"
+    "During beta, enjoy 15 free scans/week. We're polishing the paid tiers — "
+    "join the community to get early access when we launch.\n\n"
+    "💬 Join: @crmunchers | 📢 Updates: @cryptorugmuncher"
+)
+
+BETA_ADVANCED_SCAN_GATE = (
+    "🔒 <b>Pro membership coming soon!</b>\n\n"
+    "Advanced scanner features (transaction history, social sentiment, "
+    "similar token analysis) will be available with Pro and Hunter tiers.\n\n"
+    "During beta, enjoy 15 free scans/week. We're polishing the paid tiers — "
+    "join the community to get early access when we launch.\n\n"
+    "💬 @crmunchers | 📢 @cryptorugmuncher"
+)
+
+BETA_AI_GATE = (
+    "🔒 <b>Pro membership coming soon!</b>\n\n"
+    "AI-powered analysis on paid tiers will be available soon. "
+    "During beta, enjoy 10 free AI messages/week. "
+    "We're polishing the paid tiers — join the community to get early access when we launch.\n\n"
+    "💬 @crmunchers | 📢 @cryptorugmuncher"
+)
 
 # ══════════════════════════════════════════════
 # USER REFERRAL LINKS (Add your own!)

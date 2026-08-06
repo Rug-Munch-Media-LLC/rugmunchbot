@@ -38,17 +38,25 @@ from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
 
-# ── Main menu layout ──
+# ── Main menu layout (V8 — professional with dividers) ──
 MAIN_MENU_ROWS: list[list[tuple[str, str]]] = [
-    [("🔥 Trending", "menu_trending"), ("📈 Top Volume", "menu_top")],
+    # Row 1: Scanning & Analysis (core product)
+    [("🔍 Scan Token", "menu_scan"), ("🔬 Deep Scan", "menu_deepscan")],
+    # Row 2: Chart & Map
     [("📊 Chart", "menu_chart"), ("🗺️ Bubble Map", "menu_map")],
-    [("🔍 Scan Token", "menu_scan"), ("🧠 Deep Scan", "menu_deepscan")],
-    [("🤖 AI Analysis", "menu_analyze"), ("⚡ Quick Risk", "menu_risk")],
-    [("📰 News", "menu_news"), ("😱 Fear & Greed", "menu_fear")],
-    [("👛 Wallet Check", "menu_wallet"), ("👀 Watchlist", "menu_watchlist")],
-    [("👤 Account", "menu_account"), ("⭐ Upgrade", "menu_pricing")],
-    [("📚 Scam School", "menu_scamschool"), ("🤝 Refer", "menu_refer")],
+    # Row 3: Market Intelligence
+    [("📈 Market Pulse", "menu_market"), ("😱 Fear & Greed", "menu_fear")],
+    # Row 4: News & Trending
+    [("📰 Crypto News", "menu_news"), ("🔥 Trending", "menu_trending")],
+    # Row 5: AI & Education
+    [("🤖 Ask Rug Muncher", "menu_analyze"), ("🎓 Scam School", "menu_scamschool")],
+    # Row 6: Community & Settings
+    [("💬 Community", "menu_chat"), ("⚙️ Settings", "menu_account")],
 ]
+
+# V8 MENU CONSTANTS
+MENU_DIVIDER_FULL = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+MENU_DIVIDER_HALF = "━━━━━━━━━━━━━━━━━━"
 
 
 def back_kb(label: str = "◀️ Main Menu") -> InlineKeyboardMarkup:
@@ -75,14 +83,83 @@ def admin_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def v3_main_menu_kb(user_id: int | None = None) -> InlineKeyboardMarkup:
-    rows = [
-        [InlineKeyboardButton(label, callback_data=cd) for label, cd in row]
-        for row in MAIN_MENU_ROWS
-    ]
-    rows.append([InlineKeyboardButton("🌐 rugmunch.io", url=WEBSITE_URL)])
+def v3_main_menu_kb(
+    user_id: int | None = None, message_preview: bool = False
+) -> InlineKeyboardMarkup:
+    """Build the V8 main menu keyboard.
+
+    When message_preview is True, this is for the /start message which
+    displays a text summary and only shows action buttons (no dividers).
+    When False (callback menu_main), we show the full keyboard with section labels.
+    """
+    if message_preview:
+        # Compact start-message keyboard
+        rows = [
+            [InlineKeyboardButton("🔍 Scan a Token", callback_data="menu_scan")],
+            [
+                InlineKeyboardButton("🤖 Ask Rug Muncher", callback_data="menu_analyze"),
+                InlineKeyboardButton("🎓 Scam School", callback_data="menu_scamschool"),
+            ],
+            [
+                InlineKeyboardButton("📊 Chart", callback_data="menu_chart"),
+                InlineKeyboardButton("🗺️ Bubble Map", callback_data="menu_map"),
+            ],
+            [
+                InlineKeyboardButton("🔥 Trending", callback_data="menu_trending"),
+                InlineKeyboardButton("😱 Fear & Greed", callback_data="menu_fear"),
+            ],
+            [
+                InlineKeyboardButton("🌐 rugmunch.io", url=WEBSITE_URL),
+                InlineKeyboardButton("📢 Alerts Channel", url="https://t.me/cryptorugmuncher"),
+            ],
+        ]
+    else:
+        # Full menu with section labels
+        rows = []
+        # Section 1: Scan & Chart
+        rows.append(
+            [
+                InlineKeyboardButton("🔍 Scan Token", callback_data="menu_scan"),
+                InlineKeyboardButton("🔬 Deep Scan", callback_data="menu_deepscan"),
+            ]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton("📊 Chart", callback_data="menu_chart"),
+                InlineKeyboardButton("🗺️ Bubble Map", callback_data="menu_map"),
+            ]
+        )
+        # Section 2: Market
+        rows.append(
+            [
+                InlineKeyboardButton("📈 Market Pulse", callback_data="menu_market"),
+                InlineKeyboardButton("😱 Fear & Greed", callback_data="menu_fear"),
+            ]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton("📰 Crypto News", callback_data="menu_news"),
+                InlineKeyboardButton("🔥 Trending", callback_data="menu_trending"),
+            ]
+        )
+        # Section 3: AI & Learn
+        rows.append(
+            [
+                InlineKeyboardButton("🤖 Ask Rug Muncher", callback_data="menu_analyze"),
+                InlineKeyboardButton("🎓 Scam School", callback_data="menu_scamschool"),
+            ]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton("💬 Community", callback_data="menu_chat"),
+                InlineKeyboardButton("⚙️ Account", callback_data="menu_account"),
+            ]
+        )
+        # Link row
+        rows.append([InlineKeyboardButton("🌐 rugmunch.io", url=WEBSITE_URL)])
+
     if user_id and is_admin(user_id):
-        rows.append([InlineKeyboardButton("─ 👑 Admin Panel ─", callback_data="admin_panel")])
+        rows.append([InlineKeyboardButton("👑 Admin Panel", callback_data="admin_panel")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -174,10 +251,10 @@ async def _show_news(query) -> None:
 
 V3_CALLBACK_PATTERN = (
     r"^(menu_(scan|deepscan|analyze|risk|market|news|alerts|main|trending|top|chart|map|fear|"
-    r"wallet|watchlist|account|pricing|scamschool|refer)|"
+    r"wallet|watchlist|account|pricing|scamschool|refer|chat|deployer)|"
     r"admin_panel|admin_broadcast|admin_userstats|admin_health|admin_forcecache|admin_rag|"
     r"admin_maintenance|"
-    r"scan_|deep_|ai_|watch_|alerts_|mapaddr_|topchain_|chart_)"
+    r"scan_|deep_|ai_|watch_|alerts_|mapaddr_|topchain_|chart_|deployer_)"
 )
 
 
@@ -195,12 +272,15 @@ async def handle_v3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if data == "menu_main":
         await query.edit_message_text(
-            "🛡️ <b>Rug Munch Intelligence</b>\n\n"
-            "🧠 <b>Expert Chat</b> — /ask, /explain, /pulse\n"
-            "📊 <b>Market</b> — Trending, top volume, fear index, news\n"
-            "🔍 <b>Analysis</b> — Token scan, chart, map, wallet check\n"
-            "🎓 <b>Learn</b> — Scam School, rug check, rehab course\n\n"
-            "<i>Select an option below:</i>",
+            "🛡️ <b>Rug Muncher — AI Crypto Security</b>\n"
+            f"{MENU_DIVIDER_FULL}\n"
+            "<i>Protecting degens from rug pulls since 2024.</i>\n\n"
+            "💡 <b>Quick Tips:</b>\n"
+            "  • <b>Paste any</b> <code>0x...</code> address → auto-scan\n"
+            "  • Type <code>$TOKEN</code> for instant price check\n"
+            "  • Just chat naturally — I understand crypto!\n\n"
+            f"{thin_sep()}\n"
+            "<b>Select an action below:</b>",
             parse_mode=ParseMode.HTML,
             reply_markup=v3_main_menu_kb(user.id),
         )
@@ -213,20 +293,18 @@ async def handle_v3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             reply_markup=back_kb(),
         )
     elif data == "menu_deepscan":
+        from config import BETA_DEEP_SCAN_GATE
+
         await query.edit_message_text(
-            "🧠 <b>Deep Scan (SENTINEL)</b>\n\n"
-            "Premium forensic analysis — deployer history, holder clusters, "
-            "bundle detection, scam indicators.\n\n"
-            "Send me a contract address or use:\n/deepscan <code>address</code>\n\n"
-            "<i>Scout+ or ⭐250 per scan.</i>",
+            BETA_DEEP_SCAN_GATE,
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
     elif data == "menu_analyze":
+        from config import BETA_AI_GATE
+
         await query.edit_message_text(
-            "🤖 <b>AI Analysis</b>\n\n"
-            "RugMunch AI (Qwen3.5-9B) analyses a token using scanner intelligence.\n\n"
-            "Send me a contract address or use:\n/analyze <code>address</code>",
+            BETA_AI_GATE,
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -268,6 +346,36 @@ async def handle_v3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await display_market(query)
     elif data == "menu_news":
         await _show_news(query)
+    elif data == "menu_chat":
+        await query.edit_message_text(
+            "💬 <b>Rug Muncher Community</b>\n\n"
+            "Join the community to share scans, get tips, and report scams:\n\n"
+            '📢 <a href="https://t.me/cryptorugmuncher">Alerts Channel</a>\n'
+            '💬 <a href="https://t.me/crmunchers">Community Chat</a>\n\n'
+            "<b>Or just chat with me right here!</b> I understand crypto questions naturally.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "📢 Alerts Channel", url="https://t.me/cryptorugmuncher"
+                        )
+                    ],
+                    [InlineKeyboardButton("💬 Community Chat", url="https://t.me/crmunchers")],
+                    [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+                ]
+            ),
+            disable_web_page_preview=True,
+        )
+    elif data == "menu_deployer":
+        await query.edit_message_text(
+            "🕵️ <b>Deployer Investigation</b>\n\n"
+            "Find the REAL deployer behind any token.\n\n"
+            "Usage: /deployer <code>address</code>\n\n"
+            "<i>Traces deployer wallet history, what else they launched, success rate.</i>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
     elif data.startswith("scan_"):
         from handlers.scan import handle_scan_callback
 
