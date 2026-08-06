@@ -170,3 +170,229 @@ async def sentinel_scan(address: str, chain: str | None = None, depth: str = "de
         body.setdefault("chain", payload["chain"])
         body["_source"] = "sentinel"
         return body
+
+
+# ── Deep Scan data aggregators (wire to real APIs) ──
+
+DEEP_SCAN_TIMEOUT = 20.0
+
+
+async def fetch_scoring_rate(client: httpx.AsyncClient, address: str, chain: str) -> dict | None:
+    """Call POST /api/v1/scoring/rate — get comprehensive safety rating."""
+    try:
+        r = await client.post(
+            f"{BACKEND_URL}/api/v1/scoring/rate",
+            json={"chain": chain, "address": address},
+            headers=backend_headers(),
+            timeout=DEEP_SCAN_TIMEOUT,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, dict):
+                return data
+    except Exception as exc:
+        logger.debug("scoring_rate failed for %s: %s", address[:12], exc)
+    return None
+
+
+async def fetch_scoring_deployer(
+    client: httpx.AsyncClient, address: str, chain: str
+) -> dict | None:
+    """Call GET /api/v1/scoring/deployer/{chain}/{address} — deployer profile."""
+    try:
+        r = await client.get(
+            f"{BACKEND_URL}/api/v1/scoring/deployer/{chain}/{address}",
+            headers=backend_headers(),
+            timeout=DEEP_SCAN_TIMEOUT,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, dict):
+                return data
+    except Exception as exc:
+        logger.debug("scoring_deployer failed for %s: %s", address[:12], exc)
+    return None
+
+
+async def fetch_scoring_wallet(client: httpx.AsyncClient, address: str, chain: str) -> dict | None:
+    """Call GET /api/v1/scoring/wallet/{chain}/{address} — wallet labels."""
+    try:
+        r = await client.get(
+            f"{BACKEND_URL}/api/v1/scoring/wallet/{chain}/{address}",
+            headers=backend_headers(),
+            timeout=DEEP_SCAN_TIMEOUT,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, dict):
+                return data
+    except Exception as exc:
+        logger.debug("scoring_wallet failed for %s: %s", address[:12], exc)
+    return None
+
+
+async def fetch_token_holders(client: httpx.AsyncClient, address: str, chain: str) -> dict | None:
+    """Call GET /api/v2/scanner/token/holders/{chain}/{address} — holder distribution."""
+    try:
+        r = await client.get(
+            f"{BACKEND_URL}/api/v2/scanner/token/holders/{chain}/{address}",
+            headers=backend_headers(),
+            timeout=DEEP_SCAN_TIMEOUT,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, dict):
+                return data
+    except Exception as exc:
+        logger.debug("token_holders failed for %s: %s", address[:12], exc)
+    return None
+
+
+async def fetch_token_graph(client: httpx.AsyncClient, address: str, chain: str) -> dict | None:
+    """Call RugMaps token-graph endpoint — wallet clusters.  Tries both POST and GET."""
+    try:
+        r = await client.post(
+            f"{BACKEND_URL}/api/v1/rugmaps/token-graph",
+            json={"chain": chain, "address": address},
+            headers=backend_headers(),
+            timeout=DEEP_SCAN_TIMEOUT,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, dict):
+                return data
+        if r.status_code == 405:
+            r = await client.get(
+                f"{BACKEND_URL}/api/v1/rugmaps/token-graph",
+                params={"chain": chain, "address": address},
+                headers=backend_headers(),
+                timeout=DEEP_SCAN_TIMEOUT,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, dict):
+                    return data
+    except Exception as exc:
+        logger.debug("token_graph failed for %s: %s", address[:12], exc)
+    return None
+
+
+async def run_deep_scan_aggregate(address: str, chain: str) -> dict:
+    """Run all deep scan data sources in parallel and return aggregated result."""
+    result: dict = {
+        "address": address,
+        "chain": chain,
+        "scoring": None,
+        "deployer": None,
+        "wallet_labels": None,
+        "holders": None,
+        "clusters": None,
+        "sentinel": None,
+        "errors": [],
+        "bundle_detected": False,
+        "bundle_wallets": 0,
+        "bundle_pct": 0.0,
+        "cluster_count": 0,
+        "sentinel_findings": [],
+    }
+
+    async with httpx.AsyncClient(timeout=DEEP_SCAN_TIMEOUT) as client:
+        # Run all fetches in parallel
+        scoring_t = fetch_scoring_rate(client, address, chain)
+        deployer_t = fetch_scoring_deployer(client, address, chain)
+        wallet_t = fetch_scoring_wallet(client, address, chain)
+        holders_t = fetch_token_holders(client, address, chain)
+        graph_t = fetch_token_graph(client, address, chain)
+
+        scoring, deployer, wallet_labels, holders, clusters = await asyncio.gather(
+            scoring_t, deployer_t, wallet_t, holders_t, graph_t
+        )
+
+        result["scoring"] = scoring
+        result["deployer"] = deployer
+        result["wallet_labels"] = wallet_labels
+        result["holders"] = holders
+        result["clusters"] = clusters
+
+        # ── Try SENTINEL (best-effort; not critical) ──
+        try:
+            sentinel = await sentinel_scan(address, chain)
+            result["sentinel"] = sentinel
+            # Extract sentinel findings for the report
+            findings = sentinel.get("findings") or sentinel.get("warnings") or []
+            result["sentinel_findings"] = findings
+            # Check for bundle info in sentinel free/premium buckets
+            sentinel_data = sentinel.get("sentinel") or {}
+            for bucket in ("premium", "free"):
+                bucket_data = (
+                    sentinel_data.get(bucket, {}) if isinstance(sentinel_data, dict) else {}
+                )
+                bundle_data = bucket_data.get("bundle_detection") or {}
+                if bundle_data:
+                    result["bundle_detected"] = bool(
+                        bundle_data.get("bundles_detected") or bundle_data.get("detected")
+                    )
+                    result["bundle_wallets"] = int(
+                        bundle_data.get("deployer_funded_wallets")
+                        or bundle_data.get("wallet_count")
+                        or 0
+                    )
+                    result["bundle_pct"] = float(
+                        bundle_data.get("deployer_funded_pct") or bundle_data.get("supply_pct") or 0
+                    )
+                dev_data = bucket_data.get("dev_reputation") or {}
+                if dev_data:
+                    result["dev_reputation"] = dev_data
+        except DeepScanNotAvailableError:
+            logger.info("SENTINEL not available for %s — using scoring API only", address[:12])
+        except Exception as exc:
+            result["errors"].append(f"SENTINEL: {exc}")
+
+        # ── Analyze holders for bundle signals ──
+        if holders and not result["bundle_detected"]:
+            holders_list = holders.get("holders") or holders.get("top_holders") or []
+            if isinstance(holders_list, list) and len(holders_list) > 2:
+                # Simple heuristic: if top 3 wallets hold > 50% and were funded in first block
+                top3_pct = sum(
+                    float(h.get("pct", h.get("percentage", h.get("share", 0))) or 0)
+                    for h in holders_list[:3]
+                )
+                # Check for same-block buys
+                first_block = holders.get("first_block") or holders.get("creation_block")
+                same_block_count = 0
+                if first_block:
+                    for h in holders_list:
+                        h_block = h.get("first_tx_block") or h.get("block")
+                        if h_block and h_block == first_block:
+                            same_block_count += 1
+                if same_block_count > 5:
+                    result["bundle_detected"] = True
+                    result["bundle_wallets"] = same_block_count
+                    result["bundle_pct"] = min(100.0, top3_pct)
+                elif top3_pct > 60:
+                    result["bundle_detected"] = True
+                    result["bundle_wallets"] = 3
+                    result["bundle_pct"] = top3_pct
+
+        # ── Analyze clusters from token graph ──
+        if clusters:
+            cluster_list = clusters.get("clusters") or clusters.get("wallet_clusters") or []
+            if isinstance(cluster_list, list):
+                result["cluster_count"] = len(cluster_list)
+                # Flag suspicious clusters (linked to deployer)
+                suspicious = [
+                    c
+                    for c in cluster_list
+                    if c.get("suspicious") or c.get("connected") or c.get("deployer_linked")
+                ]
+                result["suspicious_clusters"] = len(suspicious)
+                result["cluster_details"] = cluster_list[:5]
+
+        # ── Compute composite risk from scoring API ──
+        if scoring:
+            result["risk_score"] = scoring.get("risk_score") or scoring.get("score") or 0
+            result["grade"] = scoring.get("grade") or ""
+            result["categories"] = scoring.get("categories") or scoring.get("breakdown") or {}
+            result["flags"] = scoring.get("flags") or scoring.get("risk_flags") or []
+
+    return result

@@ -210,7 +210,23 @@ def thin_sep(char: str = "─", length: int = 24) -> str:
     return char * length
 
 
-def footer_links() -> str:
+# ── Admin DM keyboard helper ──
+from handlers.menu import admin_dm_kb as _admin_dm_kb_fn
+
+
+def _wrap_kb_for_owner_dm(
+    kb: InlineKeyboardMarkup | None, is_owner_dm: bool = False
+) -> InlineKeyboardMarkup | None:
+    """Append admin keyboard row if this is the owner in a DM conversation."""
+    if not is_owner_dm:
+        return kb
+    admin_row = _admin_dm_kb_fn().inline_keyboard[0]
+    if kb is None:
+        return InlineKeyboardMarkup([admin_row])
+    # Append admin row to existing keyboard
+    rows = list(kb.inline_keyboard)
+    rows.append(admin_row)
+    return InlineKeyboardMarkup(rows)
     """Standard footer with website + social links."""
     return (
         f"\n{thin_sep('·', 28)}\n"
@@ -3566,22 +3582,23 @@ async def cmd_admin(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """/research <query> — RAG-powered intelligence search across threat intel, wallet labels, and scam databases."""
+    """/research <query> — RAG-powered intelligence search + web research across threat intel, wallet labels, and scam databases."""
     user = update.effective_user
     db.get_or_create_user(user.id, user.username, user.first_name)
 
     if not ctx.args:
         await update.message.reply_text(
             "🧠 <b>Research Mode</b>\n\n"
-            "Search across RMI's threat intelligence database using natural language.\n\n"
+            "Deep intelligence research combining RAG threat DB + live web search.\n\n"
             "Usage: /research <code>your query</code>\n\n"
             "<b>Examples:</b>\n"
             "  /research tokens with honeypot patterns on Solana\n"
+            "  /research latest crypto security news 2026\n"
             "  /research deployers who launched multiple rug pulls\n"
             "  /research phishing campaigns targeting DeFi protocols\n"
             "  /research suspicious wallet clusters\n"
             "  /research similar scam patterns to PEPE\n\n"
-            "Powered by RAG (Retrieval-Augmented Generation) across 17K+ scam docs.",
+            "Powered by RAG (Retrieval-Augmented Generation) across 17K+ scam docs + live web search.",
             parse_mode=ParseMode.HTML,
         )
         return
@@ -3618,12 +3635,13 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     msg = await update.message.reply_text(
         "🧠 <b>Rug Muncher is researching...</b>\n\n"
         f"<i>Query:</i> <code>{safe_query[:100]}{'…' if len(safe_query) > 100 else ''}</code>\n"
-        f"⏳ Scanning threat intel, wallet labels, and scam archives...",
+        "⏳ Searching threat intel, wallet labels, scam archives + live web...",
         parse_mode=ParseMode.HTML,
     )
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
+            # RAG search
             r = await client.post(
                 f"{BACKEND_URL}/api/v1/rag/v2/search",
                 json={
@@ -3636,28 +3654,39 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 headers={"X-API-Key": RMI_AUTH_TOKEN},
             )
 
-            if r.status_code != 200:
-                await msg.edit_text(
-                    f"❌ <b>Research Failed</b>\n\nBackend returned HTTP {r.status_code}.\n"
-                    f"Please try again later or use /help.",
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=back_kb(),
+            rag_hits = []
+            total_rag = 0
+            took_ms = 0
+            if r.status_code == 200:
+                data = r.json()
+                rag_hits = data.get("hits", [])
+                total_rag = data.get("total", 0)
+                took_ms = data.get("took_ms", 0)
+
+            # ── Web search (best effort) ──
+            web_sources = []
+            try:
+                web_r = await client.get(
+                    f"{BACKEND_URL}/api/v1/research/web",
+                    params={"query": safe_query},
+                    timeout=10,
+                    headers={"X-API-Key": RMI_AUTH_TOKEN},
                 )
-                return
+                if web_r.status_code == 200:
+                    web_data = web_r.json()
+                    web_sources = web_data.get("sources", web_data.get("results", []))
+            except Exception as web_exc:
+                logger.debug("Web search failed for research: %s", web_exc)
 
-            data = r.json()
-            hits = data.get("hits", [])
-            total = data.get("total", 0)
-            took_ms = data.get("took_ms", 0)
-
-            if not hits:
+            if not rag_hits and not web_sources:
                 await msg.edit_text(
                     "🔍 <b>Rug Muncher Found Nothing</b>\n\n"
                     f"No relevant intelligence found for: <code>{safe_query[:100]}</code>\n\n"
                     "Try:\n"
                     "• Using different keywords\n"
                     "• Shorter, more specific queries\n"
-                    "• Checking /scan for token-specific data",
+                    "• Checking /scan for token-specific data\n"
+                    "• /news for latest crypto headlines",
                     parse_mode=ParseMode.HTML,
                     reply_markup=back_kb(),
                 )
@@ -3665,43 +3694,73 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
             # Format results
             lines = [
-                f"🧠 <b>Rug Muncher's Intelligence Report</b>\n"
+                f"🧠 <b>Rug Muncher's Research Brief</b>\n"
                 f"<i>Query:</i> <code>{safe_query[:100]}{'…' if len(safe_query) > 100 else ''}</code>\n"
-                f"<i>Found:</i> {total} matches in {took_ms}ms\n"
-                f"{'─' * 32}\n"
+                f"<i>Sources:</i> RAG ({total_rag} matches, {took_ms}ms)"
             ]
+            if web_sources:
+                lines.append(f"<i>Web:</i> {len(web_sources)} external sources analyzed")
+            lines.append(f"{'─' * 32}\n")
 
-            for i, hit in enumerate(hits[:8], 1):
-                content = hit.get("content", "")
-                score = hit.get("score", 0)
-                meta = hit.get("metadata", {})
+            # ── RAG results ──
+            if rag_hits:
+                lines.append("📚 <b>Knowledge Base Matches:</b>")
+                for i, hit in enumerate(rag_hits[:5], 1):
+                    content = hit.get("content", "")
+                    score = hit.get("score", 0)
+                    meta = hit.get("metadata", {})
 
-                # Truncate content for readability
-                if len(content) > 250:
-                    content = content[:247] + "…"
+                    if len(content) > 200:
+                        content = content[:197] + "…"
 
-                # Build metadata prefix
-                meta_parts = []
-                if meta.get("scam_type"):
-                    meta_parts.append(f"Type: {meta['scam_type']}")
-                if meta.get("chain"):
-                    meta_parts.append(f"Chain: {meta['chain']}")
-                if meta.get("token_address"):
-                    addr = meta["token_address"]
-                    meta_parts.append(f"Token: <code>{addr[:8]}…{addr[-4:]}</code>")
-                if meta.get("risk_score"):
-                    meta_parts.append(f"Risk: {meta['risk_score']}")
+                    score_bar = "🟢" if score > 0.7 else "🟡" if score > 0.5 else "⚪"
+                    meta_parts = []
+                    if meta.get("scam_type"):
+                        meta_parts.append(f"Type: {meta['scam_type']}")
+                    if meta.get("chain"):
+                        meta_parts.append(f"Chain: {meta['chain']}")
 
-                score_bar = "🟢" if score > 0.7 else "🟡" if score > 0.5 else "⚪"
-                lines.append(
-                    f"{i}. {score_bar} <b>Match {score:.0%}</b>\n"
-                    f"   <code>{content}</code>\n"
-                    + (f"   {' | '.join(meta_parts)}\n" if meta_parts else "")
+                    lines.append(
+                        f"\n{score_bar} <b>{i}. Match {score:.0%}</b>"
+                        + (f" | {' | '.join(meta_parts)}" if meta_parts else "")
+                        + f"\n   <code>{content}</code>"
+                    )
+                lines.append("")
+
+            # ── Web research results ──
+            if web_sources:
+                lines.extend(
+                    [
+                        "🌐 <b>Live Web Research:</b>",
+                        "─" * 32,
+                    ]
                 )
+                for i, src in enumerate(web_sources[:5], 1):
+                    title = src.get("title", "Untitled")[:80]
+                    snippet = src.get("snippet", src.get("content", ""))[:200]
+                    url = src.get("url", "")
+                    if url:
+                        lines.append(f"\n{i}. <b>{title}</b>")
+                        lines.append(f"   {snippet}")
+                        lines.append(f"   🔗 {url}")
+                    else:
+                        lines.append(f"\n{i}. <b>{title}</b>")
+                        lines.append(f"   {snippet}")
+                lines.append("")
 
-            lines.append(
-                f"\n{'─' * 32}\n"
-                f"💡 <i>Tip: Use /scan &lt;address&gt; for detailed token analysis</i>"
+            # ── Summary / Verdict ──
+            lines.extend(
+                [
+                    "💡 <b>Rug Muncher's Take:</b>",
+                    f"{'─' * 32}",
+                    "Based on the available intelligence, I recommend:",
+                    "• Always /scan tokens before trading or investing",
+                    "• Verify all claims across multiple sources",
+                    "• Stay skeptical — if it sounds too good, it probably is",
+                    "• Use /rugcheck for a quick safety checklist",
+                    "",
+                    f'🌐 <a href="{WEBSITE_URL}">rugmunch.io</a> — Full scanner, charts, and deep analysis',
+                ]
             )
 
             db.increment_usage(user.id, ai_msg=True)
@@ -3710,13 +3769,23 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await msg.edit_text(
                 safe_output,
                 parse_mode=ParseMode.HTML,
-                reply_markup=back_kb(),
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton("🔍 Scan Token", callback_data="menu_scan"),
+                            InlineKeyboardButton("📚 Scam School", callback_data="menu_scamschool"),
+                        ],
+                        [InlineKeyboardButton("🧠 Ask Expert", callback_data="menu_analyze")],
+                        [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+                    ]
+                ),
+                disable_web_page_preview=True,
             )
 
     except httpx.TimeoutException:
         await msg.edit_text(
             "⏰ <b>Research Timed Out</b>\n\n"
-            "The RAG backend took too long to respond. Please try a simpler query.",
+            "The backend took too long to respond. Please try a simpler query.",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -3885,10 +3954,28 @@ async def cmd_ask(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
     try:
+        # Try bot-specific ask endpoint first (RAG + LLM synthesis)
+        bot_answer = None
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                bot_r = await client.post(
+                    f"{BACKEND_URL}/api/v1/bot/ask",
+                    json={"question": safe_question},
+                    headers={"X-API-Key": RMI_AUTH_TOKEN},
+                    timeout=12,
+                )
+                if bot_r.status_code == 200:
+                    bot_data = bot_r.json()
+                    bot_answer = (
+                        bot_data.get("answer") or bot_data.get("response") or bot_data.get("text")
+                    )
+        except Exception:
+            pass  # Bot API not available — fall through to RAG
+
         hits = await _search_rag(safe_question, top_k=5)
 
-        if not hits:
-            # No RAG results — provide a helpful generic response based on question type
+        if not hits and not bot_answer:
+            # No RAG results or bot answer — provide a helpful generic response based on question type
             q_lower = safe_question.lower()
             if any(
                 w in q_lower for w in ["price", "going up", "going down", "pump", "dump", "chart"]
@@ -3944,54 +4031,64 @@ async def cmd_ask(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             db.increment_usage(user.id, ai_msg=True)
             return
 
-        # Build expert response from RAG results
-        top_hit = hits[0]
-        top_content = top_hit.get("content", "")
-        top_meta = top_hit.get("metadata", {})
-        top_coll = top_hit.get("_collection", "scam_intel")
+        # Build expert response from RAG results (or bot answer)
+        if bot_answer:
+            header = "🤖 <b>Rug Muncher's Expert Analysis</b>"
+            lines = [
+                header,
+                sep(),
+                f"<i>Q:</i> <code>{safe_question[:150]}{'…' if len(safe_question) > 150 else ''}</code>\n",
+                "<b>Rug Muncher says:</b>",
+                bot_answer[:1000],
+            ]
+        elif hits:
+            top_hit = hits[0]
+            top_coll = top_hit.get("_collection", "scam_intel")
 
-        # Determine response type based on collection and content
-        if top_coll in ("scam_intel", "phishing_db"):
-            header = "🛡️ <b>Crypto Security Expert</b>"
-        elif top_coll in ("wallet_labels", "deployer_history"):
-            header = "🔍 <b>Blockchain Forensics</b>"
-        elif top_coll == "contract_audit":
-            header = "📋 <b>Smart Contract Analysis</b>"
+            # Determine response type based on collection and content
+            if top_coll in ("scam_intel", "phishing_db"):
+                header = "🛡️ <b>Crypto Security Expert</b>"
+            elif top_coll in ("wallet_labels", "deployer_history"):
+                header = "🔍 <b>Blockchain Forensics</b>"
+            elif top_coll == "contract_audit":
+                header = "📋 <b>Smart Contract Analysis</b>"
+            else:
+                header = "🧠 <b>Crypto Expert Analysis</b>"
+
+            # Build main response
+            lines = [
+                header,
+                sep(),
+                f"<i>Q:</i> <code>{safe_question[:150]}{'…' if len(safe_question) > 150 else ''}</code>\n",
+                "<b>Rug Muncher says:</b>",
+            ]
+
+            # Try to build a synthesized response from top hits
+            answer_parts = []
+            for hit in hits[:3]:
+                content = hit.get("content", "")
+                if content and len(content) > 10:
+                    cleaned = content[:400].strip()
+                    if not cleaned.endswith("."):
+                        cleaned += "."
+                    answer_parts.append(cleaned)
+
+            if answer_parts:
+                lines.append(answer_parts[0])
+                if len(answer_parts) > 1:
+                    lines.append("\n💡 <b>Additional Context:</b>")
+                    for part in answer_parts[1:]:
+                        lines.append(f"  • {part[:300]}")
+            else:
+                lines.append(
+                    "I found relevant data but couldn't synthesize a clear answer. See the references below for details."
+                )
         else:
-            header = "🧠 <b>Crypto Expert Analysis</b>"
+            lines = []  # Shouldn't reach here
 
-        # Build main response
-        lines = [
-            header,
-            sep(),
-            f"<i>Q:</i> <code>{safe_question[:150]}{'…' if len(safe_question) > 150 else ''}</code>\n",
-            "<b>Rug Muncher says:</b>",
-        ]
-
-        # Try to build a synthesized response from top hits
-        answer_parts = []
-        for hit in hits[:3]:
-            content = hit.get("content", "")
-            if content and len(content) > 10:
-                # Clean up the content for display
-                cleaned = content[:400].strip()
-                if not cleaned.endswith("."):
-                    cleaned += "."
-                answer_parts.append(cleaned)
-
-        if answer_parts:
-            lines.append(answer_parts[0])
-            if len(answer_parts) > 1:
-                lines.append("\n💡 <b>Additional Context:</b>")
-                for part in answer_parts[1:]:
-                    lines.append(f"  • {part[:300]}")
-        else:
-            lines.append(
-                "I found relevant data but couldn't synthesize a clear answer. See the references below for details."
-            )
-
-        # Add sources
-        lines.append(_format_rag_hits(hits))
+        # Add sources from RAG
+        if hits:
+            lines.append(_format_rag_hits(hits))
 
         # Add follow-up suggestions
         lines.append(
@@ -4437,6 +4534,13 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if check_spam(user.id, user):
         return
 
+    # ── Owner DM detection: show admin keyboard on every response ──
+    is_owner_dm = False
+    if update.effective_chat and update.effective_chat.type == "private":
+        _resolve_owner(user)
+        if is_owner(user.id):
+            is_owner_dm = True
+
     # ── Community chat constraint: In groups, only respond when mentioned ──
     if update.effective_chat and update.effective_chat.type in ("group", "supergroup"):
         # Always respond to commands (they're handled by CommandHandler, not here)
@@ -4523,7 +4627,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             greeting,
             parse_mode=ParseMode.HTML,
-            reply_markup=main_menu_kb(),
+            reply_markup=_wrap_kb_for_owner_dm(main_menu_kb(), is_owner_dm),
         )
         return
 
@@ -4532,7 +4636,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             guardrails.PERSONALITY["thanks"],
             parse_mode=ParseMode.HTML,
-            reply_markup=back_kb(),
+            reply_markup=_wrap_kb_for_owner_dm(back_kb(), is_owner_dm),
         )
         return
 
@@ -4567,7 +4671,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "• /ta <code>address</code> — technical analysis\n\n"
             f'🌐 <a href="{WEBSITE_URL}">rugmunch.io</a> for charts & deep analysis',
             parse_mode=ParseMode.HTML,
-            reply_markup=back_kb(),
+            reply_markup=_wrap_kb_for_owner_dm(back_kb(), is_owner_dm),
             disable_web_page_preview=True,
         )
         return
@@ -4591,8 +4695,11 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "• Holder distribution\n\n"
             "📋 Or use /scan <code>address</code>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🔍 Scan Example", callback_data="menu_scan")]]
+            reply_markup=_wrap_kb_for_owner_dm(
+                InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🔍 Scan Example", callback_data="menu_scan")]]
+                ),
+                is_owner_dm,
             ),
         )
         return
@@ -4659,7 +4766,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 gr.canned_response,
                 parse_mode=ParseMode.HTML,
-                reply_markup=_follow_up_kb(),
+                reply_markup=_wrap_kb_for_owner_dm(_follow_up_kb(), is_owner_dm),
             )
             return
         safe_text = gr.sanitized_text
@@ -4671,7 +4778,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(
                     paywall_text(user.id, "ai_msg"),
                     parse_mode=ParseMode.HTML,
-                    reply_markup=paywall_kb(),
+                    reply_markup=_wrap_kb_for_owner_dm(paywall_kb(), is_owner_dm),
                 )
                 return
 
@@ -4702,7 +4809,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(
                     response_text,
                     parse_mode=ParseMode.HTML,
-                    reply_markup=_follow_up_kb(),
+                    reply_markup=_wrap_kb_for_owner_dm(_follow_up_kb(), is_owner_dm),
                     disable_web_page_preview=True,
                 )
                 return
@@ -4722,7 +4829,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"• /help — full command list\n\n"
             f"Or just paste a contract address and I'll tear it apart.",
             parse_mode=ParseMode.HTML,
-            reply_markup=_follow_up_kb(),
+            reply_markup=_wrap_kb_for_owner_dm(_follow_up_kb(), is_owner_dm),
         )
         return
 
@@ -4730,7 +4837,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         guardrails.PERSONALITY["fallback"],
         parse_mode=ParseMode.HTML,
-        reply_markup=main_menu_kb(),
+        reply_markup=_wrap_kb_for_owner_dm(main_menu_kb(), is_owner_dm),
         disable_web_page_preview=True,
     )
 

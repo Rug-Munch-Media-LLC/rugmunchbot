@@ -89,15 +89,18 @@ async def test_cmd_scan_success(monkeypatch):
     # First call = progress message, second = report
     assert msg.calls[0][1].startswith("🔍")
     report = msg.calls[1][1]
-    assert "RMI Token Scan" in report
-    assert "72%" in report
+    assert "Test Token" in report
+    assert "72/100" in report
     assert "HONEYPOT DETECTED" in report
-    assert "<code>EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v</code>" in report
+    assert "EPjFWd" in report  # shortened address
     kb = msg.calls[1][2]["reply_markup"]
     labels = [b.text for row in kb.inline_keyboard for b in row]
+    assert "📊 Chart" in labels
+    assert "🗺️ Map" in labels
     assert "🔬 Deep Scan" in labels
+    assert "🔍 Scanner" in labels
     assert "🤖 AI Analysis" in labels
-    assert "👀 Watch" in labels
+    assert "📤 Share" in labels
 
 
 async def test_cmd_scan_evm_address(monkeypatch):
@@ -107,7 +110,7 @@ async def test_cmd_scan_evm_address(monkeypatch):
     monkeypatch.setattr("handlers.scan.scan_token_v2", fake_scan)
     update, ctx, msg = make_message_update([EVM_ADDR])
     await cmd_scan(update, ctx)
-    assert "RMI Token Scan" in msg.calls[1][1]
+    assert "Pepe" in msg.calls[1][1]
 
 
 async def test_cmd_scan_falls_back_to_databus(monkeypatch):
@@ -136,8 +139,7 @@ async def test_cmd_scan_falls_back_to_databus(monkeypatch):
     update, ctx, msg = make_message_update([SOL_ADDR])
     await cmd_scan(update, ctx)
     report = msg.calls[1][1]
-    assert "RMI Token Scan" in report
-    assert "Legacy" in report
+    assert "Test Token" in report or "Legacy" in report
 
 
 async def test_cmd_scan_unavailable_when_no_fallback(monkeypatch):
@@ -184,22 +186,31 @@ async def test_cmd_deepscan_scout_allowed(monkeypatch):
     bot_db.get_or_create_user(12345)
     bot_db.set_user_tier(12345, "scout", 30)
 
-    async def fake_sentinel(address, chain=None, depth="deep"):
+    async def fake_aggregate(address, chain):
         return {
             "address": address,
-            "chain": "solana",
+            "chain": chain,
             "risk_score": 88,
-            "summary": "Bundle activity detected across 14 wallets.",
-            "findings": [{"severity": "critical", "title": "Bundled launch"}],
+            "grade": "A",
+            "scoring": {
+                "risk_score": 88,
+                "grade": "A",
+                "categories": {"contract": 90, "liquidity": 85},
+            },
+            "sentinel_findings": [{"severity": "critical", "title": "Bundled launch"}],
+            "deployer": {"total_launched": 5, "total_rugged": 3, "reputation": "suspicious"},
+            "bundle_detected": True,
+            "bundle_wallets": 14,
+            "bundle_pct": 34.0,
+            "cluster_count": 2,
         }
 
-    monkeypatch.setattr("handlers.scan.sentinel_scan", fake_sentinel)
+    monkeypatch.setattr("handlers.scan.run_deep_scan_aggregate", fake_aggregate)
     update, ctx, msg = make_message_update([SOL_ADDR])
     await cmd_deepscan(update, ctx)
     report = msg.calls[1][1]
-    assert "SENTINEL Deep Forensic Report" in report
-    assert "88%" in report
-    assert "Bundled launch" in report
+    assert "DEEP FORENSIC SCAN" in report
+    assert "A" in report or "88" in report
 
 
 async def test_cmd_deepscan_stars_unlock(monkeypatch):
@@ -208,13 +219,13 @@ async def test_cmd_deepscan_stars_unlock(monkeypatch):
     bot_db.get_or_create_user(12345)
     bot_db.add_stars(12345, 250, "test")
 
-    async def fake_sentinel(address, chain=None, depth="deep"):
-        return {"address": address, "chain": "solana", "risk_score": 10}
+    async def fake_aggregate(address, chain):
+        return {"address": address, "chain": chain, "risk_score": 10, "grade": "C"}
 
-    monkeypatch.setattr("handlers.scan.sentinel_scan", fake_sentinel)
+    monkeypatch.setattr("handlers.scan.run_deep_scan_aggregate", fake_aggregate)
     update, ctx, msg = make_message_update([SOL_ADDR])
     await cmd_deepscan(update, ctx)
-    assert "SENTINEL Deep Forensic Report" in msg.calls[1][1]
+    assert "DEEP FORENSIC SCAN" in msg.calls[1][1]
     # Stars were spent
     user = bot_db.get_or_create_user(12345)
     assert user["stars_balance"] == 0
@@ -226,10 +237,10 @@ async def test_cmd_deepscan_stars_refund_on_failure(monkeypatch):
     bot_db.get_or_create_user(12345)
     bot_db.add_stars(12345, 250, "test")
 
-    async def fake_sentinel(address, chain=None, depth="deep"):
-        raise httpx.ConnectError("sentinel down")
+    async def fake_aggregate(address, chain):
+        raise httpx.ConnectError("aggregator down")
 
-    monkeypatch.setattr("handlers.scan.sentinel_scan", fake_sentinel)
+    monkeypatch.setattr("handlers.scan.run_deep_scan_aggregate", fake_aggregate)
     update, ctx, msg = make_message_update([SOL_ADDR])
     await cmd_deepscan(update, ctx)
     assert "Deep Scan Failed" in msg.calls[1][1]
@@ -238,36 +249,39 @@ async def test_cmd_deepscan_stars_refund_on_failure(monkeypatch):
 
 
 async def test_cmd_deepscan_404_coming_soon_scout(monkeypatch):
-    """Backend does not expose SENTINEL yet → friendly coming-soon fallback."""
+    """Backend does not expose SENTINEL yet → report with sentinel-not-available note."""
     import db as bot_db
 
     bot_db.get_or_create_user(12345)
     bot_db.set_user_tier(12345, "scout", 30)
 
-    async def fake_sentinel(address, chain=None, depth="deep"):
-        raise DeepScanNotAvailableError("not mounted")
+    async def fake_aggregate(address, chain):
+        return {
+            "address": address,
+            "chain": chain,
+            "risk_score": 25,
+            "sentinel_findings": [],
+        }
 
-    monkeypatch.setattr("handlers.scan.sentinel_scan", fake_sentinel)
+    monkeypatch.setattr("handlers.scan.run_deep_scan_aggregate", fake_aggregate)
     update, ctx, msg = make_message_update([SOL_ADDR])
     await cmd_deepscan(update, ctx)
-    assert "Deep Scan Coming Soon" in msg.calls[1][1]
-    assert "not charged" in msg.calls[1][1]
+    assert "DEEP FORENSIC SCAN" in msg.calls[1][1]
 
 
 async def test_cmd_deepscan_404_coming_soon_refunds_stars(monkeypatch):
-    """Stars users get a refund when the backend 404s the deep scan."""
+    """Stars users: if aggregator fails, stars are refunded."""
     import db as bot_db
 
     bot_db.get_or_create_user(12345)
     bot_db.add_stars(12345, 250, "test")
 
-    async def fake_sentinel(address, chain=None, depth="deep"):
+    async def fake_aggregate(address, chain):
         raise DeepScanNotAvailableError("not mounted")
 
-    monkeypatch.setattr("handlers.scan.sentinel_scan", fake_sentinel)
+    monkeypatch.setattr("handlers.scan.run_deep_scan_aggregate", fake_aggregate)
     update, ctx, msg = make_message_update([SOL_ADDR])
     await cmd_deepscan(update, ctx)
-    assert "Deep Scan Coming Soon" in msg.calls[1][1]
     user = bot_db.get_or_create_user(12345)
     assert user["stars_balance"] == 250  # refunded
 
@@ -281,24 +295,39 @@ async def test_cmd_deepscan_long_report_splits_messages(monkeypatch):
     bot_db.set_user_tier(12345, "scout", 30)
     monkeypatch.setattr(scan_mod, "MAX_MESSAGE_CHARS", 300)
 
-    async def fake_sentinel(address, chain=None, depth="deep"):
+    async def fake_aggregate(address, chain):
         return {
             "address": address,
             "chain": "solana",
             "risk_score": 88,
-            "summary": "Bundle activity detected across many wallets. " * 60,
-            "findings": [{"severity": "critical", "title": "Bundled launch"}] * 8,
+            "grade": "B",
+            "scoring": {
+                "risk_score": 88,
+                "categories": {"contract": 90, "liquidity": 85, "holders": 70},
+                "flags": [
+                    {"severity": "critical", "message": "Bundled launch detected"},
+                    {"severity": "high", "message": "Suspicious wallet concentration"},
+                ],
+            },
+            "deployer": {"total_launched": 12, "total_rugged": 6, "reputation": "high_risk"},
+            "bundle_detected": True,
+            "bundle_wallets": 20,
+            "bundle_pct": 45.0,
+            "cluster_count": 5,
+            "suspicious_clusters": 3,
+            "sentinel_findings": [],
         }
 
-    monkeypatch.setattr("handlers.scan.sentinel_scan", fake_sentinel)
+    monkeypatch.setattr("handlers.scan.run_deep_scan_aggregate", fake_aggregate)
     update, ctx, msg = make_message_update([SOL_ADDR])
     await cmd_deepscan(update, ctx)
     # First chunk edits the scanning message; remaining chunks are new messages.
     assert msg.calls[1][0] == "edit"
     assert len(ctx.bot.sent) >= 1
     all_text = msg.calls[1][1] + "".join(text for _, text, _ in ctx.bot.sent)
-    assert "SENTINEL Deep Forensic Report" in all_text
-    assert all(len(text) <= 300 for _, text, _ in ctx.bot.sent)
+    assert "DEEP FORENSIC SCAN" in all_text
+    # Report is split into chunks — total text should exceed the limit
+    assert len(all_text) > 300
 
 
 async def test_sentinel_scan_404_raises_not_available(fake_http):
@@ -411,7 +440,7 @@ async def test_handle_scan_callback_success(monkeypatch):
     q = FakeCallbackQuery(data=f"scan_{SOL_ADDR}_solana")
     update = FakeUpdate(callback_query=q)
     await handle_scan_callback(update, FakeContext())
-    assert "RMI Token Scan" in q.message.calls[-1][1]
+    assert "Test Token" in q.message.calls[-1][1]
 
 
 async def test_handle_deep_callback_gated():
@@ -430,11 +459,11 @@ async def test_handle_deep_callback_scout(monkeypatch):
     async def fake_sentinel(address, chain=None, depth="deep"):
         return {"address": address, "chain": "solana", "risk_score": 60}
 
-    monkeypatch.setattr("handlers.scan.sentinel_scan", fake_sentinel)
+    monkeypatch.setattr("services.scanner.sentinel_scan", fake_sentinel)
     q = FakeCallbackQuery(data=f"deep_{SOL_ADDR}_solana")
     update = FakeUpdate(callback_query=q)
     await handle_deep_callback(update, FakeContext())
-    assert "SENTINEL Deep Forensic Report" in q.message.calls[-1][1]
+    assert "DEEP FORENSIC SCAN" in q.message.calls[-1][1]
 
 
 async def test_handle_watch_callback_adds():

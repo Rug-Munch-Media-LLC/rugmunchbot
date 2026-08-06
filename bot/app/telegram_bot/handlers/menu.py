@@ -64,10 +64,18 @@ def back_kb(label: str = "◀️ Main Menu") -> InlineKeyboardMarkup:
 
 
 # ── Admin-only menu ──
-ADMIN_MENU_ROWS: list[list[tuple[str, str]]] = [
-    [("📢 Broadcast", "admin_broadcast"), ("📊 User Stats", "admin_userstats")],
-    [("🏥 System Health", "admin_health"), ("🔄 Force Scan Cache", "admin_forcecache")],
-    [("🧠 RAG Status", "admin_rag"), ("🔧 Toggle Maintenance", "admin_maintenance")],
+ADMIN_MAIN_ROWS: list[list[tuple[str, str]]] = [
+    [("📊 Stats", "admin_stats"), ("🔍 Scans Today", "admin_scans_today")],
+    [("💰 Revenue", "admin_revenue"), ("🏥 System Health", "admin_health")],
+    [("🧠 RAG Status", "admin_rag"), ("🔄 Force Backup", "admin_forcebackup")],
+    [("🗑️ Clear Cache", "admin_forcecache"), ("🔧 Toggle Maintenance", "admin_maintenance")],
+    [("📢 Broadcast", "admin_broadcast"), ("👥 Users", "admin_userstats")],
+]
+
+ADMIN_PANEL_ROWS: list[list[tuple[str, str]]] = [
+    [("👑 Admin", "admin_panel")],
+    [("📊 Stats", "admin_stats"), ("📢 Broadcast", "admin_broadcast")],
+    [("⚙️ Config", "admin_maintenance")],
 ]
 
 
@@ -75,12 +83,28 @@ def is_admin(user_id: int) -> bool:
     return user_id in OWNER_IDS
 
 
-def admin_kb() -> InlineKeyboardMarkup:
+def admin_main_kb() -> InlineKeyboardMarkup:
+    """Full admin panel with all management options."""
     rows = [
         [InlineKeyboardButton(label, callback_data=cd) for label, cd in row]
-        for row in ADMIN_MENU_ROWS
+        for row in ADMIN_MAIN_ROWS
     ]
+    rows.append([InlineKeyboardButton("◀️ Menu", callback_data="menu_main")])
     return InlineKeyboardMarkup(rows)
+
+
+def admin_dm_kb() -> InlineKeyboardMarkup:
+    """Compact admin panel shown in owner DMs at the bottom of every response."""
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("👑 Admin", callback_data="admin_panel"),
+                InlineKeyboardButton("📊 Stats", callback_data="admin_stats"),
+                InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast"),
+                InlineKeyboardButton("⚙️ Config", callback_data="admin_maintenance"),
+            ],
+        ]
+    )
 
 
 def v3_main_menu_kb(
@@ -175,19 +199,17 @@ def chart_url(address: str, chain: str) -> str:
 
 
 def scan_result_kb_v3(address: str, chain: str) -> InlineKeyboardMarkup:
-    """Scan-report actions: Deep Scan · Chart · Map · AI Analysis · Watch · Web · Share."""
+    """Standardized scan-result inline keyboard with progressive depth actions."""
     share_url = f"https://t.me/share/url?url={WEBSITE_URL}/scanner?token={address}"
     rows = [
         [
-            InlineKeyboardButton("🔬 Deep Scan", callback_data=f"deep_{address}_{chain}"),
-            InlineKeyboardButton("🤖 AI Analysis", callback_data=f"ai_{address}_{chain}"),
-        ],
-        [
             InlineKeyboardButton("📊 Chart", callback_data=f"chart_{address}_{chain}"),
             InlineKeyboardButton("🗺️ Map", callback_data=f"mapaddr_{address}_{chain}"),
+            InlineKeyboardButton("🔬 Deep Scan", callback_data=f"deep_{address}_{chain}"),
         ],
         [
-            InlineKeyboardButton("👀 Watch", callback_data=f"watch_{address}_{chain}"),
+            InlineKeyboardButton("🔍 Scanner", callback_data=f"scan_{address}_{chain}"),
+            InlineKeyboardButton("🤖 AI Analysis", callback_data=f"ai_{address}_{chain}"),
             InlineKeyboardButton("📤 Share", url=share_url),
         ],
         [web_scan_button(address, chain)],
@@ -253,7 +275,7 @@ V3_CALLBACK_PATTERN = (
     r"^(menu_(scan|deepscan|analyze|risk|market|news|alerts|main|trending|top|chart|map|fear|"
     r"wallet|watchlist|account|pricing|scamschool|refer|chat|deployer)|"
     r"admin_panel|admin_broadcast|admin_userstats|admin_health|admin_forcecache|admin_rag|"
-    r"admin_maintenance|"
+    r"admin_maintenance|admin_stats|admin_scans_today|admin_revenue|admin_forcebackup|"
     r"scan_|deep_|ai_|watch_|alerts_|mapaddr_|topchain_|chart_|deployer_)"
 )
 
@@ -293,18 +315,31 @@ async def handle_v3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             reply_markup=back_kb(),
         )
     elif data == "menu_deepscan":
-        from config import BETA_DEEP_SCAN_GATE
-
         await query.edit_message_text(
-            BETA_DEEP_SCAN_GATE,
+            "🧠 <b>Deep Forensic Scan</b>\n\n"
+            "Comprehensive multi-source analysis powered by:\n\n"
+            "📊 <b>Scoring API</b> — 5-category safety breakdown (A-F grade)\n"
+            "👨‍💻 <b>Deployer Profile</b> — wallet history, rug rate, reputation\n"
+            "📦 <b>Bundle Detection</b> — common funding sources, sniper bots\n"
+            "🔗 <b>Cluster Analysis</b> — wallet groups linked to deployer\n"
+            "🛡️ <b>SENTINEL Modules</b> — 23 forensic checks (when available)\n\n"
+            "Usage: /deepscan <code>address</code>\n\n"
+            "<i>Scout+ tier or ⭐250 per scan. Free: 25 basic scans/week.</i>",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
     elif data == "menu_analyze":
-        from config import BETA_AI_GATE
-
         await query.edit_message_text(
-            BETA_AI_GATE,
+            "🤖 <b>Ask Rug Muncher — AI Crypto Expert</b>\n\n"
+            "Ask me anything about crypto! I search across threat intel, "
+            "scam databases, and DeFi knowledge to give you expert answers.\n\n"
+            "<b>Examples:</b>\n"
+            '  • "Is this token a scam?"\n'
+            '  • "Explain a honeypot"\n'
+            '  • "What happened with LUNA?"\n'
+            '  • "How do I spot a rug pull?"\n\n'
+            "Usage: /ask <code>your question</code>\n\n"
+            "<i>Free: 10 AI questions/week | Just type naturally — no command needed!</i>",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -412,10 +447,28 @@ async def handle_v3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await query.answer("🔒 Admin only", show_alert=True)
             return
         await query.edit_message_text(
-            "👑 <b>Admin Control Panel</b>\n\n<i>Select an admin action below:</i>",
+            "👑 <b>Admin Control Panel</b>\n"
+            f"{MENU_DIVIDER_HALF}\n"
+            "<i>Select an admin action below:</i>",
             parse_mode=ParseMode.HTML,
-            reply_markup=admin_kb(),
+            reply_markup=admin_main_kb(),
         )
+    elif data == "admin_stats":
+        if not is_admin(user.id):
+            return
+        await _show_admin_userstats(query)
+    elif data == "admin_scans_today":
+        if not is_admin(user.id):
+            return
+        await _show_admin_scans_today(query)
+    elif data == "admin_revenue":
+        if not is_admin(user.id):
+            return
+        await _show_admin_revenue(query)
+    elif data == "admin_forcebackup":
+        if not is_admin(user.id):
+            return
+        await _show_admin_forcebackup(query)
     elif data == "admin_broadcast":
         if not is_admin(user.id):
             return
@@ -1036,6 +1089,124 @@ async def _show_admin_rag(query) -> None:
         lines = ["🧠 <b>RAG Status</b>", sep(), "", f"❌ Error: {esc(str(e)[:200])}"]
     await query.edit_message_text(
         "\n".join(lines),
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+    )
+
+
+# ══════════════════════════════════════════════
+# NEW ADMIN HELPERS (Scans Today / Revenue / Force Backup)
+# ══════════════════════════════════════════════
+
+
+async def _show_admin_scans_today(query) -> None:
+    """Admin: show today's scan activity."""
+    await query.edit_message_text("⏳ <b>Loading scan stats...</b>", parse_mode=ParseMode.HTML)
+    try:
+        import time as _time
+
+        conn = db.get_db()
+        today_start = int(_time.time()) - 86400
+        scans_24h = conn.execute(
+            "SELECT COUNT(*) as c FROM scan_logs WHERE created_at > ?", (today_start,)
+        ).fetchone()["c"]
+        scans_by_chain = conn.execute(
+            "SELECT chain, COUNT(*) as cnt FROM scan_logs WHERE created_at > ? GROUP BY chain ORDER BY cnt DESC",
+            (today_start,),
+        ).fetchall()
+        unique_users = conn.execute(
+            "SELECT COUNT(DISTINCT user_id) as c FROM scan_logs WHERE created_at > ?",
+            (today_start,),
+        ).fetchone()["c"]
+        conn.close()
+
+        lines = [
+            "🔍 <b>Admin: Scans Today (24h)</b>",
+            sep(),
+            "",
+            f"📊 Total Scans: <b>{scans_24h:,}</b>",
+            f"👥 Unique Users: <b>{unique_users:,}</b>",
+            "",
+            thin_sep(),
+        ]
+        for c in scans_by_chain:
+            lines.append(f"  {c['chain']}: <b>{c['cnt']:,}</b>")
+        lines.extend(["", sep()])
+        await query.edit_message_text(
+            "\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=back_kb()
+        )
+    except Exception as e:
+        await query.edit_message_text(
+            f"❌ Scans today error: {esc(str(e)[:200])}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+async def _show_admin_revenue(query) -> None:
+    """Admin: show revenue summary from DB."""
+    await query.edit_message_text("⏳ <b>Loading revenue data...</b>", parse_mode=ParseMode.HTML)
+    try:
+        conn = db.get_db()
+        # Count premium tier users
+        premium = conn.execute(
+            "SELECT COUNT(*) as c FROM users WHERE tier IN ('scout', 'hunter', 'pro')"
+        ).fetchone()["c"]
+        # Stars purchases
+        star_purchases = (
+            conn.execute(
+                "SELECT SUM(amount) as c FROM star_transactions WHERE tx_type = 'payment'"
+            ).fetchone()["c"]
+            or 0
+        )
+        # Topup redemptions
+        topups = conn.execute(
+            "SELECT COUNT(*) as c FROM star_transactions WHERE tx_type = 'topup_expenditure'"
+        ).fetchone()["c"]
+        # Total scans with revenue potential
+        total_scans = conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
+        conn.close()
+
+        lines = [
+            "💰 <b>Admin: Revenue Overview</b>",
+            sep(),
+            "",
+            f"👑 Premium Users: <b>{premium:,}</b>",
+            f"⭐ Stars Purchased: <b>{star_purchases:,}</b>",
+            f"🔋 Top-Up Redemptions: <b>{topups}</b>",
+            f"🔍 Total Scans (all-time): <b>{total_scans:,}</b>",
+            "",
+            sep(),
+            "<i>Full revenue dashboard at rugmunch.io/admin</i>",
+        ]
+        await query.edit_message_text(
+            "\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=back_kb()
+        )
+    except Exception as e:
+        await query.edit_message_text(
+            f"❌ Revenue error: {esc(str(e)[:200])}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+async def _show_admin_forcebackup(query) -> None:
+    """Admin: trigger a force backup via backend API."""
+    await query.edit_message_text("⏳ <b>Triggering backup...</b>", parse_mode=ParseMode.HTML)
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                f"{BACKEND_URL}/api/v1/admin/backup/trigger",
+                headers={"X-API-Key": RMI_AUTH_TOKEN} if RMI_AUTH_TOKEN else {},
+            )
+            if r.status_code == 200:
+                result = "✅ Backup triggered successfully"
+            else:
+                result = f"⚠️ Backend responded: {r.status_code}"
+    except Exception as e:
+        result = f"❌ Backup trigger failed: {esc(str(e)[:200])}"
+    await query.edit_message_text(
+        f"🔄 <b>Force Backup</b>\n{sep()}\n\n{result}",
         parse_mode=ParseMode.HTML,
         reply_markup=back_kb(),
     )

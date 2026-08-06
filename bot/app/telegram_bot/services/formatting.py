@@ -197,8 +197,86 @@ def _tax_str(v) -> str:
         return "N/A"
 
 
+# ── Telegram-native safety grade emoji ──
+def _safety_grade_emoji(score: float) -> str:
+    if score >= 80:
+        return "🟢 A"
+    elif score >= 65:
+        return "🟡 B"
+    elif score >= 50:
+        return "🟠 C"
+    elif score >= 35:
+        return "🟠 D"
+    elif score >= 20:
+        return "🔴 F"
+    return "💀 F-"
+
+
+def _holder_breakdown_emoji(data: dict, holder_count: int) -> str:
+    """Build a one-line holder distribution if data is available."""
+    holders = data.get("holders") or {}
+    if isinstance(holders, dict) and holders:
+        whales = holders.get("whales") or holders.get("whale_count") or 0
+        sharks = holders.get("sharks") or holders.get("shark_count") or 0
+        if whales or sharks:
+            parts = []
+            if whales:
+                parts.append(f"🐋 {int(whales)} whales")
+            if sharks:
+                parts.append(f"🦈 {int(sharks)} sharks")
+            if parts:
+                return "  │  ".join(parts)
+    return ""
+
+
+def _deployer_digest(data: dict) -> str:
+    """Render deployer summary line: tokens launched, rug rate, prior rugs."""
+    deployer = data.get("deployer") or data.get("dev_reputation") or {}
+    dev_wallet = deployer.get("dev_wallet") or deployer.get("creator") or deployer.get("address")
+    if not dev_wallet:
+        dev_wallet = data.get("dev_wallet") or ""
+    total = (
+        deployer.get("total_launched")
+        or deployer.get("token_count")
+        or deployer.get("total_deployments")
+    )
+    rugs = deployer.get("total_rugged") or deployer.get("rug_count")
+    rep = deployer.get("reputation") or deployer.get("risk_level")
+    if dev_wallet:
+        lines = [f"🔍 Deployer: <code>{_short_addr(str(dev_wallet))}</code>"]
+        if total:
+            lines.append(f"📦 {int(total)} tokens launched")
+            if rugs is not None:
+                r = int(rugs)
+                dead = int(total) - r
+                lines.append(
+                    f"{'💀 ' + str(r) + ' dead' if r > 0 else '✅ All active'} {'⚠️ ' + str(r) + ' prior rugs detected!' if r > 0 and rep else ''}"
+                )
+        elif rep:
+            lines.append(f"⚠️ Reputation: {esc(str(rep)).upper()}")
+        return "\n".join(lines)
+    return ""
+
+
+def _fresh_wallet_warning(data: dict) -> str:
+    """Warning line for high fresh wallet percentage."""
+    fwp = _float_or(data.get("fresh_wallet_pct") or 0)
+    if fwp > 50:
+        return f"⚠️ {fwp:.0f}% fresh wallets — possible fake holders"
+    return ""
+
+
+def _volume_warning(data: dict) -> str:
+    """Warning for suspicious volume/mcap ratio."""
+    ratio = data.get("volume_real_ratio")
+    if ratio is not None and ratio > 3:
+        return f"⚠️ Vol/MCap ratio: {ratio:.1f}x — possible wash trading"
+    return ""
+
+
 def format_v3_scan_report(r: dict) -> str:
-    """Standardized beautiful scan report — v3 professional format."""
+    """Telegram-native beautiful scan report — bold headers, code addresses,
+    emoji tier indicators, horizontal dividers, and information-dense layout."""
     name = r.get("name") or "Token"
     symbol = r.get("symbol") or r.get("ticker") or "???"
     chain = r.get("chain") or "unknown"
@@ -215,7 +293,9 @@ def format_v3_scan_report(r: dict) -> str:
     else:
         liq_usd = _float_or(liq_data or 0)
         locked_pct = None
+    pc_1h = _float_or(market.get("price_change_1h") or r.get("price_change_1h") or 0)
     pc_24h = _float_or(market.get("price_change_24h") or r.get("price_change_24h") or 0)
+    vol_24h = _float_or(market.get("volume_24h") or r.get("volume_24h") or 0)
 
     # ── Contract data ──
     contract = r.get("contract") or {}
@@ -235,29 +315,70 @@ def format_v3_scan_report(r: dict) -> str:
     # ── Age ──
     age = _age_str(r)
 
-    # ── Tax formatting helpers ──
-    def _tax_label(tax_val, which):
+    # ── Build report ──
+    HR = "━" * 25
+    address = r.get("address") or ""
+    chain_emojis = {
+        "solana": "◎",
+        "ethereum": "⟠",
+        "bsc": "🔶",
+        "base": "🔷",
+        "polygon": "🟣",
+        "arbitrum": "🔵",
+        "avalanche": "🔺",
+    }
+    chain_emoji = chain_emojis.get(str(chain).lower(), "⛓️")
+
+    grade = _safety_grade_emoji(risk)
+    lines = [
+        f"🛡️ <b>{esc(name)}</b> (${esc(symbol)})",
+        f"<code>{_short_addr(address)}</code> · {chain_emoji} {esc(str(chain)).capitalize()}",
+        HR,
+        f"💰 {fmt_number(price):>12} │ 📊 MCap {fmt_number(mcap)}",
+    ]
+
+    # Price changes with direction
+    h1_dir = "📈" if pc_1h > 0 else "📉" if pc_1h < 0 else "➖"
+    h24_dir = "📈" if pc_24h > 0 else "📉" if pc_24h < 0 else "➖"
+    lines.append(
+        f"{h1_dir} {esc(fmt_pct(pc_1h)):>10} │ {h24_dir} {esc(fmt_pct(pc_24h)):>10} │ 💧 Liq {fmt_number(liq_usd)}"
+    )
+    if vol_24h > 0:
+        lines.append(f"🔄 Vol 24h: {fmt_number(vol_24h)}")
+
+    # Safety score bar
+    lines.extend(["", HR])
+    bar_filled = max(1, min(10, int((risk / 100) * 10)))
+    bar = "█" * bar_filled + "░" * (10 - bar_filled)
+    lines.append(f"{grade} SAFETY: {risk:.0f}/100")
+    lines.append(f"<code>{bar}</code>")
+
+    # Security checks row
+    lines.extend(["", HR])
+
+    # Verified + LP Lock
+    def _verified_str(v):
+        if v is True or v == "yes":
+            return "✅ Verified"
+        elif v is False or v == "no":
+            return "🔴 Unverified"
+        return "⚪ Verif N/A"
+
+    def _tax_str_v2(tax_val, which):
         try:
             v = float(tax_val)
             if v <= 1.0:
                 v *= 100
             if v > 5:
-                return f"🔴 {which} Tax: {v:.0f}%"
+                return f"🔴 {which} {v:.0f}%"
             elif v > 0.1:
-                return f"⚠️ {which} Tax: {v:.0f}%"
+                return f"⚠️ {which} {v:.0f}%"
             else:
-                return f"✅ {which} Tax: {v:.0f}%"
+                return f"✅ {which} {v:.0f}%"
         except Exception:
-            return f"⚪ {which} Tax: N/A"
+            return f"⚪ {which} N/A"
 
-    def _verified_str(verified_val):
-        if verified_val is True or verified_val == "yes":
-            return "✅ Contract Verified"
-        elif verified_val is False or verified_val == "no":
-            return "🔴 Unverified"
-        return "⚪ Verified N/A"
-
-    def _lp_locked_str(lp_val):
+    def _lp_locked_str_v2(lp_val):
         try:
             v = float(lp_val)
             if v <= 1.0:
@@ -271,35 +392,54 @@ def format_v3_scan_report(r: dict) -> str:
         except Exception:
             return "⚪ LP Lock N/A"
 
-    # ── Build report ──
-    lines = [
-        f"🛡️ <b>{esc(name)}</b> (${esc(symbol)})",
-        sep(),
-        f"💰 Price: {fmt_number(price):>10}  │  📊 MCap: {fmt_number(mcap)}",
-        f"📈 24h: {esc(fmt_pct(pc_24h)):>10}  │  💧 Liq: {fmt_number(liq_usd)}",
-        sep(),
-        _safety_score_bar(risk),
-    ]
+    security_row = f"{_verified_str(verified)}  │  {_lp_locked_str_v2(lp_locked)}"
+    lines.append(security_row)
 
-    # Security row
-    lines.append(f"{_verified_str(verified)}  │  {_lp_locked_str(lp_locked)}")
-    lines.append(f"{_tax_label(buy_tax, 'Buy')}  │  {_tax_label(sell_tax, 'Sell')}")
+    tax_row = f"{_tax_str_v2(buy_tax, 'Buy')}  │  {_tax_str_v2(sell_tax, 'Sell')}"
+    lines.append(tax_row)
 
+    # Holder + age row
     lines.extend(
         [
-            sep(),
-            f"👥 Holders: {holder_count:,}  │  🐋 Top 10: {_pct_str(top10)}",
-            f"🏷️ Chain: {esc(chain).upper():<10}  │  📅 Age: {age or 'N/A'}",
-            sep(),
+            "",
+            HR,
+            f"👥 {holder_count:,} holders  │  🐋 Top 10: {_pct_str(top10)}",
+            f"📅 {age or 'N/A'} old  │  ⛓️ {esc(str(chain)).upper()}",
         ]
     )
 
-    # Threats/warnings
+    # Holder breakdown (whales/sharks/fish/shrimp)
+    hodl_breakdown = _holder_breakdown_emoji(r, holder_count)
+    if hodl_breakdown:
+        lines.append(hodl_breakdown)
+
+    # Deployer digest
+    deployer_digest = _deployer_digest(r)
+    if deployer_digest:
+        lines.extend(["", HR, deployer_digest])
+
+    # Fresh wallet warning
+    fw_warn = _fresh_wallet_warning(r)
+    if fw_warn:
+        lines.extend(["", HR, fw_warn])
+
+    # Volume warning
+    vol_warn = _volume_warning(r)
+    if vol_warn:
+        lines.append(vol_warn)
+
+    # Threats/warnings as blockquote
     warnings = r.get("warnings") or r.get("factors") or r.get("threats") or []
     if warnings:
-        lines.append("")
-        for w in warnings[:4]:
-            lines.append(f"  🔴 {esc(str(w)[:100])}")
+        lines.extend(["", HR])
+        for w in warnings[:5]:
+            lines.append(f"> 🔴 {esc(str(w)[:100])}")
+
+    # Timestamp
+    from datetime import UTC, datetime as dt
+
+    ts = dt.now(UTC).strftime("%H:%M UTC")
+    lines.extend(["", HR, f"<i>Scanned {ts} · Live data</i>"])
 
     lines.append(footer_links())
     return "\n".join(lines)
@@ -331,7 +471,7 @@ def format_quick_risk(r: dict) -> str:
 
 
 def format_deepscan_report(r: dict) -> str:
-    """SENTINEL deep forensic report with holder breakdown and RAG insight."""
+    """Telegram-native deep forensic report — multi-section with Rug Muncher commentary."""
     address = r.get("address") or r.get("token_address") or ""
     score = r.get("risk_score") or r.get("score") or 0
     summary = r.get("summary") or r.get("verdict") or r.get("result") or ""
@@ -361,70 +501,66 @@ def format_deepscan_report(r: dict) -> str:
     # ── RAG insight ──
     rag = r.get("rag_insight") or r.get("ai_insight") or ""
 
-    s = sep()
-    t = thin_sep()
+    HR = "━" * 25
+    grade = _safety_grade_emoji(score)
 
-    lines = ["🧠 <b>SENTINEL Deep Forensic Report</b>", s]
+    lines = [
+        f"🔬 <b>DEEP ANALYSIS</b> — {grade}",
+        HR,
+    ]
     if address:
-        lines.append(code(address))
-    lines.extend(["", risk_bar(score)])
-    if summary:
-        lines.append("")
-        lines.append(blockquote(str(summary)))
+        lines.append(f"<code>{_short_addr(str(address))}</code>")
 
-    # ── Deep analysis section ──
-    lines.extend(
-        [
-            "",
-            "🔬 <b>DEEP ANALYSIS</b>",
-            s,
-            f"🔄 Bundle Detection: {int(bundle_count):,} wallets ({_pct_str(bundle_pct)})",
-            f"🕵️ Sniper Activity: {int(sniper_count):,} snipers",
-            f"🔗 Dev Connections: {int(dev_links):,} linked wallets",
-            f"💀 Rug Probability: {_pct_str(rug_prob)}",
-        ]
-    )
+    # Deep metrics row
+    lines.extend(["", f"📦 Bundle: {int(bundle_count)} wallets ({_pct_str(bundle_pct)})"])
+    lines.append(f"🕵️ Snipers: {int(sniper_count)} detected")
+    lines.append(f"🔗 Dev Links: {int(dev_links)} connected")
+    lines.append(f"💀 Rug Prob: {_pct_str(rug_prob)}")
+
+    if summary:
+        lines.extend(["", f"> {esc(str(summary)[:400])}"])
 
     # ── Holder breakdown ──
+    lines.extend(["", HR, "📊 <b>HOLDERS</b>"])
     if any([whales, sharks, fish, shrimp]):
-        lines.extend(
-            [
-                "",
-                "📊 <b>HOLDER BREAKDOWN</b>",
-                s,
-                f"🐋 Whales (>1%): {int(whales):,} ({_pct_str(whales_pct)})  │  🦈 Sharks: {int(sharks):,} ({_pct_str(sharks_pct)})",
-                f"🐟 Fish: {int(fish):,} ({_pct_str(fish_pct)})  │  🐠 Shrimp: {int(shrimp):,} ({_pct_str(shrimp_pct)})",
-            ]
+        lines.append(
+            f"🐋 Whales: {int(whales)} ({_pct_str(whales_pct)})  │  🦈 Sharks: {int(sharks)} ({_pct_str(sharks_pct)})"
+        )
+        lines.append(
+            f"🐟 Fish: {int(fish)} ({_pct_str(fish_pct)})  │  🐠 Shrimp: {int(shrimp)} ({_pct_str(shrimp_pct)})"
         )
     else:
-        lines.extend(
-            ["", "📊 <b>HOLDER BREAKDOWN</b>", s, "⚠️ Detailed holder breakdown not available"]
-        )
+        lines.append("⚠️ Detailed holder breakdown not available")
 
-    # ── RAG insight ──
+    # ── Rug Muncher commentary ──
+    lines.extend(["", HR, "🤖 <b>Rug Muncher says:</b>"])
     if rag:
-        lines.extend(
-            [
-                "",
-                "🤖 <b>RAG INSIGHT</b>",
-                s,
-                blockquote(str(rag)[:500]),
-            ]
+        lines.append(f"> {esc(str(rag)[:600])}")
+    elif rug_prob >= 60:
+        lines.append(
+            "> This deployer has launched multiple tokens with a high rug rate. "
+            "The concentration metrics suggest pre-rug positioning. Caveat emptor."
+        )
+    elif score >= 60:
+        lines.append(
+            "> Multiple red flags detected. High risk — proceed with extreme caution "
+            "if you value your capital."
+        )
+    elif score >= 30:
+        lines.append(
+            "> Some concerning signals but nothing definitively malicious. "
+            "Standard DeFi risks apply — don't bet the house."
         )
     else:
-        lines.extend(
-            [
-                "",
-                "🤖 <b>RAG INSIGHT</b>",
-                s,
-                "<i>No similar token patterns found in knowledge base.</i>",
-            ]
+        lines.append(
+            "> This token passes the basic sniff test. No major red flags detected. "
+            "But in crypto, nothing is truly safe. Stay vigilant."
         )
 
     # ── Findings ──
     if findings:
-        lines.extend(["", "🔬 <b>Findings</b>", t])
-        for item in findings[:10]:
+        lines.extend(["", HR])
+        for item in findings[:8]:
             if isinstance(item, dict):
                 sev = item.get("severity") or item.get("level") or "info"
                 label = item.get("title") or item.get("finding") or item.get("label") or str(item)
@@ -436,7 +572,7 @@ def format_deepscan_report(r: dict) -> str:
     for key in ("liquidity", "deployer", "market", "contract", "timeline"):
         section = r.get(key)
         if isinstance(section, dict) and section:
-            lines.extend(["", f"🔎 <b>{key.title()}</b>", t])
+            lines.extend(["", f"🔎 <b>{key.title()}</b>"])
             for k, v in section.items():
                 if v is not None:
                     label = str(k).replace("_", " ").title()
@@ -638,6 +774,268 @@ def _build_checklist(r: dict) -> list:
         }
     )
     return items
+
+
+def format_comprehensive_deepscan(data: dict) -> list[str]:
+    """Comprehensive deep scan report — scores, deployer, bundles, clusters, sentinel.
+
+    Returns list of message chunks (each <= 4096 chars for Telegram).
+    Aggregates scoring API, deployer profile, wallet labels, holder bundles,
+    token graph clusters, and sentinel findings into a single beautiful report.
+    """
+    address = data.get("address", "")
+    chain = data.get("chain", "unknown")
+    scoring = data.get("scoring") or {}
+    deployer = data.get("deployer") or {}
+    wallet_labels = data.get("wallet_labels") or {}
+    holders = data.get("holders") or {}
+    cluster_count = data.get("cluster_count", 0)
+    suspicious_clusters = data.get("suspicious_clusters", 0)
+    cluster_details = data.get("cluster_details") or []
+    bundle_detected = data.get("bundle_detected", False)
+    bundle_wallets = data.get("bundle_wallets", 0)
+    bundle_pct = data.get("bundle_pct", 0.0)
+    sentinel_findings = data.get("sentinel_findings") or []
+    dev_reputation = data.get("dev_reputation") or {}
+
+    overall_score = scoring.get("risk_score") or scoring.get("score") or data.get("risk_score") or 0
+    grade = scoring.get("grade") or ""
+    categories = scoring.get("categories") or scoring.get("breakdown") or {}
+    flags = scoring.get("flags") or scoring.get("risk_flags") or []
+
+    s = sep()
+    t = thin_sep()
+
+    # ── Chunk 1: Header + Safety Score + Category Breakdown ──
+    lines: list[str] = [
+        f"🧠 <b>DEEP FORENSIC SCAN — FULL REPORT</b>",
+        s,
+    ]
+    if address:
+        lines.append(
+            f"<code>{code(address[:42]).replace('<code>', '').replace('</code>', '')}</code>"
+            if False
+            else code(address[:42])
+        )
+    lines.append(f"⛓️ Chain: <b>{esc(chain).upper()}</b>")
+    lines.append("")
+
+    # Overall score with grade bar
+    tier = risk_tier(overall_score)
+    emoji = risk_color_emoji(tier)
+    if grade:
+        lines.append(
+            f"{emoji} <b>SAFETY RATING:</b> {overall_score:.0f}/100 — <b>Grade {esc(str(grade))}</b>"
+        )
+    else:
+        lines.append(f"{emoji} <b>SAFETY SCORE:</b> {overall_score:.0f}/100 ({esc(tier).upper()})")
+
+    # Visual score bar
+    bar_filled = max(1, min(10, int((overall_score / 100) * 10)))
+    score_bar_viz = "█" * bar_filled + "░" * (10 - bar_filled)
+    lines.append(f"<code>{score_bar_viz}</code>")
+    lines.append("")
+
+    # Category breakdown
+    if categories:
+        lines.append("📊 <b>CATEGORY BREAKDOWN</b>")
+        lines.append(t)
+        for cat_name, cat_score in sorted(
+            categories.items(),
+            key=lambda x: float(x[1]) if isinstance(x[1], (int, float)) else 0,
+            reverse=True,
+        ):
+            try:
+                s_val = float(cat_score)
+            except (TypeError, ValueError):
+                s_val = 0
+            cat_emoji = "🟢" if s_val >= 80 else "🟡" if s_val >= 50 else "🔴"
+            bar = "█" * max(1, int(s_val / 10)) + "░" * max(0, 10 - int(s_val / 10))
+            label = str(cat_name).replace("_", " ").title()
+            lines.append(f"  {cat_emoji} <b>{esc(label)}</b>: {s_val:.0f}/100")
+            lines.append(f"    <code>{bar}</code>")
+        lines.append("")
+
+    # Flags/warnings
+    if flags:
+        lines.append("⚠️ <b>RISK FLAGS</b>")
+        lines.append(t)
+        for flag in flags[:8]:
+            if isinstance(flag, dict):
+                sev = str(flag.get("severity", "medium"))
+                msg = str(flag.get("message", flag.get("description", flag.get("flag", ""))))
+                sev_emoji = severity_emoji(sev)
+                lines.append(f"  {sev_emoji} {esc(msg[:120])}")
+            else:
+                lines.append(f"  🔴 {esc(str(flag)[:120])}")
+        lines.append("")
+
+    # ── Chunk 1 footer ──
+    chunk1 = "\n".join(lines)
+
+    # ── Chunk 2: Deployer + Bundle + Cluster + Wallet ──
+    lines2: list[str] = []
+
+    # Deployer Profile
+    lines2.append("👨‍💻 <b>DEPLOYER PROFILE</b>")
+    lines2.append(t)
+    if deployer:
+        dev_wallet = (
+            deployer.get("dev_wallet") or deployer.get("creator") or deployer.get("address", "")
+        )
+        if dev_wallet:
+            lines2.append(f"  Wallet: <code>{_short_addr(dev_wallet)}</code>")
+        total = (
+            deployer.get("total_launched")
+            or deployer.get("token_count")
+            or deployer.get("total_deployments")
+        )
+        rugs = deployer.get("total_rugged") or deployer.get("rug_count")
+        rep = deployer.get("reputation") or deployer.get("risk_level")
+        if total:
+            lines2.append(f"  Tokens Launched: <b>{int(total):,}</b>")
+        if rugs is not None:
+            danger = " 🔴" if int(rugs) > 0 else " ✅"
+            lines2.append(f"  Rugged/Dead: <b>{int(rugs):,}</b>{danger}")
+        if rep:
+            lines2.append(f"  Reputation: <b>{esc(str(rep))}</b>")
+    elif dev_reputation:
+        lines2.append(f"  Reputation Score: <b>{float(dev_reputation.get('score', 0)):.0f}/100</b>")
+        rug_rate = dev_reputation.get("rug_rate")
+        if rug_rate is not None:
+            lines2.append(f"  Rug Rate: <b>{float(rug_rate) * 100:.0f}%</b>")
+    else:
+        lines2.append("  <i>No deployer data available</i>")
+    lines2.append("")
+
+    # Bundle Detection
+    lines2.append("📦 <b>BUNDLE DETECTION</b>")
+    lines2.append(t)
+    if bundle_detected:
+        lines2.append(
+            f"  🔴 <b>BUNDLES DETECTED:</b> {bundle_wallets} wallets "
+            f"({bundle_pct:.0f}%) appear bundled from common funding source"
+        )
+        lines2.append(
+            "  ⚠️ <i>Suspicious concentration — possible wash trading or dev accumulation</i>"
+        )
+    else:
+        lines2.append("  ✅ No bundle activity detected")
+    lines2.append("")
+
+    # Cluster Analysis
+    lines2.append("🔗 <b>CLUSTER ANALYSIS</b>")
+    lines2.append(t)
+    if cluster_count > 0:
+        lines2.append(f"  Wallet Clusters: <b>{cluster_count}</b> distinct clusters detected")
+        if suspicious_clusters > 0:
+            lines2.append(
+                f"  🚨 <b>{suspicious_clusters} suspicious cluster(s)</b> — linked to deployer or funding source"
+            )
+        if cluster_details:
+            for i, cluster in enumerate(cluster_details[:3], 1):
+                c_name = cluster.get("name") or cluster.get("label") or f"Cluster {i}"
+                c_size = (
+                    cluster.get("size")
+                    or cluster.get("wallet_count")
+                    or len(cluster.get("wallets", []))
+                )
+                c_risk = (
+                    "🔴" if cluster.get("suspicious") or cluster.get("deployer_linked") else "🟡"
+                )
+                lines2.append(f"  {c_risk} <b>{esc(str(c_name))}</b>: {c_size} wallets")
+    else:
+        lines2.append("  <i>No cluster data available</i>")
+    lines2.append("")
+
+    # Wallet Labels
+    if wallet_labels:
+        lines2.append("🏷️ <b>WALLET LABELS</b>")
+        lines2.append(t)
+        labels = wallet_labels.get("labels") or wallet_labels.get("known_labels") or []
+        if isinstance(labels, list):
+            for lbl in labels[:8]:
+                if isinstance(lbl, dict):
+                    lines2.append(f"  • {esc(str(lbl.get('label', lbl.get('name', str(lbl)))))}")
+                else:
+                    lines2.append(f"  • {esc(str(lbl))}")
+        elif isinstance(labels, dict):
+            for k, v in labels.items():
+                lines2.append(f"  • {esc(k)}: {esc(str(v))}")
+        else:
+            lines2.append(f"  {esc(str(labels)[:200])}")
+        lines2.append("")
+
+    chunk2 = "\n".join(lines2)
+
+    # ── Chunk 3: Sentinel Findings (if available) ──
+    lines3: list[str] = []
+    if sentinel_findings:
+        lines3.append("🛡️ <b>SENTINEL ANALYSIS</b>")
+        lines3.append(t)
+        for finding in sentinel_findings[:8]:
+            if isinstance(finding, dict):
+                sev = str(finding.get("severity", "info"))
+                title = finding.get("title") or finding.get("finding") or finding.get("label", "")
+                desc = finding.get("description") or finding.get("detail") or ""
+                sev_emoji = severity_emoji(sev)
+                lines3.append(f"  {sev_emoji} <b>{esc(str(title)[:100])}</b>")
+                if desc:
+                    lines3.append(f"    {esc(str(desc)[:200])}")
+            else:
+                lines3.append(f"  • {esc(str(finding)[:200])}")
+        lines3.append("")
+    else:
+        lines3.append(
+            "🛡️ <b>SENTINEL ANALYSIS</b>\n"
+            f"{t}\n"
+            "  <i>SENTINEL deep forensic modules not yet available for this token.</i>\n"
+            "  <i>Free modules: holder HHI, LP lock, dev reputation, metadata fingerprint, contract authority, proxy detection.</i>\n"
+            "  <i>Premium modules (Scout+): bundle/sniper/wash-trading/MEV/sentiment/honeypot + 16 more.</i>\n"
+        )
+        lines3.append("")
+
+    # Deal/Trade section
+    lines3.append("💱 <b>TRADE ON:</b>")
+    lines3.append(t)
+    lines3.append(
+        f'  🌐 <a href="{WEBSITE_URL}/scanner?token={address}">RugMunch.io Full Report</a>'
+    )
+    lines3.append("")
+
+    lines3.append(footer_links())
+
+    chunk3 = "\n".join(lines3)
+
+    # Combine chunks, ensuring each is <= 4096
+    result: list[str] = []
+    for chunk in (chunk1, chunk2, chunk3):
+        if chunk.strip():
+            if len(chunk) <= 4000:
+                result.append(chunk)
+            else:
+                # Split further at section boundaries if oversize
+                sub_parts = chunk.split("\n\n")
+                current = ""
+                for part in sub_parts:
+                    candidate = f"{current}\n\n{part}".strip() if current else part
+                    if len(candidate) <= 4000:
+                        current = candidate
+                    else:
+                        if current:
+                            result.append(current)
+                        current = part[:4000]
+                if current:
+                    result.append(current)
+
+    return result
+
+
+def _short_addr(addr: str) -> str:
+    """Shorten an address for display."""
+    if len(addr) > 12:
+        return f"{addr[:6]}...{addr[-4:]}"
+    return addr
 
 
 def format_alert(alert: dict) -> str:

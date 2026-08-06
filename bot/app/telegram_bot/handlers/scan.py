@@ -32,10 +32,12 @@ from services.formatting import (
     format_quick_risk,
     format_v3_scan_report,
 )
+from services.formatting import format_comprehensive_deepscan
 from services.scanner import (
     DeepScanNotAvailableError,
     ScanUnavailableError,
     detect_chain,
+    run_deep_scan_aggregate,
     scan_token_v2,
     sentinel_scan,
 )
@@ -367,7 +369,14 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(
             "🧠 <b>Deep Scan (SENTINEL)</b>\n\n"
             "Usage: /deepscan <code>address</code>\n\n"
-            "Premium forensic analysis — Scout+ or ⭐250 per scan.",
+            "Premium forensic analysis — Scout+ or ⭐250 per scan.\n\n"
+            "<b>What you get:</b>\n"
+            "• Full safety rating with 5-category breakdown\n"
+            "• Deployer investigation & wallet history\n"
+            "• Bundle / sniper / wash-trade detection\n"
+            "• Holder distribution & concentration\n"
+            "• Wallet clusters & funding source tracing\n"
+            "• SENTINEL forensic modules (when available)",
             parse_mode=ParseMode.HTML,
             reply_markup=pricing_kb(),
         )
@@ -407,46 +416,53 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     msg = await update.message.reply_text(
-        f"🧠 <b>Running SENTINEL deep forensic scan...</b>\n<code>{_short(address)}</code>",
+        f"🧠 <b>Running deep forensic scan...</b>\n<code>{_short(address)}</code>\n\n"
+        f"⏳ Aggregating: scoring API · deployer profile · wallet labels · holder bundles · cluster analysis · SENTINEL...",
         parse_mode=ParseMode.HTML,
     )
+
     try:
-        data = await sentinel_scan(address, chain)
-        data.setdefault("chain", detected)
+        # Use the comprehensive aggregator — calls scoring, deployer, wallet,
+        # holders, token-graph, and SENTINEL in parallel
+        data = await run_deep_scan_aggregate(address, chain or detected)
+        data["chain"] = chain or detected
+
         db.increment_usage(user.id, scan=True)
         db.log_scan(
             user.id,
             address,
-            data.get("chain", detected),
+            data["chain"],
             "deep",
-            data.get("risk_score") or data.get("score") or 0,
+            data.get("risk_score") or 0,
         )
-        await _deliver_deepscan(
-            ctx,
-            msg.chat.id,
-            data,
-            address,
-            data.get("chain", detected),
-            msg.edit_text,
-        )
-    except DeepScanNotAvailableError:
-        if how == "stars":
-            db.add_stars(user.id, DEEP_SCAN_STARS_COST, "refund_deep_scan")
-        logger.info("Deep scan not available for %s (backend 404)", _short(address))
+
+        # Format the comprehensive report into Telegram-safe chunks
+        chunks = format_comprehensive_deepscan(data)
+        kb = scan_result_kb_v3(address, data["chain"])
+
+        # Send first chunk (edits the "scanning..." message)
         await msg.edit_text(
-            "🚧 <b>Deep Scan Coming Soon</b>\n\n"
-            "SENTINEL deep forensic scanning is not available on the backend yet. "
-            "You were not charged for this scan — check back shortly!",
+            chunks[0],
             parse_mode=ParseMode.HTML,
-            reply_markup=back_kb(),
+            reply_markup=kb,
+            disable_web_page_preview=True,
         )
+        # Send remaining chunks as follow-up messages
+        for chunk in chunks[1:]:
+            await ctx.bot.send_message(
+                chat_id=msg.chat.id,
+                text=chunk,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+
     except Exception as exc:
         if how == "stars":
             db.add_stars(user.id, DEEP_SCAN_STARS_COST, "refund_deep_scan")
         logger.error("Deep scan failed for %s: %s", _short(address), exc)
         await msg.edit_text(
             "❌ <b>Deep Scan Failed</b>\n\n"
-            "SENTINEL could not complete the forensic scan. Please try again later.",
+            "The deep forensic scan could not be completed. Please try again later.",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -601,45 +617,42 @@ async def handle_deep_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
         return
 
     await query.edit_message_text(
-        f"🧠 <b>Running SENTINEL deep forensic scan...</b>\n<code>{_short(address)}</code>",
+        f"🧠 <b>Running deep forensic scan...</b>\n<code>{_short(address)}</code>\n\n"
+        "⏳ Aggregating: scoring API · deployer profile · wallet labels · holder bundles · cluster analysis...",
         parse_mode=ParseMode.HTML,
     )
     try:
-        data = await sentinel_scan(address, chain)
-        data.setdefault("chain", chain)
+        data = await run_deep_scan_aggregate(address, chain)
+        data["chain"] = chain
         db.increment_usage(user.id, scan=True)
         db.log_scan(
             user.id,
             address,
-            data.get("chain", chain),
+            chain,
             "deep",
-            data.get("risk_score") or data.get("score") or 0,
+            data.get("risk_score") or 0,
         )
-        await _deliver_deepscan(
-            ctx,
-            query.message.chat.id,
-            data,
-            address,
-            data.get("chain", chain),
-            query.edit_message_text,
-        )
-    except DeepScanNotAvailableError:
-        if how == "stars":
-            db.add_stars(user.id, DEEP_SCAN_STARS_COST, "refund_deep_scan")
-        logger.info("Callback deep scan not available for %s (backend 404)", _short(address))
+        chunks = format_comprehensive_deepscan(data)
+        kb = scan_result_kb_v3(address, chain)
         await query.edit_message_text(
-            "🚧 <b>Deep Scan Coming Soon</b>\n\n"
-            "SENTINEL deep forensic scanning is not available on the backend yet. "
-            "You were not charged for this scan — check back shortly!",
+            chunks[0],
             parse_mode=ParseMode.HTML,
-            reply_markup=back_kb(),
+            reply_markup=kb,
+            disable_web_page_preview=True,
         )
+        for chunk in chunks[1:]:
+            await ctx.bot.send_message(
+                chat_id=query.message.chat.id,
+                text=chunk,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
     except Exception as exc:
         if how == "stars":
             db.add_stars(user.id, DEEP_SCAN_STARS_COST, "refund_deep_scan")
         logger.error("Callback deep scan failed for %s: %s", _short(address), exc)
         await query.edit_message_text(
-            "❌ <b>Deep Scan Failed</b>\n\nSENTINEL could not complete the forensic scan.",
+            "❌ <b>Deep Scan Failed</b>\n\nDeep forensic scan could not complete.",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
