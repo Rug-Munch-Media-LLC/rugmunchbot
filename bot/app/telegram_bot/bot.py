@@ -92,6 +92,7 @@ from config import (
 from handlers import register_v3_handlers
 from handlers.alerts import alert_delivery_job as v3_alert_delivery_job
 from handlers.scan import cmd_scan as cmd_scan_v3, set_databus_fallback as _set_databus_fallback
+from services.formatting import footer_links
 
 # ══════════════════════════════════════════════
 # LOGGING
@@ -216,28 +217,26 @@ def thin_sep(char: str = "─", length: int = 24) -> str:
 
 # ── Admin DM keyboard helper ──
 from handlers.menu import admin_dm_kb as _admin_dm_kb_fn
+from handlers.menu import dev_dm_kb as _dev_dm_kb_fn
+from handlers.menu import is_bot_paused as _is_bot_paused, is_ai_disabled as _is_ai_disabled
+from handlers.menu import toggle_bot_pause as _toggle_bot_pause, toggle_ai as _toggle_ai
 
 
 def _wrap_kb_for_owner_dm(
     kb: InlineKeyboardMarkup | None, is_owner_dm: bool = False
 ) -> InlineKeyboardMarkup | None:
-    """Append admin keyboard row if this is the owner in a DM conversation."""
+    """Append developer keyboard rows if this is the owner in a DM conversation."""
     if not is_owner_dm:
         return kb
-    admin_row = _admin_dm_kb_fn().inline_keyboard[0]
+    dev_kb = _dev_dm_kb_fn()
+    dev_rows = list(dev_kb.inline_keyboard)  # 5 rows of 2 buttons
     if kb is None:
-        return InlineKeyboardMarkup([admin_row])
-    # Append admin row to existing keyboard
+        return InlineKeyboardMarkup(dev_rows)
+    # Append dev rows to existing keyboard
     rows = list(kb.inline_keyboard)
-    rows.append(admin_row)
+    rows.append([InlineKeyboardButton("━" * 20, callback_data="dev_noop")])  # visual separator
+    rows.extend(dev_rows)
     return InlineKeyboardMarkup(rows)
-    """Standard footer with website + social links."""
-    return (
-        f"\n{thin_sep('·', 28)}\n"
-        f'🌐 <a href="{WEBSITE_URL}">rugmunch.io</a> | '
-        f'<a href="{TELEGRAM_CHANNEL}">📢 Alerts</a> | '
-        f'<a href="{TWITTER_URL}">X</a>'
-    )
 
 
 def web_scan_button(address: str, chain: str = "") -> InlineKeyboardButton:
@@ -1100,7 +1099,11 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "/scamschool — Free Scam School\n\n"
         "👛 <b>WALLET</b>\n" + t_div + "\n"
         "/wallet — Wallet forensics & profile\n"
+        "/flow — 🆕 Follow the money: fund flows\n"
         "/watchlist — View your watchlist\n\n"
+        "🔍 <b>TRANSACTION TRACING</b>\n" + t_div + "\n"
+        "/trace — 🆕 Trace a transaction\n"
+        "/dumps — 🆕 Find large sells/dumps\n\n"
         "💡 <b>PRO TIPS</b>\n" + t_div + "\n"
         "• Paste any <code>0x...</code> address → auto-scan\n"
         "• Type <code>$TOKEN</code> for instant price check\n"
@@ -1171,9 +1174,13 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"/news — Latest rated crypto news\n"
         f"/market — Market overview & AI rundown\n\n"
         f"👛 <b>WALLET & TRACKING</b>\n{d}\n"
-        f"/wallet <code>address</code> — 🆕 Wallet profile, PnL, labels\n"
+        f"/wallet <code>address</code> — Wallet profile, PnL, labels\n"
+        f"/flow <code>address</code> — 🆕 Follow the money: fund flows\n"
         f"/watchlist — View your watchlist\n"
         f"/watch <code>address</code> — Add to watchlist\n\n"
+        f"🔍 <b>TRANSACTION TRACING</b>\n{d}\n"
+        f"/trace <code>tx_hash</code> — 🆕 Trace a transaction\n"
+        f"/dumps <code>address</code> — 🆕 Find large sells/dumps\n\n"
         f"🤖 <b>AI & EDUCATION</b>\n{d}\n"
         f"/ask <code>question</code> — RAG-powered AI expert\n"
         f"/explain <code>concept</code> — Deep-dive explanation\n"
@@ -2538,7 +2545,11 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "/research — RAG intelligence search\n\n"
             "👛 <b>Wallet</b>\n"
             "/wallet — Wallet forensics\n"
+            "/flow — 🆕 Follow the money\n"
             "/watchlist — View your watchlist\n\n"
+            "🔍 <b>Transaction Tracing</b>\n"
+            "/trace — 🆕 Trace a transaction\n"
+            "/dumps — 🆕 Find large sells\n\n"
             "💡 <b>Pro Tips</b>\n"
             "• Paste any <code>0x...</code> → auto-scan\n"
             "• Type <code>$TOKEN</code> → price check\n"
@@ -2900,6 +2911,9 @@ async def setup_bot_profile(app: Application) -> None:
             BotCommand("explain", "Crypto concept deep-dive"),
             BotCommand("research", "RAG intelligence research"),
             BotCommand("wallet", "Wallet forensics & PnL"),
+            BotCommand("flow", "Follow the money: fund flows"),
+            BotCommand("trace", "Trace a transaction"),
+            BotCommand("dumps", "Find large sells/dumps"),
             BotCommand("scamschool", "Free Scam School course"),
             BotCommand("rugcheck", "Rug pull red flag checklist"),
             BotCommand("watchlist", "View your watchlist"),
@@ -3578,6 +3592,204 @@ async def cmd_alert_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
     await update.message.reply_text(
         f"🚨 Alert sent\n✅ Sent: {sent}\n❌ Failed: {failed}\n👥 Total subscribers: {len(users)}",
     )
+
+
+# ══════════════════════════════════════════════
+# DEVELOPER COMMANDS (owner-only — @cryptorugmunch)
+# ══════════════════════════════════════════════
+
+
+@owner_only
+async def cmd_dev(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/dev — Show the full developer control panel."""
+    _s = sep()
+    paused = _is_bot_paused()
+    ai_off = _is_ai_disabled()
+    uptime_s = int(time.time() - START_TIME)
+    d, r = divmod(uptime_s, 86400)
+    h, m = divmod(r, 3600)
+    mins, _ = divmod(m, 60)
+    uptime_str = f"{d}d {h}h {mins}m"
+
+    conn = db.get_db()
+    total_users = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+    today_start = int(time.time()) - 86400
+    scans_today = conn.execute(
+        "SELECT COUNT(*) as c FROM scan_logs WHERE created_at > ?", (today_start,)
+    ).fetchone()["c"]
+    ai_today = (
+        conn.execute(
+            "SELECT COUNT(*) as c FROM weekly_usage WHERE week_start = ?",
+            (db._current_week_start(),),
+        ).fetchone()["c"]
+        or 0
+    )
+    conn.close()
+
+    text = (
+        f"👑 <b>Developer Panel</b>\n{_s}\n\n"
+        f"<b>Bot State:</b>\n"
+        f"  ⏸️ Paused: <b>{'YES' if paused else 'NO'}</b>\n"
+        f"  🔌 AI Disabled: <b>{'YES' if ai_off else 'NO'}</b>\n"
+        f"  ⏱ Uptime: <b>{uptime_str}</b>\n\n"
+        f"<b>Today's Activity:</b>\n"
+        f"  👥 Users: <b>{total_users:,}</b>\n"
+        f"  🔍 Scans (24h): <b>{scans_today:,}</b>\n"
+        f"  🤖 AI Calls (week): <b>{ai_today:,}</b>\n\n"
+        f"<b>Quick Actions:</b>\n"
+        f"  /togglebot — Pause/resume bot\n"
+        f"  /toggleai — Enable/disable AI\n"
+        f"  /botstats — Detailed statistics\n"
+        f"  /forcebackup — Trigger backup\n"
+        f"  /broadcast — Send to all users\n"
+        f"  /admin — Admin command panel\n"
+        f"{footer_links()}"
+    )
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=_dev_dm_kb_fn(),
+        disable_web_page_preview=True,
+    )
+
+
+@owner_only
+async def cmd_togglebot(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/togglebot — Pause or resume the bot for non-owner users."""
+    paused = _toggle_bot_pause()
+    state = "⏸️ PAUSED" if paused else "▶️ RESUMED"
+    desc = (
+        "Non-owner users will NOT receive responses."
+        if paused
+        else "Bot is now responding to all users normally."
+    )
+    await update.message.reply_text(
+        f"🔧 <b>Bot Toggle</b>\n{sep()}\n\nStatus: <b>{state}</b>\n\n{desc}\n\n"
+        f"Use /togglebot again to toggle back.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+    )
+    logger.info(f"DEV: Bot {'paused' if paused else 'resumed'} by owner")
+
+
+@owner_only
+async def cmd_botstats(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/botstats — Enhanced bot statistics for the developer."""
+    uptime_s = int(time.time() - START_TIME)
+    d, r_ = divmod(uptime_s, 86400)
+    h, m_ = divmod(r_, 3600)
+    mins, _ = divmod(m_, 60)
+
+    conn = db.get_db()
+    total_users = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+    active_24h = conn.execute(
+        "SELECT COUNT(DISTINCT user_id) as c FROM scan_logs WHERE created_at > ?",
+        (int(time.time()) - 86400,),
+    ).fetchone()["c"]
+    scans_today = conn.execute(
+        "SELECT COUNT(*) as c FROM scan_logs WHERE created_at > ?",
+        (int(time.time()) - 86400,),
+    ).fetchone()["c"]
+    total_scans = conn.execute("SELECT SUM(total_scans) as c FROM users").fetchone()["c"] or 0
+    ai_week = (
+        conn.execute(
+            "SELECT SUM(ai_msgs) as c FROM weekly_usage WHERE week_start = ?",
+            (db._current_week_start(),),
+        ).fetchone()["c"]
+        or 0
+    )
+    total_ai = conn.execute("SELECT SUM(total_ai_msgs) as c FROM users").fetchone()["c"] or 0
+    banned = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_banned = 1").fetchone()["c"]
+    tiers = conn.execute("SELECT tier, COUNT(*) as c FROM users GROUP BY tier").fetchall()
+    stars_sold = (
+        conn.execute(
+            "SELECT SUM(amount) as c FROM star_transactions WHERE tx_type = 'payment'"
+        ).fetchone()["c"]
+        or 0
+    )
+    topups = conn.execute(
+        "SELECT COUNT(*) as c FROM star_transactions WHERE tx_type = 'topup_expenditure'"
+    ).fetchone()["c"]
+    conn.close()
+
+    paused = _is_bot_paused()
+    ai_off = _is_ai_disabled()
+
+    text = (
+        f"📊 <b>Developer Statistics</b>\n{sep()}\n\n"
+        f"⏱ <b>Uptime:</b> {d}d {h}h {mins}m\n"
+        f"⏸️ <b>Paused:</b> {'YES' if paused else 'NO'} | "
+        f"🔌 <b>AI:</b> {'OFF' if ai_off else 'ON'}\n\n"
+        f"👥 <b>Users</b>\n{thin_sep()}\n"
+        f"  Total: <b>{total_users:,}</b>\n"
+        f"  Active (24h): <b>{active_24h:,}</b>\n"
+        f"  Banned: <b>{banned:,}</b>\n\n"
+        f"🔍 <b>Scans</b>\n{thin_sep()}\n"
+        f"  Today (24h): <b>{scans_today:,}</b>\n"
+        f"  All-Time: <b>{total_scans:,}</b>\n\n"
+        f"🤖 <b>AI</b>\n{thin_sep()}\n"
+        f"  This Week: <b>{ai_week:,}</b>\n"
+        f"  All-Time: <b>{total_ai:,}</b>\n\n"
+        f"💰 <b>Revenue</b>\n{thin_sep()}\n"
+        f"  ⭐ Stars Sold: <b>{stars_sold:,}</b>\n"
+        f"  🔋 Top-Ups Applied: <b>{topups}</b>\n\n"
+        f"📈 <b>Tier Distribution</b>\n{thin_sep()}\n"
+    )
+    for t in tiers:
+        text += f"  {t['tier']}: <b>{t['c']:,}</b>\n"
+    text += f"\n{footer_links()}"
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+        disable_web_page_preview=True,
+    )
+
+
+@owner_only
+async def cmd_forcebackup(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/forcebackup — Trigger RAG/Qdrant backup via backend API."""
+    msg = await update.message.reply_text(
+        "💾 <b>Triggering backup...</b>\n\n⏳ Calling backend backup endpoint...",
+        parse_mode=ParseMode.HTML,
+    )
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                f"{BACKEND_URL}/api/v1/admin/backup/trigger",
+                headers={"X-API-Key": RMI_AUTH_TOKEN},
+            )
+            if r.status_code == 200:
+                result = "✅ Backup triggered successfully"
+            else:
+                result = f"⚠️ Backend responded: HTTP {r.status_code}"
+    except Exception as e:
+        result = f"❌ Backup trigger failed: {str(e)[:200]}"
+    await msg.edit_text(
+        f"💾 <b>Force Backup</b>\n{sep()}\n\n{result}",
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+    )
+    logger.info("DEV: Force backup triggered by owner")
+
+
+@owner_only
+async def cmd_toggleai(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/toggleai — Enable or disable AI features globally."""
+    disabled = _toggle_ai()
+    state = "🔴 DISABLED" if disabled else "🟢 ENABLED"
+    desc = (
+        "All AI responses, RAG queries, and LiteLLM calls are now BLOCKED."
+        if disabled
+        else "AI features are operational — users can use /ask, /explain, /research, and AI chat."
+    )
+    await update.message.reply_text(
+        f"🔌 <b>AI Toggle</b>\n{sep()}\n\nAI features: <b>{state}</b>\n\n{desc}\n\n"
+        f"Use /toggleai again to toggle back.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+    )
+    logger.info(f"DEV: AI {'disabled' if disabled else 'enabled'} by owner")
 
 
 @owner_only
@@ -4652,6 +4864,10 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if check_spam(user.id, user):
         return
 
+    # ── Pause check: if bot is paused, only respond to owner ──
+    if _is_bot_paused() and not is_owner(user.id):
+        return
+
     # ── Owner DM detection: show admin keyboard on every response ──
     is_owner_dm = False
     if update.effective_chat and update.effective_chat.type == "private":
@@ -5025,6 +5241,588 @@ async def cmd_buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Visit rugmunch.io/pricing")
 
 
+# ══════════════════════════════════════════════
+# V8 TRANSACTION TRACING — /trace, /dumps, /flow
+# ══════════════════════════════════════════════
+
+# Regular expressions for detecting tx hashes and wallet addresses
+TX_HASH_RE = re.compile(r"^0x[a-fA-F0-9]{64}$")
+
+
+def is_tx_hash(s: str) -> bool:
+    return bool(TX_HASH_RE.match(s))
+
+
+async def cmd_trace(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/trace <tx_hash> — Trace a transaction: sender, receiver, amount, token, chain.
+
+    Parses a transaction hash and attempts to resolve it through DexScreener
+    and backend scanner APIs to display:
+      - Transfer details (from, to, value)
+      - Token involved
+      - Transaction status
+      - Related trades
+
+    Usage:
+      /trace 0x1234...def (EVM)
+      Each chain uses its own tx hash format.
+    """
+    user = update.effective_user
+    if not ctx.args:
+        await update.message.reply_text(
+            "🔍 <b>Transaction Tracer</b>\n\n"
+            "Trace any blockchain transaction to see:\n"
+            "• Sender & receiver addresses\n"
+            "• Amount transferred\n"
+            "• Token & chain\n"
+            "• Transaction status\n\n"
+            "<b>Usage:</b> /trace <code>tx_hash</code>\n\n"
+            "<b>Examples:</b>\n"
+            "  /trace <code>0x21a9...d3e8f</code>\n"
+            "  /trace <code>Ethereum tx hash</code>\n\n"
+            "<i>Supported: Ethereum, Solana, BSC, Base, Arbitrum, Polygon</i>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    if not is_owner(user.id):
+        allowed, _, _ = db.check_rate_limit(user.id, "scan")
+        if not allowed:
+            await update.message.reply_text(
+                paywall_text(user.id, "scan"),
+                parse_mode=ParseMode.HTML,
+                reply_markup=paywall_kb(),
+            )
+            return
+
+    tx_hash = ctx.args[0].strip()
+    if not is_tx_hash(tx_hash):
+        await update.message.reply_text(
+            "❌ <b>Invalid Transaction Hash</b>\n\n"
+            "EVM transaction hashes are 66 characters (0x + 64 hex chars).\n\n"
+            f"Got: <code>{tx_hash[:30]}{'…' if len(tx_hash) > 30 else ''}</code>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
+    msg = await update.message.reply_text(
+        f"🔍 <b>Tracing transaction...</b>\n<code>{short_addr(tx_hash)}</code>\n\n⏳ Querying blockchain data...",
+        parse_mode=ParseMode.HTML,
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Try backend scanner for tx details
+            tx_data = None
+            dex_hints = []
+            try:
+                r = await client.get(
+                    f"{BACKEND_URL}/api/v1/intel/tx/{tx_hash}",
+                    timeout=10,
+                    headers={"X-API-Key": RMI_AUTH_TOKEN},
+                )
+                if r.status_code == 200:
+                    tx_data = r.json()
+            except Exception as exc:
+                logger.debug("cmd_trace: intel/tx failed: %s", exc)
+
+            # Try DexScreener for related trades
+            try:
+                r = await client.get(
+                    f"{_DEXSCREENER}/search/?q={tx_hash}",
+                    timeout=8,
+                )
+                if r.status_code == 200:
+                    pairs = r.json().get("pairs", [])
+                    if pairs:
+                        for p in pairs[:5]:
+                            bt = p.get("baseToken", {})
+                            price = float(p.get("priceUsd", 0))
+                            h24 = p.get("priceChange", {}).get("h24") or 0
+                            txns = p.get("txns", {})
+                            buys = txns.get("h24", {}).get("buys", 0)
+                            sells = txns.get("h24", {}).get("sells", 0)
+                            dex_hints.append(
+                                {
+                                    "name": bt.get("name", "???"),
+                                    "symbol": bt.get("symbol", "???"),
+                                    "price": price,
+                                    "h24": h24,
+                                    "buys": buys,
+                                    "sells": sells,
+                                    "chain": p.get("chainId", ""),
+                                    "dex": p.get("dexId", ""),
+                                }
+                            )
+            except Exception as exc:
+                logger.debug("cmd_trace: DexScreener search failed: %s", exc)
+
+            if not tx_data and not dex_hints:
+                await msg.edit_text(
+                    f"🔍 <b>Transaction Not Found</b>\n\n"
+                    f"No data found for tx hash:\n<code>{tx_hash}</code>\n\n"
+                    f"• Check the hash is correct\n"
+                    f"• Ensure it's on a supported chain\n"
+                    f"• Recent transactions may take a few minutes to index\n\n"
+                    f"<i>Try /scan on the token address instead.</i>",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                )
+                return
+
+            lines = [
+                "🔍 <b>Transaction Trace</b>",
+                sep(),
+                f"<b>TX Hash:</b> <code>{tx_hash[:20]}…{tx_hash[-10:]}</code>",
+            ]
+
+            if tx_data:
+                from_addr = tx_data.get("from") or tx_data.get("from_address", "")
+                to_addr = tx_data.get("to") or tx_data.get("to_address", "")
+                value = tx_data.get("value") or tx_data.get("value_usd", 0)
+                token = tx_data.get("token_symbol") or tx_data.get("symbol", "")
+                chain = tx_data.get("chain", "")
+                status = tx_data.get("status", "")
+                block = tx_data.get("block_number") or tx_data.get("block", "")
+
+                if from_addr:
+                    lines.append(f"\n📤 <b>From:</b> <code>{short_addr(from_addr)}</code>")
+                if to_addr:
+                    lines.append(f"📥 <b>To:</b> <code>{short_addr(to_addr)}</code>")
+                if value:
+                    lines.append(f"💰 <b>Value:</b> {fmt_number(float(value))}")
+                if token:
+                    lines.append(f"🪙 <b>Token:</b> {token}")
+                if chain:
+                    lines.append(f"⛓ <b>Chain:</b> {fmt_chain(chain)}")
+                if block:
+                    lines.append(f"📦 <b>Block:</b> {block}")
+                if status:
+                    status_emoji = (
+                        "✅" if str(status).lower() in ("1", "success", "confirmed") else "❌"
+                    )
+                    lines.append(f"{status_emoji} <b>Status:</b> {status}")
+
+            # Show related DexScreener activity
+            if dex_hints:
+                lines.extend(["", thin_sep(), "📊 <b>Related DEX Activity</b>", thin_sep()])
+                for d in dex_hints[:3]:
+                    emoji = "🟢" if d["h24"] >= 0 else "🔴"
+                    lines.append(
+                        f"{emoji} <b>{d['name']}</b> ({d['symbol']}) on {fmt_chain(d['chain'])} [{d['dex']}]\n"
+                        f"   💰 {fmt_number(d['price'])} | 24h: {fmt_pct(d['h24'])}\n"
+                        f"   📊 Buys: {d['buys']:,} | Sells: {d['sells']:,}"
+                    )
+
+            if not tx_data:
+                lines.append(
+                    "\n<i>On-chain transaction data not yet indexed. Showing DEX activity only.</i>"
+                )
+
+            lines.append(footer_links())
+            db.increment_usage(user.id, scan=True)
+            await msg.edit_text(
+                "\n".join(lines),
+                parse_mode=ParseMode.HTML,
+                reply_markup=back_kb(),
+                disable_web_page_preview=True,
+            )
+
+    except httpx.TimeoutException:
+        await msg.edit_text(
+            "⏰ <b>Trace Timed Out</b>\n\n"
+            "The blockchain data took too long. Try again in a moment.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+    except Exception as e:
+        logger.error(f"cmd_trace error: {e}")
+        await msg.edit_text(
+            f"❌ <b>Trace Failed</b>\n\n{str(e)[:200]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+async def cmd_dumps(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/dumps <token_address> — Find large sells/dumps for a token.
+
+    Queries DexScreener for the token pair, then fetches recent trade data
+    to identify whale dumps and large sell-offs.
+
+    Output: 🐋 0x1234...abcd sold $45K at 14:32. 0x5678...ef01 dumped $12K at 14:35
+
+    Usage:
+      /dumps 0x6982508145454Ce325dDbE47a25d4ec3d2311933
+      /dumps <token> [chain]
+    """
+    user = update.effective_user
+    if not ctx.args:
+        await update.message.reply_text(
+            "🐋 <b>Dump Detector</b>\n\n"
+            "Find large sell-offs for any token.\n\n"
+            "<b>Usage:</b> /dumps <code>token_address</code> [chain]\n\n"
+            "<b>Examples:</b>\n"
+            "  /dumps <code>0x6982...1933</code>\n"
+            "  /dumps <code>EPjFWdd5...Dt1v</code> solana\n\n"
+            "<i>Detects sells over $1K as potential dumps.</i>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    if not is_owner(user.id):
+        allowed, _, _ = db.check_rate_limit(user.id, "scan")
+        if not allowed:
+            await update.message.reply_text(
+                paywall_text(user.id, "scan"),
+                parse_mode=ParseMode.HTML,
+                reply_markup=paywall_kb(),
+            )
+            return
+
+    address = ctx.args[0].strip()
+    chain = ctx.args[1].lower() if len(ctx.args) > 1 else detect_chain(address)
+
+    msg = await update.message.reply_text(
+        f"🐋 <b>Scanning for dumps...</b>\n<code>{short_addr(address)}</code>\n\n⏳ Querying DexScreener trades...",
+        parse_mode=ParseMode.HTML,
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Get pair data from DexScreener
+            r = await client.get(f"{_DEXSCREENER}/search/?q={address}", timeout=10)
+            if r.status_code != 200:
+                await msg.edit_text(
+                    "❌ <b>DexScreener unavailable</b>\n\nCould not fetch trade data.",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                )
+                return
+
+            pairs = r.json().get("pairs", [])
+            if not pairs:
+                await msg.edit_text(
+                    f"❌ <b>No trading pairs found</b>\n\n"
+                    f"No DEX activity detected for:\n<code>{address}</code>\n\n"
+                    f"• Check address is correct\n"
+                    f"• Token may not be traded yet",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                )
+                return
+
+            # Build dump report from all pairs
+            all_dumps = []
+            token_name = "???"
+            token_symbol = "???"
+            total_vol = 0
+            price = 0
+
+            for p in pairs[:5]:
+                bt = p.get("baseToken", {})
+                token_name = bt.get("name", "???")[:20]
+                token_symbol = bt.get("symbol", "???")
+
+                txns = p.get("txns", {})
+                h24 = txns.get("h24", {})
+                h6 = txns.get("h6", {})
+                h1 = txns.get("h1", {})
+                buys_24 = h24.get("buys", 0)
+                sells_24 = h24.get("sells", 0)
+
+                vol = p.get("volume", {})
+                vol_24h = float(vol.get("h24") or 0)
+                total_vol += vol_24h
+
+                price = float(p.get("priceUsd", 0))
+                chain_id = p.get("chainId", chain)
+                dex = p.get("dexId", "DEX")
+
+                # Calculate average trade size
+                total_txns = buys_24 + sells_24
+                avg_sell_size = (vol_24h * 0.5 / sells_24) if sells_24 > 0 else 0
+                sell_domination = (sells_24 / total_txns * 100) if total_txns > 0 else 0
+
+                if sells_24 > 0 and avg_sell_size > 1000:  # Filter for notable sells
+                    all_dumps.append(
+                        {
+                            "chain": chain_id,
+                            "dex": dex,
+                            "sells_24": sells_24,
+                            "avg_sell_size": avg_sell_size,
+                            "sell_pct": sell_domination,
+                            "vol_24h": vol_24h,
+                            "price": price,
+                        }
+                    )
+
+            pc = pairs[0].get("priceChange", {})
+            h24_change = pc.get("h24") or 0
+            h1_change = pc.get("h1") or 0
+            liq = pairs[0].get("liquidity", {}).get("usd", 0)
+
+            lines = [
+                "🐋 <b>Dump Detector</b>",
+                sep(),
+                f"<b>{token_name}</b> ({token_symbol}) {fmt_chain(chain)}",
+                f"<code>{address}</code>",
+                "",
+                "📊 <b>Market Summary</b>",
+                thin_sep(),
+                f"💰 Price: <b>{fmt_number(price)}</b>",
+                f"🔄 1h: {fmt_pct(h1_change)} | 24h: {fmt_pct(h24_change)}",
+                f"💧 Liquidity: <b>{fmt_number(liq)}</b>",
+                f"📊 24h Volume: <b>{fmt_number(total_vol)}</b>",
+            ]
+
+            if all_dumps:
+                lines.extend(["", "🐻 <b>Detected Dumps (24h)</b>", thin_sep()])
+                for d in all_dumps[:5]:
+                    sell_emoji = (
+                        "🔴" if d["sell_pct"] > 60 else "🟠" if d["sell_pct"] > 40 else "🟡"
+                    )
+                    lines.append(
+                        f"{sell_emoji} <b>{d['dex']}</b> [{fmt_chain(d['chain'])}]\n"
+                        f"   📤 {d['sells_24']:,} sells | Avg: {fmt_number(d['avg_sell_size'])}/trade\n"
+                        f"   📉 Sell domination: <b>{d['sell_pct']:.0f}%</b> | Vol: {fmt_number(d['vol_24h'])}"
+                    )
+            else:
+                lines.extend(["", "✅ <b>No significant dumps detected</b>", thin_sep()])
+                lines.append("  Buy/sell activity appears balanced in the last 24h.")
+
+            lines.extend(
+                [
+                    "",
+                    "💡 <b>Tip:</b> High sell domination (>60%) with declining price = active dump.",
+                    f"{footer_links()}",
+                ]
+            )
+
+            db.increment_usage(user.id, scan=True)
+            await msg.edit_text(
+                "\n".join(lines),
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton(
+                                "🔍 Full Scan", callback_data=f"scan_{address}_{chain}"
+                            )
+                        ],
+                        [web_scan_button(address, chain)],
+                        [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+                    ]
+                ),
+                disable_web_page_preview=True,
+            )
+
+    except Exception as e:
+        logger.error(f"cmd_dumps error: {e}")
+        await msg.edit_text(
+            f"❌ <b>Dump Scan Failed</b>\n\n{str(e)[:200]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+async def cmd_flow(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/flow <wallet_address> — Follow the money: fund sources and destinations.
+
+    Uses wallet scanner API and on-chain data to trace where funds came from
+    and where they went. Shows:
+      - Funding sources (exchanges, bridges, other wallets)
+      - Recent outflows
+      - Connected wallets
+      - Behavioral patterns
+
+    Usage:
+      /flow 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+      /flow <wallet> [chain]
+    """
+    user = update.effective_user
+    if not ctx.args:
+        await update.message.reply_text(
+            "💰 <b>Fund Flow Tracer</b>\n\n"
+            "Follow the money — trace where a wallet's funds\n"
+            "came from and where they've been going.\n\n"
+            "<b>Usage:</b> /flow <code>wallet_address</code> [chain]\n\n"
+            "<b>Examples:</b>\n"
+            "  /flow <code>0xd8dA6B...6045</code>\n"
+            "  /flow <code>vitalik.eth</code> ethereum\n\n"
+            "<i>Shows funding sources, destinations, and connected wallets.</i>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    if not is_owner(user.id):
+        allowed, _, _ = db.check_rate_limit(user.id, "scan")
+        if not allowed:
+            await update.message.reply_text(
+                paywall_text(user.id, "scan"),
+                parse_mode=ParseMode.HTML,
+                reply_markup=paywall_kb(),
+            )
+            return
+
+    address = ctx.args[0].strip()
+    chain = ctx.args[1].lower() if len(ctx.args) > 1 else detect_chain(address)
+
+    msg = await update.message.reply_text(
+        f"💰 <b>Tracing fund flows...</b>\n<code>{short_addr(address)}</code>\n\n⏳ Analyzing wallet activity...",
+        parse_mode=ParseMode.HTML,
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            # Use wallet scanner v2
+            scan_result = None
+            try:
+                r = await client.post(
+                    f"{BACKEND_URL}/api/v2/scanner/wallet/scan",
+                    json={"address": address, "chain": chain},
+                    timeout=12,
+                    headers={"X-API-Key": RMI_AUTH_TOKEN},
+                )
+                if r.status_code == 200:
+                    scan_result = r.json()
+            except Exception as exc:
+                logger.debug("cmd_flow: wallet scan failed: %s", exc)
+
+            # Also try to get connected wallets / fund sources from DataBus
+            funding_data = None
+            try:
+                r = await client.get(
+                    f"{DATABUS_URL}/wallet/{address}",
+                    timeout=8,
+                    headers={"X-API-Key": RMI_AUTH_TOKEN},
+                )
+                if r.status_code == 200:
+                    funding_data = _db_payload(r.json())
+            except Exception as exc:
+                logger.debug("cmd_flow: databus wallet failed: %s", exc)
+
+            if not scan_result and not funding_data:
+                await msg.edit_text(
+                    f"❌ <b>No wallet data found</b>\n\n"
+                    f"No on-chain activity detected for:\n<code>{address}</code>\n\n"
+                    f"• Check the address is correct\n"
+                    f"• The wallet may have zero transactions",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=back_kb(),
+                )
+                return
+
+            s = scan_result or {}
+            f = funding_data or {}
+
+            lines = [
+                "💰 <b>Fund Flow Trace</b>",
+                sep(),
+                f"<code>{address}</code>",
+                f"{fmt_chain(chain)}",
+            ]
+
+            # Entity info
+            if s.get("entity_name"):
+                lines.append(f"🏢 <b>Entity:</b> {s['entity_name']}")
+            if s.get("entity_type"):
+                lines.append(f"🏷️ <b>Type:</b> {s['entity_type']}")
+
+            if s.get("labels"):
+                lines.extend(["", "🏷️ <b>Known Labels</b>", thin_sep()])
+                for label in s["labels"]:
+                    lines.append(f"  • {label}")
+
+            # Value overview
+            total_val = s.get("total_value_usd") or f.get("balance_usd", 0)
+            token_count = s.get("token_count") or len(f.get("top_tokens", []))
+            lines.extend(
+                [
+                    "",
+                    "📊 <b>Portfolio</b>",
+                    thin_sep(),
+                    f"💰 Total Value: <b>{fmt_number(float(total_val)) if total_val else 'N/A'}</b>",
+                    f"🪙 Tokens: <b>{token_count}</b>",
+                    f"🛡️ Scam Exposure: <b>{s.get('scam_exposure_pct', 0)}%</b>",
+                ]
+            )
+
+            # Funding source
+            funding_source = f.get("funding_source")
+            if funding_source:
+                lines.extend(["", "🏦 <b>Funding Source</b>", thin_sep()])
+                source_str = (
+                    funding_source if isinstance(funding_source, str) else str(funding_source)
+                )
+                lines.append(f"  {source_str[:200]}")
+
+            # Connected wallets
+            connected = s.get("connected_wallets") or f.get("connected_wallets", [])
+            if connected:
+                lines.extend(["", "🔗 <b>Connected Wallets</b>", thin_sep()])
+                for w in (connected if isinstance(connected, list) else [connected])[:5]:
+                    w_addr = w.get("address", str(w)) if isinstance(w, dict) else str(w)
+                    lines.append(f"  • <code>{short_addr(w_addr)}</code>")
+
+            # Behavior patterns
+            patterns = s.get("behavior_patterns", [])
+            if patterns:
+                lines.extend(["", "📈 <b>Behavior Patterns</b>", thin_sep()])
+                for pat in patterns[:5]:
+                    lines.append(f"  • {pat}")
+
+            # Smart money
+            if s.get("smart_money_overlap"):
+                lines.extend(
+                    [
+                        "",
+                        "🧠 <b>Smart Money Overlap:</b> Yes — tracks with known profitable wallets",
+                    ]
+                )
+
+            # Risk assessment
+            risk = s.get("risk_score", 0)
+            if risk > 0:
+                lines.extend(["", risk_bar(risk)])
+
+            # Risk forecast
+            if s.get("risk_forecast"):
+                lines.extend(["", f"🔮 <b>Forecast:</b> {s['risk_forecast']}"])
+
+            lines.append(footer_links())
+
+            db.increment_usage(user.id, scan=True)
+            kb = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "👛 Full Wallet Report", callback_data=f"scan_{address}_{chain}"
+                        )
+                    ],
+                    [web_scan_button(address, chain)],
+                    [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
+                ]
+            )
+            await msg.edit_text(
+                "\n".join(lines),
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+                disable_web_page_preview=True,
+            )
+
+    except httpx.TimeoutException:
+        await msg.edit_text(
+            "⏰ <b>Flow Trace Timed Out</b>\n\nToo slow. Try again.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+    except Exception as e:
+        logger.error(f"cmd_flow error: {e}")
+        await msg.edit_text(
+            f"❌ <b>Flow Trace Failed</b>\n\n{str(e)[:200]}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
 def main():
     if not BOT_TOKEN:
         logger.error("RUGMUNCH_BOT_TOKEN not set!")
@@ -5080,7 +5878,17 @@ def main():
     app.add_handler(CommandHandler("explain", cmd_explain))
     app.add_handler(CommandHandler("pulse", cmd_pulse))
 
+    # ── V8 Transaction Tracing ──
+    app.add_handler(CommandHandler("trace", cmd_trace))
+    app.add_handler(CommandHandler("dumps", cmd_dumps))
+    app.add_handler(CommandHandler("flow", cmd_flow))
+
     # ── Admin Commands (owner-only — @cryptorugmunch) ──
+    app.add_handler(CommandHandler("dev", cmd_dev))
+    app.add_handler(CommandHandler("togglebot", cmd_togglebot))
+    app.add_handler(CommandHandler("botstats", cmd_botstats))
+    app.add_handler(CommandHandler("forcebackup", cmd_forcebackup))
+    app.add_handler(CommandHandler("toggleai", cmd_toggleai))
     app.add_handler(CommandHandler("admin", cmd_admin))
     app.add_handler(CommandHandler("broadcast", cmd_broadcast))
     app.add_handler(CommandHandler("alert", cmd_alert_broadcast))

@@ -107,6 +107,64 @@ def admin_dm_kb() -> InlineKeyboardMarkup:
     )
 
 
+def dev_dm_kb() -> InlineKeyboardMarkup:
+    """Developer panel — full 10-button control panel for @cryptorugmunch."""
+    return InlineKeyboardMarkup(
+        [
+            # Row 1: Restart + Pause
+            [
+                InlineKeyboardButton("🔄 Restart Bot", callback_data="dev_restart"),
+                InlineKeyboardButton("⏸️ Pause Bot", callback_data="dev_pause"),
+            ],
+            # Row 2: Stats + Broadcast
+            [
+                InlineKeyboardButton("📊 Stats", callback_data="admin_stats"),
+                InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast"),
+            ],
+            # Row 3: Config + RAG Status
+            [
+                InlineKeyboardButton("⚙️ Config", callback_data="admin_maintenance"),
+                InlineKeyboardButton("🧠 RAG Status", callback_data="admin_rag"),
+            ],
+            # Row 4: Force News + Backup
+            [
+                InlineKeyboardButton("📰 Force News", callback_data="dev_force_news"),
+                InlineKeyboardButton("💾 Backup", callback_data="admin_forcebackup"),
+            ],
+            # Row 5: Toggle AI + Full Logs
+            [
+                InlineKeyboardButton("🔌 Toggle AI", callback_data="dev_toggle_ai"),
+                InlineKeyboardButton("📋 Full Logs", callback_data="dev_full_logs"),
+            ],
+        ]
+    )
+
+
+# ── Developer toggle state (in-memory, resets on restart) ──
+_bot_paused: bool = False
+_ai_disabled: bool = False
+
+
+def is_bot_paused() -> bool:
+    return _bot_paused
+
+
+def is_ai_disabled() -> bool:
+    return _ai_disabled
+
+
+def toggle_bot_pause() -> bool:
+    global _bot_paused
+    _bot_paused = not _bot_paused
+    return _bot_paused
+
+
+def toggle_ai() -> bool:
+    global _ai_disabled
+    _ai_disabled = not _ai_disabled
+    return _ai_disabled
+
+
 def v3_main_menu_kb(
     user_id: int | None = None, message_preview: bool = False
 ) -> InlineKeyboardMarkup:
@@ -283,6 +341,7 @@ V3_CALLBACK_PATTERN = (
     r"wallet|watchlist|account|pricing|scamschool|refer|chat|deployer|help)|"
     r"admin_panel|admin_broadcast|admin_userstats|admin_health|admin_forcecache|admin_rag|"
     r"admin_maintenance|admin_stats|admin_scans_today|admin_revenue|admin_forcebackup|"
+    r"dev_restart|dev_pause|dev_force_news|dev_toggle_ai|dev_full_logs|"
     r"scan_|deep_|ai_|watch_|alerts_|mapaddr_|topchain_|chart_|deployer_)"
 )
 
@@ -553,6 +612,32 @@ async def handle_v3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
+    # ── Developer callbacks ──
+    elif data == "dev_restart":
+        if not is_admin(user.id):
+            await query.answer("🔒 Developer only", show_alert=True)
+            return
+        await _handle_dev_restart(query)
+    elif data == "dev_pause":
+        if not is_admin(user.id):
+            await query.answer("🔒 Developer only", show_alert=True)
+            return
+        await _handle_dev_pause(query)
+    elif data == "dev_force_news":
+        if not is_admin(user.id):
+            await query.answer("🔒 Developer only", show_alert=True)
+            return
+        await _handle_dev_force_news(query)
+    elif data == "dev_toggle_ai":
+        if not is_admin(user.id):
+            await query.answer("🔒 Developer only", show_alert=True)
+            return
+        await _handle_dev_toggle_ai(query)
+    elif data == "dev_full_logs":
+        if not is_admin(user.id):
+            await query.answer("🔒 Developer only", show_alert=True)
+            return
+        await _handle_dev_full_logs(query)
 
 
 # ══════════════════════════════════════════════
@@ -1258,3 +1343,110 @@ async def _show_admin_forcebackup(query) -> None:
         parse_mode=ParseMode.HTML,
         reply_markup=back_kb(),
     )
+
+
+# ══════════════════════════════════════════════
+# DEVELOPER CALLBACK HANDLERS
+# ══════════════════════════════════════════════
+
+
+async def _handle_dev_restart(query) -> None:
+    """Dev: restart the bot via systemd."""
+    await query.edit_message_text(
+        "🔄 <b>Restarting bot...</b>\n\n⏳ Running systemctl restart rugmunchbot...",
+        parse_mode=ParseMode.HTML,
+    )
+    import subprocess as _sp
+
+    try:
+        r = _sp.run(
+            ["systemctl", "restart", "rugmunchbot"], capture_output=True, text=True, timeout=15
+        )
+        ok = r.returncode == 0
+        out = (r.stdout.strip() + "\n" + r.stderr.strip()).strip()[:1000]
+        await query.edit_message_text(
+            f"{'✅' if ok else '❌'} <b>Bot Restart</b>\n{sep()}\n<pre>{esc(out)}</pre>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+    except Exception as e:
+        await query.edit_message_text(
+            f"❌ <b>Restart Failed</b>\n{sep()}\n{esc(str(e)[:300])}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+
+
+async def _handle_dev_pause(query) -> None:
+    """Dev: toggle bot pause state."""
+    paused = toggle_bot_pause()
+    state = "⏸️ PAUSED" if paused else "▶️ RESUMED"
+    await query.edit_message_text(
+        f"🔧 <b>Bot Control</b>\n{sep()}\n\nBot is now: <b>{state}</b>\n\n"
+        f"{'Non-owner users will NOT receive responses.' if paused else 'Bot is responding to all users normally.'}",
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+    )
+
+
+async def _handle_dev_force_news(query) -> None:
+    """Dev: force-refresh the news cache via backend API."""
+    await query.edit_message_text("📰 <b>Forcing news refresh...</b>", parse_mode=ParseMode.HTML)
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.post(
+                f"{BACKEND_URL}/api/v1/news/refresh",
+                headers={"X-API-Key": RMI_AUTH_TOKEN} if RMI_AUTH_TOKEN else {},
+            )
+            result = (
+                f"✅ News cache refreshed (HTTP {r.status_code})"
+                if r.status_code == 200
+                else f"⚠️ Backend responded: {r.status_code}"
+            )
+    except Exception as e:
+        result = f"❌ Refresh failed: {esc(str(e)[:200])}"
+    await query.edit_message_text(
+        f"📰 <b>Force News</b>\n{sep()}\n\n{result}",
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+    )
+
+
+async def _handle_dev_toggle_ai(query) -> None:
+    """Dev: toggle AI features on/off."""
+    disabled = toggle_ai()
+    state = "🔴 DISABLED" if disabled else "🟢 ENABLED"
+    await query.edit_message_text(
+        f"🔌 <b>AI Toggle</b>\n{sep()}\n\nAI features are now: <b>{state}</b>\n\n"
+        f"{'AI responses, RAG queries, and LiteLLM calls are BLOCKED.' if disabled else 'AI features are operational.'}",
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_kb(),
+    )
+
+
+async def _handle_dev_full_logs(query) -> None:
+    """Dev: show recent bot logs from systemd journal."""
+    await query.edit_message_text("📋 <b>Fetching bot logs...</b>", parse_mode=ParseMode.HTML)
+    import subprocess as _sp
+
+    try:
+        r = _sp.run(
+            ["journalctl", "-u", "rugmunchbot", "--no-pager", "-n", "30"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        out = (r.stdout.strip() + "\n" + r.stderr.strip()).strip()
+        if len(out) > 3500:
+            out = out[-3500:]
+        await query.edit_message_text(
+            f"📋 <b>RugMunchBot Logs</b> (last 30 lines)\n{sep()}\n<pre>{esc(out)}</pre>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
+    except Exception as e:
+        await query.edit_message_text(
+            f"❌ <b>Logs Failed</b>\n{sep()}\n{esc(str(e)[:300])}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
+        )
