@@ -68,13 +68,26 @@ RAG_COLLECTIONS = [
     "deployer_history",  # deployer behavior analysis
 ]
 # Max daily AI questions for free users
-FREE_AI_DAILY_LIMIT = int(os.getenv("FREE_AI_DAILY_LIMIT", "10"))
+FREE_AI_DAILY_LIMIT = int(os.getenv("FREE_AI_DAILY_LIMIT", "30"))
 
 # Auth for backend calls (must match rmi-backend's RMI_AUTH_TOKEN)
 RMI_AUTH_TOKEN = os.getenv("RMI_AUTH_TOKEN", "")
 
-# Local llama.cpp chat backend (compose/chat — Qwen3.5-9B on host loopback)
-# V3 default: host port 8095 (llama-server /v1/chat/completions, OpenAI-compatible).
+# ══════════════════════════════════════════════
+# LiteLLM PROXY — Task-Routed AI Endpoints
+# ══════════════════════════════════════════════
+# LiteLLM runs on port 4000 and routes to optimal model per task type.
+# Model groups configured in LiteLLM proxy config:
+#   - "chat"      → qwen-chat (fast, creative, 11 tok/s)
+#   - "analysis"  → deepseek-analysis (deep reasoning, 4 tok/s)
+#   - "fast"      → qwen-chat (alias for chat)
+#   - "deep"      → deepseek-analysis (alias for analysis)
+LITELLM_URL = os.getenv("LITELLM_URL", "http://127.0.0.1:4000/v1")
+LITELLM_API_KEY = os.getenv("LITELLM_API_KEY", "sk-litellm")
+AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "chat")  # LiteLLM group → qwen-chat
+AI_ANALYSIS_MODEL = os.getenv("AI_ANALYSIS_MODEL", "analysis")  # LiteLLM group → deepseek-analysis
+
+# Legacy direct llama.cpp backend (fallback when LiteLLM is unavailable)
 LLM_CHAT_URL = os.getenv("LLM_CHAT_URL", "http://localhost:8093/v1/chat/completions")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen3-8b")
 # Market rundown endpoint served by the same llama-server backend (chat mode).
@@ -124,7 +137,7 @@ ALERT_DEDUPE_WINDOW = int(os.getenv("ALERT_DEDUPE_WINDOW", "1800"))  # 30 min pe
 # Prevents day-one dump abuse and smooths API load.
 # Beta mode: Pro and Hunter are "Coming Soon" — gate with friendly messages.
 TIERS = {
-    "free": {"scans_per_week": 15, "ai_msgs_per_week": 10, "name": "🆓 Free Beta"},
+    "free": {"scans_per_week": 50, "ai_msgs_per_week": 30, "name": "🅱️ Free Beta"},
     "pro": {"scans_per_week": 150, "ai_msgs_per_week": 50, "name": "⭐ Pro (Coming Soon)"},
     "hunter": {"scans_per_week": 400, "ai_msgs_per_week": 100, "name": "🎯 Hunter (Coming Soon)"},
 }
@@ -133,13 +146,14 @@ TIERS = {
 TIER_DETAILS = {
     "free": {
         "name": "Free Beta",
-        "emoji": "🆓",
-        "scans_per_week": 15,
-        "ai_msgs_per_week": 10,
+        "emoji": "🅱️",
+        "scans_per_week": 50,
+        "ai_msgs_per_week": 30,
         "price_monthly": 0,
         "features": [
-            "15 scans/week",
-            "10 AI questions/week",
+            "🅱️ Unlimited access during beta",
+            "50 scans/week (50/day effective)",
+            "30 AI questions/week",
             "Basic risk score",
             "Contract safety check",
             "Liquidity overview",
@@ -165,7 +179,7 @@ TIER_DETAILS = {
             "Smart money alerts",
             "Watchlist (10 tokens)",
             "Export reports",
-            "🔒 Coming Soon — Free Beta Now",
+            "🅱️ Coming Soon — All features FREE during beta",
         ],
     },
     "hunter": {
@@ -188,33 +202,34 @@ TIER_DETAILS = {
             "Watchlist (50 tokens)",
             "Real-time alerts",
             "TA chart generation",
-            "🔒 Coming Soon — Free Beta Now",
+            "🅱️ Coming Soon — All features FREE during beta",
         ],
     },
 }
 
 # ── Beta mode gate messages ──
 BETA_DEEP_SCAN_GATE = (
-    "🔒 <b>Pro membership coming soon!</b>\n\n"
-    "During beta, enjoy 15 free scans/week. We're polishing the paid tiers — "
-    "join the community to get early access when we launch.\n\n"
+    "🅱️ <b>Free Beta — Unlimited Access!</b>\n\n"
+    "During our beta period, all features including deep scan are unlocked "
+    "for every user. Enjoy unlimited access while we build out premium tiers.\n\n"
+    "⭐ <b>Pro tiers launching soon</b> — join our community to get early access!\n\n"
     "💬 Join: @crmunchers | 📢 Updates: @cryptorugmuncher"
 )
 
 BETA_ADVANCED_SCAN_GATE = (
-    "🔒 <b>Pro membership coming soon!</b>\n\n"
+    "🅱️ <b>Free Beta — Unlimited Access!</b>\n\n"
     "Advanced scanner features (transaction history, social sentiment, "
-    "similar token analysis) will be available with Pro and Hunter tiers.\n\n"
-    "During beta, enjoy 15 free scans/week. We're polishing the paid tiers — "
-    "join the community to get early access when we launch.\n\n"
+    "similar token analysis) are fully unlocked during beta.\n\n"
+    "⭐ <b>Pro tiers launching soon</b> — premium features will remain free "
+    "for early adopters who sign up at rugmunch.io!\n\n"
     "💬 @crmunchers | 📢 @cryptorugmuncher"
 )
 
 BETA_AI_GATE = (
-    "🔒 <b>Pro membership coming soon!</b>\n\n"
-    "AI-powered analysis on paid tiers will be available soon. "
-    "During beta, enjoy 10 free AI messages/week. "
-    "We're polishing the paid tiers — join the community to get early access when we launch.\n\n"
+    "🅱️ <b>Free Beta — Unlimited AI!</b>\n\n"
+    "AI-powered analysis is fully unlocked during beta. "
+    "Enjoy 30 AI messages/week — more than enough for power users.\n"
+    "⭐ <b>Pro tiers launching soon</b> — sign up at rugmunch.io for early access.\n\n"
     "💬 @crmunchers | 📢 @cryptorugmuncher"
 )
 

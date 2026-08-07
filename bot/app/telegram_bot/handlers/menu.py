@@ -38,20 +38,20 @@ from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
 
-# ── Main menu layout (V8 — professional with dividers) ──
+# ── Main menu layout (V9 — clean 4-section structure) ──
 MAIN_MENU_ROWS: list[list[tuple[str, str]]] = [
-    # Row 1: Scanning & Analysis (core product)
+    # Row 1: Scan & Analysis (core product)
     [("🔍 Scan Token", "menu_scan"), ("🔬 Deep Scan", "menu_deepscan")],
     # Row 2: Chart & Map
     [("📊 Chart", "menu_chart"), ("🗺️ Bubble Map", "menu_map")],
     # Row 3: Market Intelligence
-    [("📈 Market Pulse", "menu_market"), ("😱 Fear & Greed", "menu_fear")],
-    # Row 4: News & Trending
-    [("📰 Crypto News", "menu_news"), ("🔥 Trending", "menu_trending")],
-    # Row 5: AI & Education
-    [("🤖 Ask Rug Muncher", "menu_analyze"), ("🎓 Scam School", "menu_scamschool")],
-    # Row 6: Community & Settings
-    [("💬 Community", "menu_chat"), ("⚙️ Settings", "menu_account")],
+    [("📈 Market Pulse", "menu_market"), ("🔥 Trending", "menu_trending")],
+    # Row 4: News & AI
+    [("📰 Crypto News", "menu_news"), ("🤖 Ask AI", "menu_analyze")],
+    # Row 5: Education & Community
+    [("🎓 Scam School", "menu_scamschool"), ("💬 Community", "menu_chat")],
+    # Row 6: Account & Help
+    [("👤 Account", "menu_account"), ("⚙️ Help", "menu_help")],
 ]
 
 # V8 MENU CONSTANTS
@@ -138,9 +138,9 @@ def v3_main_menu_kb(
             ],
         ]
     else:
-        # Full menu with section labels
+        # Full menu with 4 clear sections
         rows = []
-        # Section 1: Scan & Chart
+        # Section 1: Scanning & Analysis
         rows.append(
             [
                 InlineKeyboardButton("🔍 Scan Token", callback_data="menu_scan"),
@@ -157,26 +157,27 @@ def v3_main_menu_kb(
         rows.append(
             [
                 InlineKeyboardButton("📈 Market Pulse", callback_data="menu_market"),
-                InlineKeyboardButton("😱 Fear & Greed", callback_data="menu_fear"),
+                InlineKeyboardButton("🔥 Trending", callback_data="menu_trending"),
             ]
         )
         rows.append(
             [
                 InlineKeyboardButton("📰 Crypto News", callback_data="menu_news"),
-                InlineKeyboardButton("🔥 Trending", callback_data="menu_trending"),
+                InlineKeyboardButton("🤖 Ask AI", callback_data="menu_analyze"),
             ]
         )
-        # Section 3: AI & Learn
+        # Section 3: Learn & Community
         rows.append(
             [
-                InlineKeyboardButton("🤖 Ask Rug Muncher", callback_data="menu_analyze"),
                 InlineKeyboardButton("🎓 Scam School", callback_data="menu_scamschool"),
+                InlineKeyboardButton("💬 Community", callback_data="menu_chat"),
             ]
         )
+        # Section 4: Account & Help
         rows.append(
             [
-                InlineKeyboardButton("💬 Community", callback_data="menu_chat"),
-                InlineKeyboardButton("⚙️ Account", callback_data="menu_account"),
+                InlineKeyboardButton("👤 Account", callback_data="menu_account"),
+                InlineKeyboardButton("⚙️ Help", callback_data="menu_help"),
             ]
         )
         # Link row
@@ -202,17 +203,23 @@ def scan_result_kb_v3(address: str, chain: str) -> InlineKeyboardMarkup:
     """Standardized scan-result inline keyboard with progressive depth actions."""
     share_url = f"https://t.me/share/url?url={WEBSITE_URL}/scanner?token={address}"
     rows = [
+        # Row 1: Chart | Map | Deep Scan | AI Analysis
         [
             InlineKeyboardButton("📊 Chart", callback_data=f"chart_{address}_{chain}"),
             InlineKeyboardButton("🗺️ Map", callback_data=f"mapaddr_{address}_{chain}"),
             InlineKeyboardButton("🔬 Deep Scan", callback_data=f"deep_{address}_{chain}"),
-        ],
-        [
-            InlineKeyboardButton("🔍 Scanner", callback_data=f"scan_{address}_{chain}"),
             InlineKeyboardButton("🤖 AI Analysis", callback_data=f"ai_{address}_{chain}"),
-            InlineKeyboardButton("📤 Share", url=share_url),
         ],
-        [web_scan_button(address, chain)],
+        # Row 2: Scan | Share | Web Report
+        [
+            InlineKeyboardButton("🔍 Scan", callback_data=f"scan_{address}_{chain}"),
+            InlineKeyboardButton("📤 Share", url=share_url),
+            InlineKeyboardButton(
+                "🌐 Web Report",
+                url=f"{WEB_APP_URL}?token={address}{'&chain=' + chain if chain else ''}",
+            ),
+        ],
+        # Row 3: Back to menu
         [InlineKeyboardButton("◀️ Menu", callback_data="menu_main")],
     ]
     return InlineKeyboardMarkup(rows)
@@ -273,7 +280,7 @@ async def _show_news(query) -> None:
 
 V3_CALLBACK_PATTERN = (
     r"^(menu_(scan|deepscan|analyze|risk|market|news|alerts|main|trending|top|chart|map|fear|"
-    r"wallet|watchlist|account|pricing|scamschool|refer|chat|deployer)|"
+    r"wallet|watchlist|account|pricing|scamschool|refer|chat|deployer|help)|"
     r"admin_panel|admin_broadcast|admin_userstats|admin_health|admin_forcecache|admin_rag|"
     r"admin_maintenance|admin_stats|admin_scans_today|admin_revenue|admin_forcebackup|"
     r"scan_|deep_|ai_|watch_|alerts_|mapaddr_|topchain_|chart_|deployer_)"
@@ -294,15 +301,23 @@ async def handle_v3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if data == "menu_main":
         await query.edit_message_text(
-            "🛡️ <b>Rug Muncher — AI Crypto Security</b>\n"
+            "🛡️ <b>Rug Muncher</b>\n"
             f"{MENU_DIVIDER_FULL}\n"
-            "<i>Protecting degens from rug pulls since 2024.</i>\n\n"
-            "💡 <b>Quick Tips:</b>\n"
-            "  • <b>Paste any</b> <code>0x...</code> address → auto-scan\n"
-            "  • Type <code>$TOKEN</code> for instant price check\n"
-            "  • Just chat naturally — I understand crypto!\n\n"
-            f"{thin_sep()}\n"
-            "<b>Select an action below:</b>",
+            "🔍 /scan — Token security scan\n"
+            "🔬 /deepscan — Full analysis\n"
+            "📊 /chart — Price chart\n"
+            "🗺️ /map — Bubble map\n"
+            f"{MENU_DIVIDER_HALF}\n"
+            "📈 /market — Market overview\n"
+            "🔥 /trending — Hot tokens\n"
+            "📰 /news — Latest headlines\n"
+            f"{MENU_DIVIDER_HALF}\n"
+            "🤖 /ask — Ask AI anything\n"
+            "🎓 /school — Free scam course\n"
+            "💬 /chat — Community chat\n"
+            f"{MENU_DIVIDER_HALF}\n"
+            "⚙️ /help — All commands\n\n"
+            "<i>Or select an action below:</i>",
             parse_mode=ParseMode.HTML,
             reply_markup=v3_main_menu_kb(user.id),
         )
@@ -324,7 +339,8 @@ async def handle_v3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "🔗 <b>Cluster Analysis</b> — wallet groups linked to deployer\n"
             "🛡️ <b>SENTINEL Modules</b> — 23 forensic checks (when available)\n\n"
             "Usage: /deepscan <code>address</code>\n\n"
-            "<i>Scout+ tier or ⭐250 per scan. Free: 25 basic scans/week.</i>",
+            "🅱️ <b>Free Beta</b> — unlimited deep scans for all users!\n"
+            "⭐ <i>Pro tiers launching soon — sign up at rugmunch.io</i>",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -339,7 +355,8 @@ async def handle_v3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             '  • "What happened with LUNA?"\n'
             '  • "How do I spot a rug pull?"\n\n'
             "Usage: /ask <code>your question</code>\n\n"
-            "<i>Free: 10 AI questions/week | Just type naturally — no command needed!</i>",
+            "🅱️ <b>Free Beta:</b> 30 AI questions/week — AI unlocked for all!\n"
+            "<i>Just type naturally — no command needed!</i>",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -401,6 +418,37 @@ async def handle_v3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 ]
             ),
             disable_web_page_preview=True,
+        )
+    elif data == "menu_help":
+        await query.edit_message_text(
+            "⚙️ <b>All Commands</b>\n"
+            f"{MENU_DIVIDER_HALF}\n\n"
+            "🔍 <b>Scan & Analysis</b>\n"
+            "/scan — Full token security scan\n"
+            "/report — A-F Safety Report Card\n"
+            "/chart — Price chart with OHLCV\n"
+            "/map — Holder bubble map\n"
+            "/deployer — Deployer investigation\n"
+            "/deepscan — SENTINEL deep forensic\n\n"
+            "📊 <b>Market</b>\n"
+            "/trending — Hot trending tokens\n"
+            "/fear — Fear & Greed Index\n"
+            "/news — Latest crypto news\n"
+            "/market — Market overview\n\n"
+            "🤖 <b>AI & Learn</b>\n"
+            "/ask — Ask the crypto expert\n"
+            "/explain — Deep-dive explainer\n"
+            "/scamschool — Free scam course\n"
+            "/research — RAG intelligence search\n\n"
+            "👛 <b>Wallet</b>\n"
+            "/wallet — Wallet forensics\n"
+            "/watchlist — View your watchlist\n\n"
+            "💡 <b>Pro Tips</b>\n"
+            "• Paste any <code>0x...</code> → auto-scan\n"
+            "• Type <code>$TOKEN</code> → price check\n"
+            "• Chat naturally — I understand crypto!",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
         )
     elif data == "menu_deployer":
         await query.edit_message_text(

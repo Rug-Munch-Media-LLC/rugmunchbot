@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import db
-from config import DEEP_SCAN_STARS_COST, OWNER_IDS, TIERS
+from config import OWNER_IDS, TIERS, WEBSITE_URL
 from handlers.menu import back_kb, pricing_kb, scan_result_kb_v3
 from services.formatting import (
     format_comprehensive_deepscan,
@@ -98,16 +98,14 @@ def _rate_limited(user_id: int, action: str = "scan") -> bool:
 def _paywall_text(user_id: int, action: str = "scan") -> str:
     tier = db.get_user_tier(user_id)
     tc = TIERS.get(tier, TIERS["free"])
-    limit = tc.get("scans_per_week", 25) if action == "scan" else tc.get("ai_msgs_per_week", 15)
+    limit = tc.get("scans_per_week", 50) if action == "scan" else tc.get("ai_msgs_per_week", 30)
     scans, ai = db.get_weekly_usage(user_id)
     used = scans if action == "scan" else ai
     return (
         f"⚡ <b>Weekly {action.title()} Limit Reached</b>\n\n"
-        f"📊 <b>{tc['name']} Tier:</b> {used}/{limit} used this week\n\n"
-        f"<b>Unlock more power:</b>\n"
-        f"🔍 <b>Scout ($29.99/mo)</b> — 150 scans/wk\n"
-        f"🎯 <b>Hunter ($49.99/mo)</b> — 400 scans/wk\n"
-        f"👑 <b>Pro ($99.99/mo)</b> — 1,000 scans/wk\n\n"
+        f"🅱️ <b>Free Beta — {tc['name']}:</b> {used}/{limit} used this week\n\n"
+        f"<b>Pro tiers coming soon!</b> During beta, enjoy generous free limits.\n"
+        f"Want more? Sign up at rugmunch.io for early adopter perks!\n\n"
         f"Or buy one-time top-ups — never expire!"
     )
 
@@ -277,8 +275,18 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         db.log_scan(
             user.id, address, data.get("chain", detected), "v2", data.get("risk_score") or 0
         )
+        # 🅱️ Beta signup encouragement on first scan
+        user_stats = db.get_user_stats(user.id)
+        if user_stats.get("total_scans", 0) <= 1:
+            signup_nudge = (
+                "\n\n🅱️ <b>Liking RugMunch?</b> Sign up at "
+                f'<a href="{WEBSITE_URL}/signup">rugmunch.io</a> to track your scans '
+                "and get personalized alerts! 🚀"
+            )
+        else:
+            signup_nudge = ""
         await msg.edit_text(
-            format_v3_scan_report(data),
+            format_v3_scan_report(data) + signup_nudge,
             parse_mode=ParseMode.HTML,
             reply_markup=scan_result_kb_v3(address, data.get("chain", detected)),
             disable_web_page_preview=True,
@@ -332,25 +340,18 @@ async def _fallback_scan(msg, user_id: int, address: str, chain: str) -> None:
 
 
 def _can_deepscan(user_id: int) -> tuple[bool, str]:
-    """Scout+ tier, or pay-per-scan with ⭐250 (one-time)."""
-    tier = db.get_user_tier(user_id)
-    if tier in ("scout", "hunter", "pro"):
-        return True, "tier"
-    user = db.get_or_create_user(user_id)
-    if (user.get("stars_balance") or 0) >= DEEP_SCAN_STARS_COST:
-        return True, "stars"
-    return False, "none"
+    """🅱️ Free Beta — all users get deep scan access."""
+    return True, "beta"
 
 
 def _deepscan_gate_text() -> str:
     return (
-        "🔒 <b>Deep Scan requires Scout+ or ⭐250</b>\n\n"
-        "SENTINEL forensic analysis is a premium feature:\n"
+        "🅱️ <b>Deep Scan — Free During Beta!</b>\n\n"
+        "SENTINEL forensic analysis is fully unlocked for all users:\n"
         "• Deployer history & cluster mapping\n"
         "• Bundle / wash-trade detection\n"
         "• Holder bubble map & scam indicators\n\n"
-        "🔍 <b>Scout ($29.99/mo)</b> — includes deep scans\n"
-        "⭐ 250 Stars — pay per scan (no subscription)"
+        "⭐ <b>Pro tiers launching soon</b> — sign up at rugmunch.io for early access!"
     )
 
 
@@ -397,7 +398,7 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    allowed, how = _can_deepscan(user.id)
+    allowed, _how = _can_deepscan(user.id)
     if not allowed:
         await update.message.reply_text(
             _deepscan_gate_text(),
@@ -405,16 +406,11 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             reply_markup=pricing_kb(),
         )
         return
-    if how == "stars" and not db.spend_stars(user.id, DEEP_SCAN_STARS_COST, "deep_scan"):
-        await update.message.reply_text(
-            "❌ <b>Not enough Stars</b>\n\nYou need ⭐250 for a deep scan.",
-            parse_mode=ParseMode.HTML,
-            reply_markup=pricing_kb(),
-        )
-        return
+    # 🅱️ Free Beta — no stars deduction needed
 
     msg = await update.message.reply_text(
         f"🧠 <b>Running deep forensic scan...</b>\n<code>{_short(address)}</code>\n\n"
+        f"🅱️ <b>Free Beta</b> — enjoy unlimited deep scans!\n\n"
         f"⏳ Aggregating: scoring API · deployer profile · wallet labels · holder bundles · cluster analysis · SENTINEL...",
         parse_mode=ParseMode.HTML,
     )
@@ -455,8 +451,6 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
 
     except Exception as exc:
-        if how == "stars":
-            db.add_stars(user.id, DEEP_SCAN_STARS_COST, "refund_deep_scan")
         logger.error("Deep scan failed for %s: %s", _short(address), exc)
         await msg.edit_text(
             "❌ <b>Deep Scan Failed</b>\n\n"
@@ -598,7 +592,7 @@ async def handle_deep_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
         return
     address, chain = parts[1], parts[2]
 
-    allowed, how = _can_deepscan(user.id)
+    allowed, _how = _can_deepscan(user.id)
     if not allowed:
         await query.edit_message_text(
             _deepscan_gate_text(),
@@ -606,16 +600,11 @@ async def handle_deep_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
             reply_markup=pricing_kb(),
         )
         return
-    if how == "stars" and not db.spend_stars(user.id, DEEP_SCAN_STARS_COST, "deep_scan"):
-        await query.edit_message_text(
-            "❌ <b>Not enough Stars</b>\n\nYou need ⭐250 for a deep scan.",
-            parse_mode=ParseMode.HTML,
-            reply_markup=pricing_kb(),
-        )
-        return
+    # 🅱️ Free Beta — no stars deduction needed
 
     await query.edit_message_text(
         f"🧠 <b>Running deep forensic scan...</b>\n<code>{_short(address)}</code>\n\n"
+        "🅱️ <b>Free Beta</b> — enjoy unlimited deep scans!\n\n"
         "⏳ Aggregating: scoring API · deployer profile · wallet labels · holder bundles · cluster analysis...",
         parse_mode=ParseMode.HTML,
     )
@@ -646,8 +635,6 @@ async def handle_deep_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
                 disable_web_page_preview=True,
             )
     except Exception as exc:
-        if how == "stars":
-            db.add_stars(user.id, DEEP_SCAN_STARS_COST, "refund_deep_scan")
         logger.error("Callback deep scan failed for %s: %s", _short(address), exc)
         await query.edit_message_text(
             "❌ <b>Deep Scan Failed</b>\n\nDeep forensic scan could not complete.",

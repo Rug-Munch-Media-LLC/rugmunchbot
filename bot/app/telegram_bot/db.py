@@ -46,7 +46,8 @@ def init_db():
             referred_by TEXT,
             stars_balance INTEGER DEFAULT 0,
             bonus_scans INTEGER DEFAULT 0,
-            bonus_ai_msgs INTEGER DEFAULT 0
+            bonus_ai_msgs INTEGER DEFAULT 0,
+            signup_nudge_sent INTEGER DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS weekly_usage (
             user_id INTEGER,
@@ -108,6 +109,8 @@ def init_db():
         conn.execute("ALTER TABLE users ADD COLUMN bonus_scans INTEGER DEFAULT 0")
     with contextlib.suppress(sqlite3.OperationalError):
         conn.execute("ALTER TABLE users ADD COLUMN bonus_ai_msgs INTEGER DEFAULT 0")
+    with contextlib.suppress(sqlite3.OperationalError):
+        conn.execute("ALTER TABLE users ADD COLUMN signup_nudge_sent INTEGER DEFAULT 0")
     conn.commit()
     conn.close()
 
@@ -475,6 +478,25 @@ def get_user_stats(user_id: int) -> dict:
         "scans_this_week": scans_used,
         "ai_msgs_this_week": ai_used,
     }
+
+
+def mark_signup_nudge_sent(user_id: int) -> None:
+    """Track that we've shown the signup nudge to this user."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET signup_nudge_sent = 1 WHERE user_id = ?",
+        (user_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_signup_nudge_count() -> int:
+    """Count how many users have been nudged to sign up."""
+    conn = get_db()
+    row = conn.execute("SELECT COUNT(*) as c FROM users WHERE signup_nudge_sent = 1").fetchone()
+    conn.close()
+    return row["c"] if row else 0
 
 
 # ── Alert Subscriptions (V3) ──

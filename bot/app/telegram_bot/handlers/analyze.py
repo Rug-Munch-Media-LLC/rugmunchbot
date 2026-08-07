@@ -58,7 +58,8 @@ async def cmd_analyze(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(
             "🤖 <b>AI Analysis</b>\n\n"
             "Usage: /analyze <code>address</code>\n\n"
-            "RugMunch AI (Qwen3.5-9B) analyses a token using scanner intelligence.",
+            "RugMunch AI analyses a token using scanner intelligence.\n"
+            "🅱️ <b>Free Beta</b> — 30 AI messages/week for all users!",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -77,14 +78,18 @@ async def cmd_analyze(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         allowed, _used, _limit = db.check_rate_limit(user.id, "ai_msg")
         if not allowed:
             await update.message.reply_text(
-                "⚡ <b>Weekly AI Limit Reached</b>\n\nUpgrade or buy top-ups to keep asking.",
+                "⚡ <b>Weekly AI Limit Reached</b>\n\n"
+                "🅱️ <b>Free Beta:</b> 30 AI messages/week — you've used them all!\n"
+                "Pro tiers launching soon with more AI capacity.\n\n"
+                "Sign up at rugmunch.io for early adopter perks!",
                 parse_mode=ParseMode.HTML,
                 reply_markup=pricing_kb(),
             )
             return
 
     msg = await update.message.reply_text(
-        f"🤖 <b>Analysing with Qwen3.5-9B...</b>\n<code>{_short(address)}</code>",
+        f"🤖 <b>Analysing with RugMunch AI...</b>\n<code>{_short(address)}</code>\n"
+        "🅱️ <b>Free Beta</b> — AI analysis unlocked for all!",
         parse_mode=ParseMode.HTML,
     )
     try:
@@ -120,13 +125,16 @@ async def handle_ai_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
         allowed, _used, _limit = db.check_rate_limit(user.id, "ai_msg")
         if not allowed:
             await query.edit_message_text(
-                "⚡ <b>Weekly AI Limit Reached</b>\n\nUpgrade or buy top-ups to keep asking.",
+                "⚡ <b>Weekly AI Limit Reached</b>\n\n"
+                "🅱️ <b>Free Beta:</b> 30 AI messages/week — you've used them all!\n"
+                "Sign up at rugmunch.io for early adopter perks!",
                 parse_mode=ParseMode.HTML,
                 reply_markup=pricing_kb(),
             )
             return
     await query.edit_message_text(
-        f"🤖 <b>Analysing with Qwen3.5-9B...</b>\n<code>{_short(address)}</code>",
+        f"🤖 <b>Analysing with RugMunch AI...</b>\n<code>{_short(address)}</code>\n"
+        "🅱️ <b>Free Beta</b> — AI analysis unlocked for all!",
         parse_mode=ParseMode.HTML,
     )
     try:
