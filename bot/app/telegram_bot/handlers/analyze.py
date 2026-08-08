@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V3 AI analysis handler — /analyze (Qwen3.5-9B grounded in scanner context)
+V3 AI analysis handler — /analyze (DeepSeek-8B grounded in scanner context)
 plus the ai_ callback action from scan reports.
 """
 

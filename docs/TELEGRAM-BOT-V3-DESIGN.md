@@ -1,7 +1,7 @@
 # RugMunchBot V3 — Design Document
 
 > **Status:** Proposed design · **Owner:** crmuncher · **Created:** 2026-08-04
-> **Scope:** Scanner integration (RugMunchScan), SENTINEL deep scans, professional command menu, automated alert channels, rated news channels, Qwen3.5-9B AI chat.
+> **Scope:** Scanner integration (RugMunchScan), SENTINEL deep scans, professional command menu, automated alert channels, rated news channels, Qwen3-4B AI chat.
 > **Repo context:** This design targets the canonical live bot at `rmi-backend/app/domains/telegram/rugmunchbot/` and the standalone reference at `bot/app/telegram_bot/`. See [Codebase State](#codebase-state) for the dual-tree reconciliation note.
 
 ---
@@ -16,7 +16,7 @@ four backend capabilities:
 |---|---|---|
 | Token security scan (RugMunchScan) | `POST /api/v1/scanner/scan` (v1) → v2 contract | ⚠️ partial |
 | SENTINEL deep forensic scan | `POST /api/v2/scanner/token/scan?depth=deep` (proposed) | ❌ planned |
-| AI chat (Qwen3.5-9B via llama-server) | `POST http://localhost:8093/v1/chat/completions` | ❌ not wired |
+| AI chat (Qwen3-4B via llama-server) | `POST http://localhost:8093/v1/chat/completions` | ❌ not wired |
 | RAG intelligence bridge | `POST /api/v1/rag/v2/search` | ✅ wired |
 | Rated news aggregator | `GET /api/v1/internal/news-feed` | ⚠️ partial |
 | Market overview / fear & greed | `GET /api/v1/market/fear-greed`, `/market/overview` | ⚠️ partial |
@@ -56,12 +56,12 @@ tree receives the code; this doc covers both with identical module names.)
 /start     — Welcome + main menu (inline keyboard)
 /scan [CA] — Token security scan via RugMunchScan (risk score, warnings, liquidity, deployer)
 /deepscan [CA] — SENTINEL deep forensic scan (premium, 250★ or Scout+)
-/analyze [CA] — AI analysis of a token via Qwen3.5-9B + RAG context
+/analyze [CA] — AI analysis of a token via DeepSeek-8B + RAG context
 /risk [CA]   — Quick risk score (lightweight, no full report)
 /market      — Market overview: fear & greed index, movers, sentiment
 /alerts [on|off] [security|whale|price] — Manage alert subscriptions
 /news [topic] — Latest rated news; topics: defi, security, general
-/chat [text] — Chat with RugMunch AI (Qwen3.5-9B); also catches non-command text
+/chat [text] — Chat with RugMunch AI (Qwen3-4B); also catches non-command text
 /help        — Full categorized command guide
 ```
 
@@ -235,16 +235,16 @@ Inline buttons: **🔬 Deep Scan · 🤖 AI Analysis · 📊 Chart · 👀 Watch
 
 ---
 
-## 5. Part 3 — AI Chat Integration (Qwen3.5-9B)
+## 5. Part 3 — AI Chat Integration (Qwen3-4B)
 
 ### 5.1 Endpoint
 
 `POST {LLM_CHAT_URL}` — default `http://localhost:8093/v1/chat/completions`
-(OpenAI-compatible llama-server, model `qwen3.5-9b`, already in `config.py` uncommitted).
+(OpenAI-compatible llama-server, model `qwen3-4b`, already in `config.py` uncommitted).
 
 ```json
 {
-  "model": "qwen3.5-9b",
+  "model": "qwen3-4b",
   "messages": [
     {"role": "system", "content": "<system prompt with hardened directives>"},
     {"role": "user", "content": "Is this token safe? 0x6982..."}
@@ -452,7 +452,7 @@ async def hourly_news_post(context: ContextTypes.DEFAULT_TYPE):
 │ RugMunchScan API│ │ llama-server    │ │ RMI RAG bridge          │
 │ POST /api/v2/   │ │ POST :8093/v1/  │ │ POST /api/v1/rag/v2/    │
 │ scanner/token/  │ │ chat/completions│ │ search (scam_intel)     │
-│ scan (→v1 poll) │ │ qwen3.5-9b      │ │ → top_k context          │
+│ scan (→v1 poll) │ │ qwen3-4b      │ │ → top_k context          │
 └────────┬────────┘ └─────────────────┘ └─────────────────────────┘
          │
          ▼
@@ -516,7 +516,7 @@ Ordered build plan (code lands in canonical live bot; port to standalone after):
 | Token security scan | ✅ RugMunchScan + DataBus | ⚠️ basic honeypot check | ⚠️ basic | ⚠️ basic | ❌ |
 | Deep forensic (SENTINEL) | ✅ planned (premium) | ❌ | ❌ | ❌ | ❌ |
 | Rug-pull / bundle detection | ✅ yes (DataBus bundle) | ❌ | ❌ | ❌ | ❌ |
-| AI chat (local Qwen3.5-9B) | ✅ free, on-prem | ❌ | ❌ | ❌ | ✅ (aixbt agent) |
+| AI chat (local Qwen3-4B) | ✅ free, on-prem | ❌ | ❌ | ❌ | ✅ (aixbt agent) |
 | RAG-grounded answers | ✅ scam_intel KB | ❌ | ❌ | ❌ | ⚠️ social only |
 | Wallet forensics | ✅ existing | ❌ | ❌ | ⚠️ copy-trade focus | ⚠️ |
 | Rated news feed | ✅ bias/sentiment/factual | ❌ | ❌ | ❌ | ✅ (alpha feed) |

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V3 LLM client — Qwen3.5-9B via llama-server (OpenAI-compatible).
+V3 LLM client — Qwen3-4B chat + DeepSeek-8B analysis via llama-server (OpenAI-compatible).
 
 Used by /analyze (token verdict grounded in scanner context) and /market
 (market rundown). Output is sanitized (defense in depth) to redact internal
@@ -96,7 +96,7 @@ def _extract_text(body) -> str:
 
 
 async def analyze_token(address: str, scan_ctx: dict) -> str:
-    """Run Qwen3.5-9B over scanner context and return a sanitized verdict."""
+    """Run DeepSeek-8B over scanner context and return a sanitized verdict."""
     system = build_analyze_system_prompt(address, scan_ctx)
     user = f"Token contract: {address}\nIs this token safe to interact with?"
     payload = {
