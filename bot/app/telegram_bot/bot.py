@@ -216,10 +216,13 @@ def thin_sep(char: str = "─", length: int = 24) -> str:
 
 
 # ── Admin DM keyboard helper ──
-from handlers.menu import admin_dm_kb as _admin_dm_kb_fn
-from handlers.menu import dev_dm_kb as _dev_dm_kb_fn
-from handlers.menu import is_bot_paused as _is_bot_paused, is_ai_disabled as _is_ai_disabled
-from handlers.menu import toggle_bot_pause as _toggle_bot_pause, toggle_ai as _toggle_ai
+from handlers.menu import (
+    dev_dm_kb as _dev_dm_kb_fn,
+    is_ai_disabled as _is_ai_disabled,
+    is_bot_paused as _is_bot_paused,
+    toggle_ai as _toggle_ai,
+    toggle_bot_pause as _toggle_bot_pause,
+)
 
 
 def _wrap_kb_for_owner_dm(
