@@ -14,7 +14,12 @@ import matplotlib
 
 matplotlib.use("Agg")  # non-interactive backend — no display needed
 import matplotlib.pyplot as plt
-import mplfinance as mpf  # pyright: ignore[reportMissingImports]
+
+try:
+    import mplfinance as mpf  # pyright: ignore[reportMissingImports]
+except ImportError:
+    mpf = None  # mplfinance not installed — chart generation unavailable
+
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -71,6 +76,9 @@ def generate_chart_png(
     Returns:
         Path to the generated PNG file, or None on failure.
     """
+    if mpf is None:
+        logger.debug("mplfinance not installed — chart PNG generation unavailable")
+        return None
     try:
         if not candles or len(candles) < 2:
             return None

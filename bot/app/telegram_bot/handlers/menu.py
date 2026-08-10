@@ -32,7 +32,14 @@ from config import (
     fmt_pct,
 )
 from services.formatting import esc, sep, thin_sep
-from services.image_gen import cleanup_png, generate_chart_png, generate_map_png
+
+try:
+    from services.image_gen import cleanup_png, generate_chart_png, generate_map_png
+except ImportError:
+    # matplotlib/mplfinance not installed — image generation unavailable
+    cleanup_png = None  # type: ignore[assignment]
+    generate_chart_png = None  # type: ignore[assignment]
+    generate_map_png = None  # type: ignore[assignment]
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -979,7 +986,7 @@ async def _show_map_inline(query, address: str, chain: str) -> None:
                 png_holders = detail_holders[:20] if isinstance(detail_holders, list) else []
                 png_total = detail.get("holders_count") or len(png_holders)
             # Generate and send map PNG
-            if png_holders:
+            if png_holders and generate_map_png is not None:
                 png_path = generate_map_png(
                     holders=png_holders,
                     symbol=png_symbol,
@@ -1002,7 +1009,8 @@ async def _show_map_inline(query, address: str, chain: str) -> None:
                     except Exception as img_exc:
                         logger.debug("Map PNG send failed: %s", img_exc)
                     finally:
-                        cleanup_png(png_path)
+                        if cleanup_png is not None:
+                            cleanup_png(png_path)
     except Exception as e:
         await query.edit_message_text(
             f"❌ Map error: {str(e)[:200]}",
@@ -1133,6 +1141,7 @@ async def _show_chart_inline(query, address: str, chain: str) -> None:
                 ohlcv_data_for_img
                 and isinstance(ohlcv_data_for_img, list)
                 and len(ohlcv_data_for_img) >= 2
+                and generate_chart_png is not None
             ):
                 png_path = generate_chart_png(
                     candles=ohlcv_data_for_img,
@@ -1155,7 +1164,8 @@ async def _show_chart_inline(query, address: str, chain: str) -> None:
                     except Exception as img_exc:
                         logger.debug("Chart PNG send failed: %s", img_exc)
                     finally:
-                        cleanup_png(png_path)
+                        if cleanup_png is not None:
+                            cleanup_png(png_path)
     except Exception as e:
         await query.edit_message_text(
             f"❌ Chart error: {str(e)[:200]}",
