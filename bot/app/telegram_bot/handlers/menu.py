@@ -32,6 +32,7 @@ from config import (
     fmt_pct,
 )
 from services.formatting import esc, sep, thin_sep
+from services.image_gen import cleanup_png, generate_chart_png, generate_map_png
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -664,8 +665,8 @@ async def _show_trending_inline(query) -> None:
                     tokens = data if isinstance(data, list) else data.get("tokens", [])
                     if tokens:
                         return await _render_trending_inline(query, tokens, from_rugcharts=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("RugCharts trending fetch failed: %s", exc)
 
             # Fall back to DexScreener
             r = await client.get("https://api.dexscreener.com/latest/dex/search/?q=trending")
@@ -693,7 +694,7 @@ async def _render_trending_inline(query, tokens: list, from_rugcharts: bool = Fa
             price = float(t.get("price_usd") or t.get("price") or 0)
             h24 = float(t.get("change_24h") or 0)
             vol = float(t.get("volume_24h") or 0)
-            addr = t.get("address", "")
+            t.get("address", "")
             chain = t.get("chain", "")
         else:
             bt = t.get("baseToken", {})
@@ -702,7 +703,7 @@ async def _render_trending_inline(query, tokens: list, from_rugcharts: bool = Fa
             price = float(t.get("priceUsd", 0))
             h24 = t.get("priceChange", {}).get("h24") or 0
             vol = float(t.get("volume", {}).get("h24") or 0)
-            addr = bt.get("address", "")
+            bt.get("address", "")
             chain = t.get("chainId", "")
         emoji = "🟢" if h24 >= 0 else "🔴"
         rank = ["❶", "❷", "❸"][i - 1] if i <= 3 else f"{i}."
@@ -750,7 +751,7 @@ async def _show_top_inline(query, chain: str) -> None:
                 price = float(p.get("priceUsd", 0))
                 h24 = p.get("priceChange", {}).get("h24") or 0
                 vol = float(p.get("volume", {}).get("h24") or 0)
-                addr = bt.get("address", "")
+                bt.get("address", "")
                 emoji = "🟢" if h24 >= 0 else "🔴"
                 rank_badge = ["🥇", "🥈", "🥉"][i - 1] if i <= 3 else f"{i}."
                 lines.append(
@@ -861,8 +862,8 @@ async def _show_map_inline(query, address: str, chain: str) -> None:
                 )
                 if r.status_code == 200:
                     map_data = r.json()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("RugMaps token-graph failed: %s", exc)
 
             if not map_data:
                 try:
@@ -891,8 +892,8 @@ async def _show_map_inline(query, address: str, chain: str) -> None:
                                     f"  {i}. <code>{h_addr[:6]}...{h_addr[-4:]}</code>"
                                     f" — {float(h_pct):.1f}%{tag}\n"
                                 )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("DataBus holder fetch failed: %s", exc)
 
             if not map_data and not holders_info:
                 await query.edit_message_text(
@@ -905,6 +906,9 @@ async def _show_map_inline(query, address: str, chain: str) -> None:
                 return
 
             lines = [f"🗺️ <b>Holder Bubble Map</b>\n{sep()}"]
+            name = ""
+            symbol = ""
+            detail: dict = {}
             if map_data:
                 name = map_data.get("name", "")
                 symbol = map_data.get("symbol", "")
@@ -955,6 +959,50 @@ async def _show_map_inline(query, address: str, chain: str) -> None:
                 reply_markup=kb,
                 disable_web_page_preview=True,
             )
+            # Collect holder data for PNG generation
+            png_holders = []
+            png_total = 0
+            png_t10 = 0.0
+            png_clusters = None
+            png_symbol = symbol if map_data else "TOKEN"
+            if map_data:
+                holders_list = map_data.get("top_holders") or map_data.get("holders", [])
+                png_holders = holders_list[:20] if isinstance(holders_list, list) else []
+                png_total = map_data.get("total_holders") or map_data.get("holders_count", 0)
+                png_t10 = float(
+                    map_data.get("top10_holder_pct") or map_data.get("top10_concentration", 0)
+                )
+                png_clusters = map_data.get("clusters") or map_data.get("wallet_clusters")
+            elif holders_info:
+                # Extract from DataBus fallback
+                detail_holders = detail.get("top_holders") or detail.get("holders", [])
+                png_holders = detail_holders[:20] if isinstance(detail_holders, list) else []
+                png_total = detail.get("holders_count") or len(png_holders)
+            # Generate and send map PNG
+            if png_holders:
+                png_path = generate_map_png(
+                    holders=png_holders,
+                    symbol=png_symbol,
+                    chain=chain,
+                    total_holders=png_total,
+                    top10_pct=png_t10,
+                    clusters=png_clusters,
+                )
+                if png_path:
+                    try:
+                        with open(png_path, "rb") as png_file:  # noqa: ASYNC230
+                            await query.message.reply_photo(
+                                photo=png_file,
+                                caption=f"🗺️ <b>{png_symbol}</b> Holder Distribution",
+                                parse_mode=ParseMode.HTML,
+                                reply_markup=InlineKeyboardMarkup(
+                                    [[InlineKeyboardButton("◀️ Menu", callback_data="menu_main")]]
+                                ),
+                            )
+                    except Exception as img_exc:
+                        logger.debug("Map PNG send failed: %s", img_exc)
+                    finally:
+                        cleanup_png(png_path)
     except Exception as e:
         await query.edit_message_text(
             f"❌ Map error: {str(e)[:200]}",
@@ -1039,8 +1087,8 @@ async def _show_chart_inline(query, address: str, chain: str) -> None:
                                 f"  {dir_emoji} O:{fmt_number(o)} H:{fmt_number(hi)} "
                                 f"L:{fmt_number(lo)} C:{fmt_number(cl)}\n"
                             )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("OHLCV fetch failed: %s", exc)
 
             kb = InlineKeyboardMarkup(
                 [
@@ -1065,6 +1113,49 @@ async def _show_chart_inline(query, address: str, chain: str) -> None:
                 reply_markup=kb,
                 disable_web_page_preview=True,
             )
+            # Generate and send chart PNG if OHLCV data available
+            ohlcv_data_for_img = None
+            try:
+                # Re-fetch OHLCV for image (already fetched above if available)
+                if "Recent Candles" in text:
+                    # We had candle data — regenerate for the PNG
+                    async with httpx.AsyncClient(timeout=8) as img_client:
+                        ohlcv_r = await img_client.get(
+                            f"{BACKEND_URL}/api/v1/rugcharts/ohlcv/{chain}/{pair_addr or address}",
+                            timeout=6,
+                            headers={"X-API-Key": RMI_AUTH_TOKEN} if RMI_AUTH_TOKEN else {},
+                        )
+                        if ohlcv_r.status_code == 200:
+                            ohlcv_data_for_img = ohlcv_r.json()
+            except Exception as exc:
+                logger.debug("OHLCV image data fetch failed: %s", exc)
+            if (
+                ohlcv_data_for_img
+                and isinstance(ohlcv_data_for_img, list)
+                and len(ohlcv_data_for_img) >= 2
+            ):
+                png_path = generate_chart_png(
+                    candles=ohlcv_data_for_img,
+                    symbol=symbol,
+                    chain=chain,
+                    price=price,
+                    change_24h=float(h24 or 0),
+                )
+                if png_path:
+                    try:
+                        with open(png_path, "rb") as png_file:  # noqa: ASYNC230
+                            await query.message.reply_photo(
+                                photo=png_file,
+                                caption=f"📊 <b>{symbol}</b> Price Chart",
+                                parse_mode=ParseMode.HTML,
+                                reply_markup=InlineKeyboardMarkup(
+                                    [[InlineKeyboardButton("◀️ Menu", callback_data="menu_main")]]
+                                ),
+                            )
+                    except Exception as img_exc:
+                        logger.debug("Chart PNG send failed: %s", img_exc)
+                    finally:
+                        cleanup_png(png_path)
     except Exception as e:
         await query.edit_message_text(
             f"❌ Chart error: {str(e)[:200]}",
@@ -1359,8 +1450,11 @@ async def _handle_dev_restart(query) -> None:
     import subprocess as _sp
 
     try:
-        r = _sp.run(
-            ["systemctl", "restart", "rugmunchbot"], capture_output=True, text=True, timeout=15
+        r = _sp.run(  # noqa: ASYNC221
+            ["systemctl", "restart", "rugmunchbot"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         ok = r.returncode == 0
         out = (r.stdout.strip() + "\n" + r.stderr.strip()).strip()[:1000]
@@ -1430,8 +1524,8 @@ async def _handle_dev_full_logs(query) -> None:
     import subprocess as _sp
 
     try:
-        r = _sp.run(
-            ["journalctl", "-u", "rugmunchbot", "--no-pager", "-n", "30"],
+        r = _sp.run(  # noqa: ASYNC221
+            ["journalctl", "-u", "rugmunchbot", "--no-pager", "-n", "30"],  # noqa: S607
             capture_output=True,
             text=True,
             timeout=10,
