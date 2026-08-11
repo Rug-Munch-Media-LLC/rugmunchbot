@@ -54,8 +54,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 import db
 import guardrails
 from config import (
-    AI_ANALYSIS_MODEL,
-    AI_CHAT_MODEL,
     BACKEND_URL,
     BOT_DESCRIPTION,
     BOT_SHORT_DESCRIPTION,
@@ -65,8 +63,7 @@ from config import (
     CHANNELS,
     DATABUS_URL,
     DEX_REF_LINKS,
-    LITELLM_API_KEY,
-    LITELLM_URL,
+    LLAMA_HOST,
     OWNER_IDS,
     OWNER_USERNAME,
     RAG_COLLECTIONS,
@@ -4075,16 +4072,26 @@ async def _call_litellm(
     task_type: str = "chat",
     max_tokens: int = 1024,
 ) -> str | None:
-    """Call LiteLLM proxy directly for AI chat/analysis.
+    """Call local llama.cpp directly for AI chat/analysis.
 
-    Returns the response text or None if LiteLLM is unavailable.
+    LiteLLM was removed — this now calls the local llama-server directly.
+    Qwen 3 4B for chat (fast), DeepSeek 8B for analysis (deep).
+    chat_template_kwargs.enable_thinking=false stops the model from burning
+    tokens on <think> blocks so all output is the actual answer.
+
+    Returns the response text or None if the LLM is unavailable.
 
     Args:
         prompt: User message / question.
         task_type: "chat" → qwen-chat (fast), "analysis" → deepseek-analysis (deep).
         max_tokens: Maximum tokens in response.
     """
-    model = AI_CHAT_MODEL if task_type == "chat" else AI_ANALYSIS_MODEL
+    if task_type == "chat":
+        url = f"http://{LLAMA_HOST}:8085/v1/chat/completions"
+        model = "qwen-chat"
+    else:
+        url = f"http://{LLAMA_HOST}:8086/v1/chat/completions"
+        model = "deepseek-analysis"
     system_prompt = (
         "You are Rug Muncher, an AI crypto scam detective embedded in the @rugmunchbot Telegram bot. "
         "You help users detect scams, analyze tokens, and understand crypto security. "
@@ -4117,7 +4124,7 @@ async def _call_litellm(
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(
-                f"{LITELLM_URL}/chat/completions",
+                url,
                 json={
                     "model": model,
                     "messages": [
@@ -4126,10 +4133,7 @@ async def _call_litellm(
                     ],
                     "max_tokens": max_tokens,
                     "temperature": 0.7,
-                },
-                headers={
-                    "Authorization": f"Bearer {LITELLM_API_KEY}",
-                    "Content-Type": "application/json",
+                    "chat_template_kwargs": {"enable_thinking": False},
                 },
                 timeout=25,
             )
@@ -4137,7 +4141,12 @@ async def _call_litellm(
                 data = r.json()
                 choices = data.get("choices", [])
                 if choices and "message" in choices[0]:
-                    return choices[0]["message"].get("content", "").strip()
+                    answer = choices[0]["message"].get("content", "").strip()
+                    # Strip any residual think blocks (belt-and-suspenders)
+                    answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL)
+                    answer = re.sub(r"<think>.*", "", answer, flags=re.DOTALL)
+                    answer = answer.strip()
+                    return answer or None
     except Exception as exc:
         logger.debug("_call_litellm failed: %s", exc)
     return None

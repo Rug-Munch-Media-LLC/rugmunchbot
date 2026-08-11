@@ -33,7 +33,7 @@ ENTERPRISE_CONTACT = "biz@rugmunch.io"
 
 SOCIAL_LINKS = {
     "website": {"emoji": "🌐", "name": "RugMunch.io", "url": WEBSITE_URL},
-    "twitter": {"emoji": "𝕏", "name": "Twitter/X", "url": TWITTER_URL},
+    "twitter": {"emoji": "𝕏", "name": "Twitter/X", "url": TWITTER_URL},  # noqa: RUF001
     "channel": {"emoji": "📢", "name": "Alerts Channel", "url": TELEGRAM_CHANNEL},
     "group": {"emoji": "💬", "name": "Community Chat", "url": TELEGRAM_GROUP},
 }
@@ -74,20 +74,23 @@ FREE_AI_DAILY_LIMIT = int(os.getenv("FREE_AI_DAILY_LIMIT", "30"))
 RMI_AUTH_TOKEN = os.getenv("RMI_AUTH_TOKEN", "")
 
 # ══════════════════════════════════════════════
-# LiteLLM PROXY — Task-Routed AI Endpoints
+# LOCAL LLAMA.CPP — Direct llama-server endpoints
 # ══════════════════════════════════════════════
-# LiteLLM runs on port 4000 and routes to optimal model per task type.
-# Model groups configured in LiteLLM proxy config:
-#   - "chat"      → qwen-chat (fast, creative, 11 tok/s)
-#   - "analysis"  → deepseek-analysis (deep reasoning, 4 tok/s)
-#   - "fast"      → qwen-chat (alias for chat)
-#   - "deep"      → deepseek-analysis (alias for analysis)
+# llama.cpp servers run locally and provide OpenAI-compatible chat endpoints.
+# Model groups:
+#   - Qwen 3 4B on port 8085 → "qwen-chat" (fast, conversational)
+#   - DeepSeek R1 8B on port 8086 → "deepseek-analysis" (deep reasoning)
+# chat_template_kwargs.enable_thinking=false disables reasoning preamble.
+LLAMA_HOST = os.getenv("LLAMA_HOST", "172.22.0.1")
+
+# Legacy LiteLLM config (kept for backward compat, no longer used)
 LITELLM_URL = os.getenv("LITELLM_URL", "http://127.0.0.1:4000/v1")
 LITELLM_API_KEY = os.getenv("LITELLM_API_KEY", "sk-litellm")
 AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "chat")  # LiteLLM group → qwen-chat
 AI_ANALYSIS_MODEL = os.getenv("AI_ANALYSIS_MODEL", "analysis")  # LiteLLM group → deepseek-analysis
 
 # Legacy direct llama.cpp backend (fallback when LiteLLM is unavailable)
+LLAMA_HOST = os.getenv("LLAMA_HOST", "172.22.0.1")
 LLM_CHAT_URL = os.getenv("LLM_CHAT_URL", "http://localhost:8093/v1/chat/completions")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen3-8b")
 # Market rundown endpoint served by the same llama-server backend (chat mode).
