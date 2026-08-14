@@ -1,11 +1,17 @@
-"""RugMunchBot — Command registry (cmd_chart, cmd_events, cmd_portfolio, cmd_rugmap, cmd_simulate, cmd_smartmoney).
+"""RugMunchBot commands package — token scanning, portfolio, charting, risk analysis."""
 
-SCAFFOLD STUB — not yet ported. Canonical source (private monorepo):
-    rmi-backend/app/domains/telegram/rugmunchbot/commands/__init__.py
+from rugmunchbot.commands.chart import cmd_chart
+from rugmunchbot.commands.events import cmd_events
+from rugmunchbot.commands.portfolio import cmd_portfolio
+from rugmunchbot.commands.rugmap import cmd_rugmap
+from rugmunchbot.commands.simulate import cmd_simulate
+from rugmunchbot.commands.smartmoney import cmd_smartmoney
 
-Port per docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md (Stage 2).
-TODO: copy the live implementation, rewrite imports to ``rugmunchbot.*``,
-strip private constants per the checklist §3/§6 scrub list.
-"""
-
-from __future__ import annotations
+__all__ = [
+    "cmd_chart",
+    "cmd_events",
+    "cmd_portfolio",
+    "cmd_rugmap",
+    "cmd_simulate",
+    "cmd_smartmoney",
+]
