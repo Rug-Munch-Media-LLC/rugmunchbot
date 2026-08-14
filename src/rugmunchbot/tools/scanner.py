@@ -10,7 +10,7 @@ rate-limited — see module docstring of ``tools/token_meta.py`` for the
 identity/image resolution order):
 
   1. Own backend unified v2 scan (``POST /api/v2/scanner/token/scan``) — the
-     50+ module SENTINEL-unified scan: safety_score, confidence, risk_level,
+     50+ module Advanced-unified scan: safety_score, confidence, risk_level,
      risk_flags, green_flags, evidence (security checks incl. honeypot),
      bundle_analysis (bundle detection), wallet_metrics + funding_analysis
      (holder analysis), liquidity_verification, deployer profile, news.
@@ -85,10 +85,10 @@ def _flatten_v2(body: dict[str, Any], address: str, chain: str) -> dict[str, Any
     evidence = body.get("evidence")
     if not isinstance(evidence, dict):
         evidence = {}
-    sentinel = body.get("sentinel")
-    if not isinstance(sentinel, dict):
-        sentinel = {}
-    free = sentinel.get("free")
+    advanced = body.get("sentinel")
+    if not isinstance(advanced, dict):
+        advanced = {}
+    free = advanced.get("free")
     if not isinstance(free, dict):
         free = {}
     holder_analysis = free.get("holder_analysis")
@@ -150,7 +150,7 @@ def _flatten_v2(body: dict[str, Any], address: str, chain: str) -> dict[str, Any
         "wash_trading": {
             "fake_volume_pct": market.get("fake_volume_pct"),
         },
-        # Holder analysis (own engines + SENTINEL)
+        # Holder analysis (own engines + Advanced)
         "holder_analysis": {
             "total_holders": holder_analysis.get("total_holders"),
             "hhi": holder_analysis.get("hhi"),
@@ -166,7 +166,7 @@ def _flatten_v2(body: dict[str, Any], address: str, chain: str) -> dict[str, Any
         "wallet_metrics": wallet_metrics,
         "funding_analysis": funding_analysis,
         "holder_overlap": holder_overlap,
-        # Liquidity verification (SENTINEL module)
+        # Liquidity verification (Advanced module)
         "liquidity_verification": {
             "total_locked_pct": liquidity_verification.get("total_locked_percentage"),
             "lp_burned": liquidity_verification.get("lp_burned"),
@@ -186,7 +186,7 @@ def _flatten_v2(body: dict[str, Any], address: str, chain: str) -> dict[str, Any
         "news_card": body.get("news_card"),
         "rag_context": body.get("rag_context"),
         "data_sources": body.get("data_sources"),
-        "sentinel_premium_preview": sentinel.get("premium_preview"),
+        "advanced_premium_preview": advanced.get("premium_preview"),
     }
 
 
@@ -246,7 +246,7 @@ def _flatten_v1(body: dict[str, Any], address: str, chain: str) -> dict[str, Any
         "news_card": None,
         "rag_context": None,
         "data_sources": None,
-        "sentinel_premium_preview": None,
+        "advanced_premium_preview": None,
     }
 
 
@@ -288,7 +288,7 @@ def _flatten_dexscreener(address: str, chain: str) -> dict[str, Any]:
         "news_card": None,
         "rag_context": None,
         "data_sources": None,
-        "sentinel_premium_preview": None,
+        "advanced_premium_preview": None,
     }
 
 

@@ -350,9 +350,9 @@ def _rank_protocols(protocols: list[dict[str, Any]], limit: int = 8) -> list[dic
 
 async def cmd_defi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /defi — DeFi overview from DefiLlama."""
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\U0001f3e6 <b>Fetching DeFi overview...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
 
     chains, protocols = await asyncio.gather(
         _fetch_json(CHAINS_URL, cache_key="defi_chains"),

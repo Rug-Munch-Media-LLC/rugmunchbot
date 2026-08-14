@@ -12,7 +12,7 @@ Usage: /chart <address> [chain]
 from __future__ import annotations
 
 import io
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -26,6 +26,9 @@ from rugmunchbot.config import (
     fmt_pct,
 )
 from rugmunchbot.support.logging import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = get_logger("rmi.chart")
 
@@ -421,10 +424,15 @@ async def cmd_chart(update, ctx) -> None:
         # ported (services/visuals.py is still a scaffold stub — checklist
         # Stage 2). Fails open to the text sparkline until the live visual
         # engine lands. [REVIEW]
+        render_candlestick_chart: Callable[..., Any] | None = None
         try:
-            from rugmunchbot.services.visuals import render_candlestick_chart
+            from rugmunchbot.services.visuals import (
+                render_candlestick_chart as _render_candlestick_chart,
+            )
+
+            render_candlestick_chart = _render_candlestick_chart
         except (ImportError, AttributeError):
-            render_candlestick_chart = None  # type: ignore[assignment]
+            pass
 
         png = (
             render_candlestick_chart(candles, name, symbol, chain, timeframe)

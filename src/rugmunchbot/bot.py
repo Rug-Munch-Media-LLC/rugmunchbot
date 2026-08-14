@@ -121,6 +121,7 @@ from rugmunchbot.handlers.price import cmd_dex, cmd_price
 from rugmunchbot.handlers.report import cmd_report
 from rugmunchbot.handlers.research import cmd_research
 from rugmunchbot.handlers.scanning import (
+    advanced_scan,
     cmd_compare,
     cmd_deepscan,
     cmd_deployer,
@@ -132,7 +133,6 @@ from rugmunchbot.handlers.scanning import (
     cmd_start,
     cmd_ta,
     cmd_wallet,
-    sentinel_scan,
 )
 from rugmunchbot.handlers.sentiment import cmd_sentiment
 from rugmunchbot.handlers.trace import cmd_trace, register_trace_commands
@@ -370,7 +370,7 @@ def main() -> None:
     # PTB 21+ drops the `transport` kwarg in favor of `httpx_kwargs`.
     # S104: binding the outbound source to 0.0.0.0 (all IPv4) is intentional —
     # it forces IPv4 and avoids the broken IPv6 route.
-    transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0")  # noqa: S104
+    transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0")  # noqa: S104  # nosec B104
     request = HTTPXRequest(httpx_kwargs={"transport": transport})
 
     app = Application.builder().token(BOT_TOKEN).request(request).build()
@@ -383,7 +383,7 @@ def main() -> None:
     _reg(app, "dex", cmd_dex)
     _reg(app, "scan", cmd_scan)
     _reg(app, "deepscan", cmd_deepscan)
-    _reg(app, "sentinelscan", sentinel_scan)
+    _reg(app, "advancedscan", advanced_scan)
     _reg(app, "deployer", cmd_deployer)
     _reg(app, "hype", cmd_hype)
     _reg(app, "wallet", cmd_wallet)

@@ -12,12 +12,15 @@ Usage: /rugmap <address> [chain]
 from __future__ import annotations
 
 import io
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
 from rugmunchbot.config import BACKEND_URL, DEXSCREENER, WEBSITE_URL, backend_headers
 from rugmunchbot.support.logging import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = get_logger("rmi.rugmap")
 
@@ -313,10 +316,13 @@ async def cmd_rugmap(update, ctx) -> None:
         # TODO(port): services/visuals.render_cluster_map is NOT yet ported
         # (services/visuals.py is still a scaffold stub — checklist Stage 2).
         # Fails open to the ASCII text map until the live visual engine lands. [REVIEW]
+        render_cluster_map: Callable[..., Any] | None = None
         try:
-            from rugmunchbot.services.visuals import render_cluster_map
+            from rugmunchbot.services.visuals import render_cluster_map as _render_cluster_map
+
+            render_cluster_map = _render_cluster_map
         except (ImportError, AttributeError):
-            render_cluster_map = None  # type: ignore[assignment]
+            pass
 
         # Holder stats for the map footer (top_holders entries carry pct).
         total_holders = len(top_holders)

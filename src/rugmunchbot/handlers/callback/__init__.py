@@ -148,7 +148,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         await query.edit_message_text(
             "\U0001f50d <b>Scan</b>\n\n"
             "Security audits across 25+ chains \u2014 Quick Scan, full "
-            "forensic Deep Scan, AEGIS 9-module analysis, rug checks, "
+            "forensic Deep Scan, Advanced 9-module analysis, rug checks, "
             "deployer fingerprint and hype/compare tools.",
             parse_mode=ParseMode.HTML,
             reply_markup=category_scan_kb(),

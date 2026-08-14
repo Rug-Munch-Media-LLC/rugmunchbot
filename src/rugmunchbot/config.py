@@ -18,7 +18,7 @@ Env surface (documented in .env.example):
     BOT_CHANNELS              JSON map of channel IDs, e.g. {"alerts": "-100..."}
     RMI_BACKEND_URL           Optional backend API base URL (default http://localhost:8000)
     RMI_API_KEY               Optional backend API key (X-API-Key header)
-    SENTINEL_URL              Optional deep-scan endpoint (operator's own deployment)
+    ADVANCED_SCAN_URL          Optional deep 9-module scan endpoint (operator's own deployment; renamed from SENTINEL_URL)
     BOT_FREE_SCANS_PER_WEEK   Free-tier weekly scan quota (default 25)
     BOT_FREE_AI_MSGS_PER_WEEK Free-tier weekly AI message quota (default 15)
     BOT_DEX_REF_LINKS         JSON map of DEX referral links (ref codes are operator's own)
@@ -77,7 +77,7 @@ CHANNELS: dict[str, str] = _parse_channels(os.getenv("BOT_CHANNELS", ""))
 # ── Backend (optional, operator-supplied) ───────────────────────────────────
 BACKEND_URL: str = os.getenv("RMI_BACKEND_URL", "http://localhost:8000").rstrip("/")
 API_KEY: str = os.getenv("RMI_API_KEY", "").strip()
-SENTINEL_URL: str = os.getenv("SENTINEL_URL", "").strip()
+ADVANCED_SCAN_URL: str = os.getenv("ADVANCED_SCAN_URL", "").strip()
 
 
 def backend_headers() -> dict[str, str]:

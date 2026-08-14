@@ -299,9 +299,9 @@ async def cmd_admin_user(update: Update, ctx) -> None:
         return
     user = db.get_user_by_id(target)
     if not user:
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             f"\u274c User <code>{target}</code> not found.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        )
         return
     _log(uid, "admin_user_lookup", str(target))
     created = (
@@ -368,9 +368,9 @@ async def cmd_admin_set_tier(update: Update, ctx) -> None:
         await update.message.reply_text(f"Invalid tier. Options: {', '.join(TIERS.keys())}")  # type: ignore[union-attr]  # PTB None-able fields
         return
     if not db.get_user_by_id(target):
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             f"\u274c User <code>{target}</code> not found.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        )
         return
     db.set_user_tier(target, tier, days)
     _log(uid, "admin_set_tier", f"user={target} tier={tier} days={days}")
@@ -399,13 +399,13 @@ async def cmd_admin_ban(update: Update, ctx) -> None:
     ok = db.set_banned(target, True)
     _log(uid, "admin_ban", str(target))
     if ok:
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             f"\U0001f6ab Banned user {target}.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        )
     else:
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             f"\u274c User {target} not found.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        )
 
 
 async def cmd_admin_unban(update: Update, ctx) -> None:
@@ -425,13 +425,13 @@ async def cmd_admin_unban(update: Update, ctx) -> None:
     ok = db.set_banned(target, False)
     _log(uid, "admin_unban", str(target))
     if ok:
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             f"\u2705 Unbanned user {target}.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        )
     else:
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             f"\u274c User {target} not found.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        )
 
 
 async def cmd_admin_logs(update: Update, ctx) -> None:
@@ -442,9 +442,9 @@ async def cmd_admin_logs(update: Update, ctx) -> None:
         return
     logs = db.get_admin_logs(limit=15)
     if not logs:
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "\U0001f4dd No admin actions logged yet.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        )
         return
     lines = ["\U0001f4dd <b>Recent Admin Actions</b>", thin_sep()]
     for entry in logs:
@@ -453,9 +453,9 @@ async def cmd_admin_logs(update: Update, ctx) -> None:
         lines.append(f"\u2022 <code>{ts}</code> <b>{entry.get('action')}</b> {details[:60]}")
     lines.append(thin_sep())
     lines.append(f"<i>Total actions stored: {len(db.get_admin_logs(limit=10000))}</i>")
-    await update.message.reply_text(
+    await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=admin_kb()
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
 
 
 # ── Callback helpers (used by handlers/callback.py) ──

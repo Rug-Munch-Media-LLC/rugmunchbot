@@ -34,5 +34,5 @@ def admin_kb_mark_sent(chat_id: int) -> None:
 
 
 def admin_kb_reset(chat_id: int) -> None:
-    """Forget the sentinel so the next message re-attaches the keyboard."""
+    """Forget the tracked chat so the next message re-attaches the keyboard."""
     _admin_kb_sent.discard(chat_id)

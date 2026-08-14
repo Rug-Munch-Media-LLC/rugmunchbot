@@ -99,13 +99,17 @@ async def cmd_mygroup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
         client = await get_headless_client()
         # Force refresh to get current invite link (no-op adapter returns None)
-        try:
-            info = await client._fetch_group_info(chat_id)
-            invite_link = info.invite_link
-            username = info.username
-        except Exception:
+        if client is None:
             invite_link = None
             username = None
+        else:
+            try:
+                info = await client._fetch_group_info(chat_id)
+                invite_link = info.invite_link
+                username = info.username
+            except Exception:
+                invite_link = None
+                username = None
     except (ImportError, RuntimeError):
         invite_link = None
         username = None

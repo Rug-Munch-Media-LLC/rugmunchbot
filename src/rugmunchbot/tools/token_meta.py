@@ -10,8 +10,8 @@ only when our backend is down or rate-limited:
      served from OUR backend with the shared-secret header. The pair's
      ``info.imageUrl`` is the token logo.
   2. Own backend scanner result cache (``GET /api/v2/scanner/token/full/{chain}/{address}``)
-     — the last SENTINEL unified-scan result (name/symbol/price plus the
-     SENTINEL metadata-fingerprint ``logo_url``, our own engine's image).
+     — the last Advanced unified-scan result (name/symbol/price plus the
+     Advanced metadata-fingerprint ``logo_url``, our own engine's image).
   3. DexScreener direct (``GET /latest/dex/tokens/{address}``) — the ``icon``
      is the pair's ``info.imageUrl``.
   4. CoinGecko (``GET /api/v3/search?query={symbol}``) — ``coins[0].large``.
@@ -37,7 +37,7 @@ logger = get_logger("rmi_bot.tools.token_meta")
 NO_IMAGE_AVAILABLE = "no image available"
 
 # Keys (in priority order) that our own scanner/backends may use for the token
-# logo. Mirrors ``formatters._sentinel._token_image_url`` so both layers agree.
+# logo. Mirrors ``formatters._advanced._token_image_url`` so both layers agree.
 _IMAGE_KEYS = ("image_uri", "image_url", "logo_url", "image")
 
 
@@ -62,16 +62,16 @@ def _nested_image(payload: dict[str, Any]) -> str:
     """Search nested own-data structures for a logo URL.
 
     Order:
-      1. ``sentinel.free.metadata_fingerprint.logo_url`` — our SENTINEL
+      1. ``sentinel.free.metadata_fingerprint.logo_url`` — our Advanced
          metadata-fingerprint engine's own resolved logo (DexScreener
          ``info.imageUrl`` fetched by the scanner itself).
       2. ``data.sentinel.free.metadata_fingerprint.logo_url`` — same field
          under the ``{cached, data}`` wrapper the scanner-data cache uses.
       3. ``data.info.imageUrl`` — a single pair under the databus wrapper.
     """
-    sentinel = payload.get("sentinel")
-    if isinstance(sentinel, dict):
-        free = sentinel.get("free")
+    advanced = payload.get("sentinel")
+    if isinstance(advanced, dict):
+        free = advanced.get("free")
         if isinstance(free, dict):
             mf = free.get("metadata_fingerprint")
             if isinstance(mf, dict) and isinstance(mf.get("logo_url"), str):
@@ -80,9 +80,9 @@ def _nested_image(payload: dict[str, Any]) -> str:
                     return url  # type: ignore[no-any-return]  # httpx/sqlite JSON Any access (ported verbatim)
     data = payload.get("data")
     if isinstance(data, dict):
-        sentinel = data.get("sentinel")
-        if isinstance(sentinel, dict):
-            free = sentinel.get("free")
+        advanced = data.get("sentinel")
+        if isinstance(advanced, dict):
+            free = advanced.get("free")
             if isinstance(free, dict):
                 mf = free.get("metadata_fingerprint")
                 if isinstance(mf, dict) and isinstance(mf.get("logo_url"), str):
@@ -200,7 +200,7 @@ async def _meta_from_backend_databus(address: str, chain: str) -> dict[str, Any]
 
 
 async def _meta_from_backend_scanner(address: str, chain: str) -> dict[str, Any] | None:
-    """Own backend scanner result cache — last SENTINEL scan for this token."""
+    """Own backend scanner result cache — last Advanced scan for this token."""
     body = await backend_json_get(f"/api/v2/scanner/token/full/{chain}/{address}", timeout=6.0)
     if not isinstance(body, dict):
         return None

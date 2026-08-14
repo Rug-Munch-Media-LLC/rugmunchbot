@@ -43,7 +43,7 @@ logger = get_logger("rmi_bot.tools.rag_lookup")
 # ── so the direct lookup and the backend auto-RAG search the same intel).
 # ── scanner_v2 is added when the question mentions a token address.
 KNOWLEDGE_COLLECTIONS: list[str] = [
-    "threat_intel",  # unified scanner + SENTINEL high-risk findings
+    "threat_intel",  # unified scanner + Advanced high-risk findings
     "scam_intel",  # legacy scam intelligence
     "news_v2",  # news articles and market intelligence
     "defi_exploits",  # historical DeFi exploits / protocol hacks

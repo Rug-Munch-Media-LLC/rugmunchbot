@@ -151,9 +151,9 @@ async def cmd_polymarket(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     category = ctx.args[0].lower() if ctx.args else "all"
     if category not in POLYMARKET_CATEGORIES:
         category = "all"
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\U0001f52e <b>Fetching prediction markets...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
     data = await _fetch_prediction(
         "/api/v1/prediction-markets/trending", params={"limit": MARKET_LIMIT, "category": category}
     )

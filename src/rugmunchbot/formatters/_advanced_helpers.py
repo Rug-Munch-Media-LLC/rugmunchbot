@@ -1,6 +1,6 @@
-"""Pure helper functions for SENTINEL / scan-report formatting (Batch 13).
+"""Pure helper functions for Advanced / scan-report formatting (Batch 13).
 
-Extracted from ``formatters/_sentinel.py``: blue-chip allowlist, sentinel
+Extracted from ``formatters/_advanced.py``: blue-chip allowlist, advanced
 module emoji + risk emoji maps, warning decoding, recommendation builder,
 USD amount formatting, and the compact intel lines (bundle / deployer /
 wallet freshness). No bot or keyboard dependencies — only ``config``
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-# --- SENTINEL deep forensic flags (v2 /scan + deep scan) ---
+# --- Advanced deep forensic flags (v2 /scan + deep scan) ---
 
 # Known blue-chip allowlist — imported lazily from the unified scanner
 # scoring module (app/domains/scanner/unified/scoring.py) so the bot never
@@ -38,16 +38,16 @@ def is_bluechip(address: str) -> bool:
     return (address or "").strip().lower() in _bluechip_addresses()
 
 
-def _sentinel_free(sentinel: dict[str, Any] | None) -> dict[str, Any]:
-    """Extract the free-module bucket from a v2 sentinel dict (best-effort)."""
-    if not isinstance(sentinel, dict):
+def _advanced_free(advanced: dict[str, Any] | None) -> dict[str, Any]:
+    """Extract the free-module bucket from a v2 backend scan dict (best-effort)."""
+    if not isinstance(advanced, dict):
         return {}
-    free = sentinel.get("free")
+    free = advanced.get("free")
     return free if isinstance(free, dict) else {}
 
 
 def _module_warnings(free: dict[str, Any], *keys: str) -> list[str]:
-    """Collect warnings across the given sentinel free modules (deduped)."""
+    """Collect warnings across the given advanced free modules (deduped)."""
     seen: list[str] = []
     for key in keys:
         mod = free.get(key)
@@ -59,9 +59,9 @@ def _module_warnings(free: dict[str, Any], *keys: str) -> list[str]:
     return seen
 
 
-# --- SENTINEL deep scan report (from POST /api/v1/x402-tools/sentinel_scan) ---
+# --- Advanced deep scan report (from POST /api/v1/x402-tools/sentinel_scan) ---
 
-SENTINEL_MODULE_EMOJI: dict[str, str] = {
+ADVANCED_SCAN_MODULE_EMOJI: dict[str, str] = {
     "holder_analysis": "\U0001f465",  # 👥
     "liquidity_verification": "\U0001f510",  # 🔐
     "dev_reputation": "\U0001f468\u200d\U0001f4bb",  # 👨‍💻
@@ -98,8 +98,8 @@ def _risk_level_emoji(level: str) -> str:
     return "\U0001f7e2"  # 🟢
 
 
-def _sentinel_recommendations(risk: float, level: str, red_flags: list[Any]) -> list[str]:
-    """Build DYOR recommendations from sentinel risk signals."""
+def _advanced_recommendations(risk: float, level: str, red_flags: list[Any]) -> list[str]:
+    """Build DYOR recommendations from advanced risk signals."""
     lvl = str(level or "").lower()
     recs: list[str] = []
     if risk >= 70 or lvl in ("critical", "high"):
@@ -145,7 +145,7 @@ def _deployer_history_line(r: dict[str, Any]) -> str | None:
 
     Reads ``r["deployer_profile"]`` (own ``deployer_profiles`` engine) which
     carries ``total_tokens_launched`` / ``total_deployments``, ``rugged_pct``
-    (0-1 fraction), and ``avg_lifespan_days``. Falls back to the SENTINEL
+    (0-1 fraction), and ``avg_lifespan_days``. Falls back to the Advanced
     deep-profile ``rug_rate`` (already a percentage) when only that is set.
     """
     dp = r.get("deployer_profile")
@@ -196,8 +196,8 @@ def _wallet_freshness_line(r: dict[str, Any]) -> str | None:
     )
 
 
-# ── SENTINEL warning code → human-readable description map ──
-_SENTINEL_CODE_MAP = {
+# ── Advanced warning code → human-readable description map ──
+_ADVANCED_SCAN_CODE_MAP = {
     "CR01": "Critical: Honeypot detected — sells blocked",
     "CR02": "Critical: Trading cooldown active",
     "CR03": "Critical: Hidden mint function",
@@ -226,15 +226,15 @@ _SENTINEL_CODE_MAP = {
 }
 
 
-def _decode_sentinel_warning(w: str) -> str:
-    """Convert a raw sentinel warning (possibly containing codes like CR01) to a human-readable string."""
+def _decode_advanced_warning(w: str) -> str:
+    """Convert a raw advanced warning (possibly containing codes like CR01) to a human-readable string."""
     w_str = str(w).strip()
     # Try to map known codes at the start of the warning
-    for code, desc in _SENTINEL_CODE_MAP.items():
+    for code, desc in _ADVANCED_SCAN_CODE_MAP.items():
         if f"[{code}]" in w_str or w_str.startswith((code, f"{code}:")):
             # If there's additional text after the code, append it
             remainder = w_str.replace(code, "").replace(f"[{code}]", "").replace(":", "").strip()
-            if remainder and not any(remainder.startswith(c) for c in _SENTINEL_CODE_MAP):
+            if remainder and not any(remainder.startswith(c) for c in _ADVANCED_SCAN_CODE_MAP):
                 return f"{desc} — {remainder}"
             return desc
     # No code found — return cleaned-up original

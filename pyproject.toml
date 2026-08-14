@@ -64,7 +64,7 @@ ignore = ["ASYNC109"]
 "src/rugmunchbot/admin_state.py" = ["S110"]
 "src/rugmunchbot/daily_context.py" = ["S110"]
 # Ported renderer nit (ambiguous loop var) — keep behavior identical.
-"src/rugmunchbot/formatters/_sentinel.py" = ["E741"]
+"src/rugmunchbot/formatters/_advanced.py" = ["E741"]
 # Ported handlers carry intentional try/except/contextmanager patterns that
 # pre-exist in the live source — ignore the same way rmi-backend does so CI
 # does not block the ported code.
@@ -83,9 +83,22 @@ exclude = [
     ".git/",
     "__pycache__/",
     ".venv/",
-    "bot/",
+    # Anchored: mypy matches exclude entries as unanchored regexes, so a bare
+    # "bot/" also matches src/rugmunchbot/ (substring "bot/") and would exclude
+    # the entire package. "^bot/" only skips the legacy bot/ tree at the root.
+    "^bot/",
     "tests/stale/",
 ]
+
+# numpy 2.5.x stubs use PEP 695 `type` statements (Python 3.12+ syntax), which
+# mypy cannot parse when python_version = "3.11". numpy is not a declared
+# dependency — it is pulled into the check only via PIL's TYPE_CHECKING import
+# of numpy.typing. Treat numpy as untyped Any rather than failing the whole run.
+# This does not weaken checks on our own code (see follow_imports docs).
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"

@@ -41,13 +41,13 @@ try:  # pragma: no cover — exercised once scanner.py is ported
     from rugmunchbot.scanner import scan_token, scan_token_v2, v2_token_to_legacy
 except ImportError:  # pragma: no cover — scanner.py stub until Stage 3
 
-    async def scan_token(address: str, chain: str) -> dict[str, Any]:
+    async def scan_token(address: str, chain: str | None = None) -> dict[str, Any]:
         raise NotImplementedError("scan engines not ported yet (Stage 3) — see plugins/scanner.py")
 
-    async def scan_token_v2(address: str, chain: str) -> dict[str, Any] | None:
+    async def scan_token_v2(address: str, chain: str | None = None) -> dict[str, Any] | None:
         raise NotImplementedError("scan engines not ported yet (Stage 3) — see plugins/scanner.py")
 
-    def v2_token_to_legacy(v2: dict[str, Any]) -> dict[str, Any]:
+    def v2_token_to_legacy(data: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError("scan engines not ported yet (Stage 3) — see plugins/scanner.py")
 
 

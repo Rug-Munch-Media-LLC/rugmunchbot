@@ -111,9 +111,9 @@ async def cmd_unwatch(update: Update, ctx) -> None:
     if user is None:
         return
     if not ctx.args:
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "Usage: /unwatch <code>address</code>", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        )
         return
     addr = ctx.args[0]
     ok = db.remove_watchlist(user.id, addr)
@@ -122,6 +122,6 @@ async def cmd_unwatch(update: Update, ctx) -> None:
             f"\u2705 Removed <code>{addr}</code> from watchlist.", parse_mode=ParseMode.HTML
         )
     else:
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "\u274c Token not found in your watchlist.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        )

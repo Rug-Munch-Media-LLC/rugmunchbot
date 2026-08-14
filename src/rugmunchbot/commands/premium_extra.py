@@ -9,7 +9,7 @@ config-gated feature flag checked through the operator's BillingProvider
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -29,7 +29,7 @@ async def _backend_get(
                 f"{BACKEND_URL}{path}", headers=backend_headers(), params=params or {}
             )
             if r.status_code == 200:
-                return r.json()
+                return cast("dict[str, Any]", r.json())
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
         logger.debug("backend GET %s failed: %s", path, exc)
     return None
@@ -44,7 +44,7 @@ async def _backend_post(
                 f"{BACKEND_URL}{path}", headers=backend_headers(), json=json or {}
             )
             if r.status_code == 200:
-                return r.json()
+                return cast("dict[str, Any]", r.json())
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
         logger.debug("backend POST %s failed: %s", path, exc)
     return None

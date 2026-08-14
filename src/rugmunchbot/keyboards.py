@@ -66,7 +66,7 @@ def _main_menu_rows(user_id: int | None = None) -> list[list[InlineKeyboardButto
       Help         · Channel
 
     Every registered capability is reachable from one of the sections:
-      Scan          → security audits / deep / SENTINEL / rug checks
+      Scan          → security audits / deep / advanced / rug checks
       Intelligence  → market / trending / movers / launches / whales /
                       news / sentiment / social / research / ask / chat
       Alerts        → price alerts / watchlist / whale alerts / webhooks
@@ -139,7 +139,7 @@ def category_scan_kb() -> InlineKeyboardMarkup:
     """🔍 Scan submenu (v8).
 
     Security audits: Quick Scan (fast) · Deep Scan (full forensic) ·
-    SENTINEL Scan (9-module) · Rug Check · Deployer Check · Hype ·
+    Advanced Scan (9-module) · Rug Check · Deployer Check · Hype ·
     Compare · Investigate (Pro). Wallet/Portfolio/Watchlist/Alerts
     moved to the Wallet group (v8).
     """
@@ -147,7 +147,7 @@ def category_scan_kb() -> InlineKeyboardMarkup:
         [
             _menu_row("\u26a1 Quick Scan (fast)", "run_scan"),
             _menu_row("\U0001f52c Deep Scan (full forensic)", "run_deepscan"),
-            _menu_row("\U0001f6e1\ufe0f AEGIS Scan (9-module)", "run_sentinelscan"),
+            _menu_row("\U0001f6e1\ufe0f Advanced Scan (9-module)", "run_advancedscan"),
             [
                 InlineKeyboardButton("\U0001f6a8 Rug Check", callback_data="run_rugcheck"),
                 InlineKeyboardButton("\U0001f575\ufe0f Deployer", callback_data="run_deployer"),

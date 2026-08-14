@@ -373,7 +373,7 @@ def _build_trending_kb(
     # Chain selector row (2 per row for compact layout)
     chain_list = ["solana", "ethereum", "base", "bsc", "arbitrum"]
     chain_emoji = {"solana": "🟣", "ethereum": "🔵", "base": "🔵", "bsc": "🟡", "arbitrum": "🔵"}
-    chain_row = []
+    chain_row: list[InlineKeyboardButton] = []
     for c in chain_list:
         emoji = chain_emoji.get(c, "⚪")
         label = f"{emoji} {c.capitalize()}"

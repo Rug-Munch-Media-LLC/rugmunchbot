@@ -14,7 +14,7 @@ bridge, checklist §2.2/§5 HARD BLOCKER) is replaced by the shared
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -193,7 +193,7 @@ async def _external_dex_pairs(address: str) -> list[dict[str, Any]]:
         if resp.status_code != 200:
             return []
         data = resp.json()
-        return data.get("pairs", [])
+        return cast("list[dict[str, Any]]", data.get("pairs", []))
 
 
 async def cmd_dex(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

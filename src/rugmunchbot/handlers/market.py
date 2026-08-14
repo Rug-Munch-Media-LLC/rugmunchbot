@@ -381,9 +381,9 @@ async def _build_trending_text(
 async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /trending [chain] — hot tokens from fused multi-source data."""
     chain = _resolve_chain(ctx.args[0]) if ctx.args else "solana"
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "🔥 <b>Fetching trending tokens...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
     text, trending_kb = await render_trending(chain, limit=20, window="24h")
     if text is None or trending_kb is None:
         await msg.edit_text(
@@ -477,9 +477,9 @@ def _change_emoji(change: float) -> str:
 
 async def cmd_market(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /market — global market overview (mcap, volume, dominance, fear/greed, BTC/ETH)."""
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\U0001f4ca <b>Fetching market overview...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
     overview, macro = await asyncio.gather(
         _fetch_market_intel("/api/v1/market/overview"),
         _fetch_market_intel("/api/v1/market/macro"),
@@ -659,9 +659,9 @@ async def cmd_movers(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_launches(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /launches — new token launches from the backend market router."""
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\U0001f195 <b>Fetching new launches...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
     data = await _fetch_market_intel("/api/v1/market/launches", params={"limit": 8})
     items = (data or {}).get("items") or []
     if not items:
@@ -702,9 +702,9 @@ async def cmd_launches(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_whales(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /whales — recent whale moves from the backend market router."""
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\U0001f40b <b>Fetching whale activity...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
     data = await _fetch_market_intel("/api/v1/market/whales", params={"limit": 5})
     items = (data or {}).get("items") or []
     if not items:
@@ -759,9 +759,9 @@ def register_market(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
 
 
 async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\U0001f4f0 <b>Fetching news...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
     articles = []
     source_label = "RMI News Network"
 

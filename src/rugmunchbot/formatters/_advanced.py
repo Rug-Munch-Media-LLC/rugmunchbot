@@ -1,7 +1,7 @@
-"""SENTINEL / scan-report / news formatting blocks for the RugMunch bot.
+"""Advanced / scan-report / news formatting blocks for the RugMunch bot.
 
 Extracted from ``formatters.py`` during the Batch 11 de-godding pass:
-SENTINEL flag rendering, deep-forensic scan report, own-data intel helpers,
+Advanced flag rendering, deep-forensic scan report, own-data intel helpers,
 the main ``/scan`` report and the news cards. ``formatters.py`` re-exports
 every public name.
 """
@@ -43,45 +43,46 @@ with contextlib.suppress(
         risk_verdict_text as _risk_verdict_text,  # defensive optional import
     )
 
-from rugmunchbot.formatters._sentinel_helpers import (  # noqa: E402  # optional imports above are intentional
-    _SENTINEL_CODE_MAP,  # noqa: F401  # re-exported for formatters/__init__
-    SENTINEL_MODULE_EMOJI,
+from rugmunchbot.formatters._advanced_helpers import (  # noqa: E402  # optional imports above are intentional
+    _ADVANCED_SCAN_CODE_MAP,  # noqa: F401  # re-exported for formatters/__init__
+    ADVANCED_SCAN_MODULE_EMOJI,
+    _advanced_free,
+    _advanced_recommendations,
     _bluechip_addresses,  # noqa: F401  # re-exported for formatters/__init__
     _bundle_alert_line,
-    _decode_sentinel_warning,
+    _decode_advanced_warning,
     _deployer_history_line,
     _fmt_usd_amount,
     _module_warnings,
     _risk_level_emoji,
-    _sentinel_free,
-    _sentinel_recommendations,
     _wallet_freshness_line,
     is_bluechip,
 )
 
-# --- SENTINEL deep forensic flags (v2 /scan + deep scan) ---
+# --- Advanced deep forensic flags (v2 /scan + deep scan) ---
 
 
-def format_sentinel_flags(r: dict[str, Any]) -> str:
-    """Render SENTINEL free-tier flags for the /scan report.
+def format_advanced_flags(r: dict[str, Any]) -> str:
+    """Render Advanced free-tier flags for the /scan report.
 
-    Reads the v2 scanner's ``sentinel`` dict (free/premium module buckets).
+    Reads the v2 scanner's ``sentinel`` dict (free/premium module buckets;
+    backend-contract field name — still ``sentinel`` until rmi-backend renames).
     Blue-chip tokens (WETH, WBTC, ...) legitimately trigger concentration /
     low-lock signals — those warnings are suppressed and replaced by a single
     green confirmation line. Returns "" when the v2 response carried no
-    sentinel data.
+    advanced-scan data.
     """
-    sentinel = r.get("sentinel")
-    if not isinstance(sentinel, dict):
+    advanced = r.get("sentinel")
+    if not isinstance(advanced, dict):
         return ""
     d = thin_sep()
     if is_bluechip(r.get("address", "")):
         return (
-            "\n\U0001f6e1\ufe0f <b>AEGIS</b>\n"
+            "\n\U0001f6e1\ufe0f <b>Advanced</b>\n"
             f"{d}\n"
             "  \u2705 <b>Known blue-chip</b> \u2014 concentration & lock signals suppressed"
         )
-    free = _sentinel_free(sentinel)
+    free = _advanced_free(advanced)
     flags: list[str] = []
     if free:
         # Holder HHI concentration
@@ -141,23 +142,25 @@ def format_sentinel_flags(r: dict[str, Any]) -> str:
                 break
             flags.append(f"\u26a0\ufe0f {w[:100]}")
     if not flags:
-        flags.append("\u2705 No AEGIS red flags")
-    lines = ["", "\U0001f6e1\ufe0f <b>AEGIS</b>", d]
+        flags.append("\u2705 No advanced red flags")
+    lines = ["", "\U0001f6e1\ufe0f <b>Advanced</b>", d]
     lines.extend(f"  {f}" for f in flags)
     return "\n".join(lines)
 
 
-# --- SENTINEL deep scan report (from POST /api/v1/x402-tools/sentinel_scan) ---
+# --- Advanced deep scan report (from POST /api/v1/x402-tools/sentinel_scan) ---
 
 
-def format_sentinel_deepscan_section(data: dict[str, Any]) -> str:
-    """Render the SENTINEL deep-forensic section.
+def format_advanced_deepscan_section(data: dict[str, Any]) -> str:
+    """Render the Advanced deep-forensic section.
 
     Consumes the raw response from ``POST /api/v1/x402-tools/sentinel_scan``
-    (SentinelReport serialized): composite risk score, per-module risk
-    breakdown, red flags, and per-module detail (holder HHI, LP lock,
-    contract authority, deployer reputation). Used by /deepscan (appended to
-    the base v2 scan report) and /sentinelscan (standalone).
+    (the backend endpoint path is still ``sentinel_scan`` until the
+    rmi-backend rename lands — SentinelReport serialized): composite risk
+    score, per-module risk breakdown, red flags, and per-module detail
+    (holder HHI, LP lock, contract authority, deployer reputation). Used by
+    /deepscan (appended to the base v2 scan report) and /advancedscan
+    (standalone).
     """
     s = sep()
     d = thin_sep()
@@ -176,7 +179,7 @@ def format_sentinel_deepscan_section(data: dict[str, Any]) -> str:
     authority = data.get("contract_authority") or {}
 
     lines: list[str] = [
-        "\U0001f6e1\ufe0f <b>AEGIS DEEP FORENSIC SCAN</b>",
+        "\U0001f6e1\ufe0f <b>Advanced Deep Forensic Scan</b>",
         s,
     ]
     if address:
@@ -222,7 +225,7 @@ def format_sentinel_deepscan_section(data: dict[str, Any]) -> str:
                 mscore = float(score or 0)
             except (TypeError, ValueError):
                 mscore = 0.0
-            memoji = SENTINEL_MODULE_EMOJI.get(mod, "\U0001f539")  # 🔹
+            memoji = ADVANCED_SCAN_MODULE_EMOJI.get(mod, "\U0001f539")  # 🔹
             filled = max(0, min(10, int(mscore / 10)))
             mbar = "\u2b1b" * filled + "\u2b1c" * (10 - filled)
             lines.append(f"  {memoji} {mod.replace('_', ' ').title()}: {mscore:.0f}/100")
@@ -360,11 +363,11 @@ def format_sentinel_deepscan_section(data: dict[str, Any]) -> str:
     # ── Recommendations ──
     lines.append("\U0001f4a1 <b>Recommendations</b>")
     lines.append(d)
-    lines.extend(f"  {rec}" for rec in _sentinel_recommendations(risk, level, red_flags))
+    lines.extend(f"  {rec}" for rec in _advanced_recommendations(risk, level, red_flags))
     lines.append("")
     lines.append(
         "\u26a0\ufe0f <i>Composite risk is 0-100 (higher = riskier). "
-        "AEGIS data is forensic evidence \u2014 always DYOR.</i>"
+        "Advanced data is forensic evidence \u2014 always DYOR.</i>"
     )
     _addr = data.get("address", data.get("token", ""))
     _chain = data.get("chain", "solana")
@@ -372,9 +375,9 @@ def format_sentinel_deepscan_section(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def format_sentinel_scan_report(data: dict[str, Any]) -> str:
-    """Standalone /sentinelscan report — SENTINEL deep scan only."""
-    return format_sentinel_deepscan_section(data)
+def format_advanced_scan_report(data: dict[str, Any]) -> str:
+    """Standalone /advancedscan report — Advanced deep scan only."""
+    return format_advanced_deepscan_section(data)
 
 
 # --- Scan-report intel helpers (own-data engines) ---
@@ -582,7 +585,7 @@ def format_wallet_composition_section(
     )
 
 
-# ── SENTINEL warning code → human-readable description map ──
+# ── Advanced warning code → human-readable description map ──
 # --- Format scan report (professional redesign) ---
 def _short_addr(addr: str) -> str:
     """Compact ``0xAb12...34cd`` form for long wallet addresses."""
@@ -766,7 +769,7 @@ def _token_description(r: dict[str, Any]) -> str:
     """Best-effort token description from a scan result (fail-open).
 
     Prefers the top-level ``description`` key (populated by the scanner
-    when available) and falls back to the SENTINEL metadata-fingerprint
+    when available) and falls back to the Advanced metadata-fingerprint
     module's ``description_snippet`` (Pump.fun / DexScreener description,
     metadata_fingerprint.py).
     """
@@ -884,11 +887,11 @@ def format_scan_report(r: dict[str, Any]) -> str:
         ]
     )
 
-    # ── 4. SENTINEL Forensics ──
-    sentinel_flags = _format_sentinel_pro(r)
-    if sentinel_flags:
-        lines.extend(["", "\U0001f6e1\ufe0f <b>AEGIS Forensics</b>", d])
-        lines.extend(sentinel_flags)
+    # ── 4. Advanced Forensics ──
+    advanced_flags = _format_advanced_pro(r)
+    if advanced_flags:
+        lines.extend(["", "\U0001f6e1\ufe0f <b>Advanced Forensics</b>", d])
+        lines.extend(advanced_flags)
 
     # ── 5. Top Holders ──
     if r.get("top_holders"):
@@ -981,15 +984,15 @@ def format_scan_report(r: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _format_sentinel_pro(r: dict[str, Any]) -> list[str]:
-    """Professional sentinel flag rendering with decoded warning codes."""
-    sentinel = r.get("sentinel")
-    if not isinstance(sentinel, dict):
+def _format_advanced_pro(r: dict[str, Any]) -> list[str]:
+    """Professional advanced flag rendering with decoded warning codes."""
+    advanced = r.get("sentinel")
+    if not isinstance(advanced, dict):
         return []
     if is_bluechip(r.get("address", "")):
         return ["  \u2705 <b>Known blue-chip</b> — concentration & lock signals suppressed"]
 
-    free = _sentinel_free(sentinel)
+    free = _advanced_free(advanced)
     flags: list[str] = []
 
     # Holder concentration
@@ -1056,14 +1059,14 @@ def _format_sentinel_pro(r: dict[str, Any]) -> list[str]:
         "metadata_fingerprint",
         "dev_reputation",
     ):
-        decoded = _decode_sentinel_warning(w)
+        decoded = _decode_advanced_warning(w)
         if decoded and decoded not in flags:
             if len(flags) >= 8:
                 break
             flags.append(f"⚠️ {decoded}")
 
     if not flags:
-        flags.append("✅ No AEGIS red flags")
+        flags.append("✅ No advanced red flags")
 
     return flags
 

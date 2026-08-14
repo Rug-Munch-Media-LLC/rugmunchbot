@@ -14,7 +14,7 @@ Ported from the private monorepo (rmi-backend rugmunchbot) — import-rewritten
 to ``rugmunchbot.*`` per docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md §2.3.
 Unresolvable seams (scanner engines, _help_text, _engagement, onboarding) are
 marked ``# TODO(port)`` + ``[REVIEW]`` — they land in later extraction stages.
-The SENTINEL private payment-gate endpoint reference is scrubbed per §6.13
+The Advanced private payment-gate endpoint reference is scrubbed per §6.13
 (operator-supplied scan provider instead). [REVIEW]
 """
 
@@ -45,8 +45,8 @@ from rugmunchbot.formatters import (
     detect_chain,
     faq_text,
     footer_links,
+    format_advanced_deepscan_section,
     format_scan_report,
-    format_sentinel_deepscan_section,
     format_wallet_composition_section,
     format_wallet_report,
     is_evm,
@@ -58,8 +58,8 @@ from rugmunchbot.formatters import (
     web_scan_button,
     welcome_card_text,
 )
+from rugmunchbot.formatters._advanced import _token_image_url
 from rugmunchbot.formatters._base import dex_button_rows
-from rugmunchbot.formatters._sentinel import _token_image_url
 from rugmunchbot.handlers._engagement import (  # TODO(port): handlers/_engagement.py is NOT yet in the OSS scaffold — needs the rotating-CTA + channel-shill helpers ported (checklist §2.1; live file is pure helpers) [REVIEW]
     channels_menu_text,
     rotating_cta_for,
@@ -99,13 +99,13 @@ from rugmunchbot.keyboards import (
     welcome_menu_kb,
 )
 from rugmunchbot.scanner import (  # TODO(port): rugmunchbot/scanner.py is still a scaffold stub — scan engines (gmgn/scan_memory coupling) land in Stage 3 via ScanProvider; scanning.py import hard-fails until then (checklist §5, [REVIEW] #2) [REVIEW]
+    advanced_scan as fetch_advanced_scan,
     analyze_wallet,
     analyze_wallet_v2,
     fetch_deployer_fingerprint,
     fetch_hype_score,
     scan_token,
     scan_token_v2,
-    sentinel_scan as fetch_sentinel_scan,
     v2_token_to_legacy,
     v2_wallet_to_legacy,
 )
@@ -140,7 +140,7 @@ async def _maybe_send_token_image(msg: Any, result: dict[str, Any]) -> None:
     """Send the token image as a photo reply when the scan has one.
 
     Reads ``image_uri`` / ``image_url`` / ``logo_url`` off the scan result
-    (see ``formatters._sentinel._token_image_url``). Fail-open: no image URL
+    (see ``formatters._advanced._token_image_url``). Fail-open: no image URL
     → text-only reply, no crash; a dead image host / Telegram error is
     logged and swallowed so the scan reply is never lost.
     """
@@ -216,9 +216,9 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # Daily hook: one-tap "what's hot right now" + market pulse for
         # returning users — instant value, zero new callback handlers.
         kb = merge_menu_kb(kb, daily_hook_kb())
-        await update.message.reply_text(
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             text, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        )
 
     # v7: attach the persistent admin reply keyboard for the owner in DMs so
     # admin commands stay one tap away on every message.
@@ -378,7 +378,7 @@ async def _poll_v2_scan_completion(
     """Poll the v2 scan status endpoint until background phases complete.
 
     The v2 scan API returns within ~25s while deep phases (wallet metrics,
-    SENTINEL, news) continue in a background task. /deepscan waits a little
+    Advanced, news) continue in a background task. /deepscan waits a little
     longer so the wallet-composition section has real data. Returns the
     completed status payload (legacy serializer shape), or None on
     timeout/failure — the caller then renders whatever the fast path had.
@@ -591,18 +591,18 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
-async def sentinel_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """SENTINEL deep forensic scan — operator-supplied scan provider.
+async def advanced_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Advanced deep forensic scan — operator-supplied scan provider.
 
-    Standalone command for the 9-module SENTINEL pipeline (holder HHI, LP
+    Standalone command for the 9-module Advanced pipeline (holder HHI, LP
     lock, dev reputation, contract authority, proxy, bundle, wash trading,
     honeypot). Slower than /deepscan but runs every forensic module and
-    renders via format_sentinel_deepscan_section.
+    renders via format_advanced_deepscan_section.
 
     [REVIEW] The live docstring referenced the private payment-gate endpoint
     (checklist §6.13) — the OSS build talks to
-    ``rugmunchbot.scanner.sentinel_scan`` (operator-supplied
-    ``SENTINEL_URL`` deployment) instead.
+    ``rugmunchbot.scanner.advanced_scan`` (operator-supplied
+    ``ADVANCED_SCAN_URL`` deployment) instead.
     """
     user = update.effective_user
     if user is None or update.message is None:
@@ -612,8 +612,8 @@ async def sentinel_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     if not ctx.args:
         await update.message.reply_text(
-            "\U0001f52c <b>AEGIS Deep Scan</b>\n\n"
-            "Usage: /sentinelscan <code>address</code> [chain]\n\n"
+            "\U0001f52c <b>Advanced Deep Scan</b>\n\n"
+            "Usage: /advancedscan <code>address</code> [chain]\n\n"
             "Runs the full 9-module forensic pipeline:\n"
             "\u2460 Holder HHI & concentration\n"
             "\u2461 LP lock & liquidity verification\n"
@@ -639,20 +639,20 @@ async def sentinel_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
     msg = await update.message.reply_text(
-        "\U0001f52c <b>AEGIS scanning...</b>\n\n\U0001f4aa Running all 9 forensic modules \u2014 this takes a bit.",
+        "\U0001f52c <b>Advanced scanning...</b>\n\n\U0001f4aa Running all 9 forensic modules \u2014 this takes a bit.",
         parse_mode=ParseMode.HTML,
     )
     try:
-        result = await fetch_sentinel_scan(target, chain)
+        result = await fetch_advanced_scan(target, chain)
         if not result:
             await msg.edit_text(
-                "\u274c <b>AEGIS scan failed</b>\n\nCould not reach the forensic pipeline. Please try again shortly.",
+                "\u274c <b>Advanced scan failed</b>\n\nCould not reach the forensic pipeline. Please try again shortly.",
                 parse_mode=ParseMode.HTML,
                 reply_markup=back_kb(),
             )
             return
         db.increment_usage(user.id, scan=True)
-        report = format_sentinel_deepscan_section(result)
+        report = format_advanced_deepscan_section(result)
         report += f"\n\n{footer_links()}"
         await msg.edit_text(
             report,
@@ -661,10 +661,10 @@ async def sentinel_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             disable_web_page_preview=True,
         )
     except (httpx.HTTPError, ConnectionError, TimeoutError, ValueError, KeyError, TypeError) as e:
-        logger.debug("sentinel_scan_error", exc_info=True)
-        logger.error(f"SENTINEL scan error: {e}")
+        logger.debug("advanced_scan_error", exc_info=True)
+        logger.error(f"Advanced scan error: {e}")
         await msg.edit_text(
-            f"\u274c <b>AEGIS Scan Failed</b>\n\nError: {str(e)[:200]}\n\nPlease check the address and try again.",
+            f"\u274c <b>Advanced Scan Failed</b>\n\nError: {str(e)[:200]}\n\nPlease check the address and try again.",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -798,9 +798,9 @@ async def cmd_ta(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             return
     target = ctx.args[0]
     explicit_chain = ctx.args[1] if len(ctx.args) > 1 else None
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\U0001f4ca <b>Running Technical Analysis...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             r = await client.get(f"{DEXSCREENER}/tokens/{target}")
@@ -936,9 +936,9 @@ async def cmd_compare(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 reply_markup=upgrade_nudge_kb(tier),
             )
             return
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\u2696\ufe0f <b>Comparing tokens...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
     try:
         v2_1, v2_2 = await asyncio.gather(
             scan_token_v2((ctx.args or [])[0]), scan_token_v2((ctx.args or [])[1])
@@ -1047,9 +1047,9 @@ async def cmd_quick(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                     return
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
         logger.warning(f"cmd_quick DexScreener lookup failed for symbol {symbol}: {e}")
-    await update.message.reply_text(
+    await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         f"\u274c Could not find token: <b>{symbol}</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
 
 
 # ── /deployer — quick deployer fingerprint check ──
@@ -1212,9 +1212,9 @@ async def cmd_hype(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
     target = ctx.args[0]
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\U0001f525 <b>Measuring hype...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
     try:
         # Resolve address: if it looks like a symbol, search DexScreener
         address = target

@@ -210,9 +210,9 @@ async def cmd_sentiment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
 
-    msg = await update.message.reply_text(
+    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         "\U0001f4c8 <b>Analyzing market sentiment...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    )
 
     try:
         overview = await _fetch_market_overview()

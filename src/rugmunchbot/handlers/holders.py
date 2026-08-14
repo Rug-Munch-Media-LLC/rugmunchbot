@@ -14,7 +14,7 @@ tier names + feature descriptions kept, dollar amounts removed. [REVIEW]
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 from telegram.constants import ParseMode
@@ -172,7 +172,7 @@ async def cmd_holders(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 dex_resp = await client.get(f"{DEXSCREENER}/tokens/{address}")
                 if dex_resp.status_code != 200:
                     return []
-                return dex_resp.json().get("pairs", [])
+                return cast("list[dict[str, Any]]", dex_resp.json().get("pairs", []))
 
         dex_pairs = await resolve_with_fallback(
             f"holder_token_info:{address[:10]}",

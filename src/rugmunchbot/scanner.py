@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from rugmunchbot.config import (
+    ADVANCED_SCAN_URL,
     DEXSCREENER,
     GOPLUS,
     HONEYPOT,
-    SENTINEL_URL,
     backend_headers,
 )
 from rugmunchbot.formatters import detect_chain, is_evm, is_sol
@@ -28,11 +28,11 @@ from rugmunchbot.tools.registry import backend_json_get, backend_json_post
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-# TODO(port): live config defines SOLANAFM_API / SENTINEL_TIMEOUT; the OSS
+# TODO(port): live config defines SOLANAFM_API / ADVANCED_SCAN_TIMEOUT; the OSS
 # config.py rewrite (checklist §3) does not carry them. Both are public
 # no-auth constants — kept module-local so behavior is byte-identical. [REVIEW]
 SOLANAFM_API = "https://api.solana.fm/v0"
-SENTINEL_TIMEOUT = 60.0  # deep forensic scan can take a while (9+ modules)
+ADVANCED_SCAN_TIMEOUT = 60.0  # deep forensic scan can take a while (9+ modules)
 
 
 # TODO(port): live calls app.rag.scan_memory.{schedule_scan_memory_index,
@@ -325,10 +325,10 @@ async def scan_token_v2(address: str, chain: str | None = None) -> dict[str, Any
     return data
 
 
-async def sentinel_scan(address: str, chain: str | None = None) -> dict[str, Any] | None:
-    """SENTINEL deep forensic scan — POST the operator-supplied SENTINEL_URL.
+async def advanced_scan(address: str, chain: str | None = None) -> dict[str, Any] | None:
+    """Advanced deep forensic scan — POST the operator-supplied ADVANCED_SCAN_URL.
 
-    Runs the full 9-module SENTINEL pipeline (holder HHI, LP lock, dev
+    Runs the full 9-module Advanced pipeline (holder HHI, LP lock, dev
     reputation, contract authority, proxy, bundle, wash trading, honeypot,
     etc.) and returns the backend report dict::
 
@@ -347,40 +347,40 @@ async def sentinel_scan(address: str, chain: str | None = None) -> dict[str, Any
         }
 
     Returns None on any failure so callers can degrade gracefully (the
-    sentinel deep scan is an enhancement over the base /scan, never a
+    advanced deep scan is an enhancement over the base /scan, never a
     hard dependency).
 
     TODO(port): the live endpoint was the private payment-gate deep scan
-    (scrub list #13). OSS uses the env-only ``SENTINEL_URL`` (operator's own
-    deployment); unset = disabled. [REVIEW]
+    (scrub list #13). OSS uses the env-only ``ADVANCED_SCAN_URL`` (operator's
+    own deployment); unset = disabled. [REVIEW]
     """
     chain_norm = chain or detect_chain(address)
-    if not SENTINEL_URL:
-        logger.warning("sentinel_scan skipped — SENTINEL_URL not configured for %s", address)
+    if not ADVANCED_SCAN_URL:
+        logger.warning("advanced_scan skipped — ADVANCED_SCAN_URL not configured for %s", address)
         return None
     try:
-        async with httpx.AsyncClient(timeout=SENTINEL_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=ADVANCED_SCAN_TIMEOUT) as client:
             r = await client.post(
-                SENTINEL_URL,
+                ADVANCED_SCAN_URL,
                 json={"address": address, "chain": chain_norm},
                 headers=backend_headers(),
-                timeout=SENTINEL_TIMEOUT,
+                timeout=ADVANCED_SCAN_TIMEOUT,
             )
             if r.status_code != 200:
-                logger.warning("sentinel_scan status %s for %s", r.status_code, address)
+                logger.warning("advanced_scan status %s for %s", r.status_code, address)
                 return None
             data = r.json()
             if not isinstance(data, dict):
-                logger.warning("sentinel_scan non-dict response for %s", address)
+                logger.warning("advanced_scan non-dict response for %s", address)
                 return None
             data.setdefault("address", address)
             data.setdefault("chain", chain_norm)
-            data["_source"] = "sentinel"
+            data["_source"] = "advanced"
             # Scan-to-RAG memory (background, fail-open) — see scan_token.
-            schedule_scan_memory_index(data, source="sentinel")
+            schedule_scan_memory_index(data, source="advanced")
             return data
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
-        logger.warning("sentinel_scan failed for %s: %s", address, e)
+        logger.warning("advanced_scan failed for %s: %s", address, e)
         return None
 
 
@@ -553,8 +553,9 @@ def v2_token_to_legacy(data: dict[str, Any]) -> dict[str, Any]:
         # per-file-ignore, OSS keeps the inline noqa equivalent.
         "fresh_wallet_pct": float(funding.get("fresh_wallet_pct") or 0),  # noqa: F601
         "holder_overlap_pct": float(overlap.get("max_overlap_pct") or 0),
-        # v2 SENTINEL phase (free/premium module buckets) — surfaced as
-        # "SENTINEL" flags on /scan (see formatters.format_sentinel_flags).
+        # v2 advanced phase (free/premium module buckets) — surfaced as
+        # advanced flags on /scan (see formatters.format_advanced_flags).
+        # backend contract: response field is still "sentinel" until rmi-backend rename lands
         "sentinel": data.get("sentinel"),
         # v2 news sentiment (RugBrain news_v2)
         "news_sentiment": data.get("news_sentiment"),
