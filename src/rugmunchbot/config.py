@@ -28,12 +28,17 @@ Env surface (documented in .env.example):
     BOT_LLM_MODEL             Local LLM model name
     BOT_LLM_API_KEY           Optional LLM API key (empty = local only)
     BOT_DB_PATH               SQLite database path (default ./data/bot_users.db)
+    BOT_ALERT_CHECK_INTERVAL  Seconds between background price-alert checks (default 300)
+    BOT_DESCRIPTION           Bot profile description (Telegram /setdescription; empty default)
+    BOT_SHORT_DESCRIPTION     Bot short description (Telegram /setshortdescription; empty default)
     LOG_LEVEL                 DEBUG | INFO | WARNING | ERROR (default INFO)
 
 Public API (stable — matches the live module so ported handlers keep working):
 
     BOT_TOKEN, OWNER_IDS, CHANNELS, BACKEND_URL, API_KEY,
     DEX_REF_LINKS, TIERS, RISK_COLORS,
+    ALERT_CHECK_INTERVAL, BOT_DESCRIPTION, BOT_SHORT_DESCRIPTION,
+    check_backend_health,
     fmt_number, fmt_pct, fmt_chain, risk_bar, threat_indicator
 """
 
@@ -78,6 +83,28 @@ SENTINEL_URL: str = os.getenv("SENTINEL_URL", "").strip()
 def backend_headers() -> dict[str, str]:
     """Headers for bot→backend calls. Empty dict when no API key is set."""
     return {"X-API-Key": API_KEY} if API_KEY else {}
+
+
+async def check_backend_health(timeout: float = 3.0) -> bool:
+    """Probe the operator's backend health endpoint.
+
+    Tries ``{BACKEND_URL}/ready`` then ``{BACKEND_URL}/health``; any 2xx
+    response counts as healthy. Fail-open: a missing/erroring backend
+    returns ``False`` (never raises) so bot startup cannot hard-fail on a
+    down or unconfigured operator backend — the bot keeps running with
+    external providers as fallback.
+    """
+    import httpx
+
+    for endpoint in ("/ready", "/health"):
+        try:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                r = await client.get(f"{BACKEND_URL}{endpoint}", headers=backend_headers())
+                if 200 <= r.status_code < 300:
+                    return True
+        except (httpx.HTTPError, ConnectionError, OSError, TimeoutError):
+            continue
+    return False
 
 
 # ── Free tier (quota-only; billing/premium stays private) ───────────────────
@@ -207,6 +234,11 @@ TELEGRAM_CHANNEL: str = os.getenv("BOT_TELEGRAM_CHANNEL", "")
 TELEGRAM_GROUP: str = os.getenv("BOT_TELEGRAM_GROUP", "")
 SUPPORT_EMAIL: str = os.getenv("BOT_SUPPORT_EMAIL", "")
 
+# Bot profile blurbs — env-driven, empty default (Telegram keeps its own
+# placeholder until the operator sets these; see checklist §3).
+BOT_DESCRIPTION: str = os.getenv("BOT_DESCRIPTION", "")
+BOT_SHORT_DESCRIPTION: str = os.getenv("BOT_SHORT_DESCRIPTION", "")
+
 # ── Chain IDs (public EVM chain table, stable) ──────────────────────────────
 CHAIN_IDS: dict[str, int] = {
     "ethereum": 1,
@@ -268,6 +300,9 @@ ALERTS_CHANNEL_INTERVAL_MINUTES: int = _env_int("RMI_CHANNEL_ALERTS_INTERVAL_MIN
 NEWS_CHANNEL_LIMIT: int = _env_int("RMI_CHANNEL_NEWS_LIMIT", 5)
 ALPHA_CHANNEL_LIMIT: int = _env_int("RMI_CHANNEL_ALPHA_LIMIT", 5)
 ALERTS_CHANNEL_LIMIT: int = _env_int("RMI_CHANNEL_ALERTS_LIMIT", 5)
+
+# ── Alert engine cadence (env-driven; used by bot.py's JobQueue) ────────────
+ALERT_CHECK_INTERVAL: int = _env_int("BOT_ALERT_CHECK_INTERVAL", 300)
 
 # ── Billing packs (private in the live bot — OSS ships empty, operator fills) ─
 TOP_UP_PACKS: dict[str, dict[str, Any]] = {}

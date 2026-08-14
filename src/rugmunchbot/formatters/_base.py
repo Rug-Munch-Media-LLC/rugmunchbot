@@ -21,6 +21,7 @@ from rugmunchbot.config import (
     TELEGRAM_CHANNEL,
     TIERS,
     WEB_APP_URL,
+    WEBSITE_URL,
 )
 
 # ── FREE PUBLIC BETA (2026-08) ──────────────────────────────────────────
@@ -461,11 +462,10 @@ def paywall_text(user_id: int, action: str = "scan") -> str:
         f"\U0001f381 <b>Bonus Balance:</b> {bonus} extra\n"
         f"{beta_note}"
         f"\n<b>Unlock more power:</b>\n\n"
-        f"\U0001f50d <b>Scout ($29.99/mo)</b> - 150 scans/wk + bundle detection\n"
-        f"\U0001f3af <b>Hunter ($49.99/mo)</b> - 400 scans/wk + wallet forensics\n"
-        f"\U0001f451 <b>Pro ($99.99/mo)</b> - 1,000 scans/wk + smart money alerts\n\n"
-        f"Or buy one-time top-ups - <b>never expire!</b>\n"
-        f"\U0001f50b 10 scans = \u2b5075 | 50 scans = \u2b50300 | 100 scans = \u2b50500"
+        f"\U0001f50d <b>Scout tier</b> - higher weekly scan quota + bundle detection\n"
+        f"\U0001f3af <b>Hunter tier</b> - wallet forensics + higher AI quota\n"
+        f"\U0001f451 <b>Pro tier</b> - smart money alerts + priority analysis\n\n"
+        f"Quotas are set by your instance operator \u2014 ask how to unlock more."
     )
 
 

@@ -154,6 +154,7 @@ class ToolRegistry:
         self, name: str, handler: ToolHandler, timeout: float, **kwargs: Any
     ) -> ToolResult:
         last: ToolResult | None = None
+        start = time.perf_counter()
         for attempt in range(MAX_RETRIES + 1):
             start = time.perf_counter()
             try:
@@ -266,16 +267,80 @@ async def backend_json_get(
     )
 
 
-async def backend_json_post(
-    path: str, *, json: dict[str, Any] | None = None, timeout: float = 8.0
+async def _backend_request(
+    method: str,
+    path: str,
+    *,
+    json: dict[str, Any] | None = None,
+    timeout: float = 8.0,
+    accept_status: tuple[int, ...] = (200,),
 ) -> dict[str, Any] | None:
-    """POST a backend (own-data) endpoint with the shared-secret header."""
-    from rugmunchbot.config import BACKEND_URL, backend_headers
-    from rugmunchbot.tools._client import http_post_json
+    """Budget-gated httpx request to a backend (own-data) endpoint.
 
-    return await http_post_json(
-        f"{BACKEND_URL}{path}",
-        json=json,
-        headers=backend_headers(),
-        timeout=timeout,
+    Shared implementation for POST/DELETE variants that need a success set
+    beyond ``tools/_client``'s 200-only contract (e.g. 201-created webhook
+    subscriptions). ``accept_status`` lists the HTTP status codes treated
+    as success; any other status — plus network errors and budget misses —
+    returns ``None`` (never raises), matching ``backend_json_get/post``.
+    """
+    import httpx
+
+    from rugmunchbot.config import BACKEND_URL, backend_headers
+    from rugmunchbot.tools.budget import budget, maybe_log_summary, provider_for_url
+
+    url = f"{BACKEND_URL}{path}"
+    bucket = provider_for_url(url, "backend")
+    if not budget.acquire(bucket):
+        logger.debug("tool_api_budget skip provider=%s url=%.100s", bucket, url)
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.request(method, url, json=json, headers=backend_headers())
+            if r.status_code not in accept_status:
+                return None
+            body = r.json()
+            return body if isinstance(body, dict) else None
+    except (httpx.HTTPError, ConnectionError, OSError, TimeoutError, ValueError):
+        return None
+    finally:
+        maybe_log_summary()
+
+
+async def backend_json_post(
+    path: str,
+    *,
+    json: dict[str, Any] | None = None,
+    timeout: float = 8.0,
+    accept_status: tuple[int, ...] = (200,),
+) -> dict[str, Any] | None:
+    """POST a backend (own-data) endpoint with the shared-secret header.
+
+    ``accept_status`` extends the success set beyond the default HTTP 200 —
+    e.g. ``(200, 201)`` so a webhook subscription that answers 201-created
+    counts as success. Additive: the default path is unchanged (delegates
+    to ``tools/_client.http_post_json``).
+    """
+    if accept_status == (200,):
+        from rugmunchbot.config import BACKEND_URL, backend_headers
+        from rugmunchbot.tools._client import http_post_json
+
+        return await http_post_json(
+            f"{BACKEND_URL}{path}",
+            json=json,
+            headers=backend_headers(),
+            timeout=timeout,
+        )
+    return await _backend_request(
+        "POST", path, json=json, timeout=timeout, accept_status=accept_status
     )
+
+
+async def backend_json_delete(path: str, *, timeout: float = 8.0) -> dict[str, Any] | None:
+    """DELETE a backend (own-data) endpoint with the shared-secret header.
+
+    Budget-gated like :func:`backend_json_get` / :func:`backend_json_post`
+    (bucket: ``backend``). Returns the parsed JSON object for an HTTP 200
+    response, else ``None`` (network / HTTP non-200 / budget miss) — never
+    raises.
+    """
+    return await _backend_request("DELETE", path, timeout=timeout)

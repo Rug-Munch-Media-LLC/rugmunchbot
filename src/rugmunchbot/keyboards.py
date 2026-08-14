@@ -555,15 +555,21 @@ def scan_result_kb(address: str, chain: str) -> InlineKeyboardMarkup:
 def pricing_kb() -> InlineKeyboardMarkup:
     rows = []
     for key in ["scout", "hunter", "pro"]:
-        t = TIERS[key]
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    f"{t['emoji']} {t['name']} - ${t['price_monthly']}/mo",
-                    callback_data=f"sub_{key}",
-                )
-            ]
-        )
+        # OSS config.py ships a single "free" tier (premium tiers are
+        # operator feature flags) — guard the lookup the same way db.py
+        # does so a missing tier never KeyErrors the pricing menu. USD
+        # price is private billing: show it only when the operator's tier
+        # config carries price_monthly, else fall back to the quota.
+        t = TIERS.get(key, TIERS["free"])
+        label = f"{t.get('emoji', '')} {t.get('name', key.capitalize())}".strip()
+        price = t.get("price_monthly")
+        if price is not None:
+            label += f" - ${price}/mo"
+        else:
+            scans = t.get("scans_per_week")
+            if scans:
+                label += f" - {scans} scans/wk"
+        rows.append([InlineKeyboardButton(label, callback_data=f"sub_{key}")])
     rows.append(
         [InlineKeyboardButton("\U0001f310 Compare Plans on Website", url=f"{WEBSITE_URL}/pricing")]
     )

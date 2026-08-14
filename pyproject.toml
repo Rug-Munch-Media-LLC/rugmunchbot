@@ -65,6 +65,11 @@ ignore = ["ASYNC109"]
 "src/rugmunchbot/daily_context.py" = ["S110"]
 # Ported renderer nit (ambiguous loop var) — keep behavior identical.
 "src/rugmunchbot/formatters/_sentinel.py" = ["E741"]
+# Ported handlers carry intentional try/except/contextmanager patterns that
+# pre-exist in the live source — ignore the same way rmi-backend does so CI
+# does not block the ported code.
+"src/rugmunchbot/handlers/scanning.py" = ["S110", "SIM105"]
+"src/rugmunchbot/handlers/webhook.py" = ["B904"]
 
 [tool.mypy]
 python_version = "3.11"
