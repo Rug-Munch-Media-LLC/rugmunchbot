@@ -1,5 +1,10 @@
 # RUGMUNCHBOT-EXTRACTION — Migration Plan
 
+> **Canonical decision (2026-08-14):** the live bot in `rmi-backend/app/domains/telegram/rugmunchbot/`
+> is the **only** canonical source. This repo is the designated future OSS home. The current
+> `bot/app/telegram_bot/` tree is **deprecated** (see `bot/app/telegram_bot/DEPRECATED.md`) and will be
+> archived/removed in Stage 0 — do not fix its defects, extract the live code instead.
+>
 > **Status:** PLANNING (read-only analysis, 2026-08-13) · **Scope:** move the live bot from
 > `rmi-backend/app/domains/telegram/rugmunchbot/` fully into this repo (`rugmunchbot`).
 > **Constraint:** rmi-backend is NOT modified — this plan only documents.

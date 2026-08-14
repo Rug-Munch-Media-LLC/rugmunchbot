@@ -1,15 +1,5 @@
-# ── rugmunchbot Makefile ─────────────────────────────────────────
+# ── rugmunchbot Makefile ─────────────────────────────────────────────
 # Rug Munch Media fleet standard (from fleet-template/Makefile.python.template)
-# Source of truth: https://git.rugmunch.io/RugMunchMedia/rugmunchbot
-#
-# The standalone bot code at bot/app/telegram_bot/ is ACTIVE and TOP TIER.
-# This is the @rugmunchbot Telegram bot — not dead code.
-#
-# Targets:
-#   test        Run tests
-#   lint        Run ruff linter + formatter check
-#   typecheck   Run mypy type checking
-#   clean       Remove build artifacts
 
 SHELL := /bin/bash
 
@@ -22,11 +12,11 @@ test: ## Run tests
 	python -m pytest tests/ -v 2>&1
 
 lint: ## Run ruff linter + formatter check
-	ruff check .
-	ruff format --check .
+	ruff check src/ tests/
+	ruff format --check src/ tests/
 
 typecheck: ## Run mypy type checking
-	mypy bot/app/telegram_bot/ tests/
+	mypy src/rugmunchbot/ tests/
 
 clean: ## Remove build artifacts
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

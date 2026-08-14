@@ -1,21 +1,118 @@
-# rugmunchbot (archived)
+[//]: # (SPDX-License-Identifier: MIT)
+[//]: # (Copyright (c) 2026 Rug Munch Media LLC)
 
-> **⚠️ This bot is now embedded in rmi-backend.**
->
-> The live bot runs from `rmi-backend/app/domains/telegram/rugmunchbot/` via systemd
-> (`/etc/systemd/system/rugmunchbot.service`).
->
-> The standalone code at `bot/app/telegram_bot/` has been **archived** to
-> `bot/app/telegram_bot/_ARCHIVED/`. See `ARCHIVED.md` for details.
+# RugMunchBot
 
-## What remains
+Self-hostable Telegram bot for crypto intelligence: token scanning, wallet
+forensics, market data, and AI-powered risk analysis. Free tier included —
+premium/billing is an operator opt-in.
 
-- **`tests/`** — test fixtures and smoke tests (valuable for backward compatibility)
-- **`ARCHIVED.md`** — full archive documentation
-- **`bot/app/telegram_bot/_ARCHIVED/`** — the original standalone source, preserved for reference
+> **Status: extraction in progress.** This repo is the public home of the
+> RugMunchBot codebase. The live production bot currently runs from a private
+> monorepo; the extraction plan and checklist live in
+> [`docs/RUGMUNCHBOT-EXTRACTION.md`](docs/RUGMUNCHBOT-EXTRACTION.md) and
+> [`docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md`](docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md).
+> The `src/` tree is a **scaffold** — see [MIGRATION.md](MIGRATION.md).
 
-## Running tests
+## Features
+
+- 🔍 **Token scanning** — honeypot, rug-pull, bundle, wash-trade, and
+  fresh-wallet detection across 25+ chains (public APIs: DexScreener,
+  GoPlus, Honeypot.is)
+- 👛 **Wallet forensics** — P&L, counterparty analysis, dev wallet history
+- 📊 **Market intelligence** — prices, trending, news, technical analysis
+- 🤖 **AI chat** — free-text questions grounded in live data, with a local
+  LLM fallback (no cloud dependency required)
+- 🚨 **Alerts & watchlists** — real-time price and scam alerts
+- 🛡️ **Anti-abuse** — flood control, secret-extraction heuristics,
+  rate-limited owner alerting
+
+## Quickstart (self-host)
+
+### 1. Install
+
+```bash
+git clone <this-repo-url> && cd rugmunchbot
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+### 2. Configure
+
+```bash
+cp .env.example .env
+# Minimum for a running bot:
+export TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."   # from @BotFather
+```
+
+All configuration is environment-driven. Nothing is hardcoded — tokens,
+channel IDs, owner IDs, referral codes, and quotas come from env vars (see
+[`.env.example`](.env.example) and `src/rugmunchbot/config.py`).
+
+### 3. Run
+
+```bash
+python -m rugmunchbot
+```
+
+The bot creates its SQLite database (`data/bot_users.db` by default) on
+first run.
+
+### 4. Optional backends
+
+| Backend | Env | Default |
+|---|---|---|
+| Local LLM (chat fallback) | `BOT_LLM_API_BASE`, `BOT_LLM_MODEL` | off (chat disabled) |
+| Birdeye price API | `BIRDEYE_API_KEY` | off (CoinGecko/DexScreener used) |
+| SearXNG meta-search | `SEARXNG_URL` | `http://127.0.0.1:8889` |
+| Operator scanner backend | `RMI_BACKEND_URL`, `RMI_API_KEY` | off (public APIs used) |
+| Redis flood-control cache | `REDIS_URL`/`REDIS_HOST`/`REDIS_PORT` | off (SQLite fallback) |
+
+## Architecture
+
+```
+src/rugmunchbot/
+├── bot.py            Application build + entry (main)
+├── config.py         Env-driven configuration (no secrets)
+├── db.py             SQLite persistence (users, quota, ref codes)
+├── scanner.py        Scan orchestration (ScanProvider protocol)
+├── handlers/         Command & message handlers (28 modules)
+├── commands/         Slash-command implementations
+├── tools/            Live-data tool registry (21 tools)
+├── formatters/       Report/text/keyboard builders
+├── services/         Chart/image generation (Pillow)
+├── support/          Self-contained logging shim
+└── plugins/          Provider protocols: Billing, Scan, Data, LLM
+```
+
+Provider seams (`plugins/`) are the extension points: bring your own
+scanner backend, billing, LLM router, or data provider without forking the
+bot.
+
+## Security & privacy
+
+- **No secrets in the repo.** Everything comes from the environment.
+- **No user data is collected by the project.** The SQLite DB is local to
+  your deployment.
+- Telegram Stars / premium billing is **not** part of this OSS build — it is
+  a `BillingProvider` you can implement yourself.
+
+## Tests
 
 ```bash
 make test
 ```
+
+> Note: the repo's existing `tests/` currently exercise a **stale, deprecated**
+> codebase tree and are scheduled for replacement (extraction Stage 4). The
+> live bot's test suite (~49 files) is being ported.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+Conventional commits required; lint via `make lint`; types via
+`make typecheck`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

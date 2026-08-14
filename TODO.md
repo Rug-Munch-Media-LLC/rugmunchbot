@@ -3,9 +3,9 @@
 
 ## 🔴 BLOCKING
 
-- [ ] **CRITICAL: Fix 3 broken backend API calls** — `scanner.py:241`: `/api/v1/databus/wallet/{address}` → 404 (only `/wallet/{address}/tokens` + `/pnl` exist). `trace.py:134`: `/api/v1/databus/cross_chain/{address}` → 404 (real route: `/bitquery/cross-chain/`). `webhook.py:236`: `/api/v1/scanner/webhooks/register` → 404 (real route: `POST /api/v1/scanner/webhooks`). Wallet forensics, cross-chain tracing, and webhook registration silently fail.
-- [ ] **CRITICAL: Fix `telegram.error.TelegramError` NameError** — `payments.py:150` and `message.py:116`: catch `telegram.error.TelegramError` but `telegram` is never imported as a module name (only `from telegram import ...`). Any exception in these paths raises NameError in except block.
-- [ ] **CRITICAL: Fix `cmd_ta` NameError** — `scanning.py:325`: references `target` but variable is `ctx.args[0]`, never assigned to `target`. NameError on every `/ta` call.
+- [ ] **CRITICAL: Fix 3 broken backend API calls** — `scanner.py:241`: `/api/v1/databus/wallet/{address}` → 404 **[SUPERSEDED: these files are dead standalone code — fixed correctly in the canonical live copy; see DEPRECATED.md]** (only `/wallet/{address}/tokens` + `/pnl` exist). `trace.py:134`: `/api/v1/databus/cross_chain/{address}` → 404 (real route: `/bitquery/cross-chain/`). `webhook.py:236`: `/api/v1/scanner/webhooks/register` → 404 (real route: `POST /api/v1/scanner/webhooks`). Wallet forensics, cross-chain tracing, and webhook registration silently fail.
+- [ ] **CRITICAL: Fix `telegram.error.TelegramError` NameError** **[SUPERSEDED: dead standalone code — canonical copy unaffected; see DEPRECATED.md]** — `payments.py:150` and `message.py:116`: catch `telegram.error.TelegramError` but `telegram` is never imported as a module name (only `from telegram import ...`). Any exception in these paths raises NameError in except block.
+- [ ] **CRITICAL: Fix `cmd_ta` NameError** **[SUPERSEDED: dead standalone code — canonical copy unaffected; see DEPRECATED.md]** — `scanning.py:325`: references `target` but variable is `ctx.args[0]`, never assigned to `target`. NameError on every `/ta` call.
 
 ## 🟠 HIGH
 
@@ -22,7 +22,7 @@
 
 ## 🟡 MEDIUM
 
-- [ ] **Decide archive story** — standalone repo says "archived" but ARCHIVED.md says "reversed, TOP TIER". Live bot embedded in rmi-backend. Two codebases, no sync. Pick one, update docs, delete/sync the other.
+- [x] **Decide archive story (2026-08-14)** — canonical = live bot in `rmi-backend/app/domains/telegram/rugmunchbot/`. This repo = future OSS home via `docs/RUGMUNCHBOT-EXTRACTION.md`. Current `bot/app/telegram_bot/` tree = deprecated (see `DEPRECATED.md`). Do NOT fix its defects; it is replaced by the extraction, not retained.
 - [ ] Fix error handler noise — "Something went wrong" for any exception including benign `BadRequest: message is not modified`.
 - [ ] Fix `cmd_quick` and `$TOKEN` lookups bypass rate limits and scan quota.
 - [ ] Fix hardcoded owner ID fallback `7075336557`.
