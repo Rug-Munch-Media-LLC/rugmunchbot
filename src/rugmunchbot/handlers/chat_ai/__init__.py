@@ -118,7 +118,8 @@ from rugmunchbot.handlers.chat_ai._helpers import (
     _is_greeting_or_thanks,
     _is_meaningful_question,
     _is_section_header,
-    _markdown_bold_to_html,
+    _markdown_bold_to_html as _markdown_bold_to_html,
+    _markdown_to_html as _markdown_to_html,
     _split_oversized,
     _tables_to_lists,
     is_degenerate_answer,
@@ -1152,9 +1153,10 @@ async def _send_answer(
          paragraph / section-header boundaries, never mid-sentence, never
          mid-link, and never mid-code-block.
       5. Each part is HTML-escaped (LLM output is not trusted HTML).
-      6. ``_markdown_bold_to_html`` converts the **bold** metrics the persona
-         emits into real ``<b>...</b>`` — safe because the content was
-         already escaped in step 3.
+      6. ``_markdown_to_html`` converts the markdown the persona / tool
+         answers emit — ``**bold**``, `` `code` ``, ``*italic*`` — into real
+         ``<b>...</b>`` / ``<code>...</code>`` / ``<i>...</i>``, safe because
+         the content was already escaped in step 5.
       7. ``send_in_parts`` delivers each part as its own message (keyboard on
          the last part; plain-text degrade on parse rejection).
     A short "⚡ Grounded in N intelligence sources | Rug Munch Bot" footer is
@@ -1170,7 +1172,7 @@ async def _send_answer(
     if not chunks:
         return 0
     escaped = [escape(c) for c in chunks]
-    html = [_markdown_bold_to_html(c) for c in escaped]
+    html = [_markdown_to_html(c) for c in escaped]
     if rag_count > 0:
         if rag_count > 100:
             source_label = "hundreds of intelligence sources"
