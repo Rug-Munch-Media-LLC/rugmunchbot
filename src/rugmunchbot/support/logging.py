@@ -1,13 +1,23 @@
-"""
-RugMunchBot standalone logging shim.
+"""RugMunchBot standalone logging shim.
 
-Self-contained structlog adapter — the SAME module already used by the live
-bot (rmi-backend/app/domains/telegram/rugmunchbot/support/logging.py). It was
-built as the first extraction step: same interface as the private
-``app.core.logging`` (``logger.info("msg", key=value)``, JSON in production,
-coloured console in dev) WITHOUT importing ``app.core``.
+First migration step toward rugmunchbot's own repository: provides a
+``get_logger(name)`` with the same interface as ``rugmunchbot.support.logging``
+(structlog-style bound logger: ``logger.info("msg", key=value)``, JSON
+output in production, coloured console in dev) WITHOUT importing
+``app.core``.
 
-This file is the OSS verbatim copy. Port status: PORTABLE (Stage 1).
+The structlog processor chain mirrors ``rugmunchbot.support.logging.setup_logging``
+so log output is byte-identical.  Configuration is applied lazily on the
+first ``get_logger()`` call *only if* structlog is not already configured
+(e.g. when the backend's lifespan already ran ``setup_logging``) — the
+global structlog config is never clobbered.
+
+Usage::
+
+    from rugmunchbot.support.logging import get_logger
+
+    logger = get_logger(__name__)
+    logger.info("scan_complete", token_count=42, chain="solana")
 """
 
 from __future__ import annotations
@@ -16,89 +26,122 @@ import logging
 import os
 import sys
 import time
-from typing import TYPE_CHECKING, Any, cast
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping, MutableMapping
+from typing import Any, cast
 
 import structlog
 
 __all__ = ["get_logger"]
 
-# ── Log sampler (mirror of the private app.core.logging.LogSampler) ────────
-_SAMPLE_RATES: dict[str, float] = {}
+# ── Log sampler (mirror of rugmunchbot.support.logging.LogSampler) ──────────────
+
+_SAMPLE_RATES: dict[str, float] = {}  # logger name prefix → rate
 
 
 def set_sample_rate(name: str, rate: float) -> None:
-    """Configure structlog sample rate (0.0-1.0) for *name*."""
+    """Configure structlog sample *rate* (0.0 - 1.0) for *name*."""
     _SAMPLE_RATES[name] = max(0.0, min(1.0, rate))
 
 
 def _sample_check(name: str) -> bool:
+    """Return True if this record should pass (not be sampled out)."""
     rate = _SAMPLE_RATES.get(name)
     if rate is None:
+        return True  # not configured = pass through
+    if rate >= 1.0:
         return True
-    return _hash_sample(name) < rate
-
-
-def _hash_sample(name: str) -> float:
-    return (hash(name) & 0xFFFF) / 0xFFFF
+    if rate <= 0.0:
+        return False
+    # Deterministic 1-minute window so bursts don't dominate
+    window = int(time.time()) // 60
+    h = hash(f"{name}:{window}") & 0xFFFF
+    return h < int(rate * 65536)
 
 
 class LogSampler:
-    """Drops events for sampled-out logger names (mirror of app.core)."""
+    """Structlog processor that drops DEBUG entries for sampled loggers."""
 
     def __call__(
         self,
-        _logger: Any,
-        _method_name: str,
-        event_dict: MutableMapping[str, Any],
-    ) -> Mapping[str, Any] | str | bytes | bytearray | tuple[Any, ...]:
-        name = str(event_dict.get("logger", ""))
-        if not _sample_check(name):
-            raise structlog.DropEvent("sampled_out")
+        logger: logging.Logger,
+        method_name: str,
+        event_dict: dict[str, Any],
+    ) -> dict[str, Any]:
+        if method_name == "debug":
+            log_name = logger.name
+            for prefix, _ in _SAMPLE_RATES.items():
+                if log_name.startswith(prefix):
+                    if not _sample_check(log_name):
+                        raise structlog.DropEvent("sampled_out")
+                    break
         return event_dict
 
 
+# ── Setup (mirror of rugmunchbot.support.logging.setup_logging) ─────────────────
+
+_configured = False
+
+
 def setup_logging(level: str = "INFO") -> None:
-    """Configure structlog: JSON for production, console for dev. Idempotent."""
+    """Configure structlog with JSON output for production, console for dev.
+
+    Byte-identical to ``rugmunchbot.support.logging.setup_logging``.  No-op if
+    structlog was already configured (e.g. by the backend lifespan).
+    """
+    global _configured
+    _configured = True
     if structlog.is_configured():
-        return
-    level_name = os.getenv("LOG_LEVEL", level).upper()
-    logging.basicConfig(level=getattr(logging, level_name, logging.INFO))
+        return  # backend already configured with the same chain
+
+    is_prod = level.upper() == "INFO"  # JSON in prod, coloured console in debug
+
+    processors: list[Any] = [
+        # 1. Sampling — drop sampled DEBUG before anything else
+        LogSampler(),
+        structlog.stdlib.filter_by_level,
+        # 2. Enrichment
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        # 3. Context vars (request_id, trace_id, service, …)
+        structlog.contextvars.merge_contextvars,
+        # 4. Exception / stack info
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+    ]
+
+    # 5. Rendering
+    if is_prod:
+        # JSON for production — includes all context vars
+        processors.append(structlog.processors.JSONRenderer())
+    else:
+        # Pretty-print for local dev
+        processors.append(structlog.dev.ConsoleRenderer())
+
     structlog.configure(
-        processors=[
-            structlog.stdlib.filter_by_level,
-            structlog.stdlib.add_logger_name,
-            structlog.stdlib.add_log_level,
-            structlog.stdlib.PositionalArgumentsFormatter(),
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.StackInfoRenderer(),
-            LogSampler(),
-            structlog.processors.JSONRenderer(),
-        ],
-        wrapper_class=structlog.stdlib.BoundLogger,
+        processors=processors,
+        context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
 
-
-def get_logger(name: str | None = None) -> Any:
-    """Return a structlog bound logger (mirror of app.core.logging.get_logger).
-
-    Example::
-
-        logger = get_logger("rmi_bot")
-        logger.info("scan_complete", token_count=42, chain="solana")
-    """
-    if name is None:
-        name = "rugmunchbot"
-    setup_logging()
-    logger: Any = structlog.get_logger(name)
-    # time-based convenience bound fields are applied lazily by processors
-    return logger
+    # Set root logger level
+    logging.basicConfig(
+        format="%(message)s",
+        stream=sys.stdout,
+        level=getattr(logging, level.upper(), logging.INFO),
+    )
 
 
-# Silence unused-import lints for the cast/time imports kept for parity.
-_ = (cast, time, sys)
+def _ensure_configured() -> None:
+    if _configured:
+        return
+    setup_logging(os.getenv("LOG_LEVEL", "INFO"))
+
+
+def get_logger(name: str) -> structlog.stdlib.BoundLogger:
+    """Get a structlog logger for a module (same interface as app.core)."""
+    _ensure_configured()
+    return cast("structlog.stdlib.BoundLogger", structlog.get_logger(name))

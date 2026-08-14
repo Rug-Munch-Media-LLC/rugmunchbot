@@ -198,3 +198,115 @@ def threat_indicator(label: str, found: bool) -> str:
 BOT_LLM_API_BASE: str = os.getenv("BOT_LLM_API_BASE", "").strip()
 BOT_LLM_MODEL: str = os.getenv("BOT_LLM_MODEL", "").strip()
 BOT_LLM_API_KEY: str = os.getenv("BOT_LLM_API_KEY", "").strip()
+
+# ── Branding / operator URLs (env-only, empty defaults) ──────────────────────
+WEBSITE_URL: str = os.getenv("BOT_WEBSITE_URL", "").rstrip("/")
+WEB_APP_URL: str = os.getenv("BOT_WEB_APP_URL", f"{WEBSITE_URL}/scanner" if WEBSITE_URL else "")
+TWITTER_URL: str = os.getenv("BOT_TWITTER_URL", "")
+TELEGRAM_CHANNEL: str = os.getenv("BOT_TELEGRAM_CHANNEL", "")
+TELEGRAM_GROUP: str = os.getenv("BOT_TELEGRAM_GROUP", "")
+SUPPORT_EMAIL: str = os.getenv("BOT_SUPPORT_EMAIL", "")
+
+# ── Chain IDs (public EVM chain table, stable) ──────────────────────────────
+CHAIN_IDS: dict[str, int] = {
+    "ethereum": 1,
+    "bsc": 56,
+    "polygon": 137,
+    "arbitrum": 42161,
+    "avalanche": 43114,
+    "optimism": 10,
+    "base": 8453,
+    "fantom": 250,
+}
+
+# ── External API keys (env-only — never gopass, never files) ────────────────
+BIRDEYE_API_KEY: str = os.getenv("BIRDEYE_API_KEY", "").strip()
+COINGECKO_API_KEY: str = os.getenv("COINGECKO_API_KEY", "").strip()
+
+
+# ── Channel roles → chat id (env JSON; no defaults → broadcast disabled) ────
+def _resolve_channel_id(key: str) -> str | None:
+    """Resolve a channel role (``alerts``/``news``/``alpha``/…) to its chat id.
+
+    Env override per role wins, then ``BOT_CHANNELS`` JSON map, then ``None``
+    (feature disabled). Returns ``None`` when the role is unknown/unset.
+    """
+    direct = os.getenv(f"BOT_CHANNEL_{key.upper()}", "").strip()
+    if direct:
+        return direct
+    return CHANNELS.get(key)
+
+
+# ── Channel job flags + cadence (env-driven; off by default in OSS) ─────────
+def _env_bool(name: str, default: bool = False) -> bool:
+    return os.getenv(name, "true" if default else "false").lower() in ("true", "1", "yes", "on")
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)).strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)).strip())
+    except (TypeError, ValueError):
+        return default
+
+
+CHANNEL_JOBS_ENABLED: bool = _env_bool("RMI_CHANNELS_ENABLED", False)
+NEWS_CHANNEL_ENABLED: bool = _env_bool("RMI_NEWS_CHANNEL_ENABLED", False)
+ALERTS_CHANNEL_ENABLED: bool = _env_bool("RMI_ALERTS_CHANNEL_ENABLED", False)
+ALPHA_CHANNEL_ENABLED: bool = _env_bool("RMI_ALPHA_CHANNEL_ENABLED", False)
+
+NEWS_CHANNEL_INTERVAL_HOURS: float = _env_float("RMI_CHANNEL_NEWS_INTERVAL_HOURS", 4.0)
+ALPHA_CHANNEL_INTERVAL_HOURS: int = _env_int("RMI_CHANNEL_ALPHA_INTERVAL_HOURS", 2)
+ALERTS_CHANNEL_INTERVAL_MINUTES: int = _env_int("RMI_CHANNEL_ALERTS_INTERVAL_MINUTES", 30)
+
+NEWS_CHANNEL_LIMIT: int = _env_int("RMI_CHANNEL_NEWS_LIMIT", 5)
+ALPHA_CHANNEL_LIMIT: int = _env_int("RMI_CHANNEL_ALPHA_LIMIT", 5)
+ALERTS_CHANNEL_LIMIT: int = _env_int("RMI_CHANNEL_ALERTS_LIMIT", 5)
+
+# ── Billing packs (private in the live bot — OSS ships empty, operator fills) ─
+TOP_UP_PACKS: dict[str, dict[str, Any]] = {}
+BUY_STARS_PACKS: dict[str, dict[str, Any]] = {}
+
+# ── Scam-school education topics (public educational content) ───────────────
+SCAM_SCHOOL_TOPICS: dict[str, dict[str, str]] = {
+    "honeypot": {
+        "title": "🍯 Honeypot Tokens",
+        "content": "A honeypot lets you buy but prevents you from selling — the contract only allows whitelisted addresses to sell.\n\n🔍 *How to spot:*\n• Can buy but can't sell\n• Only 1-2 sellers ever\n• Contract has sell restrictions\n• Honeypot.is flags it\n\n🛡️ *Protection:* Always test with a small amount first, and use /scan before buying.",
+    },
+    "rugpull": {
+        "title": "🏃 Rug Pulls",
+        "content": "Developers drain all liquidity, making the token worthless.\n\n🔍 *How to spot:*\n• Unlocked liquidity\n• Unrenounced contract\n• Dev holds >20% supply\n• New wallet, no history\n\n🛡️ *Protection:* Check /scan for LP lock status and dev wallet analysis.",
+    },
+    "bundling": {
+        "title": "📦 Bundle Scams",
+        "content": "Devs fund 10-50 wallets from one source to fake organic activity.\n\n🔍 *How to spot:*\n• Wallets funded from the same CEX/bridge\n• Identical buy amounts\n• Same-timestamp transactions\n\n🛡️ *Protection:* Use /scan bundle detection.",
+    },
+    "wash_trading": {
+        "title": "🔄 Wash Trading",
+        "content": "Artificially inflating volume by trading between own wallets.\n\n🔍 *How to spot:*\n• High volume, low unique traders\n• Same wallets trading back and forth\n• Volume doesn't match market cap\n\n🛡️ *Protection:* /scan checks volume authenticity.",
+    },
+    "fresh_wallets": {
+        "title": "🆕 Fresh Wallet Red Flags",
+        "content": "Most holders being brand-new wallets (<7 days old) often means fake holders.\n\n🔍 *How to spot:*\n• >50% wallets <7 days old\n• Wallets only hold 1 token\n• No history before buying\n\n🛡️ *Protection:* /scan shows wallet age distribution.",
+    },
+}
+
+
+# ── Risk gauge (compact emoji bar) ───────────────────────────────────────────
+def _risk_gauge(score: float) -> str:
+    """Compact emoji risk gauge for scan results."""
+    if score >= 80:
+        return "🔴🔴🔴🔴🔴 EXTREME RISK"
+    if score >= 60:
+        return "🟠🟠🟠🟠⬜ HIGH RISK"
+    if score >= 40:
+        return "🟡🟡🟡⬜⬜ MODERATE"
+    if score >= 20:
+        return "🟢🟢⬜⬜⬜ LOW RISK"
+    return "✅✅✅✅✅ SAFE"

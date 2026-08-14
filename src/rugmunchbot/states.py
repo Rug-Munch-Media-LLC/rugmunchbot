@@ -1,11 +1,123 @@
-"""RugMunchBot — In-memory state: SOL price cache, spam protection, rate limits.
+#!/usr/bin/env python3
+"""
+RugMunchBot — State management (spam protection, rate limits, caches).
 
-SCAFFOLD STUB — not yet ported. Canonical source (private monorepo):
-    rmi-backend/app/domains/telegram/rugmunchbot/states.py
-
-Port per docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md (Stage 2).
-TODO: copy the live implementation, rewrite imports to ``rugmunchbot.*``,
-strip any private constants per the checklist §3 scrub list.
+Keeps all in-memory state in one place for easy visibility.
 """
 
 from __future__ import annotations
+
+import time
+from typing import Any
+
+from cachetools import TTLCache
+
+from rugmunchbot.config import OWNER_IDS
+from rugmunchbot.support.logging import get_logger
+
+logger = get_logger("rmi_bot")
+
+# ══════════════════════════════════════════════
+# SOL PRICE CACHE
+# ══════════════════════════════════════════════
+_sol_price: float = 150.0  # fallback
+_sol_price_ts: float = 0
+
+
+async def get_sol_price() -> float:
+    """Fetch current SOL/USD price from Jupiter API (free, no auth needed)."""
+    global _sol_price, _sol_price_ts
+    import httpx
+
+    now = time.time()
+    if now - _sol_price_ts < 300:  # cache for 5 minutes
+        return _sol_price
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(
+                "https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112"
+            )
+            if r.status_code == 200:
+                data = r.json()
+                price_str = (
+                    data.get("data", {})
+                    .get("So11111111111111111111111111111111111111112", {})
+                    .get("price")
+                )
+                if price_str:
+                    _sol_price = float(price_str)
+                    _sol_price_ts = now
+                    return _sol_price
+            # Jupiter unreachable/blocked from some hosts — CoinGecko fallback
+            r = await client.get(
+                "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
+            )
+            if r.status_code == 200:
+                price = r.json().get("solana", {}).get("usd")
+                if price:
+                    _sol_price = float(price)
+                    _sol_price_ts = now
+    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
+        logger.warning(f"Failed to fetch SOL price: {e}")
+    return _sol_price
+
+
+# ══════════════════════════════════════════════
+# SPAM PROTECTION
+# ══════════════════════════════════════════════
+_user_last_action: TTLCache[int, float] = TTLCache(maxsize=10000, ttl=60)
+SPAM_COOLDOWN = 3
+
+
+def check_spam(user_id: int) -> bool:
+    """Return True if the user is spamming (rate-limited)."""
+    now = time.time()
+    last = _user_last_action.get(user_id, 0)
+    if now - last < SPAM_COOLDOWN and not is_owner(user_id):
+        return True
+    _user_last_action[user_id] = now
+    return False
+
+
+def is_owner(uid: int) -> bool:
+    """Check if a user ID is a bot owner."""
+    return uid in OWNER_IDS
+
+
+# ── LLM general-synthesis cooldown (tier 1b chat) ──
+# Limits ungrounded LLM calls to ~1 per user per 10s so a flood of free-text
+# messages cannot hammer the backend LLM. Grounded RAG+LLM answers (tier 1)
+# are NOT gated here — they are rarer and more valuable.
+_llm_recent: TTLCache[int, bool] = TTLCache(maxsize=10000, ttl=10)
+
+
+def should_skip_llm(user_id: int) -> bool:
+    """Return True if this user called the general LLM within the cooldown.
+
+    Marks the user on first call; the TTL cache expires the mark after 10s.
+    """
+    if is_owner(user_id):
+        return False
+    if user_id in _llm_recent:
+        return True
+    _llm_recent[user_id] = True
+    return False
+
+
+# ── Alert rate limiter (max 1 DM per user per 5 min) ──
+_alert_last_sent: dict[int, float] = {}
+ALERT_RATE_LIMIT_SEC = 300
+
+
+def check_alert_rate_limit(user_id: int) -> bool:
+    """Return True if user can receive another alert (rate-limited to 1 per 5 min)."""
+    now = time.time()
+    last = _alert_last_sent.get(user_id, 0)
+    if now - last < ALERT_RATE_LIMIT_SEC:
+        return False
+    _alert_last_sent[user_id] = now
+    return True
+
+
+# ── Pending deep scan payments (token → details) ──
+_pending_deep_scans: dict[str, dict[str, Any]] = {}

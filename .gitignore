@@ -32,6 +32,11 @@ tmp/
 *.swo
 *~
 
+# ── Runtime state (never commit) ───────────────────────────────
+# Local SQLite state created at runtime — never source-controlled.
+**/data/*.db
+**/data/*.db-*
+
 # ── IDE ────────────────────────────────────────────────────────
 .vscode/
 .idea/

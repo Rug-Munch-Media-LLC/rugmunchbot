@@ -50,9 +50,21 @@ extend-exclude = [
     "tests",        # stale tests of the deprecated tree — replaced by ported live tests in Stage 5
 ]
 
+[tool.ruff.lint]
+# asyncio.timeout modernization (ASYNC109) is a preview style preference — the
+# ported bot code's legacy asyncio.wait_for / timeout-param usage predates it.
+# Tolerate it rather than churning runtime call sites (mirrors rmi-backend).
+ignore = ["ASYNC109"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S105", "S106"]
 "src/rugmunchbot/plugins/*.py" = ["S101"]
+# Ported fail-open fallbacks: try/except/pass is intentional (Redis down,
+# import guards) — same convention as the live rmi-backend per-file ignores.
+"src/rugmunchbot/admin_state.py" = ["S110"]
+"src/rugmunchbot/daily_context.py" = ["S110"]
+# Ported renderer nit (ambiguous loop var) — keep behavior identical.
+"src/rugmunchbot/formatters/_sentinel.py" = ["E741"]
 
 [tool.mypy]
 python_version = "3.11"
