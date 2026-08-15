@@ -88,7 +88,10 @@ async def _query_rag(
             if data is not None:
                 hits = data.get("hits", [])
                 for h in hits:
-                    h["collection"] = collection
+                    # Keep the backend's truthful resolved-collection
+                    # label when present; only fall back to the requested
+                    # name for unlabeled hits.
+                    h.setdefault("collection", collection)
                 all_hits.extend(hits)
         except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.debug("RAG query failed for %s: %s", collection, e)

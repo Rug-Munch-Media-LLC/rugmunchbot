@@ -5,9 +5,6 @@ time-ago / age / liquidity / risk rendering, trending merge/sort/window
 logic, the HTML trending list renderer, and the trending keyboard builder.
 No network I/O, no database access — only telegram keyboard primitives and
 ``config`` / ``formatters`` formatting helpers.
-
-Ported from the private monorepo (rmi-backend rugmunchbot) — import-rewritten
-to ``rugmunchbot.*`` per docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md §2.3.
 """
 
 from __future__ import annotations
@@ -140,25 +137,81 @@ def _normalize_address(addr: str) -> str:
     return addr.lower().strip()
 
 
+def _token_age_hours(token: dict[str, Any]) -> float | None:
+    """Age of a token in hours from ``created_at`` (ms epoch), None when absent."""
+    created = token.get("created_at") or token.get("pairCreatedAt")
+    if not created:
+        return None
+    try:
+        created_ms = float(created)
+    except (TypeError, ValueError):
+        return None
+    if created_ms <= 0:
+        return None
+    return max((datetime.now(UTC).timestamp() * 1000 - created_ms) / 3_600_000.0, 0.0)
+
+
+def _freshness_bonus(token: dict[str, Any]) -> int:
+    """Fresh-launch bonus: freshly deployed tokens rank above old infra coins.
+
+    +2 for < 24h old (pump.fun / new launches), +1 for < 7d. Unknown age
+    contributes nothing (no invented freshness).
+    """
+    age_h = _token_age_hours(token)
+    if age_h is None:
+        return 0
+    if age_h < 24:
+        return 2
+    if age_h < 168:
+        return 1
+    return 0
+
+
+def _mover_bonus(token: dict[str, Any]) -> int:
+    """Mover bonus: biggest |24h %| movers (up AND down) surface first.
+
+    +2 for |change| >= 100%, +1 for >= 25%. Negative (rug/dump) changes get
+    the same bonus as positive ones — degens want the red action too.
+    """
+    chg = abs(_window_change(token, "24h"))
+    if chg >= 100:
+        return 2
+    if chg >= 25:
+        return 1
+    return 0
+
+
 def _merge_trending_sources(
     rugcharts: list[dict[str, Any]] | None,
     dexscreener: list[dict[str, Any]] | None,
-    coingecko: list[dict[str, Any]] | None,
+    fresh_launches: list[dict[str, Any]] | None,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
-    """Merge and deduplicate trending tokens from multiple sources."""
+    """Merge and deduplicate trending tokens — only tokens WITH a real address.
+
+    Degen ranking intent:
+      - CoinGecko ``/search/trending`` is NOT merged: it is a CEX search-score
+        feed with no contract address, so it would either render as an
+        ``[address not verified]`` placeholder or crowd out real meme movers.
+      - Fresh launches (``fresh_launches`` — DexScreener token-profiles /
+        pump.fun new deploys) and RugCharts carry the highest priority.
+      - Tokens without an ``address`` are dropped — never emitted without a
+        real contract address.
+      - Ranking rewards: source priority + freshness (newly deployed) + mover
+        magnitude (|24h %|, both directions) + live volume/liquidity.
+    """
     merged: dict[str, dict[str, Any]] = {}
 
-    # Priority: RugCharts (has full data) > DexScreener > CoinGecko
+    # Priority: RugCharts (full data) = fresh launches (degen gold) > DexScreener boosts
     for source_tokens, priority in [
         (rugcharts or [], 3),
+        (fresh_launches or [], 3),
         (dexscreener or [], 2),
-        (coingecko or [], 1),
     ]:
         for t in source_tokens:
-            addr = t.get("address") or t.get("coingecko_id")
+            addr = (t.get("address") or "").strip()
             if not addr:
-                continue
+                continue  # no real contract address → never surface (no placeholders)
             norm = _normalize_address(addr)
             existing = merged.get(norm)
 
@@ -190,23 +243,22 @@ def _merge_trending_sources(
                 )
 
             if not existing or quality > existing_quality:
-                merged[norm] = {
-                    **t,
-                    "_priority": priority,
-                    "_quality": quality,
-                    "_source": t.get("source", "unknown"),
-                }
+                merged[norm] = {**t, "_priority": priority, "_quality": quality, "_source": t.get("source", "unknown")}
 
-    # Convert to list and sort by quality then volume
+    # Convert to list and sort by: quality + freshness + mover magnitude, then
+    # |24h change| (both directions), then volume.
+    def _rank_key(x: dict[str, Any]) -> tuple[float, float, float]:
+        return (
+            float(x.get("_quality", 0)) + _freshness_bonus(x) + _mover_bonus(x),
+            abs(_window_change(x, "24h")),
+            float(x.get("volume_24h") or 0),
+        )
+
     result = list(merged.values())
-    result.sort(key=lambda x: (x.get("_quality", 0), float(x.get("volume_24h") or 0)), reverse=True)
+    result.sort(key=_rank_key, reverse=True)
 
     # Filter out tokens with "Unknown" names (prefer named tokens from DexScreener)
-    result = [
-        t
-        for t in result
-        if (t.get("name") or "").strip() and (t.get("name") or "").strip() != "Unknown"
-    ]
+    result = [t for t in result if (t.get("name") or "").strip() and (t.get("name") or "").strip() != "Unknown"]
 
     return result[:limit]
 
@@ -281,12 +333,18 @@ def _window_change(token: dict[str, Any], window: str) -> float:
 
 
 def _sort_trending(tokens: list[dict[str, Any]], window: str) -> list[dict[str, Any]]:
-    """Rank trending tokens for the requested window (mutation-free)."""
+    """Rank trending tokens for the requested window (mutation-free).
+
+    Degen ranking: rank by |change| for the window so the biggest movers in
+    BOTH directions (green pumps AND red rugs) surface — a -90% dump is
+    exactly as interesting to a degen as a +500% pump. The 1h window has no
+    reliable hourly deltas from our sources, so it ranks by 24h volume.
+    """
     if window == "1h":
         return sorted(tokens, key=lambda t: float(t.get("volume_24h") or 0), reverse=True)
     if window == "7d" and any(t.get("change_7d") is not None for t in tokens):
-        return sorted(tokens, key=lambda t: float(t.get("change_7d") or 0), reverse=True)
-    return sorted(tokens, key=lambda t: float(t.get("change_24h") or 0), reverse=True)
+        return sorted(tokens, key=lambda t: abs(float(t.get("change_7d") or 0)), reverse=True)
+    return sorted(tokens, key=lambda t: abs(float(t.get("change_24h") or 0)), reverse=True)
 
 
 def _window_note(window: str, tokens: list[dict[str, Any]]) -> str:
@@ -346,9 +404,7 @@ def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str)
     return "\n".join(lines)
 
 
-def _build_trending_kb(
-    tokens: list[dict[str, Any]], chain: str, window: str
-) -> InlineKeyboardMarkup:
+def _build_trending_kb(tokens: list[dict[str, Any]], chain: str, window: str) -> InlineKeyboardMarkup:
     """Trending keyboard: named token buttons + chain/window selectors.
 
     Design: each token gets ONE button with its name → opens scan.
@@ -373,7 +429,7 @@ def _build_trending_kb(
     # Chain selector row (2 per row for compact layout)
     chain_list = ["solana", "ethereum", "base", "bsc", "arbitrum"]
     chain_emoji = {"solana": "🟣", "ethereum": "🔵", "base": "🔵", "bsc": "🟡", "arbitrum": "🔵"}
-    chain_row: list[InlineKeyboardButton] = []
+    chain_row = []
     for c in chain_list:
         emoji = chain_emoji.get(c, "⚪")
         label = f"{emoji} {c.capitalize()}"
@@ -381,18 +437,14 @@ def _build_trending_kb(
             rows.append(chain_row)
             chain_row = []
         chain_row.append(
-            InlineKeyboardButton(
-                f"[{label}]" if c == chain else label, callback_data=f"trending_chain_{c}"
-            )
+            InlineKeyboardButton(f"[{label}]" if c == chain else label, callback_data=f"trending_chain_{c}")
         )
     if chain_row:
         rows.append(chain_row)
 
     # Window selector row
     win_row = [
-        InlineKeyboardButton(
-            f"[{w}]" if w == window else w, callback_data=f"trending_win_{chain}_{w}"
-        )
+        InlineKeyboardButton(f"[{w}]" if w == window else w, callback_data=f"trending_win_{chain}_{w}")
         for w in TRENDING_WINDOWS
     ]
     rows.append(win_row)

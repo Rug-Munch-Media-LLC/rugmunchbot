@@ -41,25 +41,28 @@ logger = get_logger("rmi_bot.tools.rag_lookup")
 
 # ── Knowledge collections (mirrors app/routers/chat/_rag.py RAG_COLLECTIONS
 # ── so the direct lookup and the backend auto-RAG search the same intel).
+# ── Only REAL, populated Qdrant collections are fanned out: phantom legacy
+# ── names (token_analysis / wallet_profiles / forensic_reports) and
+# ── currently-empty collections (scanned_tokens / whale_transfers) are
+# ── dropped — the backend resolves direct requests via
+# ── app.rag._qdrant._COLLECTION_ALIASES and labels hits with the ACTUAL
+# ── resolved collection.
 # ── scanner_v2 is added when the question mentions a token address.
 KNOWLEDGE_COLLECTIONS: list[str] = [
-    "threat_intel",  # unified scanner + Advanced high-risk findings
-    "scam_intel",  # legacy scam intelligence
-    "news_v2",  # news articles and market intelligence
-    "defi_exploits",  # historical DeFi exploits / protocol hacks
-    "coding_knowledge",  # code-level security knowledge (solidity, audits)
-    "scam_patterns",  # scam pattern documentation + rug_timeline alias
-    "regulation_enforcement",  # regulatory actions + enforcement intel
-    "scanned_tokens",  # scan-to-RAG memory (scan results flow in)
-    "wallet_v2",  # wallet labels, risk profiles, entity clusters
-    "wallet_profiles",  # P1 KB: wallet risk profiles, entity behavior
-    "token_analysis",  # P1 KB: deep token analysis (mechanics, risks)
-    "forensic_reports",  # P1 KB: on-chain forensic investigations
-    "contract_audits",  # P1 KB: smart-contract audit findings
-    "stablecoin_market",  # DeFiLlama stablecoin market caps
-    "whale_transfers",  # whale move events indexed by the whale indexer
+    "threat_intel",  # unified scanner + Advanced high-risk findings (11.9K pts, live)
+    "scam_intel",  # legacy scam intelligence (600 pts, live)
+    "news_v2",  # news articles and market intelligence (4.1K pts, live)
+    "defi_exploits",  # historical DeFi exploits / protocol hacks (13.4K pts, live)
+    "coding_knowledge",  # code-level security knowledge (1.8K pts)
+    "scam_patterns",  # scam pattern documentation + rug_timeline alias (9.9K pts, historical)
+    "regulation_enforcement",  # regulatory actions + enforcement intel (16 pts, live)
+    "wallet_v2",  # wallet labels, risk profiles, entity clusters (13.5K pts, live)
+    "contract_audits",  # smart-contract audit findings (502 pts)
+    "stablecoin_market",  # DeFiLlama stablecoin market caps (329 pts)
 ]
-RAG_TOKEN_COLLECTIONS: list[str] = ["scanner_v2"]
+RAG_TOKEN_COLLECTIONS: list[str] = [
+    "scanner_v2"
+]  # scan-to-RAG memory (191 pts — token-address questions)
 
 RAG_LOOKUP_TOP_K = 5  # per collection — dedup keeps the prompt small
 RAG_LOOKUP_TIMEOUT = 5.0  # overall budget (seconds) — chat stays snappy

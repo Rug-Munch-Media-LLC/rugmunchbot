@@ -3,18 +3,13 @@
 RugMunchBot -- Market data command handlers.
 
 Commands: trending, news + helpers: _time_ago, _fetch_cg_trending_news
-
-Ported from the private monorepo (rmi-backend rugmunchbot) — import-rewritten
-to ``rugmunchbot.*`` per docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md §2.3.
-Branding scrub per §6.15: the live bot's hardcoded alerts handle + website
-anchor text in ``cmd_news`` are replaced with env-driven neutral labels; the
-"Alerts Channel" button only renders when ``BOT_TELEGRAM_CHANNEL`` is set. [REVIEW]
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -47,6 +42,11 @@ from rugmunchbot.handlers._market_helpers import (
 )
 from rugmunchbot.keyboards import back_kb, token_buttons
 from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import (
+    get_shared_client,
+    http_get_any,
+    http_get_json,
+)
 
 if TYPE_CHECKING:
     from telegram.ext import Application, ContextTypes
@@ -56,30 +56,26 @@ logger = get_logger("rmi_bot")
 
 async def _fetch_cg_trending_news() -> list[dict[str, Any]] | None:
     """Fallback: fetch CoinGecko trending coins as pseudo-news items."""
-    try:
-        async with httpx.AsyncClient(timeout=8) as client:
-            r = await client.get("https://api.coingecko.com/api/v3/search/trending")
-            if r.status_code != 200:
-                return None
-            coins = r.json().get("coins", [])
-            if not coins:
-                return None
-            items = []
-            for c in coins[:5]:
-                item = c.get("item", {})
-                items.append(
-                    {
-                        "title": f"{item.get('name', 'Unknown')} ({item.get('symbol', '?')}) trending now",
-                        "source": "Trending",
-                        "published_at": None,
-                        "url": f"https://www.coingecko.com/en/coins/{item.get('id', '')}",
-                        "score": item.get("score", 0) or 0,
-                    }
-                )
-            return items
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.debug("CoinGecko trending fallback failed: %s", exc)
+    body = await http_get_json("https://api.coingecko.com/api/v3/search/trending", timeout=8)
+    if not body:
+        logger.debug("CoinGecko trending fallback failed")
         return None
+    coins = body.get("coins", [])
+    if not coins:
+        return None
+    items = []
+    for c in coins[:5]:
+        item = c.get("item", {})
+        items.append(
+            {
+                "title": f"{item.get('name', 'Unknown')} ({item.get('symbol', '?')}) trending now",
+                "source": "Trending",
+                "published_at": None,
+                "url": f"https://www.coingecko.com/en/coins/{item.get('id', '')}",
+                "score": item.get("score", 0) or 0,
+            }
+        )
+    return items
 
 
 async def cmd_rugcheck(update, ctx) -> None:
@@ -119,156 +115,220 @@ async def cmd_rugcheck(update, ctx) -> None:
     )
 
 
-async def _fetch_dexscreener_trending(
-    chain: str = "solana", limit: int = 20
-) -> list[dict[str, Any]] | None:
+async def _fetch_dexscreener_trending(chain: str = "solana", limit: int = 20) -> list[dict[str, Any]] | None:
     """Fetch trending from DexScreener token boosts, then enrich with token details."""
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            # Step 1: Get boosted tokens
-            r = await client.get("https://api.dexscreener.com/token-boosts/top/v1")
-            if r.status_code != 200:
+        client = get_shared_client(15)
+        # Step 1: Get boosted tokens
+        boosted = await http_get_any("https://api.dexscreener.com/token-boosts/top/v1", timeout=15)
+        if not isinstance(boosted, list):
+            return None
+
+        # Step 2: Fetch token details for each boosted token (parallel, max 10)
+        semaphore = asyncio.Semaphore(10)
+
+        async def fetch_token_details(item: dict[str, Any]) -> dict[str, Any] | None:
+            if not isinstance(item, dict):
                 return None
-            boosted = r.json()
-            if not isinstance(boosted, list):
+            token_addr = item.get("tokenAddress") or item.get("address")
+            if not token_addr:
+                return None
+            # Filter by chain if specified
+            item_chain = item.get("chainId", "").lower()
+            if chain and chain != "all" and item_chain != chain.lower():
                 return None
 
-            # Step 2: Fetch token details for each boosted token (parallel, max 10)
-            semaphore = asyncio.Semaphore(10)
-
-            async def fetch_token_details(item: dict[str, Any]) -> dict[str, Any] | None:
-                if not isinstance(item, dict):
-                    return None
-                token_addr = item.get("tokenAddress") or item.get("address")
-                if not token_addr:
-                    return None
-                # Filter by chain if specified
-                item_chain = item.get("chainId", "").lower()
-                if chain and chain != "all" and item_chain != chain.lower():
-                    return None
-
-                async with semaphore:
-                    try:
-                        r = await client.get(
-                            f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8
-                        )
-                        if r.status_code != 200:
-                            return None
-                        data = r.json()
-                        pairs = data.get("pairs", [])
-                        if not pairs:
-                            return None
-                        p = pairs[0]
-                        bt = p.get("baseToken", {})
-                        name = bt.get("name") or "Unknown"
-                        symbol = bt.get("symbol") or "???"
-                        # Skip obvious garbage and low-quality tokens
-                        garbage_patterns = [
-                            "crawled",
-                            "smol",
-                            "anaem",
-                            "dev leave",
-                            "robinhood",
-                            "mow",
-                            "pengu mow",  # known low-quality meme tokens
-                        ]
-                        if any(g in name.lower() for g in garbage_patterns):
-                            return None
-                        if any(g in symbol.lower() for g in garbage_patterns):
-                            return None
-                        # Minimum quality thresholds
-                        liquidity = float(p.get("liquidity", {}).get("usd") or 0)
-                        volume_24h = float(p.get("volume", {}).get("h24") or 0)
-                        # Skip tokens with very low liquidity (<$1000) or volume (<$5000)
-                        if liquidity < 1000 or volume_24h < 5000:
-                            return None
-                        return {
-                            "address": token_addr,
-                            "chain": p.get("chainId", chain),
-                            "name": name,
-                            "symbol": symbol,
-                            "price_usd": float(p.get("priceUsd") or 0),
-                            "volume_24h": float(p.get("volume", {}).get("h24") or 0),
-                            "liquidity_usd": float(p.get("liquidity", {}).get("usd") or 0),
-                            "change_24h": float(p.get("priceChange", {}).get("h24") or 0),
-                            "change_1h": float(p.get("priceChange", {}).get("h1") or 0),
-                            "change_7d": float(p.get("priceChange", {}).get("d7") or 0),
-                            "created_at": p.get("pairCreatedAt"),
-                            "dex": p.get("dexId"),
-                            "info": p.get("info", {}),
-                            "source": "dexscreener",
-                        }
-                    except Exception:
+            async with semaphore:
+                try:
+                    r = await client.get(f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8)
+                    if r.status_code != 200:
                         return None
+                    data = r.json()
+                    pairs = data.get("pairs", [])
+                    if not pairs:
+                        return None
+                    p = pairs[0]
+                    bt = p.get("baseToken", {})
+                    name = bt.get("name") or "Unknown"
+                    symbol = bt.get("symbol") or "???"
+                    # Skip obvious garbage and low-quality tokens
+                    garbage_patterns = [
+                        "crawled",
+                        "smol",
+                        "anaem",
+                        "dev leave",
+                        "robinhood",
+                        "mow",
+                        "pengu mow",  # known low-quality meme tokens
+                    ]
+                    if any(g in name.lower() for g in garbage_patterns):
+                        return None
+                    if any(g in symbol.lower() for g in garbage_patterns):
+                        return None
+                    # Minimum quality thresholds
+                    liquidity = float(p.get("liquidity", {}).get("usd") or 0)
+                    volume_24h = float(p.get("volume", {}).get("h24") or 0)
+                    # Skip tokens with very low liquidity (<$1000) or volume (<$5000)
+                    if liquidity < 1000 or volume_24h < 5000:
+                        return None
+                    return {
+                        "address": token_addr,
+                        "chain": p.get("chainId", chain),
+                        "name": name,
+                        "symbol": symbol,
+                        "price_usd": float(p.get("priceUsd") or 0),
+                        "volume_24h": float(p.get("volume", {}).get("h24") or 0),
+                        "liquidity_usd": float(p.get("liquidity", {}).get("usd") or 0),
+                        "change_24h": float(p.get("priceChange", {}).get("h24") or 0),
+                        "change_1h": float(p.get("priceChange", {}).get("h1") or 0),
+                        "change_7d": float(p.get("priceChange", {}).get("d7") or 0),
+                        "created_at": p.get("pairCreatedAt"),
+                        "dex": p.get("dexId"),
+                        "info": p.get("info", {}),
+                        "source": "dexscreener",
+                    }
+                except Exception:
+                    return None
 
-            # Fetch details for top boosted tokens
-            tasks = [fetch_token_details(item) for item in boosted[: limit * 2]]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Fetch details for top boosted tokens
+        tasks = [fetch_token_details(item) for item in boosted[: limit * 2]]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            tokens = [r for r in results if isinstance(r, dict) and r is not None]
-            return tokens[:limit] if tokens else None
+        tokens = [r for r in results if isinstance(r, dict) and r is not None]
+        return tokens[:limit] if tokens else None
 
     except Exception as exc:
         logger.debug("dexscreener trending fetch failed: %s", exc)
         return None
 
 
-async def _fetch_coingecko_trending(
-    chain: str = "solana", limit: int = 15
-) -> list[dict[str, Any]] | None:
-    """Fetch trending from CoinGecko."""
+async def _fetch_dexscreener_fresh_launches(chain: str = "solana", limit: int = 12) -> list[dict[str, Any]] | None:
+    """Freshly deployed tokens from DexScreener token-profiles (pump.fun etc.).
+
+    ``/token-profiles/latest/v1`` is the same feed the trending algorithm
+    uses to seed fresh launches — real ``tokenAddress`` values, mostly
+    pump.fun on Solana. Each profile is enriched with live pair data so the
+    entry carries a real address, price, 24h change, volume, liquidity and
+    creation time (for the fresh-launch age badge).
+    """
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get("https://api.coingecko.com/api/v3/search/trending")
-            if r.status_code != 200:
+        client = get_shared_client(15)
+        profiles = await http_get_any("https://api.dexscreener.com/token-profiles/latest/v1", timeout=15)
+        if not isinstance(profiles, list) or not profiles:
+            return None
+
+        semaphore = asyncio.Semaphore(10)
+
+        async def fetch_profile_details(item: dict[str, Any]) -> dict[str, Any] | None:
+            if not isinstance(item, dict):
                 return None
-            data = r.json()
-            coins = data.get("coins", [])
-            if not coins:
+            token_addr = item.get("tokenAddress") or ""
+            if not token_addr:
                 return None
-            tokens = []
-            for c in coins[:limit]:
-                item = c.get("item", {})
-                if not item:
-                    continue
-                # CoinGecko doesn't give contract addresses directly
-                # We'll use the id for matching later
-                tokens.append(
-                    {
-                        "coingecko_id": item.get("id"),
-                        "name": item.get("name") or "Unknown",
-                        "symbol": (item.get("symbol") or "???").upper(),
-                        "score": item.get("score", 0),
-                        "market_cap_rank": item.get("market_cap_rank"),
-                        "source": "coingecko",
+            item_chain = (item.get("chainId") or "").lower()
+            if chain and chain != "all" and item_chain != chain.lower():
+                return None
+
+            async with semaphore:
+                try:
+                    r = await client.get(f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8)
+                    if r.status_code != 200:
+                        return None
+                    pairs = r.json().get("pairs", [])
+                    if not pairs:
+                        return None
+                    p = pairs[0]
+                    bt = p.get("baseToken", {})
+                    name = bt.get("name") or ""
+                    symbol = bt.get("symbol") or ""
+                    if not name or not symbol:
+                        return None
+                    return {
+                        "address": token_addr,
+                        "chain": p.get("chainId", item_chain),
+                        "name": name,
+                        "symbol": symbol,
+                        "price_usd": float(p.get("priceUsd") or 0),
+                        "volume_24h": float(p.get("volume", {}).get("h24") or 0),
+                        "liquidity_usd": float(p.get("liquidity", {}).get("usd") or 0),
+                        "change_24h": float(p.get("priceChange", {}).get("h24") or 0),
+                        "change_1h": float(p.get("priceChange", {}).get("h1") or 0),
+                        "change_7d": float(p.get("priceChange", {}).get("d7") or 0),
+                        "created_at": p.get("pairCreatedAt"),
+                        "dex": p.get("dexId"),
+                        "source": "dexscreener:profiles",
+                        "is_new_launch": True,
                     }
-                )
-            return tokens if tokens else None
+                except Exception:
+                    return None
+
+        tasks = [fetch_profile_details(item) for item in profiles[: limit * 2]]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        tokens = [r for r in results if isinstance(r, dict) and r is not None]
+        return tokens[:limit] if tokens else None
+
     except Exception as exc:
-        logger.debug("coingecko trending fetch failed: %s", exc)
+        logger.debug("dexscreener fresh-launch fetch failed: %s", exc)
         return None
 
 
-async def _fetch_rugcharts_trending(
-    chain: str = "solana", limit: int = 8
-) -> list[dict[str, Any]] | None:
+async def _fetch_fused_trending(chain: str = "solana", limit: int = 20) -> list[dict[str, Any]] | None:
+    """Fetch and fuse trending from degen sources with enrichment.
+
+    Sources (no CoinGecko search-score — it has no contract addresses and is
+    dominated by CEX-listed infra tokens nobody trades):
+      1. RugCharts backend feed (our own data, real addresses).
+      2. DexScreener token-boosts (paid attention, real addresses).
+      3. DexScreener token-profiles — pump.fun / newly deployed, real addresses.
+    """
+    # Fetch from all sources in parallel
+    rg_task = _fetch_rugcharts_trending(chain, limit)
+    ds_task = _fetch_dexscreener_trending(chain, limit)
+    fresh_task = _fetch_dexscreener_fresh_launches(chain, limit)
+
+    results = await asyncio.gather(rg_task, ds_task, fresh_task, return_exceptions=True)
+    rugcharts = results[0] if not isinstance(results[0], BaseException) else None
+    dexscreener = results[1] if not isinstance(results[1], BaseException) else None
+    fresh_launches = results[2] if not isinstance(results[2], BaseException) else None
+
+    # Handle exceptions
+    if isinstance(rugcharts, Exception):
+        rugcharts = None
+    if isinstance(dexscreener, Exception):
+        dexscreener = None
+    if isinstance(fresh_launches, Exception):
+        fresh_launches = None
+
+    # Merge sources (fresh launches = highest priority alongside rugcharts)
+    fused = _merge_trending_sources(rugcharts, dexscreener, fresh_launches, limit)
+
+    if not fused:
+        return None
+
+    # Enrich with quick risk scans
+    enriched = await _enrich_with_quick_scan(fused, chain)
+
+    return enriched
+
+
+async def _fetch_rugcharts_trending(chain: str = "solana", limit: int = 8) -> list[dict[str, Any]] | None:
     """Fetch trending tokens from the RugCharts backend."""
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.get(
-                f"{BACKEND_URL}/api/v1/rugcharts/trending",
-                params={"chain": chain, "limit": limit},
-                headers=backend_headers(),
-            )
-            if r.status_code != 200:
-                logger.debug("rugcharts trending status %s", r.status_code)
-                return None
-            body = r.json()
-            data = body.get("data") or body
-            tokens = data.get("tokens") or []
-            for t in tokens:
-                t["source"] = "rugcharts"
-            return tokens if tokens else None
+        body = await http_get_json(
+            f"{BACKEND_URL}/api/v1/rugcharts/trending",
+            params={"chain": chain, "limit": limit},
+            headers=backend_headers(),
+            timeout=15,
+        )
+        if body is None:
+            logger.debug("rugcharts trending status non-200")
+            return None
+        data = body.get("data") or body
+        tokens = data.get("tokens") or []
+        for t in tokens:
+            t["source"] = "rugcharts"
+        return tokens if tokens else None
     except Exception as exc:
         logger.debug("rugcharts trending fetch failed: %s", exc)
         return None
@@ -284,33 +344,33 @@ async def _enrich_with_quick_scan(tokens: list[dict[str, Any]], chain: str) -> l
         if not addr:
             return token
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                # Fetch risk scan
-                r = await client.post(
-                    f"{BACKEND_URL}/api/v1/bot/scan",
-                    headers=backend_headers(),
-                    json={"address": addr, "chain": chain},
-                )
-                if r.status_code == 200:
-                    data = r.json()
-                    if isinstance(data, dict) and not data.get("error"):
-                        token["risk_score"] = data.get("risk_score")
-                        token["holders"] = data.get("holders")
-                        token["liquidity_usd"] = data.get("liquidity") or token.get("liquidity_usd")
-                        token["bundle_detected"] = data.get("bundle_detected")
-                # Fetch symbol from DexScreener if missing
-                if not token.get("symbol"):
-                    try:
-                        r2 = await client.get(f"{DEXSCREENER}/tokens/{addr}", timeout=6)
-                        if r2.status_code == 200:
-                            pairs = r2.json().get("pairs", [])
-                            if pairs:
-                                p = pairs[0]
-                                token["symbol"] = p.get("baseToken", {}).get("symbol", "")
-                                if not token.get("name"):
-                                    token["name"] = p.get("baseToken", {}).get("name", "")
-                    except Exception:  # noqa: S110 — enrichment is best-effort
-                        pass
+            client = get_shared_client(10)
+            # Fetch risk scan
+            r = await client.post(
+                f"{BACKEND_URL}/api/v1/bot/scan",
+                headers=backend_headers(),
+                json={"address": addr, "chain": chain},
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, dict) and not data.get("error"):
+                    token["risk_score"] = data.get("risk_score")
+                    token["holders"] = data.get("holders")
+                    token["liquidity_usd"] = data.get("liquidity") or token.get("liquidity_usd")
+                    token["bundle_detected"] = data.get("bundle_detected")
+            # Fetch symbol from DexScreener if missing
+            if not token.get("symbol"):
+                try:
+                    r2 = await client.get(f"{DEXSCREENER}/tokens/{addr}", timeout=6)
+                    if r2.status_code == 200:
+                        pairs = r2.json().get("pairs", [])
+                        if pairs:
+                            p = pairs[0]
+                            token["symbol"] = p.get("baseToken", {}).get("symbol", "")
+                            if not token.get("name"):
+                                token["name"] = p.get("baseToken", {}).get("name", "")
+                except Exception:  # noqa: S110 — enrichment is best-effort
+                    pass
         except Exception:  # noqa: S110 — return token even if enrichment fails
             pass
         return token
@@ -326,53 +386,82 @@ async def _enrich_with_quick_scan(tokens: list[dict[str, Any]], chain: str) -> l
     return [t for t in enriched if isinstance(t, dict)]
 
 
-async def _fetch_fused_trending(
-    chain: str = "solana", limit: int = 20
-) -> list[dict[str, Any]] | None:
-    """Fetch and fuse trending from all sources with enrichment."""
-    # Fetch from all sources in parallel
-    rg_task = _fetch_rugcharts_trending(chain, limit)
-    ds_task = _fetch_dexscreener_trending(chain, limit)
-    cg_task = _fetch_coingecko_trending(chain, limit)
+# ══════════════════════════════════════════════
+# /trending Redis cache — fused token list, TTL 60-120s
+# The fused trending pipeline fans out to RugCharts + DexScreener boosts +
+# DexScreener fresh-launch profiles and then enriches each token with a
+# backend quick scan (up to ~20 external calls). The cache serves the SAME
+# fused token list for the TTL window so repeated /trending taps (and the
+# inline callback paths, which call ``render_trending`` with the same key)
+# do not re-hammer the sources. Fail-open: Redis down → live fetch every
+# time.
+# ══════════════════════════════════════════════
+_TRENDING_TTL = 90  # within the 60-120s requirement
+_TRENDING_KEY_PREFIX = "trending:"  # spec key: trending:{chain}:{window}
 
-    results = await asyncio.gather(rg_task, ds_task, cg_task, return_exceptions=True)
-    rugcharts = results[0] if not isinstance(results[0], BaseException) else None
-    dexscreener = results[1] if not isinstance(results[1], BaseException) else None
-    coingecko = results[2] if not isinstance(results[2], BaseException) else None
 
-    # Handle exceptions
-    if isinstance(rugcharts, Exception):
-        rugcharts = None
-    if isinstance(dexscreener, Exception):
-        dexscreener = None
-    if isinstance(coingecko, Exception):
-        coingecko = None
+def _redis_client() -> Any:
+    """Async Redis client (lazy import — fail-open when unavailable)."""
+    from rugmunchbot.support.redis import get_redis_async
 
-    # Merge sources
-    fused = _merge_trending_sources(rugcharts, dexscreener, coingecko, limit)
+    return get_redis_async()
 
-    if not fused:
+
+async def _cache_get_trending(chain: str, window: str) -> list[dict[str, Any]] | None:
+    """Load the cached fused trending token list (None on any miss)."""
+    r = _redis_client()
+    if r is None:
+        return None
+    try:
+        raw = await r.get(f"{_TRENDING_KEY_PREFIX}{chain}:{window}")
+        if not raw:
+            return None
+        data = json.loads(raw if isinstance(raw, str) else raw.decode("utf-8", "replace"))
+        return data if isinstance(data, list) else None
+    except Exception:  # fail-open by contract
+        logger.debug("trending:cache_get_failed chain=%s window=%s", chain, window, exc_info=True)
         return None
 
-    # Enrich with quick risk scans
-    enriched = await _enrich_with_quick_scan(fused, chain)
 
-    return enriched
+async def _cache_set_trending(chain: str, window: str, tokens: list[dict[str, Any]]) -> None:
+    """Write the fused trending token list to Redis. Fail-open."""
+    r = _redis_client()
+    if r is None:
+        return
+    try:
+        await r.set(
+            f"{_TRENDING_KEY_PREFIX}{chain}:{window}",
+            json.dumps(tokens, default=str),
+            ex=_TRENDING_TTL,
+        )
+    except Exception:  # fail-open by contract
+        logger.debug("trending:cache_set_failed chain=%s window=%s", chain, window, exc_info=True)
 
 
 async def render_trending(
     chain: str = "solana", limit: int = 20, window: str = "24h"
 ) -> tuple[str | None, InlineKeyboardMarkup | None]:
-    """Fetch + render fused trending text and its action keyboard."""
+    """Fetch + render fused trending text and its action keyboard.
+
+    Cache-aside on the fused token list (key ``trending:{chain}:{window}``,
+    TTL 90s). The window does not change the underlying token list, but the
+    spec key includes it so each window keeps its own entry; the caller's
+    ``limit`` is applied on read so a ``limit=8`` inline path of a cached
+    ``limit=20`` list still renders the top 8 exactly.
+    """
+    cached = await _cache_get_trending(chain, window)
+    if cached is not None:
+        cached_tokens = cached[:limit]
+        return _render_trending_text(cached_tokens, chain, window), _build_trending_kb(cached_tokens, chain, window)
+
     tokens = await _fetch_fused_trending(chain, limit)
     if not tokens:
         return None, None
+    await _cache_set_trending(chain, window, tokens)
     return _render_trending_text(tokens, chain, window), _build_trending_kb(tokens, chain, window)
 
 
-async def _build_trending_text(
-    chain: str = "solana", limit: int = 20, window: str = "24h"
-) -> str | None:
+async def _build_trending_text(chain: str = "solana", limit: int = 20, window: str = "24h") -> str | None:
     """Text-only trending renderer (kept for backward compatibility)."""
     text, _kb = await render_trending(chain, limit, window)
     return text
@@ -381,9 +470,7 @@ async def _build_trending_text(
 async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /trending [chain] — hot tokens from fused multi-source data."""
     chain = _resolve_chain(ctx.args[0]) if ctx.args else "solana"
-    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        "🔥 <b>Fetching trending tokens...</b>", parse_mode=ParseMode.HTML
-    )
+    msg = await update.message.reply_text("🔥 <b>Fetching trending tokens...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
     text, trending_kb = await render_trending(chain, limit=20, window="24h")
     if text is None or trending_kb is None:
         await msg.edit_text(
@@ -448,17 +535,15 @@ async def _fetch_market_intel(
     malformed body). Callers render a graceful unavailable state on None.
     """
     try:
-        async with httpx.AsyncClient(timeout=timeout_secs) as client:
-            r = await client.get(
-                f"{BACKEND_URL}{path}",
-                params=params,
-                headers=backend_headers(),
-            )
-            if r.status_code != 200:
-                logger.debug("market intel %s status %s", path, r.status_code)
-                return None
-            body = r.json()
-            return body if isinstance(body, dict) else None
+        body = await http_get_json(
+            f"{BACKEND_URL}{path}",
+            params=params,
+            headers=backend_headers(),
+            timeout=timeout_secs,
+        )
+        if body is None:
+            logger.debug("market intel %s status non-200", path)
+        return body
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
         logger.debug("market intel %s fetch failed: %s", path, exc)
         return None
@@ -466,9 +551,7 @@ async def _fetch_market_intel(
 
 def _menu_kb() -> InlineKeyboardMarkup:
     """Shared bottom bar: back to the main menu."""
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]]
-    )
+    return InlineKeyboardMarkup([[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]])
 
 
 def _change_emoji(change: float) -> str:
@@ -477,9 +560,7 @@ def _change_emoji(change: float) -> str:
 
 async def cmd_market(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /market — global market overview (mcap, volume, dominance, fear/greed, BTC/ETH)."""
-    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        "\U0001f4ca <b>Fetching market overview...</b>", parse_mode=ParseMode.HTML
-    )
+    msg = await update.message.reply_text("\U0001f4ca <b>Fetching market overview...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
     overview, macro = await asyncio.gather(
         _fetch_market_intel("/api/v1/market/overview"),
         _fetch_market_intel("/api/v1/market/macro"),
@@ -490,9 +571,7 @@ async def cmd_market(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     lines = ["\U0001f4ca <b>Market Overview</b>", sep()]
     if overview.get("total_market_cap") is not None:
-        lines.append(
-            f"\U0001f310 Total Market Cap: <b>{_fmt_usd(overview.get('total_market_cap'))}</b>"
-        )
+        lines.append(f"\U0001f310 Total Market Cap: <b>{_fmt_usd(overview.get('total_market_cap'))}</b>")
     if overview.get("total_volume_24h") is not None:
         lines.append(f"\U0001f4c8 24h Volume: <b>{_fmt_usd(overview.get('total_volume_24h'))}</b>")
     if overview.get("btc_dominance") is not None:
@@ -528,9 +607,7 @@ async def cmd_market(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             asset = it.get("asset", "")
             change = it.get("change_24h")
             change_txt = f" ({fmt_pct(change)})" if change is not None else ""
-            lines.append(
-                f"\U0001f4b0 <b>{asset}:</b> {_fmt_usd(it.get('current_price'))}{change_txt}"
-            )
+            lines.append(f"\U0001f4b0 <b>{asset}:</b> {_fmt_usd(it.get('current_price'))}{change_txt}")
 
     lines.append(footer_links())
     await msg.edit_text(
@@ -614,9 +691,7 @@ async def cmd_movers(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         f"\U0001f680 <b>Fetching {label} market movers...</b>", parse_mode=ParseMode.HTML
     )
-    data = await _fetch_market_intel(
-        "/api/v1/market/movers", params={"limit": 20, "timeframe": timeframe}
-    )
+    data = await _fetch_market_intel("/api/v1/market/movers", params={"limit": 20, "timeframe": timeframe})
     if not data:
         await msg.edit_text(MARKET_UNAVAILABLE, parse_mode=ParseMode.HTML)
         return
@@ -641,13 +716,7 @@ async def cmd_movers(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if (item.get("source") or "").lower() == "gmgn":
             rows.append(token_buttons(addr, chain))
         else:
-            rows.append(
-                [
-                    InlineKeyboardButton(
-                        "\U0001f4c8 Chart", url=f"https://www.coingecko.com/en/coins/{addr}"
-                    )
-                ]
-            )
+            rows.append([InlineKeyboardButton("\U0001f4c8 Chart", url=f"https://www.coingecko.com/en/coins/{addr}")])
     rows.append([InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")])
     await msg.edit_text(
         "\n".join(lines),
@@ -659,9 +728,7 @@ async def cmd_movers(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_launches(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /launches — new token launches from the backend market router."""
-    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        "\U0001f195 <b>Fetching new launches...</b>", parse_mode=ParseMode.HTML
-    )
+    msg = await update.message.reply_text("\U0001f195 <b>Fetching new launches...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
     data = await _fetch_market_intel("/api/v1/market/launches", params={"limit": 8})
     items = (data or {}).get("items") or []
     if not items:
@@ -702,9 +769,7 @@ async def cmd_launches(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_whales(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /whales — recent whale moves from the backend market router."""
-    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        "\U0001f40b <b>Fetching whale activity...</b>", parse_mode=ParseMode.HTML
-    )
+    msg = await update.message.reply_text("\U0001f40b <b>Fetching whale activity...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
     data = await _fetch_market_intel("/api/v1/market/whales", params={"limit": 5})
     items = (data or {}).get("items") or []
     if not items:
@@ -759,23 +824,20 @@ def register_market(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
 
 
 async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        "\U0001f4f0 <b>Fetching news...</b>", parse_mode=ParseMode.HTML
-    )
+    msg = await update.message.reply_text("\U0001f4f0 <b>Fetching news...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
     articles = []
     source_label = "RMI News Network"
 
     # Try the internal news-feed endpoint first (has bias/sentiment/factual ratings)
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                f"{BACKEND_URL}/api/v1/internal/news-feed",
-                params={"channel": "news", "limit": 5, "min_score": 0},
-                headers=backend_headers(),
-            )
-            if r.status_code == 200:
-                body = r.json()
-                articles = body.get("items", [])
+        body = await http_get_json(
+            f"{BACKEND_URL}/api/v1/internal/news-feed",
+            params={"channel": "news", "limit": 5, "min_score": 0},
+            headers=backend_headers(),
+            timeout=10,
+        )
+        if body:
+            articles = body.get("items", [])
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
         logger.warning("cmd_news internal feed failed: %s", e)
 
@@ -783,21 +845,14 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not articles:
         source_label = "Trending"
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                r = await client.get(
-                    f"{BACKEND_URL}/api/v1/news/trending?window_hours=168&limit=5",
-                    headers=backend_headers(),
-                )
-                if r.status_code == 200:
-                    body = r.json()
-                    articles = body.get("items", [])
-        except (
-            ConnectionError,
-            OSError,
-            TimeoutError,
-            httpx.HTTPError,
-            httpx.TimeoutException,
-        ) as e:
+            body = await http_get_json(
+                f"{BACKEND_URL}/api/v1/news/trending?window_hours=168&limit=5",
+                headers=backend_headers(),
+                timeout=10,
+            )
+            if body:
+                articles = body.get("items", [])
+        except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
             logger.warning("cmd_news backend fetch failed: %s", e)
 
     if not articles:
@@ -806,14 +861,13 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             articles = cg_items
             source_label = "Trending"
 
-    news_kb_rows: list[list[InlineKeyboardButton]] = []
-    if TELEGRAM_CHANNEL:
-        news_kb_rows.append(
-            [InlineKeyboardButton("\U0001f4e2 Alerts Channel", url=TELEGRAM_CHANNEL)]
-        )
-    news_kb_rows.append([InlineKeyboardButton("\U0001f504 Refresh", callback_data="news_refresh")])
-    news_kb_rows.append([InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")])
-    news_kb = InlineKeyboardMarkup(news_kb_rows)
+    news_kb = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("\U0001f504 Refresh", callback_data="news_refresh")],
+            [InlineKeyboardButton("\U0001f4e2 Alerts Channel", url=TELEGRAM_CHANNEL)],
+            [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
+        ]
+    )
 
     if articles:
         bias_emoji = {
@@ -837,15 +891,9 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             sentiment = a.get("sentiment_score", 0)
             factual = a.get("factual_rating", "N/A")
             source_tier = a.get("source_tier", 5)
-            sent_emoji = (
-                "\U0001f525" if sentiment > 30 else "\U0001f9ca" if sentiment < -30 else "\u2795"
-            )
+            sent_emoji = "\U0001f525" if sentiment > 30 else "\U0001f9ca" if sentiment < -30 else "\u2795"
             bias_e = bias_emoji.get(bias, "\u26aa")
-            tier_str = (
-                "\u2605" * max(1, 6 - int(source_tier))
-                if isinstance(source_tier, (int, float))
-                else ""
-            )
+            tier_str = "\u2605" * max(1, 6 - int(source_tier)) if isinstance(source_tier, (int, float)) else ""
 
             lines.append(
                 f"{sent_emoji} {bias_e} [{tier_str}] {title_linked}\n"
@@ -854,18 +902,12 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         lines.append(footer_links())
         text = "\n".join(lines)
     else:
-        # [REVIEW] Branding scrubbed: the live bot's fallback hardcoded the
-        # alerts handle + website label (checklist §6.15).
-        # OSS uses the env-driven channel/website values with neutral labels;
-        # when unset the links simply don't render.
-        lines = ["\U0001f4f0 <b>Crypto News</b>\n\n<i>News feed temporarily unavailable.</i>"]
-        if TELEGRAM_CHANNEL:
-            lines.append(
-                f'\U0001f4e2 Follow <a href="{TELEGRAM_CHANNEL}">our alerts channel</a> for real-time alerts!'
-            )
-        if WEBSITE_URL:
-            lines.append(f'\U0001f310 <a href="{WEBSITE_URL}">our website</a>')
-        text = "\n".join(lines)
+        text = (
+            f"\U0001f4f0 <b>Crypto News</b>\n\n"
+            f"<i>News feed temporarily unavailable.</i>\n\n"
+            f'\U0001f4e2 Follow <a href="{TELEGRAM_CHANNEL}">@rmialerts</a> for real-time alerts!\n'
+            f'\U0001f310 <a href="{WEBSITE_URL}">rugmunch.io</a>'
+        )
 
     with contextlib.suppress(Exception):
         await msg.edit_text(

@@ -33,11 +33,67 @@ MAX_PART_CHARS = 4000
 _FENCE_RE = re.compile(r"`{3,}.*?`{3,}", re.DOTALL)
 # A markdown link [text](url) or a bare URL.
 _LINK_RE = re.compile(r"\[[^\]]*\]\([^)]*\)|https?://[^\s)\]<>]+")
+# A balanced **bold** / ***bold*** span (must mirror _helpers._BOLD_RE).
+_BOLD_SPAN_RE = re.compile(r"\*{2,3}[^*\n]+?\*{2,3}")
 
 
 def _is_fence_line(line: str) -> bool:
     """True when ``line`` opens/closes a fenced code block (```...)."""
     return bool(re.match(r"^\s*`{3,}", line))
+
+
+# A complete HTML tag <b> / </b> / <i> / ... (used by the balance check).
+_TAG_RE = re.compile(r"</?[a-zA-Z][a-zA-Z0-9]*\b[^>]*>")
+
+
+def _last_unclosed_opener(text: str) -> int:
+    """Index of the last unclosed '<tag>' opener in ``text`` (or -1).
+
+    Walks ``text`` with a tag stack: an opener pushes, a matching closer
+    pops. When the walk ends with tags still open, the last opener never got
+    closed — a ``<b>...`` cut mid-content. Returns its start index so the
+    caller can back up to it. Only simple non-void tags are produced by the
+    chat renderer (``<b>``/``</b>``/``<i>``/``</i>``), so a stack is enough.
+    """
+    stack: list[tuple[str, int]] = []
+    for m in _TAG_RE.finditer(text):
+        raw = m.group(0)
+        name = raw.lstrip("</").rstrip(">").strip().split()[0].lower()
+        if raw.startswith("</"):
+            if stack and stack[-1][0] == name:
+                stack.pop()
+        else:
+            stack.append((name, m.start()))
+    return stack[-1][1] if stack else -1
+
+
+def _safe_clip(text: str, limit: int) -> str:
+    """Clip ``text`` to ``limit`` chars without splitting an HTML tag/entity.
+
+    The final safety net in :func:`send_in_parts`: the escaped + bolded parts
+    passed in can exceed ``MAX_PART_CHARS`` (escape expansion), and a naive
+    ``text[:limit]`` can slice mid-entity (``&am``), mid-tag (``<b``), or
+    mid-element (``<b>Risk: 42/100. Check`` with no ``</b>``) — unbalanced
+    HTML that Telegram rejects (the whole part then falls back to plain
+    text). When the cut point leaves a dangling entity or unclosed tag, back
+    up to just before it so every part stays valid HTML.
+    """
+    if len(text) <= limit:
+        return text
+    chunk = text[:limit]
+    # Never end mid-entity (&am...): back up to before the dangling '&'.
+    amp = chunk.rfind("&")
+    if amp != -1 and chunk.find(";", amp) == -1:
+        chunk = chunk[:amp]
+    # Never end mid-tag (<b, </b, <i...): back up to before the dangling '<'.
+    lt = chunk.rfind("<")
+    if lt != -1 and chunk.find(">", lt) == -1:
+        chunk = chunk[:lt]
+    # Never end inside an open element (<b>Risk: 42/100. Check — no </b> yet).
+    opener = _last_unclosed_opener(chunk)
+    if opener != -1:
+        chunk = chunk[:opener]
+    return chunk.rstrip()
 
 
 def _ends_inside_fence(text: str) -> bool:
@@ -125,6 +181,16 @@ def _cut_index(text: str, limit: int) -> int:
             if m.start() >= limit // 2:
                 cut = m.start()
             break
+    # Never split a **bold** span: a cut landing inside one would leave a
+    # dangling opener/closer at a part edge. Back up to the span's opening
+    # so the whole span leads the next part (balanced). A span that starts
+    # too early to back up to keeps the cut — the renderer tolerates the
+    # unbalanced markers as literal text (see _markdown_to_html).
+    for m in _BOLD_SPAN_RE.finditer(text):
+        if m.start() < cut < m.end():
+            if m.start() >= limit // 2:
+                cut = m.start()
+            break
     return cut
 
 
@@ -195,7 +261,7 @@ async def send_in_parts(
         return
     last = len(parts) - 1
     for i, part in enumerate(parts):
-        chunk = part if len(part) <= MAX_PART_CHARS else part[:MAX_PART_CHARS]
+        chunk = _safe_clip(part, MAX_PART_CHARS)
         try:
             await message.reply_text(
                 chunk,
