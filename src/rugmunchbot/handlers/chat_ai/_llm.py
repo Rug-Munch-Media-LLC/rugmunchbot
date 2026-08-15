@@ -74,16 +74,42 @@ QWEN_ANALYSIS_TIMEOUT = (
 
 # ── Complexity router (local-first) ─────────────────────────────────────
 # Mirrors the backend ``_route_task`` (app/routers/chat/_rag.py): analytical /
-# forensic / explanation-heavy questions ("why", "explain", "investigate",
-# "trace", on-chain terms, long messages) → 9B qwen-analysis; simple /
-# grounded questions (greeting / price / scan / short) → 4B qwen-chat. The
-# local client orders its model attempts by intent so the RIGHT model answers
-# first (4B for quick chat, 9B for depth) instead of always 4B-first.
-_LOCAL_ANALYSIS_QUESTION_RE = re.compile(
-    r"\b(?:why|explain|how does|compare|analyze|investigate|trace|what happened|deep)\b",
+# forensic / contract-level questions → 9B qwen-analysis; simple / definitional
+# / quick questions → 4B qwen-chat. The local client orders its model attempts
+# by intent so the RIGHT model answers first (4B for quick chat, 9B for depth)
+# instead of always 4B-first.
+#
+# Refined 2026-08-15 (kept in sync with the backend _route_task): a DEFINITION
+# ("what is X", "explain X", "define X", "how does X work") is NOT forensics —
+# the 9B is reserved for a real analysis/forensics signal: an address/hash
+# present (EVM 0x…40/64-hex or Solana base58), an explicit forensics term
+# (analyze/investigate/trace/contract/deployer/tokenomics/audit), or a
+# non-definitional analysis ask ("why", "compare", "what happened", "deep",
+# "honeypot", on-chain/forensic/mev/exploit). "what is a honeypot token" was
+# measured routing to the 9B for an 87.6s cold answer (31.5s slower than the
+# 4B's 56.1s) for a definition. Tightened 2026-08-15: removed "rug"/"whale"
+# term triggers so "riskiest/sketchiest ... rug potential" list asks stay on
+# the fast 4B.
+_LOCAL_ADDRESS_OR_HASH_RE = re.compile(r"\b0x[a-fA-F0-9]{40,64}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b")
+# Explicit forensics/contract signals — analysis even inside a definition.
+_LOCAL_ANALYSIS_FORENSIC_RE = re.compile(
+    r"\b(?:analyze|investigate|trace|contract|deployer|tokenomics|audit)\b",
     re.IGNORECASE,
 )
-_LOCAL_ANALYSIS_TERMS = ("on-chain", "forensic", "mev", "rug", "whale", "exploit")
+# Definitional questions — "what is / explain / define / how does X work":
+# an educational ask, NOT forensics. Overrides the weaker keyword triggers
+# below when no address/hash or forensics term is present.
+_LOCAL_DEFINITIONAL_RE = re.compile(
+    r"\b(?:what is|what's|what are|explain|define|how does|how do|how to|how is)\b",
+    re.IGNORECASE,
+)
+# Remaining weak analysis triggers — analysis only when the message is NOT
+# a definitional question (checked after _LOCAL_DEFINITIONAL_RE).
+_LOCAL_ANALYSIS_QUESTION_RE = re.compile(
+    r"\b(?:why|compare|what happened|deep|honeypot)\b",
+    re.IGNORECASE,
+)
+_LOCAL_ANALYSIS_TERMS = ("on-chain", "forensic", "mev", "exploit")
 _LOCAL_ANALYSIS_LENGTH_THRESHOLD = 120  # chars — mirrors backend _route_task
 
 # Context ceiling for the local llama.cpp models (8k ctx each). Beyond
@@ -101,6 +127,12 @@ def _route_local_model(message: str) -> str:
         return "chat"
     if len(low) > _LOCAL_ANALYSIS_LENGTH_THRESHOLD:
         return "analysis"
+    if _LOCAL_ADDRESS_OR_HASH_RE.search(low):
+        return "analysis"
+    if _LOCAL_ANALYSIS_FORENSIC_RE.search(low):
+        return "analysis"
+    if _LOCAL_DEFINITIONAL_RE.search(low):
+        return "chat"
     if _LOCAL_ANALYSIS_QUESTION_RE.search(low):
         return "analysis"
     if any(term in low for term in _LOCAL_ANALYSIS_TERMS):
