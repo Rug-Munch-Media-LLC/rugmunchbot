@@ -30,6 +30,7 @@ the LLM must cite them, never invent.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 from typing import Any
 
@@ -41,6 +42,21 @@ logger = get_logger("rmi_bot.tools.rag_lookup")
 
 # ── Knowledge collections (mirrors app/routers/chat/_rag.py RAG_COLLECTIONS
 # ── so the direct lookup and the backend auto-RAG search the same intel).
+# ── FOCUSED KNOWLEDGE SET (consolidated 2026-08-15 — was 13 collections):
+# ── each fan-out collection costs one backend search (embed + rerank), so
+# ── only the 5 collections that cover the bot's knowledge intents are kept:
+# ──   security_patterns  — curated vuln patterns (408 pts; verdict/severity)
+# ──   codebase_reference — secure reference snippets, reputable libs (997 pts)
+# ──   defi_exploits      — exploit writeups / PoCs (13.4K pts)
+# ──   contract_security  — verdict-labeled good/bad contract patterns (221 pts)
+# ──   scam_patterns      — scam pattern docs + rug_timeline alias (9.9K pts)
+# ── Dropped as redundant/thin/data-class: threat_intel (live scanner
+# ── findings → scanner_v2 handles token asks), scam_intel (600, subsumed by
+# ── scam_patterns), news_v2 (market/news, gate skips market asks),
+# ── coding_knowledge (SWC dup of security_patterns + snippets dup of
+# ── codebase_reference), regulation_enforcement (16), wallet_v2 (entity
+# ── data), contract_audits (stubs, overlaps contract_security),
+# ── audit_findings (10), stablecoin_market (market data).
 # ── Only REAL, populated Qdrant collections are fanned out: phantom legacy
 # ── names (token_analysis / wallet_profiles / forensic_reports) and
 # ── currently-empty collections (scanned_tokens / whale_transfers) are
@@ -49,18 +65,11 @@ logger = get_logger("rmi_bot.tools.rag_lookup")
 # ── resolved collection.
 # ── scanner_v2 is added when the question mentions a token address.
 KNOWLEDGE_COLLECTIONS: list[str] = [
-    "threat_intel",  # unified scanner + Advanced high-risk findings (11.9K pts, live)
-    "scam_intel",  # legacy scam intelligence (600 pts, live)
-    "news_v2",  # news articles and market intelligence (4.1K pts, live)
-    "defi_exploits",  # historical DeFi exploits / protocol hacks (13.4K pts, live)
-    "coding_knowledge",  # code-level security knowledge (1.8K pts)
-    "scam_patterns",  # scam pattern documentation + rug_timeline alias (9.9K pts, historical)
-    "regulation_enforcement",  # regulatory actions + enforcement intel (16 pts, live)
-    "wallet_v2",  # wallet labels, risk profiles, entity clusters (13.5K pts, live)
-    "contract_audits",  # smart-contract audit findings (502 pts)
-    "contract_security",  # verdict-labeled good/bad contract patterns + security patterns (221 pts, live)
-    "audit_findings",  # labeled audit findings w/ severity + remediation (10 pts, live)
-    "stablecoin_market",  # DeFiLlama stablecoin market caps (329 pts)
+    "security_patterns",  # curated vuln patterns (408 pts; SWC registry, verdict/severity)
+    "codebase_reference",  # secure reference snippets, reputable libs (997 pts)
+    "defi_exploits",  # historical exploit writeups / PoCs (13.4K pts)
+    "contract_security",  # verdict-labeled good/bad contract patterns (221 pts)
+    "scam_patterns",  # scam pattern docs + rug_timeline alias (9.9K pts)
 ]
 RAG_TOKEN_COLLECTIONS: list[str] = [
     "scanner_v2"
@@ -149,6 +158,26 @@ def _format_context(
     return "\n\n".join(parts)
 
 
+def _content_key(hit: dict[str, Any]) -> str:
+    """Deterministic cross-collection dedup key for a RAG hit.
+
+    Normalized (whitespace-collapsed + lowercased) full content, falling
+    back to the metadata ``title`` when the body is empty, hashed to a
+    compact string. Precisely collapses identical snippets that surface in
+    several collections (e.g. a pattern in both security_patterns and
+    contract_security) WITHOUT over-collapsing distinct short docs that
+    merely share a prefix — the old ``[:100]``-prefix key merged unrelated
+    scanner findings that started with the same text.
+    """
+    content = (hit.get("content") or "").strip()
+    if not content:
+        content = str((hit.get("metadata") or {}).get("title") or "").strip()
+    norm = re.sub(r"\s+", " ", content.lower()).strip()
+    if not norm:
+        return ""
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()
+
+
 async def rag_lookup(*, query: str = "") -> ToolResult:
     """Search the intel DB for knowledge relevant to ``query``.
 
@@ -217,13 +246,14 @@ async def rag_lookup(*, query: str = "") -> ToolResult:
     if not all_hits:
         return ToolResult(tool="rag_lookup", ok=False, error="no rag hits")
 
-    # Dedupe by content prefix, keep the highest-score copy.
+    # Dedupe across collections by normalized content hash, keep the
+    # highest-score copy of each unique snippet.
     seen: set[str] = set()
     deduped: list[dict[str, Any]] = []
     for h in sorted(all_hits, key=lambda x: float(x.get("score") or 0.0), reverse=True):
-        content = (h.get("content") or "").strip()[:100]
-        if content and content not in seen:
-            seen.add(content)
+        key = _content_key(h)
+        if key and key not in seen:
+            seen.add(key)
             deduped.append(h)
     top = deduped[:RAG_LOOKUP_TOP_K]
     if not top:
