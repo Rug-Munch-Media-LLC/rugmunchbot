@@ -65,17 +65,21 @@ MAX_MESSAGE_CHARS = 2000  # backend ChatRequest.message limit
 LLAMA_HOST = os.getenv("LLAMA_HOST", "127.0.0.1")
 QWEN_CHAT_URL = f"http://{LLAMA_HOST}:8085/v1/chat/completions"
 QWEN_MODEL = "qwen-chat"
-QWEN_TIMEOUT = 45.0  # CPU LLM: generation dominates latency (~7 tok/s); 45s covers a 200-token answer
+QWEN_TIMEOUT = (
+    45.0  # CPU LLM: generation dominates latency (~7 tok/s); 45s covers a 200-token answer
+)
 
-# Qwen3.5-9B for deep analysis (alias deepseek-analysis — legacy name; hides thinking output)
+# Qwen3.5-9B for deep analysis (alias qwen-analysis; hides thinking output)
 DEEPSEEK_CHAT_URL = f"http://{LLAMA_HOST}:8086/v1/chat/completions"
-DEEPSEEK_MODEL = "deepseek-analysis"
-DEEPSEEK_TIMEOUT = 60.0  # halved: a 2-minute silent wait before failing to the next tier was worthless
+DEEPSEEK_MODEL = "qwen-analysis"
+DEEPSEEK_TIMEOUT = (
+    60.0  # halved: a 2-minute silent wait before failing to the next tier was worthless
+)
 
 # ── Complexity router (local-first) ─────────────────────────────────────
 # Mirrors the backend ``_route_task`` (app/routers/chat/_rag.py): analytical /
 # forensic / explanation-heavy questions ("why", "explain", "investigate",
-# "trace", on-chain terms, long messages) → 9B deepseek-analysis; simple /
+# "trace", on-chain terms, long messages) → 9B qwen-analysis; simple /
 # grounded questions (greeting / price / scan / short) → 4B qwen-chat. The
 # local client orders its model attempts by intent so the RIGHT model answers
 # first (4B for quick chat, 9B for depth) instead of always 4B-first.
@@ -94,7 +98,7 @@ LOCAL_CTX_LIMIT_TOKENS = 16_000
 
 def _route_local_model(message: str) -> str:
     """Route ``message`` to a local model tier: ``"chat"`` (4B qwen-chat) or
-    ``"analysis"`` (9B deepseek-analysis). Mirrors the backend
+    ``"analysis"`` (9B qwen-analysis). Mirrors the backend
     ``_route_task`` so bot and backend agree (chat=4B / analysis=9B)."""
     low = message.lower().strip()
     if not low:
@@ -135,7 +139,9 @@ async def _local_host_loaded() -> bool:
     loaded = True
     for url in urls:
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(0.5, connect=0.3, read=0.5)) as client:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(0.5, connect=0.3, read=0.5)
+            ) as client:
                 r = await client.get(url)
             if r.status_code != 200:
                 loaded = False
@@ -145,7 +151,15 @@ async def _local_host_loaded() -> bool:
             # Missing field defaults to 1 (assume free slot → not loaded).
             if int(data.get("slots_idle", 1)) > 0:
                 loaded = False
-        except (httpx.HTTPError, ConnectionError, OSError, TimeoutError, ValueError, TypeError, AttributeError):
+        except (
+            httpx.HTTPError,
+            ConnectionError,
+            OSError,
+            TimeoutError,
+            ValueError,
+            TypeError,
+            AttributeError,
+        ):
             # Unreachable/broken probe — never block local on it.
             return False
     return loaded
@@ -386,7 +400,7 @@ async def _call_local_llm(
 ) -> dict[str, Any] | None:
     """Local LLM fallback via llama.cpp servers for free chatting.
 
-    Qwen3.5-4B for quick chat, Qwen3.5-9B for deep analysis (aliases qwen-chat / deepseek-analysis).
+    Qwen3.5-4B for quick chat, Qwen3.5-9B for deep analysis (aliases qwen-chat / qwen-analysis).
     Thinking output is stripped from responses.
     ``sources`` are the bridge grounding sources prepended to the prompt;
     ``rag_count = len(sources)`` so the grounding footer renders the REAL
@@ -444,7 +458,7 @@ async def _call_local_llm(
         return None
 
     # Try each available model in order, routed by intent (mirrors the
-    # backend _route_task: chat=4B qwen / analysis=9B deepseek). Simple /
+    # backend _route_task: chat=4B qwen / analysis=9B Qwen3.5). Simple /
     # grounded questions try the fast 4B first; deep/analysis questions try
     # the 9B first. chat_template_kwargs.enable_thinking=false disables the
     # Qwen3.5 reasoning preamble so all tokens go to the actual answer.
@@ -490,7 +504,7 @@ async def _call_local_llm(
             continue
         answer = (choices[0].get("message", {}) or {}).get("content", "").strip()
 
-        # Strip thinking output (legacy DeepSeek/Qwen emitted <think> blocks; Qwen3.5 non-reasoning, kept defensively).
+        # Strip thinking output (legacy Qwen emitted <think> blocks; Qwen3.5 non-reasoning, kept defensively).
         # Handle BOTH closed <think>...</think> AND unclosed <think> (when the
         # token budget runs out before the model finishes reasoning).
         # First remove properly closed think blocks
@@ -567,7 +581,8 @@ async def _gather_fallback_context(
     if scan_ctx_task is not None:
         tasks.append(scan_ctx_task)
     results = [
-        r if not isinstance(r, BaseException) else None for r in await asyncio.gather(*tasks, return_exceptions=True)
+        r if not isinstance(r, BaseException) else None
+        for r in await asyncio.gather(*tasks, return_exceptions=True)
     ]
     daily_context = results[0]
     bridge_ctx = results[1]
@@ -633,7 +648,9 @@ async def _build_fallback_answer(
     bridge_ctx_task: asyncio.Task[Any],
     live_tools_task: asyncio.Task[dict[str, ToolResult]],
     rag_task: asyncio.Task[ToolResult | None] | None,
-) -> tuple[dict[str, Any] | None, list[dict[str, str]], list[dict[str, str]], ToolResult | None, bool]:
+) -> tuple[
+    dict[str, Any] | None, list[dict[str, str]], list[dict[str, str]], ToolResult | None, bool
+]:
     """Backend-less answer path: gather the fail-open context fetches that
     ground the Zen → local llama.cpp fallback chain.
 
@@ -734,7 +751,9 @@ async def _build_fallback_answer(
     # surface here.
     if not result:
         if not live_tools_task.done():
-            fallback_live_results = await _run_live_tools_bounded(live_tools_task, TOOL_ANSWER_EXTRA_WAIT)
+            fallback_live_results = await _run_live_tools_bounded(
+                live_tools_task, TOOL_ANSWER_EXTRA_WAIT
+            )
         tool_answer = _format_tool_answer(fallback_live_results)
         if tool_answer:
             result = {"message": tool_answer, "rag_count": len(bridge_sources), "provider": "tools"}

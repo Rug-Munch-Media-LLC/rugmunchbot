@@ -80,7 +80,14 @@ _USD_CLAIM_RE = re.compile(
 # targets, so they are deliberately left alone.
 _PERCENT_CLAIM_RE = re.compile(r"([+-]\d+(?:\.\d+)?)\s*%")
 # Human-readable unit suffixes on $amount claims.
-_CLAIM_SUFFIX_MULT = {"k": 1e3, "m": 1e6, "b": 1e9, "million": 1e6, "billion": 1e9, "trillion": 1e12}
+_CLAIM_SUFFIX_MULT = {
+    "k": 1e3,
+    "m": 1e6,
+    "b": 1e9,
+    "million": 1e6,
+    "billion": 1e9,
+    "trillion": 1e12,
+}
 # Tolerance rules: a claim is verified when some fetched datum lies within
 # REL_TOL relative (2%) — or ABS_FLOOR absolute (sub-cent prices) — of it.
 REL_TOL = 0.02
@@ -132,7 +139,9 @@ def _collect_numeric_facts(live_results: dict[str, ToolResult]) -> list[float]:
     """
     out: list[float] = []
     for result in live_results.values():
-        if not result.ok or (result.tool == "web_search" and str(result.source).startswith("knowledge")):
+        if not result.ok or (
+            result.tool == "web_search" and str(result.source).startswith("knowledge")
+        ):
             continue
         if result.data is not None:
             _walk_numeric(result.data, out)
@@ -147,7 +156,10 @@ def _within_tolerance(claim: float, known: list[float]) -> bool:
     no API calls, fully deterministic.
     """
     index = bisect.bisect_left(known, claim)
-    for datum in (known[index - 1] if index > 0 else None, known[index] if index < len(known) else None):
+    for datum in (
+        known[index - 1] if index > 0 else None,
+        known[index] if index < len(known) else None,
+    ):
         if datum is not None and abs(claim - datum) <= max(REL_TOL * abs(datum), ABS_FLOOR):
             return True
     return False
@@ -185,7 +197,9 @@ def _verify_numeric_claims(answer: str, known_nums: list[float]) -> tuple[str, l
 
 async def _injection_warning(update: Update, category: str) -> None:
     """Reply to a prompt-injection attempt with a targeted warning."""
-    text = _INJECTION_MESSAGES.get(category, "I couldn't process that message. Ask me a normal question instead.")
+    text = _INJECTION_MESSAGES.get(
+        category, "I couldn't process that message. Ask me a normal question instead."
+    )
     kb = InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("\U0001f50d /scan — Audit a token", callback_data="run_scan")],
@@ -207,7 +221,11 @@ async def _scam_address_warning(update: Update, address: str) -> None:
     """Reply when the user shares a known scam address."""
     kb = InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("\U0001f50d /report — Report a scam", callback_data="run_report")],
+            [
+                InlineKeyboardButton(
+                    "\U0001f50d /report — Report a scam", callback_data="run_report"
+                )
+            ],
             [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
         ]
     )
@@ -314,7 +332,9 @@ async def _run_entry_guards(
     answer), so the caller simply stops when this returns True.
     """
     if db.get_bot_state("chat_enabled", "on") != "on":
-        await message.reply_text(_CHAT_DISABLED, parse_mode=ParseMode.HTML, reply_markup=main_menu_kb(user.id))
+        await message.reply_text(
+            _CHAT_DISABLED, parse_mode=ParseMode.HTML, reply_markup=main_menu_kb(user.id)
+        )
         return True
 
     # v6 anti-abuse: never forward prompt-injection attempts to the LLM.
@@ -377,7 +397,7 @@ async def _post_guardrail(
     footer and the structured answer trace.
     """
     # ── THINK-STRIPPING (post-processing) ─────────────────────────────────
-    # Local models (deepseek-analysis) emit visible <think>...</think>
+    # Local models (qwen-analysis) emit visible <think>...</think>
     # reasoning chains; the backend / zen / local providers can all surface
     # them. Strip here — the single funnel every provider's answer flows
     # through — so the user, the stored chat history, and the fabrication
@@ -393,7 +413,9 @@ async def _post_guardrail(
     # (``answer_is_degenerate`` also suppresses the grounding footer below.)
     answer_is_degenerate = is_degenerate_answer(answer)
     if answer_is_degenerate:
-        logger.warning("AI chat degenerate answer replaced (user=%s provider=%s)", user_id, provider)
+        logger.warning(
+            "AI chat degenerate answer replaced (user=%s provider=%s)", user_id, provider
+        )
         answer = _DEGENERATE_MESSAGE
 
     # Fallback answers were grounded by the bridge blocks — append the real

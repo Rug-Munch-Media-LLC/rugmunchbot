@@ -79,7 +79,7 @@ RMI_AUTH_TOKEN = os.getenv("RMI_AUTH_TOKEN", "")
 # llama.cpp servers run locally and provide OpenAI-compatible chat endpoints.
 # Model groups:
 #   - Qwen 3 4B on port 8085 → "qwen-chat" (fast, conversational)
-#   - DeepSeek R1 8B on port 8086 → "deepseek-analysis" (deep reasoning)
+#   - Qwen3.5-9B on port 8086 → "qwen-analysis" (deep reasoning)
 # chat_template_kwargs.enable_thinking=false disables reasoning preamble.
 LLAMA_HOST = os.getenv("LLAMA_HOST", "172.22.0.1")
 
@@ -87,7 +87,7 @@ LLAMA_HOST = os.getenv("LLAMA_HOST", "172.22.0.1")
 LITELLM_URL = os.getenv("LITELLM_URL", "http://127.0.0.1:4000/v1")
 LITELLM_API_KEY = os.getenv("LITELLM_API_KEY", "sk-litellm")
 AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "chat")  # LiteLLM group → qwen-chat
-AI_ANALYSIS_MODEL = os.getenv("AI_ANALYSIS_MODEL", "analysis")  # LiteLLM group → deepseek-analysis
+AI_ANALYSIS_MODEL = os.getenv("AI_ANALYSIS_MODEL", "analysis")  # LiteLLM group → qwen-analysis
 
 # Legacy direct llama.cpp backend (fallback when LiteLLM is unavailable)
 LLAMA_HOST = os.getenv("LLAMA_HOST", "172.22.0.1")

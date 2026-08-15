@@ -4075,7 +4075,7 @@ async def _call_litellm(
     """Call local llama.cpp directly for AI chat/analysis.
 
     LiteLLM was removed — this now calls the local llama-server directly.
-    Qwen 3 4B for chat (fast), DeepSeek 8B for analysis (deep).
+    Qwen 3 4B for chat (fast), Qwen3.5-9B for analysis (deep).
     chat_template_kwargs.enable_thinking=false stops the model from burning
     tokens on <think> blocks so all output is the actual answer.
 
@@ -4083,7 +4083,7 @@ async def _call_litellm(
 
     Args:
         prompt: User message / question.
-        task_type: "chat" → qwen-chat (fast), "analysis" → deepseek-analysis (deep).
+        task_type: "chat" → qwen-chat (fast), "analysis" → qwen-analysis (deep).
         max_tokens: Maximum tokens in response.
     """
     if task_type == "chat":
@@ -4091,7 +4091,7 @@ async def _call_litellm(
         model = "qwen-chat"
     else:
         url = f"http://{LLAMA_HOST}:8086/v1/chat/completions"
-        model = "deepseek-analysis"
+        model = "qwen-analysis"
     system_prompt = (
         "You are Rug Muncher, an AI crypto scam detective embedded in the @rugmunchbot Telegram bot. "
         "You help users detect scams, analyze tokens, and understand crypto security. "
