@@ -58,6 +58,8 @@ KNOWLEDGE_COLLECTIONS: list[str] = [
     "regulation_enforcement",  # regulatory actions + enforcement intel (16 pts, live)
     "wallet_v2",  # wallet labels, risk profiles, entity clusters (13.5K pts, live)
     "contract_audits",  # smart-contract audit findings (502 pts)
+    "contract_security",  # verdict-labeled good/bad contract patterns + security patterns (221 pts, live)
+    "audit_findings",  # labeled audit findings w/ severity + remediation (10 pts, live)
     "stablecoin_market",  # DeFiLlama stablecoin market caps (329 pts)
 ]
 RAG_TOKEN_COLLECTIONS: list[str] = [
