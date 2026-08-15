@@ -46,7 +46,7 @@ def trace_answer(
 ) -> None:
     """Log one structured trace line for a chat answer (JSON in production).
 
-    ``route`` is the synthesis route (``backend`` / ``zen`` / ``local`` /
+    ``route`` is the synthesis route (``backend`` / ``local`` /
     ``tools`` / ``local_intent`` / ``redirect``); ``tools`` are the bot-side
     tools that ran (incl. ``rag_lookup``); ``sources`` are the real data
     source labels hit; ``fabricated_symbols`` / ``fabricated_addresses`` are

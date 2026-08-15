@@ -2,20 +2,20 @@
 
 Extracted from ``chat_ai/__init__.py`` (Batch 11: clients; Batch 12: the
 fallback orchestration): the backend RAG chat client (``POST /api/v1/chat``),
-the cloud Zen client, the local llama.cpp client (Qwen3.5 4B / 9B), the
+the local llama.cpp client (Qwen3.5 4B / 9B), the
 endpoint/budget constants these clients use, and ``_build_fallback_answer``
 + ``_gather_fallback_context`` — the backend-less answer path that assembles
-the fail-open bridge/daily/scan context + live tool data into the Zen → local
+the fail-open bridge/daily/scan context + live tool data into the local
 llama.cpp fallback chain.
 
 Pipeline ordering (see ``chat_ai/__init__.py``): backend auto-RAG is
-tier-1, Zen and local llama.cpp are fallbacks. The Zen/local clients accept
+tier-1, local llama.cpp is the fallback. The local client accepts
 the bridge ``sources`` list so ``rag_count`` reflects the REAL number of
 grounding sources instead of a hardcoded 0.
 
-MONKEYPATCH CONTRACT: the pipeline tests replace ``chat_ai._call_zen_llm``
-and ``chat_ai._call_local_llm`` on the package, so the fallback chain resolves
-those two through the package module at call time instead of its own globals.
+MONKEYPATCH CONTRACT: the pipeline tests replace ``chat_ai._call_local_llm``
+on the package, so the fallback chain resolves it through the package module
+at call time instead of its own globals.
 """
 
 from __future__ import annotations
@@ -29,7 +29,6 @@ import httpx
 
 import rugmunchbot.handlers.chat_ai as chat_ai
 from rugmunchbot.config import BACKEND_URL, backend_headers
-from rugmunchbot.handlers.chat_ai._classify import _is_deep_question
 from rugmunchbot.handlers.chat_ai._format import _format_tool_answer
 from rugmunchbot.handlers.chat_ai._live_tools import (
     LIVE_TOOLS_WAIT,
@@ -39,11 +38,8 @@ from rugmunchbot.handlers.chat_ai._live_tools import (
 from rugmunchbot.prompts import FALLBACK_SYSTEM_PROMPT, PERSONA_CONTEXT
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools.intent import build_tool_prompt_block
-from rugmunchbot.zen_router import ZenRouter, ZenRouterError, build_router
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine
-
     from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
@@ -91,8 +87,8 @@ _LOCAL_ANALYSIS_TERMS = ("on-chain", "forensic", "mev", "rug", "whale", "exploit
 _LOCAL_ANALYSIS_LENGTH_THRESHOLD = 120  # chars — mirrors backend _route_task
 
 # Context ceiling for the local llama.cpp models (8k ctx each). Beyond
-# ~16k estimated tokens the local window would overflow/truncate — route to
-# Zen instead. Estimated as chars/4 (a conservative English token proxy).
+# ~16k estimated tokens the local window would overflow/truncate. Estimated
+# as chars/4 (a conservative English token proxy).
 LOCAL_CTX_LIMIT_TOKENS = 16_000
 
 
@@ -119,8 +115,7 @@ def _local_context_too_large(
 ) -> bool:
     """Estimate whether the assembled local prompt would exceed the local
     context window (``LOCAL_CTX_LIMIT_TOKENS``). Beyond it the 8k-ctx llama
-    models truncate/garbage — route to Zen instead. Conservative proxy:
-    tokens ≈ chars / 4."""
+    models truncate/garbage. Conservative proxy: tokens ≈ chars / 4."""
     total_chars = len(FALLBACK_SYSTEM_PROMPT) + len(message) + len(system_context or "")
     for msg in history or []:
         total_chars += len(str(msg.get("content") or ""))
@@ -128,7 +123,7 @@ def _local_context_too_large(
 
 
 async def _local_host_loaded() -> bool:
-    """Best-effort llama.cpp host-load probe (both servers busy → route to Zen).
+    """Best-effort llama.cpp host-load probe (both servers busy → host loaded).
 
     GETs ``/health`` on both local servers with a short timeout; loaded when
     BOTH report ``slots_idle == 0`` (every slot processing). Fails OPEN to
@@ -163,30 +158,6 @@ async def _local_host_loaded() -> bool:
             # Unreachable/broken probe — never block local on it.
             return False
     return loaded
-
-
-# Zen-vs-local overlap: Zen gets this head-start before the local CPU fallback
-# starts, so a healthy Zen (answers in ~2-3s) still wins alone — local only
-# joins when Zen is still running (slow/hung) and races it via FIRST_COMPLETED.
-ZEN_HEAD_START_S = 2.0
-
-# ── Multi-account Zen router (ZEN_ACCOUNTS) ─────────────────────────────
-# When the operator configures ZEN_ACCOUNTS (or ZEN1_URL/…), the Zen tier
-# routes through zen_router.ZenRouter: round-robin across accounts, each
-# behind its own rotating residential proxy IP, with 429/403/timeout failover
-# and a ~60s per-account cooldown. When unset, the legacy single-account
-# egress-proxy path below is used unchanged (backward-compatible).
-_ZEN_ROUTER: ZenRouter | None = None
-_ZEN_ROUTER_TRIED = False
-
-
-def _get_zen_router() -> ZenRouter | None:
-    """Lazily build (once) the multi-account Zen router from env."""
-    global _ZEN_ROUTER, _ZEN_ROUTER_TRIED
-    if not _ZEN_ROUTER_TRIED:
-        _ZEN_ROUTER = build_router()
-        _ZEN_ROUTER_TRIED = True
-    return _ZEN_ROUTER
 
 
 async def _call_backend_chat(
@@ -258,138 +229,6 @@ async def _call_backend_chat(
     }
 
 
-async def _call_zen_llm(
-    message: str,
-    user_id: int,
-    history: list[dict[str, str]] | None = None,
-    *,
-    deep: bool = False,
-    sources: list[dict[str, str]] | None = None,
-    system_context: str | None = None,
-) -> dict[str, Any] | None:
-    """Fast free cloud chat via OpenCode Zen DeepSeek V4 Flash Free.
-
-    When ``ZEN_ACCOUNTS`` (or ``ZEN1_URL``/…) is configured this goes through
-    the multi-account :class:`zen_router.ZenRouter`: least-recently-used
-    account selection, each account behind its own rotating Webshare
-    residential proxy IP, with 429/403/timeout failover and a ~60s per-account
-    cooldown (~3k free chats/day across 3 accounts instead of ~10). Without
-    that env, the legacy single-account path is used: the fleet egress proxy
-    (127.0.0.1:18081 — the proxy handles account auth).
-    ``thinking`` is
-    disabled so tokens go to the answer, not the reasoning preamble.
-    ``deep`` trades a little latency for a longer, more thorough answer
-    (analysis/report requests); short queries stay snappy.
-    ``sources`` are the bridge grounding sources prepended to the prompt;
-    ``rag_count = len(sources)`` so the grounding footer renders the REAL
-    count instead of a hardcoded 0.
-    ``system_context`` is a real-time digest (daily market/news context)
-    appended to the SYSTEM prompt so the model treats it as current data
-    rather than part of the user's question.
-    Returns the same dict shape as :func:`_call_local_llm`.
-    """
-    url = os.getenv("ZEN_CHAT_URL", "http://127.0.0.1:18081/zen/v1/chat/completions")
-    model = os.getenv("ZEN_MODEL", "deepseek-v4-flash-free")
-    timeout = 45.0 if deep else 20.0  # cloud — observed ~2.5s, generous headroom
-
-    # ONE shared condensed prompt for every fallback path (Zen fast, Zen
-    # deep, local) — see prompts.FALLBACK_SYSTEM_PROMPT. The `deep` flag only
-    # controls the answer budget (max_tokens / timeout), never the persona.
-    system_prompt = FALLBACK_SYSTEM_PROMPT
-    # Real-time market/news digest → SYSTEM prompt (not glued to the user's
-    # question) so the model answers with today's data instead of training-cutoff
-    # knowledge. Labeled clearly as current data to prevent verbatim quoting.
-    if system_context:
-        system_prompt += (
-            "\n\nCURRENT MARKET DIGEST (today's real-time context — cite it "
-            "when relevant, never present it as your own memory):\n"
-            f"{system_context[:1400]}"
-        )
-
-    messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
-    if history:
-        # History is REFERENCE ONLY — never continuation. A truncated prior
-        # assistant answer (e.g. a list cut at 500 chars) otherwise makes the
-        # model "finish" the old answer instead of answering the new question.
-        # Render it as one inert block, not as assistant turns.
-        hist_lines: list[str] = []
-        for msg in history[-4:]:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if role in ("user", "assistant") and content:
-                hist_lines.append(f"[{role}] {content[:300]}")
-        if hist_lines:
-            messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        "PREVIOUS CONVERSATION (reference only — do NOT "
-                        "continue it, do NOT quote it, answer only the NEW "
-                        "question below):\n" + "\n".join(hist_lines)
-                    ),
-                }
-            )
-    messages.append(
-        {
-            "role": "user",
-            "content": f"CURRENT QUESTION: {message[:2000]}",
-        }
-    )
-
-    payload: dict[str, Any] = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": 2000 if deep else 500,  # API is fast — give it room
-        "temperature": 0.7,
-        "thinking": {"type": "disabled"},
-    }
-
-    router = _get_zen_router()
-    if router is not None:
-        # Multi-account Zen tier (ZEN_ACCOUNTS): round-robin across accounts,
-        # each behind its own rotating residential proxy IP, with 429/403/
-        # timeout failover. When every account is exhausted it raises
-        # ZenRouterExhausted and we fall through to the local tier.
-        try:
-            raw = await router.chat_completion(payload, timeout=timeout)
-        except ZenRouterError as e:
-            logger.debug("Zen LLM unavailable (user=%s): %s", user_id, e)
-            return None
-    else:
-        # Legacy single-account path (ZEN_ACCOUNTS unset): the fleet egress
-        # proxy at 127.0.0.1:18081 handles account auth — no Authorization
-        # header is sent here (backward-compatible).
-        try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(timeout, connect=5.0, read=timeout, write=10.0)
-            ) as client:
-                r = await client.post(url, json=payload)
-        except (httpx.HTTPError, ConnectionError, OSError, TimeoutError) as e:
-            logger.debug("Zen LLM unavailable (user=%s): %s", user_id, e)
-            return None
-        if r.status_code != 200:
-            logger.debug("Zen LLM HTTP %d (user=%s)", r.status_code, user_id)
-            return None
-        try:
-            raw = r.json()
-        except ValueError:
-            return None
-    choices = raw.get("choices", []) if isinstance(raw, dict) else []
-    if not choices or not isinstance(choices, list):
-        return None
-    answer = (choices[0].get("message", {}) or {}).get("content", "").strip()
-    if not answer:
-        return None
-    return {
-        "message": answer,
-        "rag_count": len(sources or []),
-        "tokens": raw.get("usage", {}).get("total_tokens", 0),
-        "model": model,
-        "provider": "zen",
-        "latency_ms": 0,
-    }
-
-
 async def _call_local_llm(
     message: str,
     user_id: int,
@@ -408,10 +247,10 @@ async def _call_local_llm(
     ``system_context`` is a real-time digest (daily market/news context)
     appended to the SYSTEM prompt so the model treats it as current data.
     """
-    # ONE shared condensed prompt for every fallback path (Zen fast, Zen
-    # deep, local) — see prompts.FALLBACK_SYSTEM_PROMPT.
+    # ONE shared condensed prompt for the local fallback path — see
+    # prompts.FALLBACK_SYSTEM_PROMPT.
     system_content = FALLBACK_SYSTEM_PROMPT
-    # Real-time market/news digest → SYSTEM prompt (see _call_zen_llm).
+    # Real-time market/news digest → SYSTEM prompt (see _call_local_llm).
     if system_context:
         system_content += (
             "\n\nCURRENT MARKET DIGEST (today's real-time context — cite it "
@@ -450,12 +289,6 @@ async def _call_local_llm(
             )
     # Add current message (labeled so the model answers THIS question).
     messages.append({"role": "user", "content": f"CURRENT QUESTION: {message[:2000]}"})
-
-    # Complexity router (local-first): host loaded or prompt > 16k ctx →
-    # defer to Zen (return None so the Zen/local race answers from Zen).
-    if await _local_host_loaded() or _local_context_too_large(message, history, system_context):
-        logger.debug("local LLM deferred to Zen (host loaded or >16k ctx, user=%s)", user_id)
-        return None
 
     # Try each available model in order, routed by intent (mirrors the
     # backend _route_task: chat=4B qwen / analysis=9B Qwen3.5). Simple /
@@ -569,7 +402,7 @@ async def _gather_fallback_context(
     scan_ctx_task: asyncio.Task[Any] | None,
     bridge_ctx_task: asyncio.Task[Any],
 ) -> tuple[Any, Any, Any]:
-    """Await the fallback context fetches (fail-open) for the Zen/local path.
+    """Await the fallback context fetches (fail-open) for the local fallback path.
 
     The backend tier-1 call runs CONCURRENTLY with these tasks and is awaited
     FIRST; this helper is only invoked when the backend returned ``None`` and
@@ -590,54 +423,6 @@ async def _gather_fallback_context(
     return daily_context, scan_summary, bridge_ctx
 
 
-def _llm_task_result(task: asyncio.Task[dict[str, Any] | None]) -> dict[str, Any] | None:
-    """Read an LLM task's result defensively (cancelled/failed → ``None``)."""
-    if task.cancelled():
-        return None
-    try:
-        result = task.result()
-    except Exception:
-        return None
-    return result if isinstance(result, dict) else None
-
-
-async def _first_llm_answer(
-    zen_coro: Coroutine[Any, Any, dict[str, Any] | None],
-    local_coro: Coroutine[Any, Any, dict[str, Any] | None],
-) -> dict[str, Any] | None:
-    """Race the cloud Zen and local CPU fallbacks; return the first real answer.
-
-    Both coroutines run concurrently so a hung Zen no longer delays local
-    Qwen. Zen gets a small head-start (``ZEN_HEAD_START_S``): a healthy Zen
-    answers alone exactly like the old sequential path (local is only
-    started once Zen is still running after the head-start), preserving the
-    Zen-primary preference. Once both are running, whichever produces a
-    non-``None`` answer first is returned and the loser is cancelled; a
-    ``None`` (failure/timeout) from the first finisher falls back to the
-    other. Returns ``None`` only when both failed.
-    """
-    zen_task = asyncio.create_task(zen_coro, name="chat_ai_zen")
-    done, _ = await asyncio.wait({zen_task}, timeout=ZEN_HEAD_START_S)
-    if done:
-        result = _llm_task_result(zen_task)
-        if result:
-            # Zen answered within the head-start — local never needs to run.
-            # Close its coroutine so GC doesn't warn "never awaited".
-            local_coro.close()
-            return result
-    local_task = asyncio.create_task(local_coro, name="chat_ai_local")
-    pending: set[asyncio.Task[dict[str, Any] | None]] = {zen_task, local_task}
-    while pending:
-        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-        for task in done:
-            result = _llm_task_result(task)
-            if result:
-                for other in pending:
-                    other.cancel()
-                return result
-    return None
-
-
 async def _build_fallback_answer(
     text: str,
     user: Any,
@@ -652,13 +437,13 @@ async def _build_fallback_answer(
     dict[str, Any] | None, list[dict[str, str]], list[dict[str, str]], ToolResult | None, bool
 ]:
     """Backend-less answer path: gather the fail-open context fetches that
-    ground the Zen → local llama.cpp fallback chain.
+    ground the local llama.cpp fallback chain.
 
     Returns ``(result, bridge_sources, bridge_actions, rag_result,
     has_market_context)``. The bridge/daily/scan context and the direct RAG
     lookup are gathered first (each fails open to ``None``), then the prompt
     is assembled from bridge blocks + scan summary + LIVE tool data, and the
-    cloud Zen / local CPU chain runs with ``rag_count = len(sources)``. When
+    local llama.cpp chain runs with ``rag_count = len(sources)``. When
     the whole LLM chain is down but tools returned REAL data, a tools-only
     answer is produced. ``result`` is ``None`` only when every path failed
     (the caller then falls through to the canned tier-2 reply).
@@ -720,27 +505,15 @@ async def _build_fallback_answer(
         isinstance(s, dict) and s.get("type") == "market" for s in bridge_sources
     )
 
-    # Fallback: cloud Zen AND local CPU llama.cpp run concurrently (Zen with a
-    # small head-start) — a hung Zen no longer delays local Qwen. Both are
-    # grounded with the bridge blocks + live tool data, reporting
-    # rag_count = len(sources); whichever answers first wins.
-    deep = _is_deep_question(text)
-    result = await _first_llm_answer(
-        chat_ai._call_zen_llm(
-            prompt,
-            user.id,
-            history,
-            deep=deep,
-            sources=bridge_sources,
-            system_context=daily_context,
-        ),
-        chat_ai._call_local_llm(
-            prompt,
-            user.id,
-            history,
-            sources=bridge_sources,
-            system_context=daily_context,
-        ),
+    # Fallback: local CPU llama.cpp (qwen-chat 4B / qwen-analysis 9B, routed
+    # by intent) — grounded with the bridge blocks + live tool data,
+    # reporting rag_count = len(sources).
+    result = await chat_ai._call_local_llm(
+        prompt,
+        user.id,
+        history,
+        sources=bridge_sources,
+        system_context=daily_context,
     )
 
     # LLM chain completely down but tools returned REAL data → answer from

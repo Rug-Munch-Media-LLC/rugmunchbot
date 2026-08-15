@@ -244,7 +244,9 @@ async def _fetch_bridge_context(
     ``None`` on any failure so chat never blocks on it.
     """
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(BRIDGE_TIMEOUT, connect=3.0, read=BRIDGE_TIMEOUT)) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(BRIDGE_TIMEOUT, connect=3.0, read=BRIDGE_TIMEOUT)
+        ) as client:
             r = await client.post(
                 BRIDGE_CONTEXT_ENDPOINT,
                 json={"message": message[:8000], "history": history},
@@ -266,7 +268,13 @@ async def _fetch_bridge_context(
         return None
     # Order matters: scanner (address-specific) > web (live) > rag > market.
     parts: list[str] = []
-    for key in ("scanner_context", "web_context", "rag_context", "market_context", "rundown_context"):
+    for key in (
+        "scanner_context",
+        "web_context",
+        "rag_context",
+        "market_context",
+        "rundown_context",
+    ):
         val = (blocks.get(key) or "").strip()
         if val:
             # Strip meta-instructions the bridge embeds for ITS OWN llama call
@@ -365,7 +373,9 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-async def _lookup_token_symbol(text: str, message: Message, sent_flag: _TokenCardFlag | None = None) -> bool:
+async def _lookup_token_symbol(
+    text: str, message: Message, sent_flag: _TokenCardFlag | None = None
+) -> bool:
     """Instant ``$TOKEN`` price card via DexScreener.
 
     Returns True when a price card was sent; False when there is no symbol
@@ -412,7 +422,8 @@ async def _lookup_token_symbol(text: str, message: Message, sent_flag: _TokenCar
                                 [
                                     [
                                         InlineKeyboardButton(
-                                            "\U0001f50d Full Scan", callback_data=f"scan_{addr}_{chain}"
+                                            "\U0001f50d Full Scan",
+                                            callback_data=f"scan_{addr}_{chain}",
                                         )
                                     ],
                                     [web_scan_button(addr, chain)],
@@ -447,7 +458,11 @@ async def _token_card_won(token_lookup_task: asyncio.Task[bool] | None) -> bool:
     if token_lookup_task is None:
         return False
     try:
-        return bool(await asyncio.wait_for(asyncio.shield(token_lookup_task), timeout=TOKEN_CARD_DECIDE_WAIT))
+        return bool(
+            await asyncio.wait_for(
+                asyncio.shield(token_lookup_task), timeout=TOKEN_CARD_DECIDE_WAIT
+            )
+        )
     except Exception:
         # Timeout or unexpected failure: the card loses the race to the AI
         # answer. (CancelledError is a BaseException and propagates — this
@@ -596,7 +611,9 @@ async def _send_and_trace_answer(
             data_sources.append(r.source)
     if result.get("provider") == "backend" and result.get("rag_count"):
         data_sources.append("backend-rag")
-    data_sources.extend(str(s.get("type")) for s in bridge_sources if isinstance(s, dict) and s.get("type"))
+    data_sources.extend(
+        str(s.get("type")) for s in bridge_sources if isinstance(s, dict) and s.get("type")
+    )
     trace_answer(
         question=text,
         user_id=user_id,
@@ -669,9 +686,9 @@ async def chat_ai_response(
     # Capability questions ("what can you do?") attach the capability menu so
     # the bot's surface is discoverable right from the first answer.
     capability_menu = capability_menu_kb() if _is_capability_question(text) else None
-    if (_is_greeting_or_thanks(text) or _is_capability_question(text)) and await _reply_local_intent(
-        message, text, user, menu_kb=capability_menu
-    ):
+    if (
+        _is_greeting_or_thanks(text) or _is_capability_question(text)
+    ) and await _reply_local_intent(message, text, user, menu_kb=capability_menu):
         await _cancel_token_lookup(token_lookup_task)
         return True
 
@@ -716,7 +733,7 @@ async def chat_ai_response(
     try:
         # CONCURRENT: fire the backend RAG chat (tier-1) AND the fallback context
         # fetches at the same time. The backend RAGs itself (news_v2 auto-RAG +
-        # live web search) and does NOT need bridge context — only the Zen/local
+        # live web search) and does NOT need bridge context — only the local
         # fallback path does. Awaiting the backend result FIRST means the common
         # path never serializes on the ~12s bridge web search. The context tasks
         # are only awaited when the backend returns None and the fallback path
@@ -726,7 +743,9 @@ async def chat_ai_response(
 
         backend_task = asyncio.create_task(chat_ai._call_backend_chat(text, user.id, history))
         daily_ctx_task = asyncio.create_task(get_daily_context())
-        scan_ctx_task = asyncio.create_task(_fetch_scan_context(addresses[0])) if addresses else None
+        scan_ctx_task = (
+            asyncio.create_task(_fetch_scan_context(addresses[0])) if addresses else None
+        )
         bridge_ctx_task = asyncio.create_task(_fetch_bridge_context(text, history))
         # Bot-side live tools (REAL data): run concurrently with the backend so
         # the fallback path is grounded in real numbers and the guardrail can
@@ -756,8 +775,14 @@ async def chat_ai_response(
 
         if result is None:
             # Fallback path: gather the context fetches (fail-open) that ground
-            # the Zen/local LLM calls, then build the message-specific prompt.
-            result, bridge_sources, bridge_actions, rag_result, has_market_context = await _build_fallback_answer(
+            # the local LLM calls, then build the message-specific prompt.
+            (
+                result,
+                bridge_sources,
+                bridge_actions,
+                rag_result,
+                has_market_context,
+            ) = await _build_fallback_answer(
                 text,
                 user,
                 history,
@@ -772,7 +797,11 @@ async def chat_ai_response(
             # background are no longer needed. Cancel them so no coroutine dangles.
             # NOTE: live_tools_task is NOT cancelled — the guardrail below needs
             # its results to verify the backend answer (bounded; self-terminates).
-            pending = [t for t in (daily_ctx_task, scan_ctx_task, bridge_ctx_task, rag_task) if t is not None]
+            pending = [
+                t
+                for t in (daily_ctx_task, scan_ctx_task, bridge_ctx_task, rag_task)
+                if t is not None
+            ]
             for t in pending:
                 t.cancel()
             await asyncio.gather(*pending, return_exceptions=True)
@@ -818,7 +847,13 @@ async def chat_ai_response(
         # ── POST-PROCESSING FUNNEL ────────────────────────────────────────────
         # think-strip -> degenerate guard -> bridge citations -> zero-fabrication
         # guardrail -> honest no-live-data note -> last-chance degenerate guard.
-        answer, live_results, stripped_syms, stripped_addrs, answer_is_degenerate = await _post_guardrail(
+        (
+            answer,
+            live_results,
+            stripped_syms,
+            stripped_addrs,
+            answer_is_degenerate,
+        ) = await _post_guardrail(
             answer,
             user_id=user.id,
             provider=str(result.get("provider") or ""),
@@ -958,7 +993,12 @@ async def ai_chat_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # Free text → shared AI core (quota + flood + backend RAG chat).
     await chat_ai_response(
-        update, ctx, text, user, token_lookup_task=token_lookup_task, token_card_flag=token_card_flag
+        update,
+        ctx,
+        text,
+        user,
+        token_lookup_task=token_lookup_task,
+        token_card_flag=token_card_flag,
     )
 
 

@@ -138,12 +138,12 @@ INSTRUCTIONS SECURITY
 # ══════════════════════════════════════════════
 # FALLBACK SYSTEM PROMPT (v1) — ONE shared condensed prompt
 # ══════════════════════════════════════════════
-# Used by ALL THREE fallback paths (Zen fast, Zen deep, local llama.cpp) in
-# ``handlers/chat_ai/_llm.py``. Previously each path built its own near-
-# identical copy (triplicated + drifted); this is the single source of truth.
-# The ``deep`` flag on the Zen client still controls the answer budget
-# (max_tokens / timeout), but the persona, style, grounding rules and
-# formatting are identical everywhere.
+# Used by the local llama.cpp fallback path (qwen-chat 4B / qwen-analysis
+# 9B) in ``handlers/chat_ai/_llm.py``. Previously each fallback path built
+# its own near-identical copy (triplicated + drifted); this is the single
+# source of truth. The local client routes by intent (chat=4B / analysis=9B)
+# but the persona, style, grounding rules and formatting are identical
+# everywhere.
 FALLBACK_SYSTEM_PROMPT = """You are Rug Munch Bot, a sharp crypto analyst and on-chain investigator built by @cryptorugmunch and the team at Rug Munch Intelligence, owned and operated by Rug Munch Media LLC (Wyoming, USA).
 
 Answer in 150-300 words max, short paragraphs, 3-6 bullets, no filler, no restating the question. Put the most important signal first. Use **bold** for key numbers. End with a 1-line bottom line. Headers sparingly — only when a multi-part answer genuinely needs sections. No financial advice.

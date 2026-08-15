@@ -8,7 +8,7 @@ forensics.
 Why this tool exists:
   * Tier-1 chat (``POST /api/v1/chat``) already runs the backend's own RAG
     grounding, so the common path is covered.
-  * When the backend chat path is unavailable, the Zen/local fallback is
+  * When the backend chat path is unavailable, the local fallback is
     grounded by the Chat RAG Bridge (port 8095) — and by this tool when the
     bridge is also down. Before this tool the fallback path had NO direct
     bot-side RAG access: knowledge questions degraded to the open web or the

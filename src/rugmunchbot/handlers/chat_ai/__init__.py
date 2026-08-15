@@ -37,7 +37,7 @@ Pipeline order (free text, ``ai_chat_handler``):
      /scan -> ``$TOKEN`` price card
   7. ``chat_ai_response`` (shared AI core): chat_enabled gate -> injection ->
      weekly quota -> flood -> gibberish (tier-2/3) -> backend RAG chat
-     (tier-1) -> Zen -> local llama.cpp fallback
+     (tier-1) -> local llama.cpp fallback
 
 Import-time side effects preserved: ``SCAN_ENDPOINT`` is still built from
 ``BACKEND_URL`` at import time (in ``_routing.py``, imported eagerly here)
@@ -93,7 +93,6 @@ from rugmunchbot.handlers.chat_ai._llm import (
     CHAT_TIMEOUT,  # re-exported (public __all__)
     _call_backend_chat as _call_backend_chat,  # re-exported (tests import from package)
     _call_local_llm as _call_local_llm,
-    _call_zen_llm as _call_zen_llm,
 )
 from rugmunchbot.handlers.chat_ai._parts import send_in_parts, split_in_parts
 from rugmunchbot.handlers.chat_ai._routing import (

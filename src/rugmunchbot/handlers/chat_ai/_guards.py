@@ -390,7 +390,7 @@ async def _post_guardrail(
 ) -> tuple[str, dict[str, ToolResult], list[str], list[str], bool]:
     """Post-processing funnel every provider's answer flows through.
 
-    Think-strip → degenerate guard → bridge citations (zen/local) →
+    Think-strip → degenerate guard → bridge citations (local) →
     zero-fabrication guardrail → honest no-live-data note → last-chance
     degenerate guard. Returns ``(answer, live_results, stripped_syms,
     stripped_addrs, answer_is_degenerate)`` — the extras feed the grounding
@@ -398,7 +398,7 @@ async def _post_guardrail(
     """
     # ── THINK-STRIPPING (post-processing) ─────────────────────────────────
     # Local models (qwen-analysis) emit visible <think>...</think>
-    # reasoning chains; the backend / zen / local providers can all surface
+    # reasoning chains; the backend / local providers can all surface
     # them. Strip here — the single funnel every provider's answer flows
     # through — so the user, the stored chat history, and the fabrication
     # guardrail never see the chain. Handles complete + unterminated blocks
@@ -421,7 +421,7 @@ async def _post_guardrail(
     # Fallback answers were grounded by the bridge blocks — append the real
     # citation lines. Backend auto-RAG answers carry their own X-RAG-Context
     # count; citing bridge sources there would be dishonest.
-    if provider in ("zen", "local") and bridge_sources:
+    if provider == "local" and bridge_sources:
         answer = _append_source_lines(answer, bridge_sources)
 
     # ── ZERO-FABRICATION GUARDRAIL (post-processing) ────────────────────

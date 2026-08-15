@@ -2,7 +2,7 @@
 """
 RMI AI Gateway — Access AI APIs through Telegram
 ==================================================
-Query DeepSeek, Ollama (local), OpenRouter from the admin bot.
+Query DeepSeek, local llama.cpp, OpenRouter from the admin bot.
 Streaming responses, model switching, usage tracking.
 """
 
@@ -40,32 +40,28 @@ if os.getenv("OPENROUTER_API_KEY"):
         "context": "64K",
     }
 
-# Local Ollama (Talos)
-MODELS["ollama:qwen3:4b"] = {
-    "name": "Qwen3 4B (Local)",
-    "provider": "ollama",
-    "api_url": "http://localhost:11434/v1/chat/completions",
-    "api_key": "ollama",
+# Local llama.cpp (Talos, systemd)
+MODELS["llama:qwen-chat"] = {
+    "name": "Qwen3.5 4B Chat (Local)",
+    "provider": "llama",
+    "api_url": "http://172.22.0.1:8085/v1/chat/completions",
+    "api_key": "",
     "cost_per_1k": "FREE",
-    "context": "32K",
+    "context": "8K",
 }
 
-MODELS["ollama:phi4-mini:3.8b"] = {
-    "name": "Phi-4 Mini (Local)",
-    "provider": "ollama",
-    "api_url": "http://localhost:11434/v1/chat/completions",
-    "api_key": "ollama",
+MODELS["llama:qwen-analysis"] = {
+    "name": "Qwen3.5 9B Analysis (Local)",
+    "provider": "llama",
+    "api_url": "http://172.22.0.1:8086/v1/chat/completions",
+    "api_key": "",
     "cost_per_1k": "FREE",
-    "context": "4K",
+    "context": "8K",
 }
 
 # Default model
 DEFAULT_MODEL = (
-    "deepseek-chat"
-    if "deepseek-chat" in MODELS
-    else list(MODELS.keys())[0]
-    if MODELS
-    else None
+    "deepseek-chat" if "deepseek-chat" in MODELS else next(iter(MODELS.keys())) if MODELS else None
 )
 
 # ══════════════════════════════════════════════
@@ -101,7 +97,7 @@ def set_model(user_id: int, model_id: str) -> bool:
 
 def get_model(user_id: int) -> str:
     s = get_session(user_id)
-    return s.model or DEFAULT_MODEL or list(MODELS.keys())[0]
+    return s.model or DEFAULT_MODEL or next(iter(MODELS.keys()))
 
 
 # ══════════════════════════════════════════════
@@ -133,11 +129,11 @@ async def chat(user_id: int, prompt: str, system_prompt: str = "") -> dict:
     messages.append({"role": "user", "content": prompt})
 
     headers = {"Content-Type": "application/json"}
-    if model["api_key"] and model["api_key"] != "ollama":
+    if model["api_key"]:
         headers["Authorization"] = f"Bearer {model['api_key']}"
 
     body = {
-        "model": model_id.replace("ollama:", "").replace("openrouter/", ""),
+        "model": model_id.replace("llama:", "").replace("openrouter/", ""),
         "messages": messages,
         "max_tokens": 2000,
         "temperature": 0.7,
@@ -219,10 +215,8 @@ def list_models() -> str:
     """Format available models for display."""
     lines = ["🤖 *Available AI Models*", ""]
     for mid, m in MODELS.items():
-        emoji = "🏠" if "ollama" in mid else "☁️" if "deepseek" in mid else "🌐"
-        lines.append(
-            f"{emoji} *{m['name']}* — {m['cost_per_1k']}/1K tokens, {m['context']} ctx"
-        )
+        emoji = "🏠" if "llama" in mid else "☁️" if "deepseek" in mid else "🌐"
+        lines.append(f"{emoji} *{m['name']}* — {m['cost_per_1k']}/1K tokens, {m['context']} ctx")
         lines.append(f"  `{mid}`")
     lines.append("")
     lines.append("Switch: `/ai model <id>`")
@@ -235,7 +229,7 @@ def model_keyboard():
 
     buttons = []
     for mid, m in MODELS.items():
-        emoji = "🏠" if "ollama" in mid else "☁️"
+        emoji = "🏠" if "llama" in mid else "☁️"
         label = f"{emoji} {m['name']}"
         buttons.append([InlineKeyboardButton(label, callback_data=f"ai_model_{mid}")])
     buttons.append([InlineKeyboardButton("🧹 Clear History", callback_data="ai_clear")])

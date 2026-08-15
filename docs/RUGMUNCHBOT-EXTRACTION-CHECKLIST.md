@@ -126,7 +126,6 @@ RUGBRAIN plan). Do not rename-in-place; rewrite the file then fix the ~56 import
 | `CHANNELS = {"main": "-1002056885429", ...}` (5 numeric IDs) | 562–568 | `BOT_CHANNELS` env JSON (`{"alerts": "-100..."}`), no defaults; broadcast/alerts disabled when unset |
 | `REF_CODES = {"gmgn": "rugmunch", ...}` (formatters/_base.py:89) | _base 89–96 | `RMI_REF_GMGN`/`RMI_REF_DEXTOOLS` env, empty default (env override already coded via `_ref_code()`) |
 | `LLAMA_HOST = os.getenv("LLAMA_HOST", "172.22.0.1")` (chat_ai/_llm.py:39) | _llm 39–45 | default `127.0.0.1`; `BOT_LLM_API_BASE`/`BOT_LLM_API_KEY` |
-| `ZEN_CHAT_URL` default `http://127.0.0.1:18081/zen/v1/...`, `ZEN_MODEL="deepseek-v4-flash-free"` | _llm 132–133 | `BOT_LLM_API_BASE` / `BOT_LLM_MODEL` env, unset = local fallback only |
 | `BRIDGE_CONTEXT_ENDPOINT` default `http://127.0.0.1:8095/chat/context` (web.py, chat_ai/__init__.py) | web 26, chat_ai 172 | `BOT_BRIDGE_CONTEXT_ENDPOINT` env; no-op when unset |
 | `SEARXNG_URL` default `http://127.0.0.1:8889` | web 27 | `SEARXNG_URL` env (this one is fine as-is — self-hosted, no secret) |
 | `BIRDEYE_API_KEY` via `_get_token("rmi/infra/birdeye_api_key", [...])` (tools/birdeye.py:77) | birdeye 77 | `BIRDEYE_API_KEY` env only — no gopass |
