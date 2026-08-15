@@ -70,9 +70,9 @@ QWEN_TIMEOUT = (
 )
 
 # Qwen3.5-9B for deep analysis (alias qwen-analysis; hides thinking output)
-DEEPSEEK_CHAT_URL = f"http://{LLAMA_HOST}:8086/v1/chat/completions"
-DEEPSEEK_MODEL = "qwen-analysis"
-DEEPSEEK_TIMEOUT = (
+QWEN_ANALYSIS_URL = f"http://{LLAMA_HOST}:8086/v1/chat/completions"
+QWEN_ANALYSIS_MODEL = "qwen-analysis"
+QWEN_ANALYSIS_TIMEOUT = (
     60.0  # halved: a 2-minute silent wait before failing to the next tier was worthless
 )
 
@@ -464,13 +464,13 @@ async def _call_local_llm(
     # Qwen3.5 reasoning preamble so all tokens go to the actual answer.
     if _route_local_model(message) == "analysis":
         model_order = [
-            (DEEPSEEK_CHAT_URL, DEEPSEEK_MODEL, DEEPSEEK_TIMEOUT),
+            (QWEN_ANALYSIS_URL, QWEN_ANALYSIS_MODEL, QWEN_ANALYSIS_TIMEOUT),
             (QWEN_CHAT_URL, QWEN_MODEL, QWEN_TIMEOUT),
         ]
     else:
         model_order = [
             (QWEN_CHAT_URL, QWEN_MODEL, QWEN_TIMEOUT),
-            (DEEPSEEK_CHAT_URL, DEEPSEEK_MODEL, DEEPSEEK_TIMEOUT),
+            (QWEN_ANALYSIS_URL, QWEN_ANALYSIS_MODEL, QWEN_ANALYSIS_TIMEOUT),
         ]
     for url, model, timeout in model_order:
         try:
