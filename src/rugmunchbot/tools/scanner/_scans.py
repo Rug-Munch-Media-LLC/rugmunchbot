@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import httpx
+
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
     DEXSCREENER,
@@ -347,9 +348,7 @@ async def fetch_hype_score(address: str, chain: str | None = None) -> dict[str, 
         return None
 
 
-async def fetch_deployer_fingerprint(
-    deployer: str, chain: str | None = None
-) -> dict[str, Any] | None:
+async def fetch_deployer_fingerprint(deployer: str, chain: str | None = None) -> dict[str, Any] | None:
     """Fetch the C7 deployer behavioral fingerprint from the backend DataBus.
 
     GETs /api/v1/databus/fetch/deployer_fingerprint and returns the inner
@@ -450,9 +449,7 @@ async def analyze_wallet(address: str, chain: str | None = None) -> dict[str, An
     client = _scanner.get_shared_client(15)
     try:
         r = await client.get(
-            f"{BACKEND_URL}/api/v1/databus/wallet/{address}/tokens",
-            headers=backend_headers(),
-            timeout=10,
+            f"{BACKEND_URL}/api/v1/databus/wallet/{address}/tokens", headers=backend_headers(), timeout=10
         )
         if r.status_code == 200:
             data = r.json()
@@ -492,12 +489,6 @@ async def analyze_wallet(address: str, chain: str | None = None) -> dict[str, An
                 # Null-safe: a null Solana.fm balance must not crash /wallet.
                 result["balance_usd"] = _safe_float(data.get("balance")) / 1e9 * sol_price
                 result["tx_count"] = data.get("transaction_count", 0)
-        except (
-            ConnectionError,
-            OSError,
-            TimeoutError,
-            httpx.HTTPError,
-            httpx.TimeoutException,
-        ) as e:
+        except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
             result["errors"].append(f"Solana.fm: {e}")
     return result

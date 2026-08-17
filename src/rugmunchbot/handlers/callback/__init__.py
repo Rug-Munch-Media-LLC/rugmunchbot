@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.formatters import footer_links
 from app.domains.telegram.rugmunchbot.handlers.callback import _actions, _invoices, _menus, _refresh
@@ -28,7 +30,6 @@ from app.domains.telegram.rugmunchbot.handlers.callback._inline import (
 )
 from app.domains.telegram.rugmunchbot.handlers.callback._run_cards import _RUN_CARDS
 from app.domains.telegram.rugmunchbot.keyboards import back_kb
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update

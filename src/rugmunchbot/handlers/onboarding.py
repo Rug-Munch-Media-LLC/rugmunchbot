@@ -26,9 +26,10 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot.handlers._help_text import project_links_section
 from app.domains.telegram.rugmunchbot.keyboards import quick_start_kb
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

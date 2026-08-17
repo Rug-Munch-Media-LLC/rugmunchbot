@@ -60,15 +60,11 @@ try:  # prometheus-client is an existing project dependency (requirements.txt)
 
     _HAS_PROMETHEUS = True
 
-    CHAT_CALLS = Counter(
-        "rmi_bot_chat_calls_total", "LLM chat calls by tier/model", ["tier", "model"]
-    )
+    CHAT_CALLS = Counter("rmi_bot_chat_calls_total", "LLM chat calls by tier/model", ["tier", "model"])
     CHAT_LATENCY = Histogram("rmi_bot_chat_latency_seconds", "LLM chat latency by tier", ["tier"])
     SCANS = Counter("rmi_bot_scans_total", "Token scan commands by kind", ["kind"])
     ERRORS = Counter("rmi_bot_errors_total", "Bot errors by kind", ["kind"])
-    WEBHOOK_EVENTS = Counter(
-        "rmi_bot_webhook_events_total", "Webhook events delivered by type", ["event_type"]
-    )
+    WEBHOOK_EVENTS = Counter("rmi_bot_webhook_events_total", "Webhook events delivered by type", ["event_type"])
     JOBS_RUN = Counter("rmi_bot_jobs_total", "Scheduled job runs by name", ["name"])
     JOBS_FAILED = Counter("rmi_bot_jobs_failed_total", "Scheduled job failures by name", ["name"])
     UPTIME = Gauge("rmi_bot_uptime_seconds", "Bot process uptime")
@@ -124,11 +120,7 @@ def record_scan(kind: str = "scan") -> None:
 
 def record_webhook_event(event_type: str = "unknown") -> None:
     """Record one intelligent webhook event delivered to a user."""
-    _inc(
-        WEBHOOK_EVENTS,
-        "webhook_events",
-        {"event_type": (event_type or "unknown").strip() or "unknown"},
-    )
+    _inc(WEBHOOK_EVENTS, "webhook_events", {"event_type": (event_type or "unknown").strip() or "unknown"})
 
 
 def record_job(name: str = "unknown") -> None:
@@ -176,9 +168,7 @@ def _render_metrics() -> tuple[bytes, str]:
         for key, count in sorted(_plain.items()):
             payload["counters"][key] = count
         for tier, (lat_total, lat_count) in sorted(_plain_latency.items()):
-            payload["chat_latency_ms_mean"][tier] = (
-                round(lat_total / lat_count, 1) if lat_count else 0.0
-            )
+            payload["chat_latency_ms_mean"][tier] = round(lat_total / lat_count, 1) if lat_count else 0.0
         payload["last_error"] = _LAST_ERROR
     return json.dumps(payload, indent=2).encode(), "application/json"
 

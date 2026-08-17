@@ -24,13 +24,7 @@ import html
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from app.domains.telegram.rugmunchbot.config import (
-    _risk_gauge,
-    fmt_chain,
-    fmt_pct,
-    risk_bar,
-    threat_indicator,
-)
+from app.domains.telegram.rugmunchbot.config import _risk_gauge, fmt_chain, fmt_pct, risk_bar, threat_indicator
 from app.domains.telegram.rugmunchbot.formatters._base import footer_links, sep, thin_sep
 from app.domains.telegram.rugmunchbot.formatters._scan_report_common import (
     _clip,
@@ -42,15 +36,9 @@ from app.domains.telegram.rugmunchbot.formatters._scan_report_common import (
     _launch_intel_rows,
     _what_to_watch_line,
 )
-from app.domains.telegram.rugmunchbot.formatters._scan_report_risk import (
-    _format_risk_signals_section,
-    _verdict_text,
-)
+from app.domains.telegram.rugmunchbot.formatters._scan_report_risk import _format_risk_signals_section, _verdict_text
 from app.domains.telegram.rugmunchbot.formatters._scan_report_sentinel import _format_sentinel_pro
-from app.domains.telegram.rugmunchbot.formatters._scan_report_token import (
-    _token_description,
-    _token_image_url,
-)
+from app.domains.telegram.rugmunchbot.formatters._scan_report_token import _token_description, _token_image_url
 from app.domains.telegram.rugmunchbot.formatters._scan_report_wallet import (
     _format_deployer_section,
     _format_gmgn_section,
@@ -273,11 +261,7 @@ def _format_scan_report(
         adv.append(f"  {emoji} Vol/MCap ratio: <b>{ratio:.2f}x</b>")
     dev_wallet = r.get("dev_wallet")
     deployer_addr = r.get("deployer_address") or r.get("dev_wallet") or ""
-    if (
-        dev_wallet
-        and dev_wallet != deployer_addr
-        and not any("Dev:" in line for line in deployer_lines)
-    ):
+    if dev_wallet and dev_wallet != deployer_addr and not any("Dev:" in line for line in deployer_lines):
         adv.append(f"  \U0001f468\u200d\U0001f4bb Dev: <code>{dev_wallet}</code>")
     wallet_line = _wallet_freshness_line(r)
     if wallet_line:
@@ -338,9 +322,7 @@ def _format_scan_report(
                 f'<a href="{html.escape(surl, quote=True)}">\U0001f517 {html.escape(str(stype).capitalize())}</a>'
             )
     if image_url:
-        soc_parts.append(
-            f'<a href="{html.escape(image_url, quote=True)}">\U0001f5bc\ufe0f Image</a>'
-        )
+        soc_parts.append(f'<a href="{html.escape(image_url, quote=True)}">\U0001f5bc\ufe0f Image</a>')
 
     lines.append("")
     lines.append("\U0001f517 <b>Socials</b>")

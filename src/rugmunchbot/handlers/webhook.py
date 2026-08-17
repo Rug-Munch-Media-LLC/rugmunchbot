@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 import httpx
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
@@ -34,7 +36,6 @@ from app.domains.telegram.rugmunchbot.handlers._messages import (
 from app.domains.telegram.rugmunchbot.keyboards import back_kb, paywall_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -216,11 +217,7 @@ async def cmd_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def _list_events(update: Update, _user_id: int) -> None:
     """Show available webhook event types."""
-    text = (
-        "🔗 <b>Available Webhook Events</b>\n"
-        + sep()
-        + "\n\nChoose the events you want to receive:\n\n"
-    )
+    text = "🔗 <b>Available Webhook Events</b>\n" + sep() + "\n\nChoose the events you want to receive:\n\n"
     for evt, desc in WEBHOOK_EVENTS.items():
         emoji = WEBHOOK_EVENT_EMOJIS.get(evt, "🔗")
         text += f"  {emoji} <code>{evt}</code>\n     {desc}\n\n"
@@ -263,9 +260,7 @@ async def _list_webhooks(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id
             f"  🔗 {wh['url'][:80]}\n"
             f"  {status}{last_seen}\n\n"
         )
-    text += (
-        "Add new: /webhook add <code>url</code> [event]\nRemove: /webhook remove <code>id</code>"
-    )
+    text += "Add new: /webhook add <code>url</code> [event]\nRemove: /webhook remove <code>id</code>"
     text += footer_links()
 
     await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
@@ -348,9 +343,7 @@ async def _add_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id: 
     try:
         # Register with backend (POST /api/v1/scanner/webhooks)
         event_types = (
-            [BACKEND_EVENT_MAP[event_type]]
-            if event_type in BACKEND_EVENT_MAP
-            else list(BACKEND_EVENT_MAP.values())
+            [BACKEND_EVENT_MAP[event_type]] if event_type in BACKEND_EVENT_MAP else list(BACKEND_EVENT_MAP.values())
         )
         webhook_data = {
             "url": url,
@@ -534,9 +527,7 @@ async def _test_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id:
 
         # Never echo response body content — only safe metadata.
         content_length = resp.headers.get("content-length")
-        size_text = (
-            f"Size: <b>{content_length}</b> bytes\n" if content_length else "Size: <b>unknown</b>\n"
-        )
+        size_text = f"Size: <b>{content_length}</b> bytes\n" if content_length else "Size: <b>unknown</b>\n"
 
         if resp.status_code < 500:
             await msg.edit_text(

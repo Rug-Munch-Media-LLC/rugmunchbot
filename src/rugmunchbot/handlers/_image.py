@@ -34,8 +34,7 @@ async def _maybe_send_token_image(msg: Any, result: dict[str, Any]) -> None:
         return
     try:
         await msg.reply_photo(
-            photo=url,
-            caption=f"\U0001f5bc\ufe0f {result.get('name', '')} ({result.get('symbol', '')})",
+            photo=url, caption=f"\U0001f5bc\ufe0f {result.get('name', '')} ({result.get('symbol', '')})"
         )
     except Exception as e:
         logger.warning("token image send failed, continuing text-only: %s", e)

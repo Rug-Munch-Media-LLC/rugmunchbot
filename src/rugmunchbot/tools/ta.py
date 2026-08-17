@@ -433,34 +433,20 @@ def _summary_text(analysis: dict[str, Any]) -> str:
     """Compact one-line metric digest (chat-friendly; the LLM renders it)."""
     rsi_value = analysis.get("rsi")
     rsi_part = (
-        f"RSI-14 {rsi_value:.1f} ({analysis.get('rsi_label') or 'n/a'})"
-        if rsi_value is not None
-        else "RSI-14 n/a"
+        f"RSI-14 {rsi_value:.1f} ({analysis.get('rsi_label') or 'n/a'})" if rsi_value is not None else "RSI-14 n/a"
     )
 
     ema9 = analysis.get("ema9")
     ema21 = analysis.get("ema21")
-    ema_part = (
-        f"EMA9 {ema9:.6g} / EMA21 {ema21:.6g}"
-        if ema9 is not None and ema21 is not None
-        else "EMA n/a"
-    )
+    ema_part = f"EMA9 {ema9:.6g} / EMA21 {ema21:.6g}" if ema9 is not None and ema21 is not None else "EMA n/a"
 
     macd_part = f"MACD {analysis.get('macd_label') or 'n/a'}"
 
     support = analysis.get("support")
     resistance = analysis.get("resistance")
-    sr_part = (
-        f"S/R {support:.6g}/{resistance:.6g}"
-        if support is not None and resistance is not None
-        else "S/R n/a"
-    )
+    sr_part = f"S/R {support:.6g}/{resistance:.6g}" if support is not None and resistance is not None else "S/R n/a"
 
-    vol_part = (
-        f"vol {analysis.get('volatility_pct'):.1f}%"
-        if analysis.get("volatility_pct") is not None
-        else "vol n/a"
-    )
+    vol_part = f"vol {analysis.get('volatility_pct'):.1f}%" if analysis.get("volatility_pct") is not None else "vol n/a"
     mom_part = f"mom {analysis.get('momentum') or 'n/a'}"
     pump = analysis.get("pump_risk") or {}
     pump_part = f"pump-risk {pump.get('level', 'n/a')}"

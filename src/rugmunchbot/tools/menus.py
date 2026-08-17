@@ -43,18 +43,12 @@ class Capability:
 # data or usage cards; ``menu_cat_chat`` for Ask knowledge).
 CAPABILITIES: tuple[Capability, ...] = (
     Capability("\U0001f50d Scan", "Full token risk audit \u2014 paste an address", "run_scan"),
-    Capability(
-        "\U0001f525 Trending by chain", "Trending tokens, filterable per chain", "run_trending"
-    ),
+    Capability("\U0001f525 Trending by chain", "Trending tokens, filterable per chain", "run_trending"),
     Capability("\U0001f4b0 Price", "Live price for $SYMBOL or an address", "run_price"),
     Capability("\U0001f4c8 Chart", "Chart image with indicators & trend analysis", "run_chart"),
     Capability("\U0001f4ca TA", "Technical analysis, chart patterns & signals", "run_ta"),
-    Capability(
-        "\U0001f52e Prediction markets", "Polymarket odds & election markets", "run_polymarket"
-    ),
-    Capability(
-        "\U0001f321\ufe0f Market Condition", "Macro read: cap, fear & greed, movers", "run_market"
-    ),
+    Capability("\U0001f52e Prediction markets", "Polymarket odds & election markets", "run_polymarket"),
+    Capability("\U0001f321\ufe0f Market Condition", "Macro read: cap, fear & greed, movers", "run_market"),
     Capability("\U0001f4f0 News", "Live crypto headlines & sentiment", "run_news"),
     Capability("\U0001f40b Alpha & Whales", "Whale flows & big-money moves", "run_whales"),
     Capability("\U0001f9e0 Smart money", "Top traders & whale flows", "run_smartmoney"),
@@ -70,10 +64,7 @@ def capability_menu_kb(columns: int = 2) -> InlineKeyboardMarkup:
     """
     rows: list[list[InlineKeyboardButton]] = []
     for i in range(0, len(CAPABILITIES), columns):
-        row = [
-            InlineKeyboardButton(c.label, callback_data=c.callback)
-            for c in CAPABILITIES[i : i + columns]
-        ]
+        row = [InlineKeyboardButton(c.label, callback_data=c.callback) for c in CAPABILITIES[i : i + columns]]
         rows.append(row)
     rows.append([InlineKeyboardButton("\U0001f3e0 Menu", callback_data="menu_main")])
     return InlineKeyboardMarkup(rows)

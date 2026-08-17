@@ -10,19 +10,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from app.domains.telegram.rugmunchbot.config import (
-    BACKEND_URL,
-    COINGECKO,
-    backend_headers,
-    fmt_number,
-)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
+
+from app.domains.telegram.rugmunchbot.config import BACKEND_URL, COINGECKO, backend_headers, fmt_number
 from app.domains.telegram.rugmunchbot.data_resolver import resolve_fear_greed, resolve_market_global
 from app.domains.telegram.rugmunchbot.formatters import footer_links, sep, thin_sep
 from app.domains.telegram.rugmunchbot.keyboards import back_kb, token_buttons
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import http_get_json
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -34,17 +30,13 @@ async def _inline_trending(update: Update, ctx) -> None:
     query = update.callback_query
     if query is None:
         return
-    await query.edit_message_text(
-        "\U0001f525 <b>Fetching trending...</b>", parse_mode=ParseMode.HTML
-    )
+    await query.edit_message_text("\U0001f525 <b>Fetching trending...</b>", parse_mode=ParseMode.HTML)
     from app.domains.telegram.rugmunchbot.handlers.market import render_trending
 
     text, kb = await render_trending("solana", limit=8, window="24h")
     if text is None or kb is None:
         await query.edit_message_text(
-            "\u274c Could not fetch trending data.",
-            parse_mode=ParseMode.HTML,
-            reply_markup=back_kb(),
+            "\u274c Could not fetch trending data.", parse_mode=ParseMode.HTML, reply_markup=back_kb()
         )
         return
     await query.edit_message_text(
@@ -88,17 +80,13 @@ async def _inline_market_data(update: Update, ctx, kind: str) -> None:
         text = await _inline_movers_text(_fetch_market_intel, _fmt_usd, _change_emoji)
         token_items = []
     elif kind == "launches":
-        text, token_items = await _inline_launches_text(
-            _fetch_market_intel, _fmt_usd, _change_emoji
-        )
+        text, token_items = await _inline_launches_text(_fetch_market_intel, _fmt_usd, _change_emoji)
     else:
         text, token_items = await _inline_whales_text(_fetch_market_intel, _fmt_usd)
 
     if text is None:
         await query.edit_message_text(
-            f"\u274c Could not fetch {kind} data.",
-            parse_mode=ParseMode.HTML,
-            reply_markup=back_kb(),
+            f"\u274c Could not fetch {kind} data.", parse_mode=ParseMode.HTML, reply_markup=back_kb()
         )
         return
     kb_rows: list[list[InlineKeyboardButton]] = []
@@ -131,9 +119,7 @@ async def _inline_market_overview(fetch, fmt_usd) -> str | None:
 
     lines = ["\U0001f4ca <b>Market Overview</b>", sep()]
     if overview.get("total_market_cap") is not None:
-        lines.append(
-            f"\U0001f310 Total Market Cap: <b>{fmt_usd(overview.get('total_market_cap'))}</b>"
-        )
+        lines.append(f"\U0001f310 Total Market Cap: <b>{fmt_usd(overview.get('total_market_cap'))}</b>")
     if overview.get("total_volume_24h") is not None:
         lines.append(f"\U0001f4c8 24h Volume: <b>{fmt_usd(overview.get('total_volume_24h'))}</b>")
     if overview.get("btc_dominance") is not None:
@@ -171,9 +157,7 @@ async def _inline_market_overview(fetch, fmt_usd) -> str | None:
             asset = it.get("asset", "")
             change = it.get("change_24h")
             change_txt = f" ({fmt_pct(change)})" if change is not None else ""
-            lines.append(
-                f"\U0001f4b0 <b>{asset}:</b> {fmt_usd(it.get('current_price'))}{change_txt}"
-            )
+            lines.append(f"\U0001f4b0 <b>{asset}:</b> {fmt_usd(it.get('current_price'))}{change_txt}")
 
     lines.append(footer_links())
     return "\n".join(lines)
@@ -223,9 +207,7 @@ async def _inline_movers_text(fetch, fmt_usd, change_emoji) -> str | None:
     return "\n".join(lines)
 
 
-async def _inline_launches_text(
-    fetch, fmt_usd, change_emoji
-) -> tuple[str | None, list[dict[str, Any]]]:
+async def _inline_launches_text(fetch, fmt_usd, change_emoji) -> tuple[str | None, list[dict[str, Any]]]:
     """Render the /launches report as text for inline callbacks.
 
     Returns ``(text, token_items)`` so callers can attach per-token buttons.
@@ -344,9 +326,7 @@ async def _inline_sentiment(update: Update, ctx) -> None:
     query = update.callback_query
     if query is None:
         return
-    await query.edit_message_text(
-        "\U0001f4c8 <b>Fetching sentiment...</b>", parse_mode=ParseMode.HTML
-    )
+    await query.edit_message_text("\U0001f4c8 <b>Fetching sentiment...</b>", parse_mode=ParseMode.HTML)
     try:
         lines = ["\U0001f4c8 <b>Market Sentiment</b>", thin_sep()]
 

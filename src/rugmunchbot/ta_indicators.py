@@ -96,8 +96,7 @@ def macd(closes: list[float]) -> dict[str, Any]:
     ema12 = ema(closes, 12)
     ema26 = ema(closes, 26)
     line: list[float | None] = [
-        (a - b) if a is not None and b is not None else None
-        for a, b in zip(ema12, ema26, strict=False)
+        (a - b) if a is not None and b is not None else None for a, b in zip(ema12, ema26, strict=False)
     ]
     # Signal: EMA-9 of the MACD line (skip None warm-up).
     valid = [v for v in line if v is not None]
@@ -142,13 +141,7 @@ def bollinger(closes: list[float], period: int = 20, num_std: float = 2.0) -> di
     price = closes[-1]
     percent_b = (price - lower) / (upper - lower) if upper > lower else 0.5
     bandwidth = (upper - lower) / mid if mid else 0.0
-    return {
-        "upper": upper,
-        "middle": mid,
-        "lower": lower,
-        "percent_b": percent_b,
-        "bandwidth": bandwidth,
-    }
+    return {"upper": upper, "middle": mid, "lower": lower, "percent_b": percent_b, "bandwidth": bandwidth}
 
 
 def atr(candles: list[dict[str, Any]], period: int = 14) -> float | None:
@@ -272,14 +265,7 @@ def pump_risk(analysis: dict[str, Any]) -> dict[str, Any]:
     # flat near its recent high is not "extended".
     price = analysis.get("price")
     high = analysis.get("high")
-    if (
-        price
-        and high
-        and high > 0
-        and roc_24 is not None
-        and roc_24 >= 5.0
-        and (high - price) / high < 0.03
-    ):
+    if price and high and high > 0 and roc_24 is not None and roc_24 >= 5.0 and (high - price) / high < 0.03:
         score += 1
         reasons.append("price near window high after a run")
 

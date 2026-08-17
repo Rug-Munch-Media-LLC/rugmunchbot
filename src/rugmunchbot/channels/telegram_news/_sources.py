@@ -398,9 +398,7 @@ async def resolve_channel_sources(client: Any | None = None) -> list[dict[str, A
                     counts,
                 )
                 return sources
-            logger.debug(
-                "tg_news:auto_discover_no_news_channels fallback_to_explicit counts=%s", counts
-            )
+            logger.debug("tg_news:auto_discover_no_news_channels fallback_to_explicit counts=%s", counts)
     return channel_sources()
 
 
@@ -455,18 +453,10 @@ _OG_HTML_MAX_CHARS: int = 512_000
 #: og:image / twitter:image meta extraction (attribute-order tolerant, case-
 #: insensitive). Best-effort only — a page without a usable image yields none.
 _OG_IMAGE_RES: Final = (
-    re.compile(
-        r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE
-    ),
-    re.compile(
-        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.IGNORECASE
-    ),
-    re.compile(
-        r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE
-    ),
-    re.compile(
-        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']', re.IGNORECASE
-    ),
+    re.compile(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
+    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.IGNORECASE),
+    re.compile(r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
+    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']', re.IGNORECASE),
 )
 
 
@@ -586,9 +576,7 @@ async def _fetch_page(url: str, timeout: float) -> str | None:
                 attempts += 1
                 client = rotator.get_client(proxy=proxy)
                 response = await client.get(url, headers={"User-Agent": "rmi-news/1.0"})
-                if response.is_success and not _is_waf_block(
-                    response.status_code, response.text[:_OG_HTML_MAX_CHARS]
-                ):
+                if response.is_success and not _is_waf_block(response.status_code, response.text[:_OG_HTML_MAX_CHARS]):
                     return response.text[:_OG_HTML_MAX_CHARS]
                 proxy = rotator.next_after_failure(proxy)
     except Exception:
@@ -663,12 +651,8 @@ _TME_IN_TEXT_RE: Final = re.compile(r"https?://(?:t\.me|telegram\.me)/", re.IGNO
 #: insensitive), then the first external http(s) href. Best-effort only — a
 #: t.me page without a usable real URL yields the original link.
 _TME_OG_URL_RES: Final = (
-    re.compile(
-        r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE
-    ),
-    re.compile(
-        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:url["\']', re.IGNORECASE
-    ),
+    re.compile(r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
+    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:url["\']', re.IGNORECASE),
 )
 _TME_CANONICAL_RES: Final = (
     re.compile(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', re.IGNORECASE),
@@ -764,9 +748,7 @@ async def _enrich_articles(articles: list[NewsArticle]) -> None:
         tme_only = [
             a
             for a in articles
-            if is_telegram_link(a.source_url)
-            and not extract_canonical_url(a)
-            and _message_has_tme_link(a)
+            if is_telegram_link(a.source_url) and not extract_canonical_url(a) and _message_has_tme_link(a)
         ]
         if tme_only:
             results = await asyncio.gather(

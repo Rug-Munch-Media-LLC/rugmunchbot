@@ -104,17 +104,12 @@ class FloodController:
             return None
         if self._redis is not None:
             return self._redis
-        if (
-            self._redis_failed_at
-            and time.monotonic() - self._redis_failed_at < _REDIS_RETRY_BACKOFF
-        ):
+        if self._redis_failed_at and time.monotonic() - self._redis_failed_at < _REDIS_RETRY_BACKOFF:
             return None
         try:
             import redis.asyncio as aioredis
 
-            client = aioredis.from_url(
-                _redis_url(), socket_connect_timeout=2, decode_responses=True
-            )
+            client = aioredis.from_url(_redis_url(), socket_connect_timeout=2, decode_responses=True)
             await client.ping()
             self._redis = client
             return client
@@ -225,9 +220,7 @@ class FloodController:
                 oldest_ts = row[0] if row and row[0] is not None else now
                 return False, self._retry_after(oldest_ts, now), None
 
-            cur = conn.execute(
-                "INSERT INTO flood_events (user_id, ts) VALUES (?, ?)", (user_id, now)
-            )
+            cur = conn.execute("INSERT INTO flood_events (user_id, ts) VALUES (?, ?)", (user_id, now))
             conn.commit()
             return True, 0, f"sqlite:{cur.lastrowid}"
         finally:

@@ -8,14 +8,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
+
 from app.domains.telegram import access_guard
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import OWNER_IDS, TIERS
 from app.domains.telegram.rugmunchbot.formatters import is_owner, thin_sep
 from app.domains.telegram.rugmunchbot.keyboards import admin_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -24,9 +25,7 @@ if TYPE_CHECKING:
 logger = get_logger("rmi_bot")
 
 
-async def _deny_callback_attempt(
-    update: Update, ctx: ContextTypes.DEFAULT_TYPE, surface: str
-) -> None:
+async def _deny_callback_attempt(update: Update, ctx: ContextTypes.DEFAULT_TYPE, surface: str) -> None:
     """Log + alert a non-owner admin callback attempt (defense-in-depth)."""
     query = update.callback_query
     user = query.from_user if query else None
@@ -102,12 +101,8 @@ async def _dispatch_admin_cb(update: Update, ctx, data: str) -> None:
                 reply_markup=InlineKeyboardMarkup(
                     [
                         [
-                            InlineKeyboardButton(
-                                "\U0001f504 Enable", callback_data="admin_toggle_bot_on"
-                            ),
-                            InlineKeyboardButton(
-                                "\U0001f6d1 Disable", callback_data="admin_toggle_bot_off"
-                            ),
+                            InlineKeyboardButton("\U0001f504 Enable", callback_data="admin_toggle_bot_on"),
+                            InlineKeyboardButton("\U0001f6d1 Disable", callback_data="admin_toggle_bot_off"),
                         ],
                         [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
                     ]
@@ -132,12 +127,8 @@ async def _dispatch_admin_cb(update: Update, ctx, data: str) -> None:
                 reply_markup=InlineKeyboardMarkup(
                     [
                         [
-                            InlineKeyboardButton(
-                                "\U0001f504 Enable", callback_data="admin_toggle_chat_on"
-                            ),
-                            InlineKeyboardButton(
-                                "\U0001f4f5 Disable", callback_data="admin_toggle_chat_off"
-                            ),
+                            InlineKeyboardButton("\U0001f504 Enable", callback_data="admin_toggle_chat_on"),
+                            InlineKeyboardButton("\U0001f4f5 Disable", callback_data="admin_toggle_chat_off"),
                         ],
                         [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
                     ]
@@ -149,17 +140,13 @@ async def _dispatch_admin_cb(update: Update, ctx, data: str) -> None:
                 "\u274c No pending broadcast.", parse_mode=ParseMode.HTML, reply_markup=admin_kb()
             )
             return
-        await query.edit_message_text(
-            "\U0001f4e2 <b>Sending broadcast...</b>", parse_mode=ParseMode.HTML
-        )
+        await query.edit_message_text("\U0001f4e2 <b>Sending broadcast...</b>", parse_mode=ParseMode.HTML)
         await cb_broadcast_confirm(owner_uid, chat_id, ctx.bot)
     elif data == "admin_cancel":
         from app.domains.telegram.rugmunchbot.handlers.owner import _pending_broadcast
 
         _pending_broadcast.pop(owner_uid, None)
-        await query.edit_message_text(
-            "\u274c Broadcast cancelled.", parse_mode=ParseMode.HTML, reply_markup=admin_kb()
-        )
+        await query.edit_message_text("\u274c Broadcast cancelled.", parse_mode=ParseMode.HTML, reply_markup=admin_kb())
     elif data.startswith("admin_user_ban_"):
         target = data[len("admin_user_ban_") :]
         try:
@@ -213,9 +200,7 @@ async def _admin_logs_card(query) -> None:
     logs = db.get_admin_logs(limit=10)
     if not logs:
         await query.edit_message_text(
-            "\U0001f4dd No admin actions logged yet.",
-            parse_mode=ParseMode.HTML,
-            reply_markup=admin_kb(),
+            "\U0001f4dd No admin actions logged yet.", parse_mode=ParseMode.HTML, reply_markup=admin_kb()
         )
         return
     lines = ["\U0001f4dd <b>Recent Admin Actions</b>", thin_sep()]
@@ -223,6 +208,4 @@ async def _admin_logs_card(query) -> None:
         ts = datetime.fromtimestamp(entry.get("created_at", 0), tz=UTC).strftime("%m-%d %H:%M")
         details = entry.get("details") or ""
         lines.append(f"\u2022 <code>{ts}</code> <b>{entry.get('action')}</b> {details[:50]}")
-    await query.edit_message_text(
-        "\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=admin_kb()
-    )
+    await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=admin_kb())

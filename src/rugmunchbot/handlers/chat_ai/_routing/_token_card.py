@@ -15,13 +15,14 @@ import contextlib
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
+from telegram.error import TelegramError
+
 from app.domains.telegram.rugmunchbot.config import DEXSCREENER, fmt_chain, fmt_number, fmt_pct
 from app.domains.telegram.rugmunchbot.formatters import TOKEN_RE, footer_links, web_scan_button
 from app.domains.telegram.rugmunchbot.handlers.chat_ai import _routing as _routing_mod
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
-from telegram.error import TelegramError
 
 if TYPE_CHECKING:
     from telegram import Message
@@ -65,9 +66,7 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-async def _lookup_token_symbol(
-    text: str, message: Message, sent_flag: _TokenCardFlag | None = None
-) -> bool:
+async def _lookup_token_symbol(text: str, message: Message, sent_flag: _TokenCardFlag | None = None) -> bool:
     """Instant ``$TOKEN`` price card via DexScreener.
 
     Returns True when a price card was sent; False when there is no symbol
@@ -114,8 +113,7 @@ async def _lookup_token_symbol(
                                 [
                                     [
                                         InlineKeyboardButton(
-                                            "\U0001f50d Full Scan",
-                                            callback_data=f"scan_{addr}_{chain}",
+                                            "\U0001f50d Full Scan", callback_data=f"scan_{addr}_{chain}"
                                         )
                                     ],
                                     [web_scan_button(addr, chain)],
@@ -151,9 +149,7 @@ async def _token_card_won(token_lookup_task: asyncio.Task[bool] | None) -> bool:
         return False
     try:
         return bool(
-            await asyncio.wait_for(
-                asyncio.shield(token_lookup_task), timeout=_routing_mod.TOKEN_CARD_DECIDE_WAIT
-            )
+            await asyncio.wait_for(asyncio.shield(token_lookup_task), timeout=_routing_mod.TOKEN_CARD_DECIDE_WAIT)
         )
     except Exception:
         # Timeout or unexpected failure: the card loses the race to the AI

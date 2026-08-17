@@ -10,6 +10,8 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
+from telegram.error import TelegramError
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     BUY_STARS_PACKS,
@@ -20,7 +22,6 @@ from app.domains.telegram.rugmunchbot.keyboards import scan_result_kb
 from app.domains.telegram.rugmunchbot.scanner import scan_token
 from app.domains.telegram.rugmunchbot.states import _pending_deep_scans, _pending_monitors
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram.error import TelegramError
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -142,9 +143,7 @@ async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
 
                 report = format_scan_report(result)
                 full_report = "\n".join(report_lines) + report
-                db.log_scan(
-                    user.id, pending["address"], result["chain"], "deep", result["risk_score"]
-                )
+                db.log_scan(user.id, pending["address"], result["chain"], "deep", result["risk_score"])
                 await msg.edit_text(
                     full_report,
                     parse_mode="HTML",
@@ -195,9 +194,7 @@ async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
                 baseline=baseline,
             )
             if ok:
-                from app.domains.telegram.rugmunchbot.handlers.alerts import (
-                    _subscribe_backend_monitor,
-                )
+                from app.domains.telegram.rugmunchbot.handlers.alerts import _subscribe_backend_monitor
 
                 await _subscribe_backend_monitor(user.id, addr)
                 await msg.edit_text(

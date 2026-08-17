@@ -89,9 +89,7 @@ async def rewrite_news_title(title: str) -> str:
         result = await asyncio.wait_for(
             # record_usage=False: channel title rewrites are NOT chat calls —
             # keep the owner /admin model-usage counters chat-pipeline-only.
-            _call_backend_chat(
-                _REWRITE_PROMPT.format(title=original), user_id=0, record_usage=False
-            ),
+            _call_backend_chat(_REWRITE_PROMPT.format(title=original), user_id=0, record_usage=False),
             timeout=_TITLE_REWRITE_TIMEOUT,
         )
     except asyncio.CancelledError:

@@ -70,9 +70,7 @@ KNOWLEDGE_COLLECTIONS: list[str] = [
     "contract_security",  # verdict-labeled good/bad contract patterns (221 pts)
     "scam_patterns",  # scam pattern docs + rug_timeline alias (9.9K pts)
 ]
-RAG_TOKEN_COLLECTIONS: list[str] = [
-    "scanner_v2"
-]  # scan-to-RAG memory (191 pts — token-address questions)
+RAG_TOKEN_COLLECTIONS: list[str] = ["scanner_v2"]  # scan-to-RAG memory (191 pts — token-address questions)
 
 RAG_LOOKUP_TOP_K = 5  # per collection — dedup keeps the prompt small
 RAG_LOOKUP_TIMEOUT = 5.0  # overall budget (seconds) — chat stays snappy
@@ -192,9 +190,7 @@ def _rag_hit_label(h: dict[str, Any]) -> str:
     return "[" + "\u00b7".join(parts) + "]"
 
 
-def _format_context(
-    hits: list[dict[str, Any]], max_chars: int = RAG_LOOKUP_CONTEXT_MAX_CHARS
-) -> str:
+def _format_context(hits: list[dict[str, Any]], max_chars: int = RAG_LOOKUP_CONTEXT_MAX_CHARS) -> str:
     """Render top RAG hits as a compact, LLM-friendly context block.
 
     Each hit is labeled with its collection + score AND a verdict source
@@ -342,9 +338,7 @@ async def rag_lookup(*, query: str = "") -> ToolResult:
     for h in top:
         col = str(h.get("collection") or "unknown")
         per_collection[col] = per_collection.get(col, 0) + 1
-    sources = [
-        {"type": "rag", "query": query[:90], "collection": col} for col in sorted(per_collection)
-    ]
+    sources = [{"type": "rag", "query": query[:90], "collection": col} for col in sorted(per_collection)]
     known_syms: set[str] = set()
     known_addrs: set[str] = set()
     for h in top:

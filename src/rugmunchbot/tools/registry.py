@@ -122,12 +122,7 @@ class ToolRegistry:
         self._cache: TTLCache[ToolResult] = TTLCache()
 
     def register(
-        self,
-        name: str,
-        handler: ToolHandler,
-        *,
-        timeout: float = DEFAULT_TOOL_TIMEOUT,
-        ttl: float = DEFAULT_TOOL_TTL,
+        self, name: str, handler: ToolHandler, *, timeout: float = DEFAULT_TOOL_TIMEOUT, ttl: float = DEFAULT_TOOL_TTL
     ) -> None:
         """Register a tool handler. ``timeout`` bounds each call; ``ttl`` is
         the cache lifetime in seconds (0 disables caching)."""
@@ -185,9 +180,7 @@ class ToolRegistry:
                 self._cache.set(_negative_namespace(name), key, result, NEGATIVE_TTL)
         return result
 
-    async def _run_with_retry(
-        self, name: str, handler: ToolHandler, timeout: float, **kwargs: Any
-    ) -> ToolResult:
+    async def _run_with_retry(self, name: str, handler: ToolHandler, timeout: float, **kwargs: Any) -> ToolResult:
         last: ToolResult | None = None
         for attempt in range(MAX_RETRIES + 1):
             start = time.perf_counter()
@@ -220,9 +213,7 @@ class ToolRegistry:
                 out[name] = res
         return out
 
-    async def run_many_kwargs(
-        self, spec: dict[str, dict[str, Any]], **shared: Any
-    ) -> dict[str, ToolResult]:
+    async def run_many_kwargs(self, spec: dict[str, dict[str, Any]], **shared: Any) -> dict[str, ToolResult]:
         """Run several tools concurrently, each with its OWN kwargs.
 
         ``spec`` maps tool name -> per-tool kwargs; ``shared`` is merged into

@@ -13,6 +13,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     BOT_USERNAME,
@@ -51,8 +54,6 @@ from app.domains.telegram.rugmunchbot.keyboards import (
     topup_kb,
     welcome_menu_kb,
 )
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update

@@ -13,6 +13,9 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
@@ -31,8 +34,6 @@ from app.domains.telegram.rugmunchbot.formatters import (
 from app.domains.telegram.rugmunchbot.keyboards import paywall_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -101,9 +102,7 @@ async def _fetch_market_overview() -> dict[str, Any]:
 
             async def _fetch_gas() -> dict[str, Any]:
                 # ETH Gas (proxy for network activity)
-                gas = await client.get(
-                    "https://api.etherscan.io/v2/api?chainid=1&module=gastracker&action=gasoracle"
-                )
+                gas = await client.get("https://api.etherscan.io/v2/api?chainid=1&module=gastracker&action=gasoracle")
                 if gas.status_code == 200:
                     gas_data = gas.json().get("result", {})
                     return {"eth_gas": gas_data.get("ProposeGasPrice")}
@@ -238,9 +237,7 @@ async def cmd_sentiment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
 
-    msg = await update.message.reply_text(
-        "\U0001f4c8 <b>Analyzing market sentiment...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text("\U0001f4c8 <b>Analyzing market sentiment...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
 
     try:
         overview = await _fetch_market_overview()
@@ -272,9 +269,7 @@ async def cmd_sentiment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 if fg["value"] >= 25
                 else "\U0001f4a9"
             )
-            lines.append(
-                f"{fg_emoji} Fear & Greed Index: <b>{fg['value']}</b> — {fg['classification']}"
-            )
+            lines.append(f"{fg_emoji} Fear & Greed Index: <b>{fg['value']}</b> — {fg['classification']}")
 
         btc_dom = overview.get("btc_dominance")
         if btc_dom is not None:
@@ -294,13 +289,7 @@ async def cmd_sentiment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if gas:
             try:
                 gas_val = int(gas)
-                gas_emoji = (
-                    "\U0001f534"
-                    if gas_val > 100
-                    else "\U0001f7e1"
-                    if gas_val > 50
-                    else "\U0001f7e2"
-                )
+                gas_emoji = "\U0001f534" if gas_val > 100 else "\U0001f7e1" if gas_val > 50 else "\U0001f7e2"
                 lines.append(f"{gas_emoji} ETH Gas: <b>{gas_val} Gwei</b>")
             except (ValueError, TypeError) as e:
                 logger.debug("sentiment score parse failed: %s", e)
@@ -315,21 +304,15 @@ async def cmd_sentiment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
         fg_val = fg["value"] if fg else 50
         if fg_val >= 75:
-            lines.append(
-                "\U0001f525 <b>Extreme Greed</b> — Market may be overbought. Consider taking profits."
-            )
+            lines.append("\U0001f525 <b>Extreme Greed</b> — Market may be overbought. Consider taking profits.")
         elif fg_val >= 60:
             lines.append("\U0001f4c8 <b>Greed</b> — Positive sentiment but stay cautious.")
         elif fg_val >= 40:
             lines.append("\u26aa <b>Neutral</b> — Balanced market. Good for DCA.")
         elif fg_val >= 25:
-            lines.append(
-                "\U0001f4c9 <b>Fear</b> — Oversold conditions. Look for buying opportunities."
-            )
+            lines.append("\U0001f4c9 <b>Fear</b> — Oversold conditions. Look for buying opportunities.")
         else:
-            lines.append(
-                "\U0001f4a9 <b>Extreme Fear</b> — Maximum pessimism. Historical buying opportunity."
-            )
+            lines.append("\U0001f4a9 <b>Extreme Fear</b> — Maximum pessimism. Historical buying opportunity.")
 
         lines.append(footer_links())
 

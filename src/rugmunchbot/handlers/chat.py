@@ -21,12 +21,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.handlers.chat_ai import chat_ai_response
 from app.domains.telegram.rugmunchbot.keyboards import back_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -81,12 +82,8 @@ async def cmd_chat(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         kb = InlineKeyboardMarkup(
             [
                 [
-                    InlineKeyboardButton(
-                        "\U0001f50d /ask \u2014 Deep RAG answer", callback_data="run_ask"
-                    ),
-                    InlineKeyboardButton(
-                        "\U0001f9e0 /research \u2014 RAG research", callback_data="run_research"
-                    ),
+                    InlineKeyboardButton("\U0001f50d /ask \u2014 Deep RAG answer", callback_data="run_ask"),
+                    InlineKeyboardButton("\U0001f9e0 /research \u2014 RAG research", callback_data="run_research"),
                 ],
                 [InlineKeyboardButton("\U0001f3d9\ufe0f Main Menu", callback_data="menu_main")],
             ]

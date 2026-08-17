@@ -413,9 +413,7 @@ def route_tools(text: str) -> list[str]:
     # A bare risk-rank ask ("riskiest picks of the day") is an implicit
     # trending question when it names picks/tokens/coins.
     risk_rank = detect_risk_rank(text)
-    trending_intent = bool(_TRENDING_WORDS.search(text)) or (
-        risk_rank and bool(_PICKS_WORDS.search(text))
-    )
+    trending_intent = bool(_TRENDING_WORDS.search(text)) or (risk_rank and bool(_PICKS_WORDS.search(text)))
     if trending_intent and "trending" not in excluded:
         tools.append("trending")
         if _NEWS_WORDS.search(text) and "news_headlines" not in excluded:
@@ -483,12 +481,7 @@ def route_tools(text: str) -> list[str]:
         tools.append("web_search")
 
     # A bare address with no other intent is a security question.
-    if (
-        addrs
-        and "security_scan" not in tools
-        and "wallet_analysis" not in tools
-        and "security_scan" not in excluded
-    ):
+    if addrs and "security_scan" not in tools and "wallet_analysis" not in tools and "security_scan" not in excluded:
         tools.append("security_scan")
 
     # Deduplicate preserving order.
@@ -570,16 +563,7 @@ def tool_kwargs(text: str, names: list[str]) -> dict[str, dict[str, Any]]:
 # values untouched.
 
 _USD_FIELDS = frozenset(
-    {
-        "price_usd",
-        "market_cap",
-        "mcap",
-        "fdv",
-        "liquidity_usd",
-        "volume_24h",
-        "window_high",
-        "window_low",
-    }
+    {"price_usd", "market_cap", "mcap", "fdv", "liquidity_usd", "volume_24h", "window_high", "window_low"}
 )
 _PCT_FIELDS = frozenset(
     {
@@ -734,9 +718,7 @@ def build_tool_prompt_block(results: Mapping[str, object]) -> str:
                     inner_parts = [
                         f"{ik}={_fmt_signal(ik, iv)}"
                         if not isinstance(iv, (dict, list))
-                        else (
-                            f"{ik}={json.dumps(iv, separators=(',', ':'), ensure_ascii=False)[:200]}"
-                        )
+                        else (f"{ik}={json.dumps(iv, separators=(',', ':'), ensure_ascii=False)[:200]}")
                         for ik, iv in v.items()
                     ]
                     lines.append(f"    {k}: {{{', '.join(inner_parts)}}}")

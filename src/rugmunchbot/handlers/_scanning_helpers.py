@@ -62,9 +62,7 @@ def _merge_completed_scan(result_v2: dict[str, Any], completed: dict[str, Any]) 
         if not ev0.get("funding_analysis"):
             ev0["funding_analysis"] = completed["funding_analysis"]
     if not result_v2.get("deployer_profile"):
-        dp = completed.get("deployer_profile") or (completed.get("deep_profile") or {}).get(
-            "deployer_profile"
-        )
+        dp = completed.get("deployer_profile") or (completed.get("deep_profile") or {}).get("deployer_profile")
         if dp:
             result_v2["deployer_profile"] = dp
     completed_ev = completed.get("evidence")
@@ -76,21 +74,15 @@ def _merge_completed_scan(result_v2: dict[str, Any], completed: dict[str, Any]) 
 
 
 def _ta_arrow(trend: str) -> str:
-    return {"BULLISH": "\U0001f7e2", "BEARISH": "\U0001f534", "NEUTRAL": "\u26aa"}.get(
-        trend, "\u26aa"
-    )
+    return {"BULLISH": "\U0001f7e2", "BEARISH": "\U0001f534", "NEUTRAL": "\u26aa"}.get(trend, "\u26aa")
 
 
 def _ta_rsi_emoji(label: str) -> str:
-    return {"Overbought": "\U0001f534", "Oversold": "\U0001f7e2", "Neutral": "\u26aa"}.get(
-        label, "\u26aa"
-    )
+    return {"Overbought": "\U0001f534", "Oversold": "\U0001f7e2", "Neutral": "\u26aa"}.get(label, "\u26aa")
 
 
 def _ta_vol_arrow(trend: str) -> str:
-    return {"Rising": "\U0001f4c8", "Declining": "\U0001f4c9", "Steady": "\u2796"}.get(
-        trend, "\u2796"
-    )
+    return {"Rising": "\U0001f4c8", "Declining": "\U0001f4c9", "Steady": "\u2796"}.get(trend, "\u2796")
 
 
 def format_ta_card(analysis: dict[str, Any], meta: dict[str, Any]) -> str:
@@ -151,21 +143,11 @@ def format_ta_card(analysis: dict[str, Any], meta: dict[str, Any]) -> str:
     if ema9 is not None and ema21 is not None:
         lines.append(f"EMA-9: {fmt_number(ema9)} | EMA-21: {fmt_number(ema21)}")
         cross_emoji = (
-            "\U0001f7e2"
-            if ema_cross == "BULLISH CROSS"
-            else "\U0001f534"
-            if ema_cross == "BEARISH CROSS"
-            else "\u26aa"
+            "\U0001f7e2" if ema_cross == "BULLISH CROSS" else "\U0001f534" if ema_cross == "BEARISH CROSS" else "\u26aa"
         )
         lines.append(f"EMA: {cross_emoji} <b>{ema_cross}</b>")
     if macd_line is not None:
-        macd_emoji = (
-            "\U0001f7e2"
-            if macd_label == "Bullish"
-            else "\U0001f534"
-            if macd_label == "Bearish"
-            else "\u26aa"
-        )
+        macd_emoji = "\U0001f7e2" if macd_label == "Bullish" else "\U0001f534" if macd_label == "Bearish" else "\u26aa"
         lines.append(f"MACD: {macd_emoji} <b>{macd_label}</b> ({macd_line:+.8g})")
     if vol_ratio is not None:
         lines.append(f"Volume: {_ta_vol_arrow(vol_trend)} {vol_ratio:.1f}\u00d7 avg ({vol_trend})")
@@ -187,9 +169,7 @@ def format_ta_card(analysis: dict[str, Any], meta: dict[str, Any]) -> str:
     rug_score = meta.get("rug_score")
     if rug_score is not None:
         rug_level = (meta.get("rug_level") or "UNKNOWN").upper()
-        level_emoji = {"SAFE": "\U0001f7e2", "CAUTION": "\U0001f7e1", "DANGER": "\U0001f534"}.get(
-            rug_level, "\u26aa"
-        )
+        level_emoji = {"SAFE": "\U0001f7e2", "CAUTION": "\U0001f7e1", "DANGER": "\U0001f534"}.get(rug_level, "\u26aa")
         lines += [
             "",
             f"\U0001f6e1\ufe0f <b>Rug Risk</b>: {level_emoji} {rug_level} \u2014 {int(rug_score)}/100",

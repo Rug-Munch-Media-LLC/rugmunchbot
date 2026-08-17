@@ -12,6 +12,8 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
@@ -39,7 +41,6 @@ from app.domains.telegram.rugmunchbot.scanner import scan_token, scan_token_v2, 
 from app.domains.telegram.rugmunchbot.states import check_spam
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -403,9 +404,7 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             )
             dev_pnl = dev_data.get("pnl_estimate")
             if dev_pnl is not None:
-                lines.append(
-                    f"  {'📈' if dev_pnl >= 0 else '📉'} Dev P&L: <b>{fmt_number(dev_pnl)}</b>"
-                )
+                lines.append(f"  {'📈' if dev_pnl >= 0 else '📉'} Dev P&L: <b>{fmt_number(dev_pnl)}</b>")
             lines.append("")
 
         # Cross-Chain
@@ -428,13 +427,9 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         if scan_result.get("bundle_detected"):
             adv_threats.append("📦 Bundle activity detected — coordinated buys from funded wallets")
         if scan_result.get("fresh_wallet_pct", 0) > 50:
-            adv_threats.append(
-                f"🆕 Fresh wallets: {scan_result['fresh_wallet_pct']:.0f}% — possible fake holders"
-            )
+            adv_threats.append(f"🆕 Fresh wallets: {scan_result['fresh_wallet_pct']:.0f}% — possible fake holders")
         if scan_result.get("volume_real_ratio", 0) > 5:
-            adv_threats.append(
-                f"📊 Suspicious Vol/MCap ratio: {scan_result['volume_real_ratio']:.1f}x"
-            )
+            adv_threats.append(f"📊 Suspicious Vol/MCap ratio: {scan_result['volume_real_ratio']:.1f}x")
         if wallet_data.get("is_fresh"):
             adv_threats.append("🆕 Target wallet is fresh (<7 days old) — higher scam correlation")
 
@@ -450,11 +445,7 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             lines.append("")
 
         # Summary bar
-        total_flags = (
-            len(scan_result.get("threats", []))
-            + len(wallet_data.get("flags", []))
-            + len(adv_threats)
-        )
+        total_flags = len(scan_result.get("threats", [])) + len(wallet_data.get("flags", [])) + len(adv_threats)
         lines.extend(
             [
                 s,

@@ -85,9 +85,7 @@ def migrate_plaintext_api_tokens() -> int:
             with contextlib.suppress(sqlite3.OperationalError):
                 conn.execute("ALTER TABLE api_tokens ADD COLUMN token_prefix TEXT DEFAULT ''")
                 conn.commit()
-        rows = conn.execute(
-            "SELECT id, token FROM api_tokens WHERE token IS NOT NULL AND token != ''"
-        ).fetchall()
+        rows = conn.execute("SELECT id, token FROM api_tokens WHERE token IS NOT NULL AND token != ''").fetchall()
     except sqlite3.OperationalError:
         conn.close()
         return 0  # api_tokens table doesn't exist yet
@@ -113,9 +111,7 @@ def migrate_plaintext_api_tokens() -> int:
 # ── User Management ──
 
 
-def get_or_create_user(
-    user_id: int, username: str | None = None, first_name: str | None = None
-) -> dict[str, Any]:
+def get_or_create_user(user_id: int, username: str | None = None, first_name: str | None = None) -> dict[str, Any]:
     conn = get_db()
     row = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
     if row:
@@ -152,9 +148,7 @@ def get_user_by_id(user_id: int) -> dict[str, Any] | None:
 def set_banned(user_id: int, banned: bool) -> bool:
     """Ban/unban a user. Returns True when the user exists."""
     conn = get_db()
-    cur = conn.execute(
-        "UPDATE users SET is_banned = ? WHERE user_id = ?", (1 if banned else 0, user_id)
-    )
+    cur = conn.execute("UPDATE users SET is_banned = ? WHERE user_id = ?", (1 if banned else 0, user_id))
     conn.commit()
     ok = cur.rowcount > 0
     conn.close()
@@ -178,9 +172,7 @@ def is_user_banned(user_id: int) -> bool:
 # ── Scan History ──
 
 
-def log_scan(
-    user_id: int, token_address: str, chain: str, scan_type: str, risk_score: float
-) -> None:
+def log_scan(user_id: int, token_address: str, chain: str, scan_type: str, risk_score: float) -> None:
     conn = get_db()
     conn.execute(
         "INSERT INTO scan_history (user_id, token_address, chain, scan_type, risk_score, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -251,9 +243,7 @@ def log_admin_action(admin_id: int, action: str, details: str = "") -> None:
 
 def get_admin_logs(limit: int = 20) -> list[dict[str, Any]]:
     conn = get_db()
-    rows = conn.execute(
-        "SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT ?", (limit,)
-    ).fetchall()
+    rows = conn.execute("SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -303,13 +293,9 @@ def get_daily_stats(date: str | None = None) -> dict[str, Any]:
 
 def count_active_today() -> int:
     """Number of users active since the start of today (UTC)."""
-    start_of_day = int(
-        datetime.combine(datetime.now(UTC).date(), datetime.min.time(), tzinfo=UTC).timestamp()
-    )
+    start_of_day = int(datetime.combine(datetime.now(UTC).date(), datetime.min.time(), tzinfo=UTC).timestamp())
     conn = get_db()
-    c = conn.execute(
-        "SELECT COUNT(*) as c FROM users WHERE last_active >= ?", (start_of_day,)
-    ).fetchone()["c"]
+    c = conn.execute("SELECT COUNT(*) as c FROM users WHERE last_active >= ?", (start_of_day,)).fetchone()["c"]
     conn.close()
     return c
 
@@ -360,9 +346,7 @@ def clear_chat_history(user_id: int) -> None:
 # ── Scam reports (v6) ──
 
 
-def report_scam(
-    user_id: int, token_address: str, chain: str | None = None, reason: str = ""
-) -> bool:
+def report_scam(user_id: int, token_address: str, chain: str | None = None, reason: str = "") -> bool:
     """Record a user-submitted scam report (feeds the known-scam denylist).
 
     Returns True when the report was stored. The address becomes a known

@@ -54,13 +54,9 @@ def _env_float(name: str, default: float) -> float:
 
 
 #: News-band floor (env ``RMI_ROUTE_NEWS_MIN_IMPORTANCE``).
-ROUTE_NEWS_MIN_IMPORTANCE: float = _env_float(
-    "RMI_ROUTE_NEWS_MIN_IMPORTANCE", ROUTE_NEWS_MIN_IMPORTANCE_DEFAULT
-)
+ROUTE_NEWS_MIN_IMPORTANCE: float = _env_float("RMI_ROUTE_NEWS_MIN_IMPORTANCE", ROUTE_NEWS_MIN_IMPORTANCE_DEFAULT)
 #: Main-channel gate (env ``RMI_ROUTE_MAIN_MIN_IMPORTANCE``).
-ROUTE_MAIN_MIN_IMPORTANCE: float = _env_float(
-    "RMI_ROUTE_MAIN_MIN_IMPORTANCE", ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT
-)
+ROUTE_MAIN_MIN_IMPORTANCE: float = _env_float("RMI_ROUTE_MAIN_MIN_IMPORTANCE", ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT)
 
 
 def route_news(importance: float, category: str) -> str:

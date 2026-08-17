@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
 import httpx
+
 from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import http_get_json
@@ -42,9 +43,7 @@ T = TypeVar("T")
 
 # ── Reliance tracking ────────────────────────────────────────────────────
 # resolver_name -> {"own_data": int, "fallback": int, "both_failed": int}
-_SOURCE_COUNTS: dict[str, dict[str, int]] = defaultdict(
-    lambda: {"own_data": 0, "fallback": 0, "both_failed": 0}
-)
+_SOURCE_COUNTS: dict[str, dict[str, int]] = defaultdict(lambda: {"own_data": 0, "fallback": 0, "both_failed": 0})
 
 
 def get_source_stats() -> dict[str, dict[str, int]]:
@@ -102,9 +101,7 @@ async def resolve_with_fallback(
             return result
         logger.debug("DATA_SOURCE=own_data_invalid resolver=%s", resolver_name)
     except TimeoutError:
-        logger.debug(
-            "DATA_SOURCE=own_data_timeout resolver=%s timeout=%ss", resolver_name, timeout_secs
-        )
+        logger.debug("DATA_SOURCE=own_data_timeout resolver=%s timeout=%ss", resolver_name, timeout_secs)
     except Exception as exc:
         logger.debug("DATA_SOURCE=own_data_error resolver=%s err=%s", resolver_name, _short(exc))
 

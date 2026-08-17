@@ -11,6 +11,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
@@ -34,7 +36,6 @@ from app.domains.telegram.rugmunchbot.handlers._messages import (
 from app.domains.telegram.rugmunchbot.keyboards import back_kb, holders_kb, paywall_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import http_get_json
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -226,9 +227,7 @@ async def cmd_holders(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             risk, flags = _holder_risk(highest_pct, top10_sum, total_holders)
 
             # Concentration overview
-            risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "✅"}.get(
-                risk, "⚪"
-            )
+            risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "✅"}.get(risk, "⚪")
             lines.extend(
                 [
                     f"<b>Concentration Risk:</b> {risk_emoji} {risk.upper()}",

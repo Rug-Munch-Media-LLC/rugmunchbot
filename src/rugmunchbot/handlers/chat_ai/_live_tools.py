@@ -33,9 +33,7 @@ LIVE_TOOLS_WAIT = 8.0
 TOOL_ANSWER_EXTRA_WAIT = 5.0
 
 
-async def _run_live_tools(
-    text: str, history: list[dict[str, str]] | None = None
-) -> dict[str, ToolResult]:
+async def _run_live_tools(text: str, history: list[dict[str, str]] | None = None) -> dict[str, ToolResult]:
     """Run the tool registry for a user question (best-effort, bounded).
 
     Returns ``{tool_name: ToolResult}`` — possibly empty when no tools

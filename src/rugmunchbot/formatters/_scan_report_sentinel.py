@@ -60,13 +60,9 @@ def format_sentinel_flags(r: dict[str, Any]) -> str:
                 except (TypeError, ValueError):
                     hhi_f = 0.0
                 if level in ("high", "critical"):
-                    flags.append(
-                        f"\u26a0\ufe0f High holder concentration (HHI: <b>{hhi_f:.0f}</b>)"
-                    )
+                    flags.append(f"\u26a0\ufe0f High holder concentration (HHI: <b>{hhi_f:.0f}</b>)")
                 else:
-                    flags.append(
-                        f"\U0001f465 Holder concentration (HHI: <b>{hhi_f:.0f}</b>, {html.escape(level)})"
-                    )
+                    flags.append(f"\U0001f465 Holder concentration (HHI: <b>{hhi_f:.0f}</b>, {html.escape(level)})")
         # LP lock
         lv = free.get("liquidity_verification")
         if isinstance(lv, dict) and lv.get("total_locked_percentage") is not None:
@@ -87,9 +83,7 @@ def format_sentinel_flags(r: dict[str, Any]) -> str:
             if px.get("can_upgrade"):
                 flags.append("\u26a0\ufe0f Upgradeable proxy (admin can change implementation)")
             elif px.get("is_proxy"):
-                flags.append(
-                    f"\U0001f4e6 Proxy contract ({html.escape(str(px.get('proxy_type') or 'unknown'))})"
-                )
+                flags.append(f"\U0001f4e6 Proxy contract ({html.escape(str(px.get('proxy_type') or 'unknown'))})")
         # Deployer reputation
         dr = free.get("dev_reputation")
         if isinstance(dr, dict):
@@ -97,9 +91,7 @@ def format_sentinel_flags(r: dict[str, Any]) -> str:
             if rep in ("suspicious", "dangerous"):
                 score = dr.get("reputation_score")
                 score_str = f"{int(score)}/100" if score is not None else "N/A"
-                flags.append(
-                    f"\U0001f468\u200d\U0001f4bb Dev reputation: <b>{html.escape(rep)}</b> ({score_str})"
-                )
+                flags.append(f"\U0001f468\u200d\U0001f4bb Dev reputation: <b>{html.escape(rep)}</b> ({score_str})")
         # Remaining module warnings (deduped, capped)
         for w in _module_warnings(
             free,
@@ -147,15 +139,9 @@ def _format_sentinel_pro(r: dict[str, Any]) -> list[str]:
             except (TypeError, ValueError):
                 hhi_f = 0.0
             emoji = (
-                "\U0001f534"
-                if level in ("high", "critical")
-                else "\U0001f7e0"
-                if level == "medium"
-                else "\U0001f7e2"
+                "\U0001f534" if level in ("high", "critical") else "\U0001f7e0" if level == "medium" else "\U0001f7e2"
             )  # 🔴 / 🟡 / 🟢
-            flags.append(
-                f"{emoji} Holder concentration: HHI <b>{hhi_f:.0f}</b> ({html.escape(level)})"
-            )
+            flags.append(f"{emoji} Holder concentration: HHI <b>{hhi_f:.0f}</b> ({html.escape(level)})")
 
     # LP lock
     lv = free.get("liquidity_verification")
@@ -166,9 +152,7 @@ def _format_sentinel_pro(r: dict[str, Any]) -> list[str]:
                 locked_f = float(locked)
             except (TypeError, ValueError):
                 locked_f = 0.0
-            emoji = (
-                "\U0001f534" if locked_f < 20 else "\U0001f7e1" if locked_f < 80 else "\U0001f7e2"
-            )
+            emoji = "\U0001f534" if locked_f < 20 else "\U0001f7e1" if locked_f < 80 else "\U0001f7e2"
             flags.append(f"{emoji} LP Locked: <b>{locked_f:.0f}%</b>")
         liq_usd = lv.get("liquidity_usd")
         if liq_usd:
@@ -189,9 +173,7 @@ def _format_sentinel_pro(r: dict[str, Any]) -> list[str]:
         if px.get("can_upgrade"):
             flags.append("\u26a0\ufe0f Upgradeable proxy (admin can change implementation)")
         elif px.get("is_proxy"):
-            flags.append(
-                f"\U0001f4e6 Proxy contract ({html.escape(str(px.get('proxy_type') or 'unknown'))})"
-            )
+            flags.append(f"\U0001f4e6 Proxy contract ({html.escape(str(px.get('proxy_type') or 'unknown'))})")
 
     # Dev reputation
     dr = free.get("dev_reputation")

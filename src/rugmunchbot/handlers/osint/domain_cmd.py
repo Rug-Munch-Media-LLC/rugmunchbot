@@ -10,20 +10,15 @@ import asyncio
 import html
 from typing import TYPE_CHECKING
 
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.handlers.investigate import (
-    cmd_investigate as _pro_investigate,
-)
+from app.domains.telegram.rugmunchbot.handlers.investigate import cmd_investigate as _pro_investigate
 from app.domains.telegram.rugmunchbot.handlers.osint._common import _TIMEOUTS, _looks_like_domain
-from app.domains.telegram.rugmunchbot.handlers.osint._format import (
-    _error_text,
-    _format_report,
-    _unavailable_text,
-)
+from app.domains.telegram.rugmunchbot.handlers.osint._format import _error_text, _format_report, _unavailable_text
 from app.domains.telegram.rugmunchbot.keyboards import back_kb
 from app.osint import OsintNotAvailable
 from app.osint.domain import lookup_domain
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -62,13 +57,9 @@ async def _cmd_domain(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             disable_web_page_preview=True,
         )
     except OsintNotAvailable as exc:
-        await msg.edit_text(
-            _unavailable_text(domain, exc), parse_mode=ParseMode.HTML, reply_markup=back_kb()
-        )
+        await msg.edit_text(_unavailable_text(domain, exc), parse_mode=ParseMode.HTML, reply_markup=back_kb())
     except (ValueError, TimeoutError, OSError) as exc:
-        await msg.edit_text(
-            _error_text(domain, exc), parse_mode=ParseMode.HTML, reply_markup=back_kb()
-        )
+        await msg.edit_text(_error_text(domain, exc), parse_mode=ParseMode.HTML, reply_markup=back_kb())
 
 
 async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

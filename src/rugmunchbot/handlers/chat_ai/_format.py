@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
 from app.domains.telegram.rugmunchbot.config import fmt_chain, fmt_number, fmt_pct
 from app.domains.telegram.rugmunchbot.formatters import detect_chain
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 if TYPE_CHECKING:
     from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
@@ -77,9 +78,7 @@ def _format_tool_answer(results: dict[str, ToolResult]) -> str | None:
                 f"{fmt_chain(p.get('chain', ''))}\n`{addr}`"
             )
             if p.get("price_usd") is not None:
-                lines.append(
-                    f"\U0001f4b0 {fmt_number(p['price_usd'])} | 24h: {fmt_pct(p.get('change_24h'))}"
-                )
+                lines.append(f"\U0001f4b0 {fmt_number(p['price_usd'])} | 24h: {fmt_pct(p.get('change_24h'))}")
             if p.get("market_cap"):
                 lines.append(f"\U0001f4c8 MCap: {fmt_number(p.get('market_cap'))}")
             extra = []
@@ -103,9 +102,7 @@ def _format_tool_answer(results: dict[str, ToolResult]) -> str | None:
             for t in tokens[:8]:
                 addr = t.get("address", "")
                 sym = t.get("symbol", "?")
-                chg = (
-                    f" | {fmt_pct(t.get('change_24h'))}" if t.get("change_24h") is not None else ""
-                )
+                chg = f" | {fmt_pct(t.get('change_24h'))}" if t.get("change_24h") is not None else ""
                 lines.append(f"\u2022 ${sym} {fmt_chain(t.get('chain', ''))}{chg} — `{addr}`")
             lines.append("")
     trend_ranked = results.get("trend_by_chain")
@@ -123,9 +120,7 @@ def _format_tool_answer(results: dict[str, ToolResult]) -> str | None:
                     flag_str = f" — {', '.join(flags)}" if flags else ""
                     liq = t.get("liquidity_usd")
                     liq_str = f" | Liq {fmt_number(liq)}" if liq is not None else ""
-                    lines.append(
-                        f"\u2022 ${sym} {fmt_chain(t.get('chain', ''))}{liq_str}{flag_str} — `{addr}`"
-                    )
+                    lines.append(f"\u2022 ${sym} {fmt_chain(t.get('chain', ''))}{liq_str}{flag_str} — `{addr}`")
             else:
                 lines.append("**\U0001f525 Trending (scored)**")
                 for t in tokens[:8]:
@@ -133,9 +128,7 @@ def _format_tool_answer(results: dict[str, ToolResult]) -> str | None:
                     sym = t.get("symbol", "?")
                     score = t.get("score")
                     score_str = f" | score {fmt_number(score)}" if score is not None else ""
-                    lines.append(
-                        f"\u2022 ${sym} {fmt_chain(t.get('chain', ''))}{score_str} — `{addr}`"
-                    )
+                    lines.append(f"\u2022 ${sym} {fmt_chain(t.get('chain', ''))}{score_str} — `{addr}`")
             lines.append("")
     security = results.get("security_scan")
     if security is not None and security.ok and isinstance(security.data, dict):

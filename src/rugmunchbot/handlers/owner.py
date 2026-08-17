@@ -27,15 +27,16 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+from telegram.error import BadRequest, Forbidden, RetryAfter, TelegramError
+
 from app.domains.telegram import access_guard
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import OWNER_IDS, TIERS
 from app.domains.telegram.rugmunchbot.formatters import is_owner, thin_sep
 from app.domains.telegram.rugmunchbot.keyboards import admin_confirm_kb, admin_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
-from telegram.error import BadRequest, Forbidden, RetryAfter, TelegramError
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -106,15 +107,8 @@ def _format_model_usage_line() -> str:
         )
         or "n/a"
     )
-    top_models = (
-        " | ".join(
-            f"{m}: {md['calls']} calls" for m, md in list(snap.get("models", {}).items())[:4]
-        )
-        or "n/a"
-    )
-    avg_latency = (
-        round(snap["total_latency_ms"] / snap["total_calls"], 0) if snap.get("total_calls") else 0
-    )
+    top_models = " | ".join(f"{m}: {md['calls']} calls" for m, md in list(snap.get("models", {}).items())[:4]) or "n/a"
+    avg_latency = round(snap["total_latency_ms"] / snap["total_calls"], 0) if snap.get("total_calls") else 0
     return (
         f"\U0001f916 <b>Model usage (process)</b>\n{thin_sep()}\n"
         f"\U0001f4ac Chat calls: <b>{snap.get('total_calls', 0):,}</b> | "
@@ -254,9 +248,7 @@ async def cmd_admin_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         name = f"@{row['username']}" if row["username"] else f"<code>{row['user_id']}</code>"
         activity = int(row["total_scans"] or 0) + int(row["total_ai_msgs"] or 0)
         lines.append(f"{i}. {name} ({row['tier']}) \u2014 {activity:,} actions")
-    await update.message.reply_text(
-        "\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=admin_kb()
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=admin_kb())  # type: ignore[union-attr]  # PTB None-able fields
 
 
 async def cmd_admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -294,11 +286,7 @@ async def _do_broadcast(bot: Bot, msg_text: str, owner_uid: int | None = None) -
         except RetryAfter as e:
             # Flood control: back off as Telegram instructs, retry once, then skip.
             retry_after = e.retry_after
-            retry_secs = (
-                retry_after.total_seconds()
-                if isinstance(retry_after, timedelta)
-                else float(retry_after)
-            )
+            retry_secs = retry_after.total_seconds() if isinstance(retry_after, timedelta) else float(retry_after)
             await asyncio.sleep(retry_secs + 1)
             try:
                 await bot.send_message(u["user_id"], msg_text, parse_mode=ParseMode.HTML)
@@ -349,9 +337,7 @@ async def cmd_admin_toggle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             [
                 [
                     InlineKeyboardButton("\U0001f504 Enable", callback_data="admin_toggle_bot_on"),
-                    InlineKeyboardButton(
-                        "\U0001f6d1 Disable", callback_data="admin_toggle_bot_off"
-                    ),
+                    InlineKeyboardButton("\U0001f6d1 Disable", callback_data="admin_toggle_bot_off"),
                 ],
                 [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
             ]
@@ -385,9 +371,7 @@ async def cmd_admin_toggle_chat(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
             [
                 [
                     InlineKeyboardButton("\U0001f504 Enable", callback_data="admin_toggle_chat_on"),
-                    InlineKeyboardButton(
-                        "\U0001f4f5 Disable", callback_data="admin_toggle_chat_off"
-                    ),
+                    InlineKeyboardButton("\U0001f4f5 Disable", callback_data="admin_toggle_chat_off"),
                 ],
                 [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
             ]
@@ -411,9 +395,7 @@ async def cmd_admin_user(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return
     user = db.get_user_by_id(target)
     if not user:
-        await update.message.reply_text(
-            f"\u274c User <code>{target}</code> not found.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(f"\u274c User <code>{target}</code> not found.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
         return
     _log(uid, "admin_user_lookup", str(target))
     created = (
@@ -428,9 +410,7 @@ async def cmd_admin_user(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     )
     tier_exp = ""
     if user.get("tier_expires"):
-        tier_exp = (
-            f" (exp {datetime.fromtimestamp(user['tier_expires'], tz=UTC).strftime('%Y-%m-%d')})"
-        )
+        tier_exp = f" (exp {datetime.fromtimestamp(user['tier_expires'], tz=UTC).strftime('%Y-%m-%d')})"
     status_badge = "\U0001f6ab BANNED" if user.get("is_banned") else "\u2705 Active"
     await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         f"\U0001f464 <b>User {target}</b>\n{thin_sep()}\n"
@@ -448,12 +428,8 @@ async def cmd_admin_user(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         reply_markup=InlineKeyboardMarkup(
             [
                 [
-                    InlineKeyboardButton(
-                        "\U0001f3af Set Tier", callback_data=f"admin_user_tier_{target}"
-                    ),
-                    InlineKeyboardButton(
-                        "\U0001f6ab Ban", callback_data=f"admin_user_ban_{target}"
-                    ),
+                    InlineKeyboardButton("\U0001f3af Set Tier", callback_data=f"admin_user_tier_{target}"),
+                    InlineKeyboardButton("\U0001f6ab Ban", callback_data=f"admin_user_ban_{target}"),
                 ],
                 [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
             ]
@@ -481,9 +457,7 @@ async def cmd_admin_set_tier(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(f"Invalid tier. Options: {', '.join(TIERS.keys())}")  # type: ignore[union-attr]  # PTB None-able fields
         return
     if not db.get_user_by_id(target):
-        await update.message.reply_text(
-            f"\u274c User <code>{target}</code> not found.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(f"\u274c User <code>{target}</code> not found.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
         return
     db.set_user_tier(target, tier, days)
     _log(uid, "admin_set_tier", f"user={target} tier={tier} days={days}")
@@ -512,13 +486,9 @@ async def cmd_admin_ban(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     ok = db.set_banned(target, True)
     _log(uid, "admin_ban", str(target))
     if ok:
-        await update.message.reply_text(
-            f"\U0001f6ab Banned user {target}.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(f"\U0001f6ab Banned user {target}.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
     else:
-        await update.message.reply_text(
-            f"\u274c User {target} not found.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(f"\u274c User {target} not found.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
 
 
 async def cmd_admin_unban(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -538,13 +508,9 @@ async def cmd_admin_unban(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     ok = db.set_banned(target, False)
     _log(uid, "admin_unban", str(target))
     if ok:
-        await update.message.reply_text(
-            f"\u2705 Unbanned user {target}.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(f"\u2705 Unbanned user {target}.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
     else:
-        await update.message.reply_text(
-            f"\u274c User {target} not found.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(f"\u274c User {target} not found.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
 
 
 async def cmd_admin_logs(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -555,9 +521,7 @@ async def cmd_admin_logs(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return
     logs = db.get_admin_logs(limit=15)
     if not logs:
-        await update.message.reply_text(
-            "\U0001f4dd No admin actions logged yet.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text("\U0001f4dd No admin actions logged yet.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
         return
     lines = ["\U0001f4dd <b>Recent Admin Actions</b>", thin_sep()]
     for entry in logs:
@@ -566,17 +530,13 @@ async def cmd_admin_logs(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         lines.append(f"\u2022 <code>{ts}</code> <b>{entry.get('action')}</b> {details[:60]}")
     lines.append(thin_sep())
     lines.append(f"<i>Total actions stored: {len(db.get_admin_logs(limit=10000))}</i>")
-    await update.message.reply_text(
-        "\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=admin_kb()
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=admin_kb())  # type: ignore[union-attr]  # PTB None-able fields
 
 
 # ── Callback helpers (used by handlers/callback.py) ──
 
 
-async def cb_broadcast_confirm(
-    owner_uid: int, chat_id: int, bot: Bot, message_id: int | None = None
-) -> None:
+async def cb_broadcast_confirm(owner_uid: int, chat_id: int, bot: Bot, message_id: int | None = None) -> None:
     """Execute a confirmed broadcast."""
     msg_text = _pending_broadcast.pop(owner_uid, "")
     if not msg_text:

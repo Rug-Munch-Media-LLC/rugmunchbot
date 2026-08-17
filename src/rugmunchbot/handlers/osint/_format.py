@@ -34,9 +34,7 @@ def _format_report(report: OsintReport, title: str) -> str:
         for f in findings:
             conf = _CONFIDENCE_EMOJI.get(f.confidence, "\U0001f7e1")
             cat = _CATEGORY_EMOJI.get(f.category, "\u2022")
-            parts.append(
-                f"{cat} {conf} <b>{html.escape(f.category.title())}</b> \u2014 {html.escape(f.summary)}"
-            )
+            parts.append(f"{cat} {conf} <b>{html.escape(f.category.title())}</b> \u2014 {html.escape(f.summary)}")
         extra = len(report.findings) - _MAX_FINDINGS
         if extra > 0:
             parts.append(f"<i>\u2026and {extra} more</i>")
@@ -47,10 +45,7 @@ def _format_report(report: OsintReport, title: str) -> str:
 def _format_username_result(result: OsintResult) -> str:
     """Render a username lookup (found accounts first, then '+N more…')."""
     sites = [s for s in result.sites if s.exists]
-    parts = [
-        "\U0001f575\ufe0f <b>Username OSINT</b>\n" + thin_sep(),
-        f"<code>{html.escape(result.username)}</code>",
-    ]
+    parts = ["\U0001f575\ufe0f <b>Username OSINT</b>\n" + thin_sep(), f"<code>{html.escape(result.username)}</code>"]
     if not sites:
         parts.append("<i>No public accounts found.</i>")
     else:
@@ -156,9 +151,7 @@ def _format_aggregate_result(result: dict[str, Any]) -> str:
             confidence = str(finding.get("confidence") or "medium")
             conf = _CONFIDENCE_EMOJI.get(confidence, "\U0001f7e1")
             cat = _CATEGORY_EMOJI.get(category, "\u2022")
-            parts.append(
-                f"{cat} {conf} <b>{html.escape(category.title())}</b> \u2014 {summary} <i>({source})</i>"
-            )
+            parts.append(f"{cat} {conf} <b>{html.escape(category.title())}</b> \u2014 {summary} <i>({source})</i>")
         extra = len(findings) - _MAX_AGGREGATE_FINDINGS
         if extra > 0:
             parts.append(f"<i>\u2026and {extra} more findings</i>")

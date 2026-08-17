@@ -276,11 +276,7 @@ def _cex_funded_pct(r: dict[str, Any]) -> float | None:
     number a provider actually reported — never a fabricated 0.
     """
     wm = r.get("wallet_metrics")
-    if (
-        isinstance(wm, dict)
-        and str(wm.get("result") or "") != "unavailable"
-        and wm.get("cex_funded_pct") is not None
-    ):
+    if isinstance(wm, dict) and str(wm.get("result") or "") != "unavailable" and wm.get("cex_funded_pct") is not None:
         pct = _float_or_none(wm.get("cex_funded_pct"))
         if pct is not None:
             return pct
@@ -369,9 +365,7 @@ def _holder_distribution_rows(r: dict[str, Any]) -> list[str]:
     if cex is not None:
         rows.append(f"  \U0001f3e6 Exchange-funded <b>{cex:.1f}%</b> of analyzed holders")
     gmgn_holders = (r.get("gmgn") or {}).get("holders") if isinstance(r.get("gmgn"), dict) else None
-    if isinstance(gmgn_holders, dict) and (
-        gmgn_holders.get("sniper_count") or gmgn_holders.get("insider_count")
-    ):
+    if isinstance(gmgn_holders, dict) and (gmgn_holders.get("sniper_count") or gmgn_holders.get("insider_count")):
         parts = []
         if gmgn_holders.get("sniper_count"):
             parts.append(f"\U0001f3af <b>{int(gmgn_holders['sniper_count'])}</b> snipers")
@@ -394,9 +388,7 @@ def _holders_count(r: dict[str, Any]) -> int | None:
     returns None (the formatter renders "—"/N/A) — never a fabricated 0.
     """
     gmgn_holders = (r.get("gmgn") or {}).get("holders") if isinstance(r.get("gmgn"), dict) else None
-    sentinel_free = (
-        (r.get("sentinel") or {}).get("free") if isinstance(r.get("sentinel"), dict) else None
-    )
+    sentinel_free = (r.get("sentinel") or {}).get("free") if isinstance(r.get("sentinel"), dict) else None
     sentinel_ha = sentinel_free.get("holder_analysis") if isinstance(sentinel_free, dict) else None
     for source in (
         gmgn_holders,
@@ -495,11 +487,7 @@ def _fake_volume_verdict_text(r: dict[str, Any]) -> str:
 def _fresh_wallet_pct(r: dict[str, Any]) -> float | None:
     """Fresh-wallet percentage (0-100), or None when no wallet metrics."""
     wm = r.get("wallet_metrics")
-    if (
-        isinstance(wm, dict)
-        and wm.get("result") != "unavailable"
-        and wm.get("fresh_wallet_pct") is not None
-    ):
+    if isinstance(wm, dict) and wm.get("result") != "unavailable" and wm.get("fresh_wallet_pct") is not None:
         try:
             return float(wm["fresh_wallet_pct"])
         except (TypeError, ValueError):
@@ -545,11 +533,7 @@ def _key_metrics_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
     liquidity = r.get("liquidity_usd") or r.get("liquidity")
     rows.append(f"  Liquidity      <b>{_fmt_market_value(liquidity)}</b>")
     holders = _holders_count(r)
-    rows.append(
-        f"  Holders        <b>{holders:,}</b>"
-        if holders is not None
-        else "  Holders        <b>N/A</b>"
-    )
+    rows.append(f"  Holders        <b>{holders:,}</b>" if holders is not None else "  Holders        <b>N/A</b>")
 
     mint = _mint_auth(r)
     rows.append(
@@ -571,32 +555,22 @@ def _key_metrics_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
     if deep:
         lp = _lp_lock_pct(r)
         rows.append(
-            f"  LP Lock        {_risk_emoji(lp)} <b>{lp:.0f}%</b>"
-            if lp is not None
-            else "  LP Lock        <b>N/A</b>"
+            f"  LP Lock        {_risk_emoji(lp)} <b>{lp:.0f}%</b>" if lp is not None else "  LP Lock        <b>N/A</b>"
         )
         bundle_row = _bundle_verdict_row(r)
         if bundle_row is not None:
             rows.append(f"  Bundle         {bundle_row}")
         cex = _cex_funded_pct(r)
         rows.append(
-            f"  CEX-Funded     \U0001f3e6 <b>{cex:.1f}%</b>"
-            if cex is not None
-            else "  CEX-Funded     <b>\u2014</b>"
+            f"  CEX-Funded     \U0001f3e6 <b>{cex:.1f}%</b>" if cex is not None else "  CEX-Funded     <b>\u2014</b>"
         )
-        gmgn_holders = (
-            (r.get("gmgn") or {}).get("holders") if isinstance(r.get("gmgn"), dict) else None
-        )
-        if isinstance(gmgn_holders, dict) and (
-            gmgn_holders.get("sniper_count") or gmgn_holders.get("insider_count")
-        ):
+        gmgn_holders = (r.get("gmgn") or {}).get("holders") if isinstance(r.get("gmgn"), dict) else None
+        if isinstance(gmgn_holders, dict) and (gmgn_holders.get("sniper_count") or gmgn_holders.get("insider_count")):
             parts = []
             if gmgn_holders.get("sniper_count"):
                 parts.append(f"\U0001f3af snipers <b>{int(gmgn_holders['sniper_count'])}</b>")
             if gmgn_holders.get("insider_count"):
-                parts.append(
-                    f"\U0001f575\ufe0f insiders <b>{int(gmgn_holders['insider_count'])}</b>"
-                )
+                parts.append(f"\U0001f575\ufe0f insiders <b>{int(gmgn_holders['insider_count'])}</b>")
             sep_dot = " \u00b7 "
             rows.append(f"  Snipers        {sep_dot.join(parts)}")
 
@@ -607,10 +581,7 @@ def _token_2022_flag(r: dict[str, Any]) -> str | None:
     """Token-2022 program flag (Solana) — None when the scan carries no data."""
     if r.get("token_2022"):
         return "Token-2022 program — extensions may hide transfer hooks / freeze"
-    if str(r.get("token_program") or "").lower() in (
-        "spl-token-2022",
-        "tokenzqdbnblqap5vehdkas6epflc1phnbqcxeppxueb",
-    ):
+    if str(r.get("token_program") or "").lower() in ("spl-token-2022", "tokenzqdbnblqap5vehdkas6epflc1phnbqcxeppxueb"):
         return "Token-2022 program — extensions may hide transfer hooks / freeze"
     try:
         sentinel = r.get("sentinel") or {}
@@ -635,9 +606,7 @@ def _mev_note(r: dict[str, Any]) -> str | None:
         if isinstance(mev, dict):
             level = str(mev.get("risk_level") or "").lower()
             if level in ("high", "critical"):
-                return (
-                    f"MEV risk <b>{html.escape(level.upper())}</b> — sandwich / front-run exposure"
-                )
+                return f"MEV risk <b>{html.escape(level.upper())}</b> — sandwich / front-run exposure"
             warnings = mev.get("warnings")
             if isinstance(warnings, list) and warnings:
                 return f"MEV: {html.escape(str(warnings[0])[:90])}"
@@ -673,9 +642,7 @@ def _launch_intel_rows(r: dict[str, Any]) -> list[str]:
                 f"  \U0001f195 First-time buyers: <b>{_fmt_num(ba.get('first_time_buyer_pct'), suffix='%')}</b>"
             )
     gmgn_holders = (r.get("gmgn") or {}).get("holders") if isinstance(r.get("gmgn"), dict) else None
-    if isinstance(gmgn_holders, dict) and (
-        gmgn_holders.get("sniper_count") or gmgn_holders.get("insider_count")
-    ):
+    if isinstance(gmgn_holders, dict) and (gmgn_holders.get("sniper_count") or gmgn_holders.get("insider_count")):
         parts = []
         if gmgn_holders.get("sniper_count"):
             parts.append(f"\U0001f3af <b>{int(gmgn_holders['sniper_count'])}</b> snipers")
@@ -721,9 +688,7 @@ def _what_to_watch_line(r: dict[str, Any]) -> str:
     fresh = _fresh_wallet_pct(r)
     if fresh is not None and fresh > 50:
         return "Fresh wallets dominate \u2014 likely a sniped / coordinated launch."
-    return (
-        "Standard caution \u2014 size in small and watch sell pressure on the first green candle."
-    )
+    return "Standard caution \u2014 size in small and watch sell pressure on the first green candle."
 
 
 # ── Scam Signals matrix (complete technique coverage, honest "—") ─────────
@@ -836,9 +801,7 @@ def _scam_signal_rows(r: dict[str, Any]) -> list[tuple[str, str, str]]:
     # 4. Same-slot bundler (Solana)
     same_wallets = ba.get("same_slot_wallets") if isinstance(ba, dict) else None
     if isinstance(same_wallets, (int, float)) and same_wallets >= 3:
-        rows.append(
-            ("Same-slot bundler", _SCAM_SIGNAL_RED, f"{int(same_wallets)} wallets same slot")
-        )
+        rows.append(("Same-slot bundler", _SCAM_SIGNAL_RED, f"{int(same_wallets)} wallets same slot"))
     elif isinstance(same_wallets, (int, float)):
         rows.append(("Same-slot bundler", _SCAM_SIGNAL_GREEN, f"{int(same_wallets)} same-slot"))
     else:
@@ -870,17 +833,11 @@ def _scam_signal_rows(r: dict[str, Any]) -> list[tuple[str, str, str]]:
     dump = sec.get("deployer_dump_detected")
     if dump is True:
         count = sec.get("deployer_dump_count")
-        detail = (
-            f"{count} deployer sell txns"
-            if isinstance(count, (int, float)) and count
-            else "deployer selling"
-        )
+        detail = f"{count} deployer sell txns" if isinstance(count, (int, float)) and count else "deployer selling"
         rows.append(("Deployer dump", _SCAM_SIGNAL_RED, detail))
     elif dump is False:
         rows.append(("Deployer dump", _SCAM_SIGNAL_GREEN, "no team sell detected"))
-    elif (
-        "malicious_deployer" in flags or "repeat_deployer" in flags or "high_risk_deployer" in flags
-    ):
+    elif "malicious_deployer" in flags or "repeat_deployer" in flags or "high_risk_deployer" in flags:
         rows.append(("Deployer dump", _SCAM_SIGNAL_RED, "repeat / malicious deployer"))
     else:
         rows.append(("Deployer dump", _SCAM_SIGNAL_UNKNOWN, ""))
@@ -918,9 +875,7 @@ def _scam_signal_rows(r: dict[str, Any]) -> list[tuple[str, str, str]]:
 
     tax_high = any((p := _tax_pct(t)) is not None and p > 10 for t in (buy_tax, sell_tax))
     if tax_high or transfer_flag or slippage_flag:
-        detail = (
-            "transfer pausable" if sec.get("transfer_pausable") is True else "buy/sell tax >10%"
-        )
+        detail = "transfer pausable" if sec.get("transfer_pausable") is True else "buy/sell tax >10%"
         rows.append(("Tax manipulation", _SCAM_SIGNAL_RED, detail))
     elif buy_tax is not None or sell_tax is not None:
         rows.append(("Tax manipulation", _SCAM_SIGNAL_GREEN, "taxes within range"))

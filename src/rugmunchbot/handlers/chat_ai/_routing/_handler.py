@@ -12,6 +12,8 @@ import asyncio
 import contextlib
 from typing import TYPE_CHECKING, Any
 
+from telegram import MessageEntity, Update
+
 from app.domains.telegram.rugmunchbot import anti_abuse, db
 from app.domains.telegram.rugmunchbot.admin_state import track_message
 from app.domains.telegram.rugmunchbot.db._base import run_db
@@ -29,7 +31,6 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._token_card impo
     _TokenCardFlag,
 )
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram import MessageEntity, Update
 
 if TYPE_CHECKING:
     from telegram import Message
@@ -118,10 +119,7 @@ async def ai_chat_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     # startup), falling back to the update's attached bot inside the helper.
     ctx_bot_username = getattr(getattr(ctx, "bot", None), "username", None)
     if not _is_bot_addressed(update, message, bot_username=ctx_bot_username):
-        logger.debug(
-            "free-text not addressed to bot — ignored (chat=%s)",
-            getattr(update.effective_chat, "type", "?"),
-        )
+        logger.debug("free-text not addressed to bot — ignored (chat=%s)", getattr(update.effective_chat, "type", "?"))
         return
 
     u = await run_db(db.get_or_create_user, user.id, user.username, user.first_name)
@@ -194,12 +192,7 @@ async def ai_chat_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         # the concurrent lookup so no late price card or dangling task
         # survives the failed turn (single-turn isolation for the service).
         await chat_ai_response(
-            update,
-            ctx,
-            text,
-            user,
-            token_lookup_task=token_lookup_task,
-            token_card_flag=token_card_flag,
+            update, ctx, text, user, token_lookup_task=token_lookup_task, token_card_flag=token_card_flag
         )
     except Exception:
         logger.exception("ai_chat_handler error (user=%s) text=%.60s", user.id, text)

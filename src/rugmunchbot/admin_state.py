@@ -262,13 +262,7 @@ async def get_daily_analytics(days: int = 7) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for i in range(max(1, days) - 1, -1, -1):
         d = _day(i)
-        row: dict[str, Any] = {
-            "date": d,
-            "messages": 0,
-            "ai_queries": 0,
-            "new_users": 0,
-            "tokens": 0,
-        }
+        row: dict[str, Any] = {"date": d, "messages": 0, "ai_queries": 0, "new_users": 0, "tokens": 0}
         if r is not None:
             try:
                 row["messages"] = _as_int(await r.get(_msg_key(d)))
@@ -288,9 +282,7 @@ async def get_command_stats(limit: int = 20) -> list[dict[str, Any]]:
         return []
     try:
         raw = await r.hgetall(COMMANDS_KEY)
-        items = sorted(
-            ((_as_str(k), _as_int(v)) for k, v in raw.items()), key=lambda x: x[1], reverse=True
-        )
+        items = sorted(((_as_str(k), _as_int(v)) for k, v in raw.items()), key=lambda x: x[1], reverse=True)
         return [{"command": k, "count": v} for k, v in items[: max(1, limit)]]
     except Exception:
         logger.warning("admin_state:get_command_stats failed", exc_info=True)

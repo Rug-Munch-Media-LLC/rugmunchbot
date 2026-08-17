@@ -84,11 +84,7 @@ def snapshot() -> dict[str, Any]:
     """Return a JSON-safe snapshot of every counter (never raises)."""
     with _lock:
         tiers = {
-            tier: {
-                "calls": b["calls"],
-                "tokens": b["tokens"],
-                "latency_ms": round(b["latency_ms"], 1),
-            }
+            tier: {"calls": b["calls"], "tokens": b["tokens"], "latency_ms": round(b["latency_ms"], 1)}
             for tier, b in sorted(_tiers.items())
         }
         models = {

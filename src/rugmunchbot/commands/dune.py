@@ -102,9 +102,7 @@ async def _fetch_digest() -> dict[str, Any] | None:
         if body and isinstance(body.get("queries"), dict):
             return body
     except Exception as exc:  # fail-open to direct provider
-        logger.debug(
-            "backend /dune digest unavailable (%s), using direct provider", exc.__class__.__name__
-        )
+        logger.debug("backend /dune digest unavailable (%s), using direct provider", exc.__class__.__name__)
     try:
         from app.databus.provider_implementations.dune import dune_onchain_intel
 

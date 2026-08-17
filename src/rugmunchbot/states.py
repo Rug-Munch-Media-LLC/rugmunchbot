@@ -10,10 +10,11 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from cachetools import TTLCache
+
 from app.domains.telegram.rugmunchbot.config import OWNER_IDS
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
-from cachetools import TTLCache
 
 logger = get_logger("rmi_bot")
 
@@ -34,24 +35,16 @@ async def get_sol_price() -> float:
         return _sol_price
     try:
         client = get_shared_client(5)
-        r = await client.get(
-            "https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112"
-        )
+        r = await client.get("https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112")
         if r.status_code == 200:
             data = r.json()
-            price_str = (
-                data.get("data", {})
-                .get("So11111111111111111111111111111111111111112", {})
-                .get("price")
-            )
+            price_str = data.get("data", {}).get("So11111111111111111111111111111111111111112", {}).get("price")
             if price_str:
                 _sol_price = float(price_str)
                 _sol_price_ts = now
                 return _sol_price
         # Jupiter unreachable/blocked from some hosts — CoinGecko fallback
-        r = await client.get(
-            "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
-        )
+        r = await client.get("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd")
         if r.status_code == 200:
             price = r.json().get("solana", {}).get("usd")
             if price:

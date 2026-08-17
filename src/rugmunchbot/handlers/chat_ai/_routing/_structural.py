@@ -13,9 +13,7 @@ import app.domains.telegram.rugmunchbot.handlers.chat_ai as chat_ai
 from app.domains.telegram.rugmunchbot import anti_abuse
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import _extract_addresses
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._guards import _scam_address_warning
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._token_card import (
-    _lookup_token_symbol,
-)
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._token_card import _lookup_token_symbol
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:

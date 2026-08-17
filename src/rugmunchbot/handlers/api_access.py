@@ -11,6 +11,8 @@ from __future__ import annotations
 import secrets
 from typing import TYPE_CHECKING
 
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
@@ -24,7 +26,6 @@ from app.domains.telegram.rugmunchbot.formatters import (
 from app.domains.telegram.rugmunchbot.handlers._messages import failure_card
 from app.domains.telegram.rugmunchbot.keyboards import api_kb, paywall_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -149,13 +150,7 @@ async def _create_token(update: Update, user_id: int) -> None:
 
     conn.execute(
         "INSERT INTO api_tokens (user_id, token, token_prefix, name, is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
-        (
-            user_id,
-            hashed_token,
-            token_prefix,
-            f"Token #{count + 1}",
-            int(__import__("time").time()),
-        ),
+        (user_id, hashed_token, token_prefix, f"Token #{count + 1}", int(__import__("time").time())),
     )
     conn.commit()
     token_id = conn.lastrowid  # type: ignore[attr-defined]  # PTB None-able fields
@@ -204,9 +199,7 @@ async def _list_tokens(update: Update, user_id: int) -> None:
         name = tok.get("name", f"Token #{tok['id']}")
         prefix = tok.get("token_prefix") or ""
         token_preview = f"{prefix}..." if prefix else "***"
-        text += (
-            f"<b>#{tok['id']}</b> — {name}\n  🔑 <code>{token_preview}</code>\n  {status}{last}\n\n"
-        )
+        text += f"<b>#{tok['id']}</b> — {name}\n  🔑 <code>{token_preview}</code>\n  {status}{last}\n\n"
     text += "Create new: /api create\nRevoke: /api revoke <code>id</code>"
     text += footer_links()
     await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields

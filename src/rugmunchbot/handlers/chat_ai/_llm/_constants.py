@@ -333,9 +333,7 @@ _CTX_TA_RE = re.compile(
     r"outlook|forecast)\b",
     re.IGNORECASE,
 )
-_CTX_TRENDING_RE = re.compile(
-    r"\b(trending|hot|pump|pumping|gainers|movers|top tokens)\b", re.IGNORECASE
-)
+_CTX_TRENDING_RE = re.compile(r"\b(trending|hot|pump|pumping|gainers|movers|top tokens)\b", re.IGNORECASE)
 
 # Broad MARKET-TODAY / market-analysis asks ("how's the market today", "market
 # analysis", "market sentiment", "top gainers and losers", "what to watch")

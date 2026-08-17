@@ -20,6 +20,7 @@ Layout:
 from __future__ import annotations
 
 import httpx as httpx
+
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._clients import (
     _call_backend_chat as _call_backend_chat,
     _call_remote_fast as _call_remote_fast,
@@ -104,7 +105,4 @@ from app.domains.telegram.rugmunchbot.prompts import (
     FALLBACK_SYSTEM_PROMPT as FALLBACK_SYSTEM_PROMPT,
     PERSONA_CONTEXT as PERSONA_CONTEXT,
 )
-from app.llm_config import (
-    get_long_config as get_long_config,
-    get_snappy_config as get_snappy_config,
-)
+from app.llm_config import get_long_config as get_long_config, get_snappy_config as get_snappy_config

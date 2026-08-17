@@ -151,9 +151,7 @@ DAILY_MARKET_SUMMARY_TZ: str = _env_str_alias(
 )
 
 #: ``HH:MM`` of day in ``DAILY_MARKET_SUMMARY_TZ`` (default 07:00 ET).
-DAILY_MARKET_SUMMARY_TIME: str = _env_str_alias(
-    "RMI_DAILY_MARKET_BRIEF_TIME", "RMI_DAILY_MARKET_SUMMARY_TIME", "07:00"
-)
+DAILY_MARKET_SUMMARY_TIME: str = _env_str_alias("RMI_DAILY_MARKET_BRIEF_TIME", "RMI_DAILY_MARKET_SUMMARY_TIME", "07:00")
 
 
 def summary_run_time() -> Any:
@@ -317,9 +315,7 @@ async def _fetch_movers() -> dict[str, Any]:
     try:
         from app.domains.telegram.rugmunchbot.tools.registry import backend_json_get
 
-        body = await backend_json_get(
-            "/api/v1/market/movers", params={"tf": "24h", "limit": 6}, timeout=6.0
-        )
+        body = await backend_json_get("/api/v1/market/movers", params={"tf": "24h", "limit": 6}, timeout=6.0)
         if isinstance(body, dict):
             return {
                 "gainers": [i for i in (body.get("top_gainers") or []) if isinstance(i, dict)][:6],
@@ -446,9 +442,7 @@ async def _kol_fetch_page(url: str, timeout: float = 4.0) -> str | None:
 
         return await asyncio.wait_for(_fetch_page(url, timeout), timeout=timeout + 1.0)
     except Exception as exc:  # fail-open by contract
-        logger.debug(
-            "daily_market_summary:kol_page_failed url=%s err=%s", url[:120], str(exc)[:120]
-        )
+        logger.debug("daily_market_summary:kol_page_failed url=%s err=%s", url[:120], str(exc)[:120])
     return None
 
 
@@ -581,14 +575,10 @@ def _serialize_context(context: dict[str, Any]) -> str:
         signals = condition.get("signals") or {}
         fg = signals.get("fear_greed") or {}
         if isinstance(fg, dict) and fg.get("value") is not None:
-            parts.append(
-                f"FEAR & GREED: {fg.get('value')}/100 ({fg.get('classification') or 'N/A'})"
-            )
+            parts.append(f"FEAR & GREED: {fg.get('value')}/100 ({fg.get('classification') or 'N/A'})")
         verdict = condition.get("verdict")
         if verdict:
-            parts.append(
-                f"MARKET VERDICT: {verdict} (confidence {condition.get('confidence') or 'low'})"
-            )
+            parts.append(f"MARKET VERDICT: {verdict} (confidence {condition.get('confidence') or 'low'})")
         reasons = condition.get("reasons") or []
         if reasons:
             parts.append("VERDICT REASONS: " + " | ".join(str(r) for r in reasons[:4]))
@@ -705,9 +695,7 @@ def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
     try:
         generated = context.get("generated_at")
         if generated:
-            date_str = (
-                datetime.fromisoformat(str(generated)).astimezone(UTC).strftime("%A, %B %d, %Y")
-            )
+            date_str = datetime.fromisoformat(str(generated)).astimezone(UTC).strftime("%A, %B %d, %Y")
     except (TypeError, ValueError):
         date_str = "—"
     user_prompt = (

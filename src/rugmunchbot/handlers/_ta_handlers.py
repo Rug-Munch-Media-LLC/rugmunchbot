@@ -14,8 +14,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import httpx
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
 from telegram.constants import ParseMode
+
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -66,16 +67,12 @@ async def cmd_ta(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not allowed:
             tier = db.get_user_tier(user.id)
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                paywall_text(user.id, "scan"),
-                parse_mode=ParseMode.HTML,
-                reply_markup=upgrade_nudge_kb(tier),
+                paywall_text(user.id, "scan"), parse_mode=ParseMode.HTML, reply_markup=upgrade_nudge_kb(tier)
             )
             return
     target = ctx.args[0]
     explicit_chain = ctx.args[1] if len(ctx.args) > 1 else None
-    msg = await update.message.reply_text(
-        "\U0001f4ca <b>Running Technical Analysis...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text("\U0001f4ca <b>Running Technical Analysis...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
     try:
         client = get_shared_client(20)
         r = await client.get(f"{DEXSCREENER}/tokens/{target}")
@@ -160,13 +157,9 @@ async def cmd_ta(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             if total_tx > 0:
                 buy_ratio = buys / total_tx
                 if buy_ratio > 0.7:
-                    signals.append(
-                        f"\U0001f7e2 Buy pressure dominant ({buy_ratio * 100:.0f}% buys)"
-                    )
+                    signals.append(f"\U0001f7e2 Buy pressure dominant ({buy_ratio * 100:.0f}% buys)")
                 elif buy_ratio < 0.3:
-                    signals.append(
-                        f"\U0001f534 Sell pressure dominant ({(1 - buy_ratio) * 100:.0f}% sells)"
-                    )
+                    signals.append(f"\U0001f534 Sell pressure dominant ({(1 - buy_ratio) * 100:.0f}% sells)")
                 else:
                     signals.append(f"\u26aa Balanced buy/sell ({buy_ratio * 100:.0f}% buys)")
             text = (
@@ -188,9 +181,7 @@ async def cmd_ta(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             text += "\n\n<i>TA is not financial advice. Always /scan for security.</i>"
             text += footer_links()
         db.increment_usage(user.id, scan=True)
-        await msg.edit_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
-        )
+        await msg.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True)
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
         logger.error(f"TA error: {e}")
         await msg.edit_text(

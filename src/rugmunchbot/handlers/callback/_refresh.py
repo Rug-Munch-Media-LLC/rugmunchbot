@@ -17,14 +17,15 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING, Any
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot.config import BACKEND_URL, TELEGRAM_CHANNEL, backend_headers
 from app.domains.telegram.rugmunchbot.formatters import footer_links, sep
 from app.domains.telegram.rugmunchbot.handlers.callback._inline import _inline_market_data
 from app.domains.telegram.rugmunchbot.keyboards import back_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import http_get_json
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -62,15 +63,11 @@ async def handle(
     """Handle refresh/reload callbacks. True when a branch matched."""
     if data == "trending_refresh":
         await query.answer("Refreshing...")
-        await query.edit_message_text(
-            "\U0001f504 <b>Refreshing trending...</b>", parse_mode=ParseMode.HTML
-        )
+        await query.edit_message_text("\U0001f504 <b>Refreshing trending...</b>", parse_mode=ParseMode.HTML)
         await _render_trending_reply(query, "solana", "24h")
     elif data == "news_refresh":
         await query.answer("Refreshing...")
-        await query.edit_message_text(
-            "\U0001f4f0 <b>Refreshing news...</b>", parse_mode=ParseMode.HTML
-        )
+        await query.edit_message_text("\U0001f4f0 <b>Refreshing news...</b>", parse_mode=ParseMode.HTML)
         articles = []
         source_label = "Backend"
         body = await http_get_json(
@@ -124,9 +121,7 @@ async def handle(
                 reply_markup=back_kb(),
             )
     elif data.startswith("news_refresh"):
-        await query.edit_message_text(
-            "\U0001f4f0 <b>Refreshing news...</b>", parse_mode=ParseMode.HTML
-        )
+        await query.edit_message_text("\U0001f4f0 <b>Refreshing news...</b>", parse_mode=ParseMode.HTML)
         # Import and re-run cmd_news
         from app.domains.telegram.rugmunchbot.handlers.market import cmd_news as _news
 
@@ -135,9 +130,7 @@ async def handle(
     elif data.startswith("sentiment_refresh"):
         # Shadowed by the earlier ``sentiment_`` branch (see module docstring);
         # kept for structural fidelity with the original chain.
-        await query.edit_message_text(
-            "\U0001f4c8 <b>Refreshing sentiment...</b>", parse_mode=ParseMode.HTML
-        )
+        await query.edit_message_text("\U0001f4c8 <b>Refreshing sentiment...</b>", parse_mode=ParseMode.HTML)
         from app.domains.telegram.rugmunchbot.handlers.sentiment import cmd_sentiment as _sentiment
 
         ctx.args = []
@@ -157,16 +150,12 @@ async def handle(
         parts = data.split("_", 3)
         if len(parts) == 4 and parts[3] in ("1h", "24h", "7d"):
             win_chain, win = parts[2], parts[3]
-            await query.edit_message_text(
-                "\U0001f525 <b>Loading trending...</b>", parse_mode=ParseMode.HTML
-            )
+            await query.edit_message_text("\U0001f525 <b>Loading trending...</b>", parse_mode=ParseMode.HTML)
             await _render_trending_reply(query, win_chain, win)
         else:
             await query.answer("Invalid request.", show_alert=True)
     elif data.startswith("trending_refresh"):
-        await query.edit_message_text(
-            "\U0001f525 <b>Refreshing trending...</b>", parse_mode=ParseMode.HTML
-        )
+        await query.edit_message_text("\U0001f525 <b>Refreshing trending...</b>", parse_mode=ParseMode.HTML)
         from app.domains.telegram.rugmunchbot.handlers.market import cmd_trending as _trending
 
         parts = data.split("_", 2)

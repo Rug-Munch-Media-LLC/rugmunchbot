@@ -21,6 +21,9 @@ import time
 from html import escape
 from typing import TYPE_CHECKING, Any
 
+from telegram.constants import ParseMode
+from telegram.error import TelegramError
+
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import _is_deep_question
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._format import _render_bridge_actions
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._helpers import _STILL_DIGGING
@@ -45,12 +48,11 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._quality import strip_thi
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._trace import trace_answer
 from app.domains.telegram.rugmunchbot.keyboards import back_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram.constants import ParseMode
-from telegram.error import TelegramError
 
 if TYPE_CHECKING:
-    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
     from telegram import Message
+
+    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
 
@@ -156,9 +158,7 @@ def _grounding_source_labels(
             # Our own endpoints (quick scanner, wallet analytics, bridge).
             # Map the raw internal key to its RMI brand label first; fall
             # back to the tool name so no /api/ path ever reaches the footer.
-            label = _internal_source_label(src) or _our_tool_labels.get(
-                tool, f"RMI {tool.replace('_', ' ')}"
-            )
+            label = _internal_source_label(src) or _our_tool_labels.get(tool, f"RMI {tool.replace('_', ' ')}")
             _add(label, True)
         elif src:
             key = src.lower()
@@ -288,9 +288,7 @@ async def _send_and_trace_answer(
             data_sources.append(r.source)
     if result.get("provider") == "backend" and result.get("rag_count"):
         data_sources.append("backend-rag")
-    data_sources.extend(
-        str(s.get("type")) for s in bridge_sources if isinstance(s, dict) and s.get("type")
-    )
+    data_sources.extend(str(s.get("type")) for s in bridge_sources if isinstance(s, dict) and s.get("type"))
     trace_answer(
         question=text,
         user_id=user_id,
@@ -358,9 +356,7 @@ async def _send_answer(
     keyboard on the last chunk when present; otherwise the back menu is used.
     """
     raw = _beautify_answer(
-        _tables_to_lists(
-            strip_think_blocks(_scrub_internal_api_refs(_normalize_llm_markup(answer)))
-        )
+        _tables_to_lists(strip_think_blocks(_scrub_internal_api_refs(_normalize_llm_markup(answer))))
     )
     # No 1000-word walls: a rambling answer is trimmed to a sane length at a
     # paragraph/sentence boundary (with an ellipsis) BEFORE the Telegram
@@ -378,9 +374,7 @@ async def _send_answer(
             # untrusted bridge metadata — scrub internal API refs then escape
             # AFTER the answer escape pass so they can never inject HTML into
             # the footer.
-            names = ", ".join(
-                escape(_scrub_internal_api_refs(name)) for name, _is_ours in source_labels
-            )
+            names = ", ".join(escape(_scrub_internal_api_refs(name)) for name, _is_ours in source_labels)
             if distinct_sources is not None and distinct_sources > len(source_labels):
                 names += f", \u2026 +{distinct_sources - len(source_labels)} more"
             count_word = "source" if grounding_count == 1 else "sources"

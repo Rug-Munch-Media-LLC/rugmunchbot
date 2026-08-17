@@ -53,11 +53,7 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._constants import (
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._sources import _normalize_source_domain
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools.guardrails import extract_addresses
-from app.domains.telegram.rugmunchbot.tools.intent import (
-    _fmt_signal,
-    build_tool_prompt_block,
-    tool_kwargs,
-)
+from app.domains.telegram.rugmunchbot.tools.intent import _fmt_signal, build_tool_prompt_block, tool_kwargs
 
 logger = get_logger("rmi_bot.chat_ai")
 
@@ -218,9 +214,7 @@ async def _gather_rag_news_context(question: str) -> tuple[str, list[dict[str, s
     try:
         from app.rag.tools import get_news as _rag_get_news
 
-        news = await asyncio.wait_for(
-            _rag_get_news(question, top_k=5), timeout=_CONTEXT_GATHER_TIMEOUT
-        )
+        news = await asyncio.wait_for(_rag_get_news(question, top_k=5), timeout=_CONTEXT_GATHER_TIMEOUT)
     except Exception as exc:
         logger.debug("question-router news gather failed (query %.60s): %s", question, exc)
         return "", []
@@ -335,9 +329,7 @@ def _render_web_results(results: list[dict[str, str]]) -> tuple[str, list[dict[s
         if not text:
             continue
         label = (title or url)[:60]
-        lines.append(
-            f"- {html.escape(text[:200])} (source: {html.escape(label)} — {html.escape(url)})"
-        )
+        lines.append(f"- {html.escape(text[:200])} (source: {html.escape(label)} — {html.escape(url)})")
         sources.append({"type": "web", "title": text[:60], "url": url})
     if len(lines) == 1:
         return "", []
@@ -423,9 +415,7 @@ async def _gather_context(question: str) -> tuple[str, list[dict[str, str]]]:
     # append the TA answer-format hint to the retrieved context (see
     # ``_TA_ANSWER_HINT``). TRENDING questions get the trending tool instead.
     is_ta_question = qtype == "market" and bool(_CTX_TA_RE.search(low))
-    is_trending_question = (
-        qtype == "market" and not is_ta_question and bool(_CTX_TRENDING_RE.search(low))
-    )
+    is_trending_question = qtype == "market" and not is_ta_question and bool(_CTX_TRENDING_RE.search(low))
     # BROAD market-today / market-analysis asks get the RICH market context
     # (majors + sentiment/verdict + gainers & losers + narrative + what to
     # watch) via a dedicated gather — single-token price/TA asks keep the
@@ -464,9 +454,7 @@ async def _gather_context(question: str) -> tuple[str, list[dict[str, str]]]:
     try:
         from app.domains.telegram.rugmunchbot.tools import get_registry
 
-        results = await asyncio.wait_for(
-            get_registry().run_many_kwargs(spec), timeout=_CONTEXT_GATHER_TIMEOUT
-        )
+        results = await asyncio.wait_for(get_registry().run_many_kwargs(spec), timeout=_CONTEXT_GATHER_TIMEOUT)
     except Exception as exc:
         logger.debug("question-router context gather failed (query %.60s): %s", question, exc)
         return "", []
@@ -619,9 +607,7 @@ def _build_trending_context_block(
     return "\n\n".join(parts)
 
 
-async def _gather_trending_context(
-    question: str, spec: dict[str, Any]
-) -> tuple[str, list[dict[str, str]]]:
+async def _gather_trending_context(question: str, spec: dict[str, Any]) -> tuple[str, list[dict[str, str]]]:
     """TRENDING context: ~20 tokens + narrative drivers + trending hint.
 
     Runs the routed tools (price_lookup + trending, trending already capped
@@ -769,11 +755,7 @@ def _extract_majors(results: dict[str, Any]) -> dict[str, dict[str, Any]]:
                         "source": "backend:/api/v1/databus/market/prices",
                     }
     condition = results.get("market_condition")
-    if (
-        condition is not None
-        and getattr(condition, "ok", False)
-        and isinstance(condition.data, dict)
-    ):
+    if condition is not None and getattr(condition, "ok", False) and isinstance(condition.data, dict):
         signals = condition.data.get("signals") or {}
         if isinstance(signals, dict):
             for key, sym in (("btc", "BTC"), ("eth", "ETH")):
@@ -790,9 +772,7 @@ def _extract_majors(results: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return out
 
 
-def _movers_from_trending(
-    results: dict[str, Any],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _movers_from_trending(results: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Split the trending feed into top gainers / top losers (24h change).
 
     Uses ONLY tokens with a real ``change_24h`` (never invented). Returns
@@ -800,11 +780,7 @@ def _movers_from_trending(
     changes.
     """
     trending_res = results.get("trending")
-    if (
-        trending_res is None
-        or not getattr(trending_res, "ok", False)
-        or not isinstance(trending_res.data, dict)
-    ):
+    if trending_res is None or not getattr(trending_res, "ok", False) or not isinstance(trending_res.data, dict):
         return [], []
     tokens = [t for t in (trending_res.data.get("tokens") or []) if isinstance(t, dict)]
     with_change = [t for t in tokens if isinstance(t.get("change_24h"), (int, float))]
@@ -856,11 +832,7 @@ def _what_to_watch_seed(results: dict[str, Any], narratives: list[dict[str, Any]
     """Concrete what-to-watch seeds derived ONLY from the real data above."""
     seeds: list[str] = []
     condition = results.get("market_condition")
-    if (
-        condition is not None
-        and getattr(condition, "ok", False)
-        and isinstance(condition.data, dict)
-    ):
+    if condition is not None and getattr(condition, "ok", False) and isinstance(condition.data, dict):
         data = condition.data
         verdict = data.get("verdict") or "neutral"
         score = data.get("score")
@@ -883,9 +855,7 @@ def _what_to_watch_seed(results: dict[str, Any], narratives: list[dict[str, Any]
         price = _fmt_signal("price_usd", btc["price_usd"])
         chg = btc.get("change_24h")
         chg_txt = _fmt_signal("change_24h", chg) if isinstance(chg, (int, float)) else ""
-        seeds.append(
-            f"BTC at {price}{f' ({chg_txt} 24h)' if chg_txt else ''} — watch the level hold/break"
-        )
+        seeds.append(f"BTC at {price}{f' ({chg_txt} 24h)' if chg_txt else ''} — watch the level hold/break")
     for n in narratives[:1]:
         if isinstance(n, dict) and n.get("title"):
             seeds.append(f"watch the '{n.get('title')}' narrative for follow-through")
@@ -931,11 +901,7 @@ def _build_market_today_block(
             _add(f"- {sym} {price} ({chg_txt} 24h)")
 
     condition = results.get("market_condition")
-    if (
-        condition is not None
-        and getattr(condition, "ok", False)
-        and isinstance(condition.data, dict)
-    ):
+    if condition is not None and getattr(condition, "ok", False) and isinstance(condition.data, dict):
         data = condition.data
         _add("## SENTIMENT & MACRO READ")
         fg = (data.get("signals") or {}).get("fear_greed")
@@ -946,9 +912,7 @@ def _build_market_today_block(
         verdict = data.get("verdict") or "neutral"
         score = data.get("score")
         score_txt = f"{score:+.2f}" if isinstance(score, (int, float)) else "n/a"
-        _add(
-            f"- Market condition: {verdict} (score {score_txt}, {data.get('confidence') or 'low'} confidence)"
-        )
+        _add(f"- Market condition: {verdict} (score {score_txt}, {data.get('confidence') or 'low'} confidence)")
         for reason in (data.get("reasons") or [])[:4]:
             if isinstance(reason, str) and reason.strip():
                 _add(f"  * {reason.strip()}")
@@ -956,11 +920,7 @@ def _build_market_today_block(
         # market_condition missed → fall back to market_overview's F&G only
         # (the verdict is genuinely unavailable — say so, never guess).
         overview = results.get("market_overview")
-        if (
-            overview is not None
-            and getattr(overview, "ok", False)
-            and isinstance(overview.data, dict)
-        ):
+        if overview is not None and getattr(overview, "ok", False) and isinstance(overview.data, dict):
             fg = overview.data.get("fear_greed")
             if isinstance(fg, dict) and fg.get("value") is not None:
                 _add("## SENTIMENT & MACRO READ")
@@ -1004,9 +964,7 @@ def _build_market_today_block(
                 line += f" ({url})"
             _add(line)
     else:
-        _add(
-            "## DOMINANT NARRATIVE — unavailable (narrative fetch returned nothing; omit this section)"
-        )
+        _add("## DOMINANT NARRATIVE — unavailable (narrative fetch returned nothing; omit this section)")
 
     seeds = _what_to_watch_seed(results, narratives)
     if seeds:
@@ -1075,9 +1033,7 @@ async def _gather_market_today_context(question: str) -> tuple[str, list[dict[st
         if not narrative_task.cancelled() and narrative_task.done():
             narratives = narrative_task.result() or []
     except Exception as exc:
-        logger.debug(
-            "question-router market-today narrative failed (query %.60s): %s", question, exc
-        )
+        logger.debug("question-router market-today narrative failed (query %.60s): %s", question, exc)
     finally:
         for t in (tools_task, narrative_task):
             if not t.done():
@@ -1093,9 +1049,7 @@ async def _gather_market_today_context(question: str) -> tuple[str, list[dict[st
     try:
         # A count-bearing ask ("top 20 gainers") raises the per-side mover
         # cap toward _TRENDING_FETCH_LIMIT // 2 (~20 tokens total).
-        mover_cap = min(
-            _requested_token_count(question) or _MARKET_MOVERS_DEFAULT, _TRENDING_FETCH_LIMIT // 2
-        )
+        mover_cap = min(_requested_token_count(question) or _MARKET_MOVERS_DEFAULT, _TRENDING_FETCH_LIMIT // 2)
         block = _build_market_today_block(ok_results, narratives, mover_cap=mover_cap)
         # TRENDING-typed broad asks ("top gainers and losers today") get the
         # TRENDING hint (open "Here's what's trending:", scan links, sources
@@ -1191,28 +1145,18 @@ async def _gather_edu_lore_context(question: str) -> tuple[str, list[dict[str, s
         if rag_task.cancelled() or web_task.cancelled():
             await asyncio.gather(rag_task, web_task, return_exceptions=True)
 
-    rag_thin = (
-        not rag_block or len(rag_hits) < _EDU_RAG_THIN_HITS or len(rag_block) < _EDU_RAG_THIN_CHARS
-    )
+    rag_thin = not rag_block or len(rag_hits) < _EDU_RAG_THIN_HITS or len(rag_block) < _EDU_RAG_THIN_CHARS
     if rag_thin and web_block:
         block = "\n\n".join(b for b in (rag_block, web_block) if b)
         sources = [
-            *[
-                {
-                    "type": "rag_lookup",
-                    "query": question[:90],
-                    "title": "rag_lookup \u00b7 intel KB",
-                }
-            ],
+            *[{"type": "rag_lookup", "query": question[:90], "title": "rag_lookup \u00b7 intel KB"}],
             *web_sources,
         ]
         if not rag_block:
             sources = web_sources
     elif rag_block:
         block = rag_block
-        sources = [
-            {"type": "rag_lookup", "query": question[:90], "title": "rag_lookup \u00b7 intel KB"}
-        ]
+        sources = [{"type": "rag_lookup", "query": question[:90], "title": "rag_lookup \u00b7 intel KB"}]
     else:
         return "", []
     # Reserve room for the hint so it always survives truncation.

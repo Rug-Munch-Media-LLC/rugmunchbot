@@ -15,9 +15,7 @@ from app.domains.telegram.rugmunchbot.tools._client import http_get_json, http_p
 logger = get_logger("rmi.premium_v2")
 
 
-async def _backend_get(
-    path: str, params: dict[str, Any] | None = None, timeout: float = 15.0
-) -> dict[str, Any] | None:
+async def _backend_get(path: str, params: dict[str, Any] | None = None, timeout: float = 15.0) -> dict[str, Any] | None:
     body = await http_get_json(
         f"{BACKEND_URL}{path}",
         headers=backend_headers(),
@@ -29,9 +27,7 @@ async def _backend_get(
     return body
 
 
-async def _backend_post(
-    path: str, json: dict[str, Any] | None = None, timeout: float = 20.0
-) -> dict[str, Any] | None:
+async def _backend_post(path: str, json: dict[str, Any] | None = None, timeout: float = 20.0) -> dict[str, Any] | None:
     body = await http_post_json(
         f"{BACKEND_URL}{path}",
         headers=backend_headers(),
@@ -85,9 +81,7 @@ async def cmd_honeypot(update, ctx) -> None:
     data = await _backend_get(f"/api/v1/honeypot-map/check/{address}", params={"chain": chain})
 
     if not data:
-        await msg.reply_text(
-            "❌ Honeypot check unavailable.\n\nPlease try again in a moment.", parse_mode="HTML"
-        )
+        await msg.reply_text("❌ Honeypot check unavailable.\n\nPlease try again in a moment.", parse_mode="HTML")
         return
 
     is_hp = data.get("is_honeypot", False)
@@ -151,9 +145,7 @@ async def cmd_laundry(update, ctx) -> None:
     data = await _backend_post("/api/v1/laundry-matcher/scan", json={"address": address})
 
     if not data:
-        await msg.reply_text(
-            "❌ Laundry scan unavailable.\n\nPlease try again in a moment.", parse_mode="HTML"
-        )
+        await msg.reply_text("❌ Laundry scan unavailable.\n\nPlease try again in a moment.", parse_mode="HTML")
         return
 
     risk = data.get("risk_score", 0)

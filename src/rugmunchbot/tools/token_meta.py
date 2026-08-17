@@ -112,16 +112,10 @@ async def _cache_set_meta(address: str, chain: str, meta: dict[str, Any]) -> Non
         return
     try:
         identity = {k: v for k, v in meta.items() if k != "price_usd"}
-        await r.set(
-            _identity_key(address, chain), json.dumps(identity, default=str), ex=_META_IDENTITY_TTL
-        )
+        await r.set(_identity_key(address, chain), json.dumps(identity, default=str), ex=_META_IDENTITY_TTL)
         price = meta.get("price_usd")
         if price is not None:
-            await r.set(
-                _price_key(address, chain),
-                json.dumps({"price_usd": price}, default=str),
-                ex=_META_PRICE_TTL,
-            )
+            await r.set(_price_key(address, chain), json.dumps({"price_usd": price}, default=str), ex=_META_PRICE_TTL)
     except Exception:  # fail-open by contract
         logger.debug("token_meta:cache_set_failed address=%.20s", address, exc_info=True)
 
@@ -352,9 +346,7 @@ async def _meta_from_coingecko(symbol: str) -> dict[str, Any] | None:
     }
 
 
-def _normalized_meta(
-    meta: dict[str, Any], *, address: str, chain: str, symbol: str
-) -> dict[str, Any]:
+def _normalized_meta(meta: dict[str, Any], *, address: str, chain: str, symbol: str) -> dict[str, Any]:
     """Apply the canonical defaults to a resolved identity block.
 
     The returned dict ALWAYS contains ``address``, ``chain``, ``price_usd``,

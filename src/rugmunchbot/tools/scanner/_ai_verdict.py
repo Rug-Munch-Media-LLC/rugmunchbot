@@ -135,9 +135,7 @@ async def _llm_verdict_text(result: dict[str, Any]) -> str:
         {"role": "system", "content": _AI_VERDICT_SYSTEM},
         {"role": "user", "content": prompt},
     ]
-    text = await asyncio.wait_for(
-        chat_with_fallback(messages, "snappy"), timeout=_AI_VERDICT_TIMEOUT
-    )
+    text = await asyncio.wait_for(chat_with_fallback(messages, "snappy"), timeout=_AI_VERDICT_TIMEOUT)
     return (text or "").strip()
 
 

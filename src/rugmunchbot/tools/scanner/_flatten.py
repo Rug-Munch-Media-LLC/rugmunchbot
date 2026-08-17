@@ -11,10 +11,7 @@ from typing import Any
 
 from app.domains.telegram.rugmunchbot.tools.scanner._deployer import _EMPTY_ADDR
 from app.domains.telegram.rugmunchbot.tools.scanner._providers import _safe_float
-from app.domains.telegram.rugmunchbot.tools.scanner._security import (
-    _honeypot_verdict,
-    _security_checks,
-)
+from app.domains.telegram.rugmunchbot.tools.scanner._security import _honeypot_verdict, _security_checks
 
 
 def _wash_trading_block(market: dict[str, Any]) -> dict[str, Any]:
@@ -198,10 +195,7 @@ def _flatten_v1(body: dict[str, Any], address: str, chain: str) -> dict[str, Any
         "honeypot": "detected" if body.get("is_honeypot") else "none",
         "security_checks": {
             "HP01": {"status": "fail" if body.get("is_honeypot") else "pass", "details": ""},
-            "CR03": {
-                "status": "fail" if body.get("is_mintable") else "pass",
-                "details": "Mintable",
-            },
+            "CR03": {"status": "fail" if body.get("is_mintable") else "pass", "details": "Mintable"},
         },
         "bundle_analysis": None,
         "wash_trading": _wash_trading_block({}),
@@ -341,12 +335,8 @@ def v2_token_to_legacy(data: dict[str, Any]) -> dict[str, Any]:
     # Holders: own evidence first, then GMGN enrichment (holder_count — the
     # normalized shape from gmgn_enrich._normalize_holders), then the SENTINEL
     # holder_analysis total. None when no provider reported a count.
-    gmgn_holders = (
-        data.get("gmgn", {}).get("holders") if isinstance(data.get("gmgn"), dict) else None
-    )
-    sent_free = (
-        data.get("sentinel", {}).get("free") if isinstance(data.get("sentinel"), dict) else None
-    )
+    gmgn_holders = data.get("gmgn", {}).get("holders") if isinstance(data.get("gmgn"), dict) else None
+    sent_free = data.get("sentinel", {}).get("free") if isinstance(data.get("sentinel"), dict) else None
     sent_ha = sent_free.get("holder_analysis") if isinstance(sent_free, dict) else None
     holder_count = holders.get("holder_count")
     if not holder_count and isinstance(gmgn_holders, dict):
@@ -388,9 +378,7 @@ def v2_token_to_legacy(data: dict[str, Any]) -> dict[str, Any]:
         "buy_tax": None,
         "sell_tax": None,
         "lp_locked": (
-            _safe_float(liquidity.get("locked_pct")) / 100
-            if liquidity.get("locked_pct") is not None
-            else None
+            _safe_float(liquidity.get("locked_pct")) / 100 if liquidity.get("locked_pct") is not None else None
         ),
         "mintable": None,
         "can_blacklist": None,

@@ -19,11 +19,7 @@ from app.domains.telegram.rugmunchbot.tools.scanner._deployer import (
     _supplement_deployer_socials,
     _token_meta_dict,
 )
-from app.domains.telegram.rugmunchbot.tools.scanner._flatten import (
-    _flatten_dexscreener,
-    _flatten_v1,
-    _flatten_v2,
-)
+from app.domains.telegram.rugmunchbot.tools.scanner._flatten import _flatten_dexscreener, _flatten_v1, _flatten_v2
 from app.domains.telegram.rugmunchbot.tools.scanner._providers import _detect_chain
 from app.domains.telegram.rugmunchbot.tools.scanner._scans import scan_token_v2
 

@@ -7,6 +7,7 @@ Detect smart money wallet activity for a given token.
 from __future__ import annotations
 
 import httpx
+
 from app.domains.telegram.rugmunchbot.config import BACKEND_URL, DEXSCREENER, backend_headers
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
@@ -48,13 +49,7 @@ async def cmd_smartmoney(update, ctx) -> None:
                 data = r.json()
                 smart_money_data = data.get("smart_money", [])
                 top_holders = data.get("top_holders", [])
-        except (
-            ConnectionError,
-            OSError,
-            TimeoutError,
-            httpx.HTTPError,
-            httpx.TimeoutException,
-        ) as exc:
+        except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
             logger.debug("RMI backend call failed: %s", exc)
 
         # Fallback: fetch DexScreener for basic info

@@ -47,9 +47,7 @@ def _extract_pair(p: dict[str, Any]) -> dict[str, Any] | None:
         "change_6h": (p.get("priceChange") or {}).get("h6"),
         "change_24h": (p.get("priceChange") or {}).get("h24"),
         "volume_24h": (p.get("volume") or {}).get("h24"),
-        "liquidity_usd": p.get("liquidity", {}).get("usd")
-        if isinstance(p.get("liquidity"), dict)
-        else None,
+        "liquidity_usd": p.get("liquidity", {}).get("usd") if isinstance(p.get("liquidity"), dict) else None,
         "market_cap": p.get("marketCap"),
         "fdv": p.get("fdv"),
         "pair_address": p.get("pairAddress"),

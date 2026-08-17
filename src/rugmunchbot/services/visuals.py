@@ -176,11 +176,7 @@ def render_candlestick_chart(
         for period, color, label in [(7, (255, 183, 77), "MA7"), (25, (100, 181, 246), "MA25")]:
             ma_data = ma(closes, min(period, n))
             if ma_data[-1] is not None:
-                val_label = (
-                    f"{label}: ${ma_data[-1]:.6f}"
-                    if ma_data[-1] < 1
-                    else f"{label}: ${ma_data[-1]:.4f}"
-                )
+                val_label = f"{label}: ${ma_data[-1]:.6f}" if ma_data[-1] < 1 else f"{label}: ${ma_data[-1]:.4f}"
                 draw.text((legend_x, 14), val_label, font=tiny, fill=color)
                 legend_x += len(val_label) * 9 + 15
 
@@ -320,12 +316,7 @@ def render_cluster_map(nodes, links, name, symbol, chain="", total_holders=0, to
         if is_center:
             for r in range(int(radius) + 8, int(radius) + 2, -3):
                 draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(*BRAND_ACCENT, 20))
-        draw.ellipse(
-            [cx - radius, cy - radius, cx + radius, cy + radius],
-            fill=col,
-            outline=(220, 225, 230),
-            width=2,
-        )
+        draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=col, outline=(220, 225, 230), width=2)
         label = str(node.get("label") or "")[:12] or node_id(node)[:10]
         try:
             bbox = draw.textbbox((0, 0), label, font=small)
@@ -364,12 +355,7 @@ def render_cluster_map(nodes, links, name, symbol, chain="", total_holders=0, to
         draw.ellipse([lx, legend_y, lx + 14, legend_y + 14], fill=col)
         draw.text((lx + 18, legend_y), label, font=small, fill=text_c)
         lx += len(label) * 9 + 40
-    draw.text(
-        (16, legend_y + 20),
-        "Bubble size = wallet weight  ·  Arrow = fund flow",
-        font=tiny,
-        fill=text_c,
-    )
+    draw.text((16, legend_y + 20), "Bubble size = wallet weight  ·  Arrow = fund flow", font=tiny, fill=text_c)
     _add_branding(draw, w, h, font, small, symbol)
 
     try:

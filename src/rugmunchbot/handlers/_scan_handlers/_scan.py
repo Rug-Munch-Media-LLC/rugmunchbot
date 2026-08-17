@@ -14,6 +14,8 @@ import time
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
@@ -57,7 +59,6 @@ from app.domains.telegram.rugmunchbot.tools.scanner import (
     _supplement_deployer_socials,
     render_ai_verdict,
 )
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -126,9 +127,7 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 # skip the backend deployer module, so this is what fills the
                 # report's Deployer + Socials blocks). One fetch, fail-open,
                 # real data only.
-                result = await _supplement_deployer_socials(
-                    result, target, chain or str(result.get("chain") or "")
-                )
+                result = await _supplement_deployer_socials(result, target, chain or str(result.get("chain") or ""))
             else:
                 # v2 unavailable → fall back to legacy multi-source scanner
                 result = await scan_token(target, chain)
@@ -185,9 +184,7 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         logger.debug("unknown_error", exc_info=True)
         logger.error(f"Scan error: {e}")
         await msg.edit_text(
-            failure_card(
-                "Scan Failed", "The scanner hit an unexpected error.", ACTION_CHECK_ADDRESS
-            ),
+            failure_card("Scan Failed", "The scanner hit an unexpected error.", ACTION_CHECK_ADDRESS),
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -196,9 +193,7 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await _stop_task(typing_task)
 
 
-async def _poll_v2_scan_completion(
-    address: str, chain: str, max_wait_s: float = 24.0
-) -> dict[str, Any] | None:
+async def _poll_v2_scan_completion(address: str, chain: str, max_wait_s: float = 24.0) -> dict[str, Any] | None:
     """Poll the v2 scan status endpoint until background phases complete.
 
     The v2 scan API returns within ~25s while deep phases (wallet metrics,

@@ -14,10 +14,11 @@ import secrets
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram import LabeledPrice
+
 from app.domains.telegram.rugmunchbot.config import BUY_STARS_PACKS, SCAN_PACKS, TIERS, TOP_UP_PACKS
 from app.domains.telegram.rugmunchbot.states import _pending_deep_scans, _pending_monitors
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram import LabeledPrice
 
 if TYPE_CHECKING:
     from telegram import Update

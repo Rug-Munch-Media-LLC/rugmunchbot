@@ -12,6 +12,8 @@ import os
 import re
 from typing import Any
 
+from telegram import InlineKeyboardButton
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     CHAIN_IDS,
@@ -20,7 +22,6 @@ from app.domains.telegram.rugmunchbot.config import (
     TIERS,
     WEB_APP_URL,
 )
-from telegram import InlineKeyboardButton
 
 # ── FREE PUBLIC BETA (2026-08) ──────────────────────────────────────────
 # rugmunchbot is in FREE PUBLIC BETA: every premium feature is unlocked for
@@ -267,9 +268,7 @@ DEX_BUTTONS_PER_ROW = 2
 UNKNOWN_CHAIN_MINIMAL = ("odinbot", "banana")
 
 
-def _ref_platform_buttons(
-    token: str, chain: str, only: tuple[str, ...] | None = None
-) -> list[InlineKeyboardButton]:
+def _ref_platform_buttons(token: str, chain: str, only: tuple[str, ...] | None = None) -> list[InlineKeyboardButton]:
     """Chain-filtered ``DEX_REF_LINKS`` buttons in ``DEX_BUTTON_PRIORITY`` order.
 
     Fills ``{token}`` / ``{chain}`` / ``{chain_id}`` placeholders from the
@@ -280,11 +279,7 @@ def _ref_platform_buttons(
     chain_l = (chain or "").lower()
     ordered = sorted(
         DEX_REF_LINKS.items(),
-        key=lambda kv: (
-            DEX_BUTTON_PRIORITY.index(kv[0])
-            if kv[0] in DEX_BUTTON_PRIORITY
-            else len(DEX_BUTTON_PRIORITY)
-        ),
+        key=lambda kv: DEX_BUTTON_PRIORITY.index(kv[0]) if kv[0] in DEX_BUTTON_PRIORITY else len(DEX_BUTTON_PRIORITY),
     )
     buttons: list[InlineKeyboardButton] = []
     for key, dex in ordered:
@@ -302,9 +297,7 @@ def _ref_platform_buttons(
     return buttons
 
 
-def dex_button_rows(
-    token: str, chain: str, per_row: int = DEX_BUTTONS_PER_ROW
-) -> list[list[InlineKeyboardButton]]:
+def dex_button_rows(token: str, chain: str, per_row: int = DEX_BUTTONS_PER_ROW) -> list[list[InlineKeyboardButton]]:
     """Chain-filtered referral trade buttons grouped into rows of ≤ ``per_row``.
 
     Renders the full ``DEX_REF_LINKS`` set for the chain in
@@ -328,12 +321,8 @@ def dex_button_rows(
         # Chart trade links — DexScreener (no ref program) + DexTools (ref via
         # REF_CODES / RMI_REF_DEXTOOLS when configured). GMGN already ships via
         # DEX_REF_LINKS above, so it is not duplicated here.
-        buttons.append(
-            InlineKeyboardButton("\U0001f986 DexScreener", url=dexscreener_url(token, chain_l))
-        )
-        buttons.append(
-            InlineKeyboardButton("\U0001f4c8 DexTools", url=dextools_url(token, chain_l))
-        )
+        buttons.append(InlineKeyboardButton("\U0001f986 DexScreener", url=dexscreener_url(token, chain_l)))
+        buttons.append(InlineKeyboardButton("\U0001f4c8 DexTools", url=dextools_url(token, chain_l)))
     per_row = max(1, per_row)
     return [buttons[i : i + per_row] for i in range(0, len(buttons), per_row)]
 
@@ -617,9 +606,7 @@ def format_scoring_breakdown(breakdown: dict[str, Any]) -> str:
             delta_str = " \u25b2"
         elif delta < 0:
             delta_str = " \u25bc"
-        lines.append(
-            f"  {marker} {label:<22} <code>{bar}</code> <b>{score:.0f}/{maximum:.0f}</b>{delta_str}"
-        )
+        lines.append(f"  {marker} {label:<22} <code>{bar}</code> <b>{score:.0f}/{maximum:.0f}</b>{delta_str}")
         flags = entry.get("flags") or []
         if flags:
             for fl in flags[:2]:

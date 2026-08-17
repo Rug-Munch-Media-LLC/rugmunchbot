@@ -87,8 +87,9 @@ from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
 
 if TYPE_CHECKING:
-    from app.domains.news_ingest.models import NewsArticle
     from telegram.ext import ContextTypes
+
+    from app.domains.news_ingest.models import NewsArticle
 
 logger = get_logger("rmi_bot.channels.personal")
 
@@ -293,15 +294,9 @@ def ghost_admin_jwt(api_key: str) -> str:
     def _b64url(data: bytes) -> str:
         return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
-    header = _b64url(
-        json.dumps({"alg": "HS256", "typ": "JWT", "kid": key_id}, separators=(",", ":")).encode(
-            "ascii"
-        )
-    )
+    header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT", "kid": key_id}, separators=(",", ":")).encode("ascii"))
     payload = _b64url(
-        json.dumps(
-            {"iat": iat, "exp": iat + 5 * 60, "aud": "/admin/"}, separators=(",", ":")
-        ).encode("ascii")
+        json.dumps({"iat": iat, "exp": iat + 5 * 60, "aud": "/admin/"}, separators=(",", ":")).encode("ascii")
     )
     signing_input = f"{header}.{payload}".encode("ascii")
     signature = _b64url(hmac.new(secret.encode("ascii"), signing_input, hashlib.sha256).digest())
@@ -428,14 +423,8 @@ async def ghost_publish_article(
                 "url": post.get("url", f"{base_url}/ghost/#/editor/post/{post.get('id', '')}"),
                 "title": post.get("title"),
             }
-        logger.warning(
-            "personal:ghost_http_error status=%s body=%s", resp.status_code, resp.text[:200]
-        )
-        return {
-            "published": False,
-            "error": f"Ghost HTTP {resp.status_code}",
-            "detail": resp.text[:200],
-        }
+        logger.warning("personal:ghost_http_error status=%s body=%s", resp.status_code, resp.text[:200])
+        return {"published": False, "error": f"Ghost HTTP {resp.status_code}", "detail": resp.text[:200]}
     except Exception as exc:  # fail-open: cross-post must never break the tick
         logger.warning("personal:ghost_publish_failed err=%s", str(exc)[:200])
         return {"published": False, "error": str(exc)}

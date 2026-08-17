@@ -11,6 +11,9 @@ import time
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
@@ -30,8 +33,6 @@ from app.domains.telegram.rugmunchbot.keyboards import back_kb, pricing_kb
 from app.domains.telegram.rugmunchbot.states import check_alert_rate_limit
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client, http_get_json
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -176,16 +177,10 @@ async def check_alerts(context: ContextTypes.DEFAULT_TYPE) -> None:
         target_price = alert["alert_price"]
         direction = alert["alert_direction"]
 
-        change_pct = (
-            abs((current_price - target_price) / target_price) * 100 if target_price > 0 else 0.0
-        )
+        change_pct = abs((current_price - target_price) / target_price) * 100 if target_price > 0 else 0.0
 
         direction_emoji = (
-            "\U0001f4c8"
-            if direction == "above"
-            else "\U0001f4c9"
-            if direction == "below"
-            else "\U0001f4ca"
+            "\U0001f4c8" if direction == "above" else "\U0001f4c9" if direction == "below" else "\U0001f4ca"
         )
         direction_label = DIRECTION_LABELS.get(direction, direction)
 
@@ -202,11 +197,7 @@ async def check_alerts(context: ContextTypes.DEFAULT_TYPE) -> None:
 
         kb = InlineKeyboardMarkup(
             [
-                [
-                    InlineKeyboardButton(
-                        "\u2705 Dismiss", callback_data=f"dismiss_alert_{alert['id']}"
-                    )
-                ],
+                [InlineKeyboardButton("\u2705 Dismiss", callback_data=f"dismiss_alert_{alert['id']}")],
             ]
         )
 
@@ -267,9 +258,7 @@ MONITOR_CHECK_INTERVAL = 1800  # seconds (30 min)
 MONITOR_SCAN_BUDGET = 25
 
 
-async def _subscribe_backend_alerts(
-    user_id: int, token_address: str, event_types: list[str] | None = None
-) -> bool:
+async def _subscribe_backend_alerts(user_id: int, token_address: str, event_types: list[str] | None = None) -> bool:
     """Register the user's chat for real webhook events on a token.
 
     Fail-open: local price alerts keep working even if the backend
@@ -328,9 +317,7 @@ async def _unsubscribe_backend_monitor(user_id: int, token_address: str) -> bool
             timeout=10,
         )
         if resp.status_code in (200, 204):
-            logger.info(
-                "monitor_unsubscribed_backend user=%s token=%s", user_id, token_address[:10]
-            )
+            logger.info("monitor_unsubscribed_backend user=%s token=%s", user_id, token_address[:10])
             return True
         logger.warning(
             "monitor_backend_unsubscribe_failed user=%s status=%s body=%s",
@@ -380,9 +367,7 @@ def _monitor_deltas(baseline: dict[str, Any], current: dict[str, Any]) -> list[s
             continue
         try:
             if abs(float(after) - float(before)) >= 0.01:
-                changes.append(
-                    f"{field.replace('_', ' ').title()}: {_pct(before)} \u2192 {_pct(after)}"
-                )
+                changes.append(f"{field.replace('_', ' ').title()}: {_pct(before)} \u2192 {_pct(after)}")
         except (ValueError, TypeError):
             continue
     for field, label in (
@@ -456,13 +441,7 @@ async def check_monitors(context: ContextTypes.DEFAULT_TYPE) -> None:
         if result is None:
             try:
                 result = await scan_token(addr, chain, security_only=True)
-            except (
-                ConnectionError,
-                OSError,
-                TimeoutError,
-                httpx.HTTPError,
-                httpx.TimeoutException,
-            ) as e:
+            except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
                 logger.warning("monitor_scan_failed token=%s err=%s", addr[:10], e)
                 continue
             tick_cache[cache_key] = result
@@ -511,9 +490,7 @@ async def cmd_alerts(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     items = db.get_watchlist_for_user(user.id, include_triggered=True)
     active_alerts = [w for w in items if w.get("alert_price") and w.get("is_active")]
     triggered_alerts = [
-        w
-        for w in items
-        if w.get("alert_price") and not w.get("is_active") and w.get("alert_triggered_at")
+        w for w in items if w.get("alert_price") and not w.get("is_active") and w.get("alert_triggered_at")
     ]
 
     if not active_alerts and not triggered_alerts:
@@ -536,9 +513,7 @@ async def cmd_alerts(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         text += "<b>\U0001f7e2 Active</b>\n"
         for a in active_alerts:
             arrow = "\u2191" if a.get("alert_direction") == "above" else "\u2193"
-            text += (
-                f"  \u2022 <b>{a.get('symbol', '???')}</b> {arrow} {fmt_number(a['alert_price'])}\n"
-            )
+            text += f"  \u2022 <b>{a.get('symbol', '???')}</b> {arrow} {fmt_number(a['alert_price'])}\n"
         text += "\n"
 
     if triggered_alerts:
@@ -682,12 +657,7 @@ async def cmd_alert(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
     else:
         ok = db.add_watchlist(
-            user.id,
-            addr,
-            chain,
-            symbol=None,
-            alert_price=alert_price,
-            alert_dir=direction_raw.lower(),
+            user.id, addr, chain, symbol=None, alert_price=alert_price, alert_dir=direction_raw.lower()
         )
         if ok:
             await _subscribe_backend_alerts(user.id, addr)

@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from telegram.constants import ParseMode
+from telegram.error import TelegramError
+
 from app.domains.telegram.rugmunchbot.handlers.message import (
     admin_kb_is_sent,
     admin_kb_mark_sent,
@@ -24,8 +27,6 @@ from app.domains.telegram.rugmunchbot.handlers.message import (
 )
 from app.domains.telegram.rugmunchbot.keyboards import owner_admin_reply_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram.constants import ParseMode
-from telegram.error import TelegramError
 
 if TYPE_CHECKING:
     from telegram import Update

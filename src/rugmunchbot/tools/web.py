@@ -340,9 +340,7 @@ async def searxng_top_results(query: str, limit: int = 5) -> list[dict[str, str]
     return await _searxng_search(query, limit=limit)
 
 
-async def _bridge_context(
-    query: str, history: list[dict[str, str]] | None = None
-) -> tuple[str, list[dict[str, str]]]:
+async def _bridge_context(query: str, history: list[dict[str, str]] | None = None) -> tuple[str, list[dict[str, str]]]:
     body = await http_post_json(
         BRIDGE_CONTEXT_ENDPOINT,
         json={"message": query[:8000], "history": history or []},
@@ -353,13 +351,7 @@ async def _bridge_context(
     raw_blocks = body.get("blocks")
     blocks = raw_blocks if isinstance(raw_blocks, dict) else {}
     parts: list[str] = []
-    for key in (
-        "web_context",
-        "rag_context",
-        "market_context",
-        "scanner_context",
-        "rundown_context",
-    ):
+    for key in ("web_context", "rag_context", "market_context", "scanner_context", "rundown_context"):
         val = (blocks.get(key) or "").strip()
         if val:
             parts.append(val)
@@ -462,9 +454,7 @@ async def web_search(*, query: str = "", history: list[dict[str, str]] | None = 
         )
 
     # LLM chain also down — last-resort honest message (still usable).
-    logger.warning(
-        "web_search knowledge fallback: LLM chain down → honest message", query=query[:200]
-    )
+    logger.warning("web_search knowledge fallback: LLM chain down → honest message", query=query[:200])
     return ToolResult(
         tool="web_search",
         ok=True,

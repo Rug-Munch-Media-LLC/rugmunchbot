@@ -76,9 +76,7 @@ async def attach_scan_commentary(item: dict[str, Any]) -> dict[str, Any]:
     try:
         from app.llm_config import chat_with_fallback
 
-        text = await asyncio.wait_for(
-            chat_with_fallback(messages, "snappy"), timeout=_COMMENTARY_TIMEOUT
-        )
+        text = await asyncio.wait_for(chat_with_fallback(messages, "snappy"), timeout=_COMMENTARY_TIMEOUT)
     except Exception:
         logger.debug("channels:scan_commentary_failed token=%.40s", _label(item), exc_info=True)
         return item

@@ -61,9 +61,7 @@ async def story_fetch(*, url: str = "", ingest: bool = False, **ctx: Any) -> Too
         from app.rag.story_ingest import fetch_story
     except Exception as e:  # pragma: no cover - import must never raise out
         logger.error("story_fetch_import_failed", error=str(e)[:200])
-        return ToolResult(
-            tool="story_fetch", ok=False, error="couldn't fetch: story fetch layer unavailable"
-        )
+        return ToolResult(tool="story_fetch", ok=False, error="couldn't fetch: story fetch layer unavailable")
 
     story = await fetch_story(url, timeout=STORY_FETCH_TIMEOUT)
     if not story.ok:

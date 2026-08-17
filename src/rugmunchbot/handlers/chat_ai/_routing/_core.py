@@ -16,6 +16,9 @@ import time
 from html import escape
 from typing import TYPE_CHECKING, Any, cast
 
+from telegram.constants import ParseMode
+from telegram.error import TelegramError
+
 import app.domains.telegram.rugmunchbot.handlers.chat_ai as chat_ai
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.daily_context import get_daily_context
@@ -58,13 +61,12 @@ from app.domains.telegram.rugmunchbot.keyboards import back_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools.menus import capability_menu_kb
 from app.domains.telegram.rugmunchbot.tools.rag_lookup import should_rag_lookup
-from telegram.constants import ParseMode
-from telegram.error import TelegramError
 
 if TYPE_CHECKING:
-    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
     from telegram import Message, Update
     from telegram.ext import ContextTypes
+
+    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
 
@@ -157,13 +159,7 @@ async def chat_ai_response(
         them.
         """
         nonlocal typing_task, placeholder_task, preliminary, backend_task
-        nonlocal \
-            daily_ctx_task, \
-            scan_ctx_task, \
-            bridge_ctx_task, \
-            live_tools_task, \
-            rag_task, \
-            router_ctx_task
+        nonlocal daily_ctx_task, scan_ctx_task, bridge_ctx_task, live_tools_task, rag_task, router_ctx_task
         # Pre-LLM guards: chat_enabled toggle -> injection -> quota -> flood ->
         # gibberish (tier-3 redirect). True = message already handled.
         if await _run_entry_guards(update, message, user, text, pipeline_start=pipeline_start):
@@ -175,9 +171,9 @@ async def chat_ai_response(
         # Capability questions ("what can you do?") attach the capability menu so
         # the bot's surface is discoverable right from the first answer.
         capability_menu = capability_menu_kb() if _is_capability_question(text) else None
-        if (
-            _is_greeting_or_thanks(text) or _is_capability_question(text)
-        ) and await _reply_local_intent(message, text, user, menu_kb=capability_menu):
+        if (_is_greeting_or_thanks(text) or _is_capability_question(text)) and await _reply_local_intent(
+            message, text, user, menu_kb=capability_menu
+        ):
             await _cancel_token_lookup(token_lookup_task)
             return
 
@@ -220,9 +216,7 @@ async def chat_ai_response(
 
         backend_task = asyncio.create_task(chat_ai._call_backend_chat(text, user.id, history))
         daily_ctx_task = asyncio.create_task(get_daily_context())
-        scan_ctx_task = (
-            asyncio.create_task(_fetch_scan_context(addresses[0])) if addresses else None
-        )
+        scan_ctx_task = asyncio.create_task(_fetch_scan_context(addresses[0])) if addresses else None
         bridge_ctx_task = asyncio.create_task(_fetch_bridge_context(text, history))
         # Bot-side live tools (REAL data): run concurrently with the backend so
         # the fallback path is grounded in real numbers and the guardrail can
@@ -282,9 +276,7 @@ async def chat_ai_response(
             # NOTE: live_tools_task is NOT cancelled — the guardrail below needs
             # its results to verify the backend answer (bounded; self-terminates).
             pending = [
-                t
-                for t in (daily_ctx_task, scan_ctx_task, bridge_ctx_task, rag_task, router_ctx_task)
-                if t is not None
+                t for t in (daily_ctx_task, scan_ctx_task, bridge_ctx_task, rag_task, router_ctx_task) if t is not None
             ]
             for t in pending:
                 t.cancel()
@@ -348,13 +340,7 @@ async def chat_ai_response(
         # ── POST-PROCESSING FUNNEL ────────────────────────────────────────────
         # think-strip -> degenerate guard -> bridge citations -> zero-fabrication
         # guardrail -> honest no-live-data note -> last-chance degenerate guard.
-        (
-            answer,
-            live_results,
-            stripped_syms,
-            stripped_addrs,
-            answer_is_degenerate,
-        ) = await _post_guardrail(
+        answer, live_results, stripped_syms, stripped_addrs, answer_is_degenerate = await _post_guardrail(
             answer,
             user_id=user.id,
             provider=str(result.get("provider") or ""),
@@ -413,11 +399,7 @@ async def chat_ai_response(
         # snappy/backend turns keep the fast CHAT_TURN_DEADLINE. The same
         # deterministic _route_tier(text) the fallback chain uses, so the
         # deadline always matches the tier that actually answers.
-        turn_deadline = (
-            CHAT_TURN_DEADLINE_LONG
-            if _routing_mod._route_tier(text) == "long"
-            else CHAT_TURN_DEADLINE
-        )
+        turn_deadline = CHAT_TURN_DEADLINE_LONG if _routing_mod._route_tier(text) == "long" else CHAT_TURN_DEADLINE
         await asyncio.wait_for(_generate_response(), timeout=turn_deadline)
         return True
     except TimeoutError:

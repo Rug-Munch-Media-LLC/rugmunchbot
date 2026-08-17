@@ -122,9 +122,7 @@ def _batch_parity(items: list[dict[str, Any]]) -> int:
     return zlib.crc32(seed.encode("utf-8")) & 1
 
 
-def _news_post_for(
-    articles: list[NewsArticle], commentaries: dict[str, str] | None = None
-) -> NewsPost:
+def _news_post_for(articles: list[NewsArticle], commentaries: dict[str, str] | None = None) -> NewsPost:
     """Pick the news-channel post format deterministically for *articles*.
 
     Priority (breaking first, then story count / shared topic / parity):
@@ -175,10 +173,7 @@ _COMMENTARY_SYSTEM: str = (
 
 def _commentary_key(item: dict[str, Any]) -> str:
     """Stable key for a post-dict: canonical URL → url → title."""
-    return (
-        str(item.get("canonical_url") or item.get("url") or "").strip()
-        or str(item.get("title") or "").strip()
-    )
+    return str(item.get("canonical_url") or item.get("url") or "").strip() or str(item.get("title") or "").strip()
 
 
 async def generate_commentary(item: dict[str, Any]) -> str:
@@ -203,9 +198,7 @@ async def generate_commentary(item: dict[str, Any]) -> str:
     try:
         from app.llm_config import chat_with_fallback
 
-        text = await asyncio.wait_for(
-            chat_with_fallback(messages, "snappy"), timeout=_COMMENTARY_TIMEOUT
-        )
+        text = await asyncio.wait_for(chat_with_fallback(messages, "snappy"), timeout=_COMMENTARY_TIMEOUT)
     except Exception:  # bounded + fail-open by contract
         logger.debug("tg_news:commentary_failed title=%s", title[:60], exc_info=True)
         return ""
@@ -229,9 +222,7 @@ async def attach_commentaries(items: list[dict[str, Any]], *, limit: int = 5) ->
     if not items:
         return {}
     batch = items[: max(1, limit)]
-    results = await asyncio.gather(
-        *(generate_commentary(it) for it in batch), return_exceptions=True
-    )
+    results = await asyncio.gather(*(generate_commentary(it) for it in batch), return_exceptions=True)
     out: dict[str, str] = {}
     for item, res in zip(batch, results, strict=True):
         if isinstance(res, BaseException) or not res:
@@ -421,9 +412,7 @@ async def publish_market_awareness(articles: list[NewsArticle], scored: list[Any
         if not await _redis_json_set(_MARKET_AWARENESS_KEY, snapshot, _MARKET_AWARENESS_TTL):
             logger.info("tg_news:market_awareness_skipped_redis_down articles=%s", len(articles))
             return False
-        logger.info(
-            "tg_news:market_awareness_published articles=%s tokens=%s", len(articles), len(tokens)
-        )
+        logger.info("tg_news:market_awareness_published articles=%s tokens=%s", len(articles), len(tokens))
         return True
     except Exception as exc:  # fail-open by contract
         logger.warning("tg_news:market_awareness_failed err=%s", str(exc)[:200])

@@ -61,9 +61,7 @@ _INJECTION_MESSAGES: dict[str, str] = {
     "secret-extraction": ("I don't reveal system prompts, API keys or internal configuration."),
     "role-switch": ("I'm Rug Munch's assistant — I don't switch to developer/uncensored modes."),
     "echo-poisoning": ("I don't echo raw prompts or messages — ask me a normal question instead."),
-    "wallet-secret-harvest": (
-        "Never share your seed phrase or private keys with anyone — including bots."
-    ),
+    "wallet-secret-harvest": ("Never share your seed phrase or private keys with anyone — including bots."),
     "wallet-drain-social": (
         "Be careful! Legitimate airdrops never ask you to connect your wallet or approve transactions to claim."
     ),
@@ -126,7 +124,9 @@ _CHAT_DISABLED = (
     "and /price still work \u2014 just send a contract address!"
 )
 
-_THINKING_GENERAL = "\U0001f916 <b>On it...</b>\n\n\U0001f4ac <i>{question}</i>\n\n\U0001f50d Checking our intelligence database..."
+_THINKING_GENERAL = (
+    "\U0001f916 <b>On it...</b>\n\n\U0001f4ac <i>{question}</i>\n\n\U0001f50d Checking our intelligence database..."
+)
 
 _THINKING_ADDRESS = (
     "\U0001f916 <b>On it...</b>\n\n\U0001f4ac <i>{question}</i>\n\n"
@@ -155,15 +155,11 @@ _THINKING_SCAM = (
 
 # "Investigate-style" intents get the research-collections placeholder instead
 # of the generic DB-search one (matches the /investigate deep-dive framing).
-_INVESTIGATE_INTENT_RE = re.compile(
-    r"\b(investigat\w*|deep dive|forensic|trace this|dig into)\b", re.IGNORECASE
-)
+_INVESTIGATE_INTENT_RE = re.compile(r"\b(investigat\w*|deep dive|forensic|trace this|dig into)\b", re.IGNORECASE)
 
 
 # Price/market queries get a market-data message.
-_PRICE_INTENT_RE = re.compile(
-    r"\b(price|cost|worth|value|market cap|mcap|how much|trading at)\b", re.IGNORECASE
-)
+_PRICE_INTENT_RE = re.compile(r"\b(price|cost|worth|value|market cap|mcap|how much|trading at)\b", re.IGNORECASE)
 
 # News queries get a news-feed message.
 _NEWS_INTENT_RE = re.compile(
@@ -171,9 +167,7 @@ _NEWS_INTENT_RE = re.compile(
 )
 
 # Scam/security queries get a threat-intel message.
-_SCAM_INTENT_RE = re.compile(
-    r"\b(scam|rug|honeypot|exploit|hack|ponzi|fraud|safe|trust)\b", re.IGNORECASE
-)
+_SCAM_INTENT_RE = re.compile(r"\b(scam|rug|honeypot|exploit|hack|ponzi|fraud|safe|trust)\b", re.IGNORECASE)
 
 
 def _thinking_template(text: str, has_address: bool) -> str:
@@ -197,7 +191,9 @@ def _thinking_template(text: str, has_address: bool) -> str:
     return _THINKING_GENERAL
 
 
-_STILL_DIGGING = "\U0001f916 <b>Still digging...</b>\n\n\u23f3 Cross-referencing exploit databases + checking live news..."
+_STILL_DIGGING = (
+    "\U0001f916 <b>Still digging...</b>\n\n\u23f3 Cross-referencing exploit databases + checking live news..."
+)
 
 
 __all__ = [

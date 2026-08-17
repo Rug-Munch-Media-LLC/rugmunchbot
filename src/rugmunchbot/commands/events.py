@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot.formatters import footer_links, sep
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -92,9 +93,7 @@ async def cmd_events(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     chain = args[1] if len(args) > 1 else "ethereum"
 
     await msg.chat.send_action("typing")
-    status = await msg.reply_text(
-        "📰 <b>Correlating news with price...</b>", parse_mode=ParseMode.HTML
-    )
+    status = await msg.reply_text("📰 <b>Correlating news with price...</b>", parse_mode=ParseMode.HTML)
 
     try:
         from app.domains.scanner.engines.event_correlation import correlate_news_with_price

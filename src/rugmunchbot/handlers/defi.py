@@ -24,6 +24,10 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+from telegram.ext import CommandHandler
+
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
     backend_headers,
@@ -46,9 +50,6 @@ from app.domains.telegram.rugmunchbot.handlers._messages import (
 from app.domains.telegram.rugmunchbot.keyboards import back_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client, http_get_any
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
-from telegram.ext import CommandHandler
 
 if TYPE_CHECKING:
     from telegram.ext import Application, ContextTypes
@@ -83,9 +84,7 @@ def _cache_set(key: str, payload: Any) -> None:
     _cache[key] = (time.monotonic() + _CACHE_TTL, payload)
 
 
-async def _fetch_json(
-    url: str, *, cache_key: str | None = None, timeout_secs: float = 12
-) -> Any | None:
+async def _fetch_json(url: str, *, cache_key: str | None = None, timeout_secs: float = 12) -> Any | None:
     """GET a JSON body with a TTL cache. Returns None on any failure."""
     if cache_key:
         cached = _cache_get(cache_key)
@@ -150,9 +149,7 @@ def _render_yield_text(pools: list[dict[str, Any]], *, stable_only: bool) -> str
             f"   {chain} | <b>{fmt_pct(apy)} APY</b> | TVL {fmt_number(tvl)}{il}"
         )
     lines.append("")
-    lines.append(
-        "<i>APY > 200% filtered as exit-liquidity bait. Always /scan before depositing.</i>"
-    )
+    lines.append("<i>APY > 200% filtered as exit-liquidity bait. Always /scan before depositing.</i>")
     lines.append(footer_links())
     return "\n".join(lines)
 
@@ -183,9 +180,7 @@ async def cmd_yield(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await msg.edit_text(
         _render_yield_text(pools, stable_only=stable_only),
         parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]]
-        ),
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]]),
         disable_web_page_preview=True,
     )
 
@@ -231,9 +226,7 @@ def _render_lpcheck_text(health: dict[str, Any]) -> str:
     chg = health.get("liquidity_change_24h")
     if chg is not None:
         lines.append(f"\U0001f4c9 24h Liquidity: <b>{fmt_pct(chg)}</b>")
-    lines.append(
-        f"\U0001f465 Largest Holder: <b>{float(health.get('largest_holder_pct') or 0):.1f}%</b>"
-    )
+    lines.append(f"\U0001f465 Largest Holder: <b>{float(health.get('largest_holder_pct') or 0):.1f}%</b>")
     lines.append(f"\U0001f3e2 LP Locked: <b>{float(health.get('lp_locked_pct') or 0):.1f}%</b>")
 
     alerts = health.get("alerts") or []
@@ -320,9 +313,7 @@ async def cmd_lpcheck(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await msg.edit_text(
         _render_lpcheck_text(health),
         parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]]
-        ),
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]]),
         disable_web_page_preview=True,
     )
 
@@ -346,9 +337,7 @@ def _render_defi_text(chains: list[dict[str, Any]], protocols: list[dict[str, An
     for i, c in enumerate(chains[:5], 1):
         chg = c.get("change_1d")
         chg_txt = f" ({fmt_pct(chg)})" if chg is not None else ""
-        lines.append(
-            f"{i}. {fmt_chain(c.get('name') or '?')} \u00b7 <b>{fmt_number(c.get('tvl'))}</b>{chg_txt}"
-        )
+        lines.append(f"{i}. {fmt_chain(c.get('name') or '?')} \u00b7 <b>{fmt_number(c.get('tvl'))}</b>{chg_txt}")
 
     lines.append("")
     lines.append("\U0001f3e1 <b>Top Protocols by TVL</b>")
@@ -357,13 +346,9 @@ def _render_defi_text(chains: list[dict[str, Any]], protocols: list[dict[str, An
         cat = (p.get("category") or "DeFi")[:18]
         chg = p.get("change_1d")
         chg_txt = f" ({fmt_pct(chg)})" if chg is not None else ""
-        lines.append(
-            f"{i}. <b>{p.get('name')}</b> \u00b7 {cat}\n   {fmt_number(p.get('tvl'))}{chg_txt}"
-        )
+        lines.append(f"{i}. <b>{p.get('name')}</b> \u00b7 {cat}\n   {fmt_number(p.get('tvl'))}{chg_txt}")
 
-    lines.append(
-        "\n<i>Data: DefiLlama (free API). CEX balances excluded from protocol ranking.</i>"
-    )
+    lines.append("\n<i>Data: DefiLlama (free API). CEX balances excluded from protocol ranking.</i>")
     lines.append(footer_links())
     return "\n".join(lines)
 
@@ -376,9 +361,7 @@ def _rank_protocols(protocols: list[dict[str, Any]], limit: int = 8) -> list[dic
 
 async def cmd_defi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /defi — DeFi overview from DefiLlama."""
-    msg = await update.message.reply_text(
-        "\U0001f3e6 <b>Fetching DeFi overview...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text("\U0001f3e6 <b>Fetching DeFi overview...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
 
     chains, protocols = await asyncio.gather(
         _fetch_json(CHAINS_URL, cache_key="defi_chains"),
@@ -397,9 +380,7 @@ async def cmd_defi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await msg.edit_text(
         _render_defi_text(top_chains, top_protocols),
         parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]]
-        ),
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]]),
         disable_web_page_preview=True,
     )
 

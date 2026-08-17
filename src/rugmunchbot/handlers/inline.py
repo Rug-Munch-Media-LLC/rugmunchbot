@@ -7,12 +7,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from app.domains.telegram.rugmunchbot.formatters import is_evm, is_sol
 from telegram import (
     InlineQueryResultArticle,
     InputTextMessageContent,
     Update,
 )
+
+from app.domains.telegram.rugmunchbot.formatters import is_evm, is_sol
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes

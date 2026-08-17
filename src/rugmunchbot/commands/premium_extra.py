@@ -14,9 +14,7 @@ from app.domains.telegram.rugmunchbot.tools._client import http_get_json, http_p
 logger = get_logger("rmi.premium_extra")
 
 
-async def _backend_get(
-    path: str, params: dict[str, Any] | None = None, timeout: float = 15.0
-) -> dict[str, Any] | None:
+async def _backend_get(path: str, params: dict[str, Any] | None = None, timeout: float = 15.0) -> dict[str, Any] | None:
     body = await http_get_json(
         f"{BACKEND_URL}{path}",
         headers=backend_headers(),
@@ -28,9 +26,7 @@ async def _backend_get(
     return body
 
 
-async def _backend_post(
-    path: str, json: dict[str, Any] | None = None, timeout: float = 20.0
-) -> dict[str, Any] | None:
+async def _backend_post(path: str, json: dict[str, Any] | None = None, timeout: float = 20.0) -> dict[str, Any] | None:
     body = await http_post_json(
         f"{BACKEND_URL}{path}",
         headers=backend_headers(),
@@ -107,12 +103,7 @@ async def cmd_whale(update, ctx) -> None:
 
     data = await _backend_post(
         "/api/v1/whale-alerts/subscribe",
-        json={
-            "user_id": str(msg.from_user.id),
-            "address": address,
-            "chain": chain,
-            "min_usd": 50000,
-        },
+        json={"user_id": str(msg.from_user.id), "address": address, "chain": chain, "min_usd": 50000},
     )
 
     if data:

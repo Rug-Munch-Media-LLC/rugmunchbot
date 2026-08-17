@@ -25,9 +25,7 @@ logger = get_logger("rmi.premium")
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-async def _backend_get(
-    path: str, params: dict[str, Any] | None = None, timeout: float = 15.0
-) -> dict[str, Any] | None:
+async def _backend_get(path: str, params: dict[str, Any] | None = None, timeout: float = 15.0) -> dict[str, Any] | None:
     """GET to RMI backend, return parsed JSON or None on any failure."""
     body = await http_get_json(
         f"{BACKEND_URL}{path}",
@@ -40,9 +38,7 @@ async def _backend_get(
     return body
 
 
-async def _backend_post(
-    path: str, json: dict[str, Any] | None = None, timeout: float = 20.0
-) -> dict[str, Any] | None:
+async def _backend_post(path: str, json: dict[str, Any] | None = None, timeout: float = 20.0) -> dict[str, Any] | None:
     """POST to RMI backend, return parsed JSON or None on any failure."""
     body = await http_post_json(
         f"{BACKEND_URL}{path}",
@@ -132,9 +128,7 @@ async def cmd_mev(update, ctx) -> None:
         lines.append("")
         lines.append("💱 <b>Safe Swap Params</b>")
         if swap.get("slippage_bps"):
-            lines.append(
-                f"  📏 Slippage: {swap['slippage_bps']} bps ({swap['slippage_bps'] / 100:.1f}%)"
-            )
+            lines.append(f"  📏 Slippage: {swap['slippage_bps']} bps ({swap['slippage_bps'] / 100:.1f}%)")
         if swap.get("gas_price_gwei"):
             lines.append(f"  ⛽ Gas: {swap['gas_price_gwei']} gwei")
         if swap.get("use_mev_blocker"):
@@ -238,9 +232,7 @@ async def cmd_impersonation(update, ctx) -> None:
         lines.append(f"⚖️ <b>Verdict:</b> {data['verdict']}")
 
     lines.append("")
-    lines.append(
-        "<i>High score = likely impersonation. Verify contract on explorer before buying.</i>"
-    )
+    lines.append("<i>High score = likely impersonation. Verify contract on explorer before buying.</i>")
 
     await msg.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
 
@@ -312,9 +304,7 @@ async def cmd_deathclock(update, ctx) -> None:
     ]
 
     if data.get("survival_probability") is not None:
-        lines.append(
-            f"🎯 <b>Survival Probability:</b> {_fmt_pct(data.get('survival_probability'))}"
-        )
+        lines.append(f"🎯 <b>Survival Probability:</b> {_fmt_pct(data.get('survival_probability'))}")
 
     if factors:
         lines.append("")
@@ -457,9 +447,7 @@ async def cmd_cluster(update, ctx) -> None:
             size = c.get("size", 0)
             ctype = c.get("type", "unknown")
             confidence = c.get("confidence", 0)
-            lines.append(
-                f"  • Cluster {cid}: {size} wallets ({ctype}, {confidence:.0%} confidence)"
-            )
+            lines.append(f"  • Cluster {cid}: {size} wallets ({ctype}, {confidence:.0%} confidence)")
             wallets = c.get("wallets", [])
             for w in wallets[:3]:
                 lines.append(f"    └ <code>{w}</code>")
@@ -482,8 +470,6 @@ async def cmd_cluster(update, ctx) -> None:
                 lines.append(f"    → {hop.get('description', hop.get('address', ''))}")
 
     lines.append("")
-    lines.append(
-        "<i>Clusters reveal coordinated wallets — useful for spotting teams & bundles.</i>"
-    )
+    lines.append("<i>Clusters reveal coordinated wallets — useful for spotting teams & bundles.</i>")
 
     await msg.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)

@@ -96,10 +96,7 @@ _PROMPT_INJECTION_RULES: list[tuple[re.Pattern[str], str]] = [
 # is rejected outright before any downstream processing.
 _PROMPT_INJECTION_HARD_BLOCKS: list[tuple[re.Pattern[str], str]] = [
     (
-        re.compile(
-            r"^\s*(ignore|disregard|forget)\s+(all\s+)?previous\s+instructions?\s*[.!]?\s*$",
-            re.IGNORECASE,
-        ),
+        re.compile(r"^\s*(ignore|disregard|forget)\s+(all\s+)?previous\s+instructions?\s*[.!]?\s*$", re.IGNORECASE),
         "instruction-override",
     ),
     (
@@ -131,9 +128,7 @@ def check_prompt_injection(text: str) -> str | None:
 # ══════════════════════════════════════════════
 # Env-seeded denylist (comma separated). Grown at runtime by /report (see
 # db.report_scam / db.get_known_scam_addresses).
-_ENV_DENYLIST: set[str] = {
-    a.strip().lower() for a in os.getenv("RUGMUNCH_SCAM_DENYLIST", "").split(",") if a.strip()
-}
+_ENV_DENYLIST: set[str] = {a.strip().lower() for a in os.getenv("RUGMUNCH_SCAM_DENYLIST", "").split(",") if a.strip()}
 
 
 def is_known_scam_address(address: str) -> bool:

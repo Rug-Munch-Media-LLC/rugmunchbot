@@ -92,9 +92,7 @@ def _run_ch_query(sql: str, params: dict[str, Any] | None = None) -> list[tuple[
         client = _get_ch_client()
         if client is None:
             return []
-        return client.execute(
-            sql, params or {}, settings={"max_execution_time": _QUERY_TIMEOUT_SECONDS}
-        )
+        return client.execute(sql, params or {}, settings={"max_execution_time": _QUERY_TIMEOUT_SECONDS})
     except Exception as exc:  # fail-open by contract
         logger.debug("channels:clickhouse_query_failed err=%s", str(exc)[:200])
         return []
@@ -121,9 +119,7 @@ def _chain_filter(chain: str) -> tuple[str, dict[str, Any]]:
 # ── Whale moves (token_transfers) ─────────────────────────────────────────
 
 
-def _rows_to_whale_moves(
-    rows: list[tuple[Any, ...]], chain: str, limit: int
-) -> list[dict[str, Any]]:
+def _rows_to_whale_moves(rows: list[tuple[Any, ...]], chain: str, limit: int) -> list[dict[str, Any]]:
     """Normalize token_transfers rows into whale-move channel items."""
     moves: list[dict[str, Any]] = []
     for row in rows[:limit]:
@@ -140,9 +136,7 @@ def _rows_to_whale_moves(
         symbol = _short_addr(token_addr)
         body_bits = [f"{_fmt_usd(value)} moved"]
         if from_addr:
-            body_bits.append(
-                f"from {_short_addr(from_addr)}{f' ({from_label})' if from_label else ''}"
-            )
+            body_bits.append(f"from {_short_addr(from_addr)}{f' ({from_label})' if from_label else ''}")
         if to_addr:
             body_bits.append(f"to {_short_addr(to_addr)}{f' ({to_label})' if to_label else ''}")
         if tx_hash:

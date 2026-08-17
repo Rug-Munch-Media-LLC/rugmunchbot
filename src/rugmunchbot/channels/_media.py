@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
+
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.channels.media")
 

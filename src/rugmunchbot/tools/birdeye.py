@@ -93,9 +93,7 @@ def _birdeye_keys() -> list[str]:
     return keys
 
 
-async def _birdeye_get(
-    path: str, params: dict[str, Any], chain: str = "solana"
-) -> dict[str, Any] | None:
+async def _birdeye_get(path: str, params: dict[str, Any], chain: str = "solana") -> dict[str, Any] | None:
     """GET a Birdeye endpoint with the API-key + x-chain headers.
 
     ``http_get_json`` returns None on any non-200 (quota-exhausted 400 /
@@ -107,9 +105,7 @@ async def _birdeye_get(
         if not key:
             continue
         headers = {"X-API-KEY": key, "accept": "application/json", "x-chain": _chain_slug(chain)}
-        body = await http_get_json(
-            f"{BIRDEYE_BASE}{path}", params=params, headers=headers, timeout=8.0
-        )
+        body = await http_get_json(f"{BIRDEYE_BASE}{path}", params=params, headers=headers, timeout=8.0)
         if body is not None:
             return body
     return None
@@ -142,15 +138,9 @@ async def birdeye_price(address: str, chain: str = "solana") -> dict[str, Any] |
     }
 
 
-async def birdeye_smart_money(
-    chain: str = "solana", limit: int = 10
-) -> list[dict[str, Any]] | None:
+async def birdeye_smart_money(chain: str = "solana", limit: int = 10) -> list[dict[str, Any]] | None:
     """Smart-money ranked token list (``/smart-money/v1/token/list``)."""
-    params: dict[str, Any] = {
-        "interval": "1d",
-        "sort_by": "smart_traders_no",
-        "limit": min(limit, 20),
-    }
+    params: dict[str, Any] = {"interval": "1d", "sort_by": "smart_traders_no", "limit": min(limit, 20)}
     data = _unpack_data(await _birdeye_get("/smart-money/v1/token/list", params, chain))
     items = data.get("items") if isinstance(data, dict) else None
     if not isinstance(items, list):
@@ -174,9 +164,7 @@ async def birdeye_smart_money(
     return out or None
 
 
-async def birdeye_top_traders(
-    address: str, chain: str = "solana", limit: int = 10
-) -> list[dict[str, Any]] | None:
+async def birdeye_top_traders(address: str, chain: str = "solana", limit: int = 10) -> list[dict[str, Any]] | None:
     """Top traders for a token (``/defi/v2/tokens/top_traders``)."""
     if not address:
         return None
@@ -240,12 +228,7 @@ async def birdeye_liquidity_history(
     data = _unpack_data(
         await _birdeye_get(
             "/defi/v3/liquidity/history/token",
-            {
-                "address": address,
-                "resolution": resolution,
-                "direction": "back",
-                "count": min(count, 100),
-            },
+            {"address": address, "resolution": resolution, "direction": "back", "count": min(count, 100)},
             "solana",
         )
     )
@@ -273,12 +256,8 @@ async def _backend_price_fallback(address: str) -> ToolResult | None:
     return None
 
 
-async def _backend_smart_money_fallback(
-    chain: str = "solana", limit: int = 10
-) -> ToolResult | None:
-    body = await backend_json_get(
-        "/api/v1/databus/premium/smart-money", params={"chain": chain}, timeout=8.0
-    )
+async def _backend_smart_money_fallback(chain: str = "solana", limit: int = 10) -> ToolResult | None:
+    body = await backend_json_get("/api/v1/databus/premium/smart-money", params={"chain": chain}, timeout=8.0)
     wallets = body.get("smart_money_wallets") if body else None
     if not isinstance(wallets, list) or not wallets:
         return None
@@ -388,12 +367,7 @@ async def birdeye_market(
                 return ToolResult(
                     tool="birdeye_market",
                     ok=True,
-                    data={
-                        "kind": "top_traders",
-                        "address": address,
-                        "chain": chain,
-                        "traders": traders,
-                    },
+                    data={"kind": "top_traders", "address": address, "chain": chain, "traders": traders},
                     symbols=[],
                     addresses=[address, *[t["wallet"] for t in traders if t.get("wallet")]],
                     source="birdeye:/defi/v2/tokens/top_traders",

@@ -13,6 +13,9 @@ import contextlib
 from typing import TYPE_CHECKING
 
 import httpx
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     DEXSCREENER,
@@ -50,8 +53,6 @@ from app.domains.telegram.rugmunchbot.scanner import (
 )
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client, http_get_json
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -64,8 +65,7 @@ async def cmd_quick(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Quick price check - same as $TOKEN but as a command."""
     if not ctx.args:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "\U0001fa99 Usage: /quick <code>SYMBOL</code>\nExample: /quick PEPE",
-            parse_mode=ParseMode.HTML,
+            "\U0001fa99 Usage: /quick <code>SYMBOL</code>\nExample: /quick PEPE", parse_mode=ParseMode.HTML
         )
         return
     symbol = ctx.args[0].upper().lstrip("$")
@@ -90,11 +90,7 @@ async def cmd_quick(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
             kb = InlineKeyboardMarkup(
                 [
-                    [
-                        InlineKeyboardButton(
-                            "\U0001f50d Full Scan", callback_data=f"scan_{addr}_{chain}"
-                        )
-                    ],
+                    [InlineKeyboardButton("\U0001f50d Full Scan", callback_data=f"scan_{addr}_{chain}")],
                     [web_scan_button(addr, chain)],
                 ]
             )
@@ -137,9 +133,7 @@ async def cmd_deployer(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not allowed:
             tier = db.get_user_tier(user.id)
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                paywall_text(user.id, "scan"),
-                parse_mode=ParseMode.HTML,
-                reply_markup=upgrade_nudge_kb(tier),
+                paywall_text(user.id, "scan"), parse_mode=ParseMode.HTML, reply_markup=upgrade_nudge_kb(tier)
             )
             return
     target = ctx.args[0]
@@ -152,11 +146,7 @@ async def cmd_deployer(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         data = await scan_token_v2(target, chain)
         if data is None:
             await msg.edit_text(
-                failure_card(
-                    "Deployer Check Failed",
-                    "The scanner is unavailable right now.",
-                    ACTION_TRY_AGAIN,
-                ),
+                failure_card("Deployer Check Failed", "The scanner is unavailable right now.", ACTION_TRY_AGAIN),
                 parse_mode=ParseMode.HTML,
                 reply_markup=back_kb(),
             )
@@ -201,9 +191,7 @@ async def cmd_deployer(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if dev_risk is None:
             dev_risk = risk_score
         if dev_risk is not None:
-            emoji = (
-                "\U0001f7e2" if dev_risk < 30 else "\U0001f7e1" if dev_risk < 60 else "\U0001f534"
-            )
+            emoji = "\U0001f7e2" if dev_risk < 30 else "\U0001f7e1" if dev_risk < 60 else "\U0001f534"
             lines.append(f"{emoji} Dev Risk Score: <b>{dev_risk}/100</b>")
         if risk_bucket:
             lines.append(f"{_bucket_emoji(str(risk_bucket))} Risk Bucket: <b>{risk_bucket}</b>")
@@ -245,11 +233,7 @@ async def cmd_deployer(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         logger.debug("cmd_deployer_error", exc_info=True)
         logger.error(f"cmd_deployer failed: {e}")
         await msg.edit_text(
-            failure_card(
-                "Deployer Check Failed",
-                "The deployer lookup hit an unexpected error.",
-                ACTION_TRY_AGAIN,
-            ),
+            failure_card("Deployer Check Failed", "The deployer lookup hit an unexpected error.", ACTION_TRY_AGAIN),
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -278,15 +262,11 @@ async def cmd_hype(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not allowed:
             tier = db.get_user_tier(user.id)
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                paywall_text(user.id, "scan"),
-                parse_mode=ParseMode.HTML,
-                reply_markup=upgrade_nudge_kb(tier),
+                paywall_text(user.id, "scan"), parse_mode=ParseMode.HTML, reply_markup=upgrade_nudge_kb(tier)
             )
             return
     target = ctx.args[0]
-    msg = await update.message.reply_text(
-        "\U0001f525 <b>Measuring hype...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text("\U0001f525 <b>Measuring hype...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
     try:
         # Resolve address: if it looks like a symbol, search DexScreener
         address = target
@@ -325,8 +305,7 @@ async def cmd_hype(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         tr = await client.get(f"{DEXSCREENER}/tokens/{address}")
         if tr.status_code != 200:
             await msg.edit_text(
-                "\u274c Token not found.\n\nCheck the address and try again.",
-                parse_mode=ParseMode.HTML,
+                "\u274c Token not found.\n\nCheck the address and try again.", parse_mode=ParseMode.HTML
             )
             return
         pairs = _ds_pairs(tr.json())
@@ -351,10 +330,7 @@ async def cmd_hype(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         age_hours = 0.0
         if created:
             with contextlib.suppress(OSError, ValueError, TypeError):
-                age_hours = max(
-                    0,
-                    (dt.now(UTC) - dt.fromtimestamp(created / 1000, tz=UTC)).total_seconds() / 3600,
-                )
+                age_hours = max(0, (dt.now(UTC) - dt.fromtimestamp(created / 1000, tz=UTC)).total_seconds() / 3600)
 
         # ── C5 hype score from backend (preferred) ──
         # Composite 0-100 with per-signal breakdown: social velocity, volume
@@ -382,9 +358,7 @@ async def cmd_hype(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 f"\U0001f680 Price Momentum: <b>{float(price_sig.get('score', 0) or 0):.0f}/100</b>",
             ]
             if c5.get("inactivity_hours") is not None:
-                lines.append(
-                    f"\u23f3 Inactivity: {c5['inactivity_hours']:.0f}h (decay x{c5.get('decay_factor', 1.0)})"
-                )
+                lines.append(f"\u23f3 Inactivity: {c5['inactivity_hours']:.0f}h (decay x{c5.get('decay_factor', 1.0)})")
             details = []
             for sig in (social, volume, holder, price_sig):
                 if isinstance(sig, dict) and sig.get("detail"):
@@ -398,11 +372,7 @@ async def cmd_hype(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             lines.append(f"\U0001f50d Full scan: /scan <code>{address}</code>{footer_links()}")
             kb = InlineKeyboardMarkup(
                 [
-                    [
-                        InlineKeyboardButton(
-                            "\U0001f50d Full Scan", callback_data=f"scan_{address}_{chain}"
-                        )
-                    ],
+                    [InlineKeyboardButton("\U0001f50d Full Scan", callback_data=f"scan_{address}_{chain}")],
                     [web_scan_button(address, chain)],
                 ]
             )
@@ -468,11 +438,7 @@ async def cmd_hype(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         lines.append(f"\U0001f50d Full scan: /scan <code>{address}</code>{footer_links()}")
         kb = InlineKeyboardMarkup(
             [
-                [
-                    InlineKeyboardButton(
-                        "\U0001f50d Full Scan", callback_data=f"scan_{address}_{chain}"
-                    )
-                ],
+                [InlineKeyboardButton("\U0001f50d Full Scan", callback_data=f"scan_{address}_{chain}")],
                 [web_scan_button(address, chain)],
             ]
         )
@@ -487,11 +453,7 @@ async def cmd_hype(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         logger.debug("cmd_hype_error", exc_info=True)
         logger.error(f"cmd_hype failed: {e}")
         await msg.edit_text(
-            failure_card(
-                "Hype Check Failed",
-                "The hype score lookup hit an unexpected error.",
-                ACTION_TRY_AGAIN,
-            ),
+            failure_card("Hype Check Failed", "The hype score lookup hit an unexpected error.", ACTION_TRY_AGAIN),
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )

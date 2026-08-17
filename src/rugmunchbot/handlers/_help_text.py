@@ -237,9 +237,7 @@ def project_links_section() -> str:
     Three lines only — one section header, the website, one repo line with
     short labels — so it stays a small block, never a wall of links.
     """
-    repos = " \u00b7 ".join(
-        f'<a href="{url}">{html.escape(label, quote=True)}</a>' for label, url in OPEN_SOURCE_REPOS
-    )
+    repos = " \u00b7 ".join(f'<a href="{url}">{html.escape(label, quote=True)}</a>' for label, url in OPEN_SOURCE_REPOS)
     return (
         "\U0001f517 <b>Project &amp; Open Source</b>\n"
         '\U0001f310 <a href="https://rugmunch.io">rugmunch.io</a> \u2014 crypto intelligence\n'

@@ -16,6 +16,7 @@ import io
 from typing import Any
 
 import httpx
+
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
     COINGECKO,
@@ -417,14 +418,12 @@ async def cmd_chart(update, ctx) -> None:
 
     png = None
     if candles:
-        png = await asyncio.to_thread(
-            render_candlestick_chart, candles, name, symbol, chain, timeframe
-        )
+        png = await asyncio.to_thread(render_candlestick_chart, candles, name, symbol, chain, timeframe)
     if png:
         caption = (
-            f"📊 <b>{name}</b> ({symbol})\n<code>{address}</code>\n\n💰 Price: <b>${price:.10f}</b>".rstrip(
-                "0"
-            ).rstrip(".")
+            f"📊 <b>{name}</b> ({symbol})\n<code>{address}</code>\n\n💰 Price: <b>${price:.10f}</b>".rstrip("0").rstrip(
+                "."
+            )
             + (
                 f"\n📈 MCap: {fmt_number(mcap)} | 📊 24h Vol: {fmt_number(vol_24h)}\n"
                 f"🟢 1h: {fmt_pct(change_1h)} | 24h: {fmt_pct(change_24h)} | 7d: {fmt_pct(change_7d)}"
@@ -443,9 +442,7 @@ async def cmd_chart(update, ctx) -> None:
                 ],
                 [
                     InlineKeyboardButton("🗺️ RugMap", callback_data=f"rugmap_{address}_{chain}"),
-                    InlineKeyboardButton(
-                        "\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"
-                    ),
+                    InlineKeyboardButton("\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"),
                 ],
                 [InlineKeyboardButton("🏠 Menu", callback_data="menu_main")],
             ]

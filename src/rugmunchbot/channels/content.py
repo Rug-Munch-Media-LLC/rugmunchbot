@@ -125,9 +125,7 @@ async def _enrich_scan_identity(item: dict[str, Any]) -> None:
     if not addr:
         return
     try:
-        body = await http_get_json(
-            f"https://api.dexscreener.com/latest/dex/tokens/{addr}", timeout=5.0
-        )
+        body = await http_get_json(f"https://api.dexscreener.com/latest/dex/tokens/{addr}", timeout=5.0)
         if not body:
             return
         pairs = body.get("pairs")
@@ -454,10 +452,7 @@ async def fetch_risk_alerts(limit: int = 5) -> list[dict[str, Any]]:
                     # deployer, liquidity) instead of a generic verdict.
                     "security": security if isinstance(security, dict) else None,
                     "deployer": str(
-                        item.get("deployer")
-                        or item.get("creator_address")
-                        or item.get("creator")
-                        or ""
+                        item.get("deployer") or item.get("creator_address") or item.get("creator") or ""
                     ).strip()
                     or None,
                     "liquidity": item.get("liquidity"),

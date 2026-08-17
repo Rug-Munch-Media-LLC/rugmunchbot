@@ -231,9 +231,7 @@ def format_breaking_post(item: dict[str, Any]) -> NewsPost:
     """
     title = _esc(item.get("title") or "Untitled")
     url = (item.get("url") or "").strip()
-    summary = _esc(
-        _takeaway(item.get("summary") or item.get("description"), _BREAKING_SUMMARY_CHARS)
-    )
+    summary = _esc(_takeaway(item.get("summary") or item.get("description"), _BREAKING_SUMMARY_CHARS))
     commentary = _esc(_takeaway(item.get("commentary"), _COMMENTARY_HOOK_CHARS))
     source = _esc(item.get("source") or "unknown")
     headline = title if not url else f'<a href="{html.escape(url, quote=True)}">{title}</a>'
@@ -594,9 +592,7 @@ def format_alerts_post(alerts: list[dict[str, Any]]) -> NewsPost:
         if links:
             lines.append(links)
         lines.append("")
-    lines.append(
-        "<i>Auto-flagged by the RugMunch scanner. Always /scan before buying anything on this list.</i>"
-    )
+    lines.append("<i>Auto-flagged by the RugMunch scanner. Always /scan before buying anything on this list.</i>")
     lines.extend(["", f"🕐 {_now_stamp()}", footer_links()])
     post = NewsPost(_clip("\n".join(lines)))
     for item in alerts[:6]:
@@ -621,9 +617,7 @@ def format_main_escalation(item: dict[str, Any]) -> NewsPost:
     symbol = str(item.get("symbol") or "").strip()
     headline = _esc(f"{name} ({symbol})".strip() if symbol else name)
     addr = str(item.get("address") or item.get("token_address") or "")
-    scanner = str(
-        item.get("scanner_url") or _scanner_url(addr, str(item.get("chain") or ""))
-    ).strip()
+    scanner = str(item.get("scanner_url") or _scanner_url(addr, str(item.get("chain") or ""))).strip()
     if scanner:
         headline = f'<a href="{html.escape(scanner, quote=True)}">{headline}</a>'
     lines = ["🚨 <b>HIGH SIGNAL</b>", sep(), ""]
@@ -766,12 +760,7 @@ def format_alpha_post(
     section is omitted, never invented. Carries the first usable image on
     the returned ``NewsPost`` so the scheduler can attach it as a photo.
     """
-    lines = [
-        "🐋 <b>Alpha Feed</b>",
-        "<i>High-signal, low noise — /scan before you ape.</i>",
-        sep(),
-        "",
-    ]
+    lines = ["🐋 <b>Alpha Feed</b>", "<i>High-signal, low noise — /scan before you ape.</i>", sep(), ""]
 
     if whale_moves:
         lines.append("⚡ <b>Whale Moves</b>")
@@ -816,9 +805,7 @@ def format_alpha_post(
             chain = _esc(launch.get("chain") or "")
             risk = _esc(launch.get("risk_level") or "unknown")
             addr = str(launch.get("address") or "")
-            lines.append(
-                f"• {_risk_emoji(risk)} <b>{name}</b> ({symbol}){f' — {chain}' if chain else ''}"
-            )
+            lines.append(f"• {_risk_emoji(risk)} <b>{name}</b> ({symbol}){f' — {chain}' if chain else ''}")
             lines.append(f"   💡 {_esc(_launch_verdict(launch))}")
             meta = []
             age = _fmt_age_hours(launch.get("age_hours"))

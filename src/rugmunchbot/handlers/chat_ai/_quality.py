@@ -67,9 +67,7 @@ def _grounding_sources_count(
     if provider == "backend":
         rag_bucket = max(int(rag_count), 0)
     else:
-        rag_bucket = sum(
-            1 for s in bridge_sources if isinstance(s, dict) and s.get("type") == "rag"
-        )
+        rag_bucket = sum(1 for s in bridge_sources if isinstance(s, dict) and s.get("type") == "rag")
         if rag_result is not None and rag_result.ok and rag_bucket == 0:
             rag_bucket = 1  # direct lookup hit without typed bridge sources
     count = rag_bucket
@@ -90,9 +88,7 @@ def _grounding_sources_count(
     count += web_count
 
     # Live tools: distinct tool types that returned real data.
-    count += sum(
-        1 for name, r in live_results.items() if name not in ("web_search", "rag_lookup") and r.ok
-    )
+    count += sum(1 for name, r in live_results.items() if name not in ("web_search", "rag_lookup") and r.ok)
 
     # Market context: the daily digest / bridge market block fed the answer.
     if has_market_context:

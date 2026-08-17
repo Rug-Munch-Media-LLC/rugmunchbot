@@ -7,6 +7,7 @@ Simulate how a buy or sell would execute at current market conditions.
 from __future__ import annotations
 
 import httpx
+
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
 
@@ -45,9 +46,7 @@ async def cmd_simulate(update, ctx) -> None:
         client = get_shared_client(15)
         r = await client.get(f"{DEXSCREENER}/tokens/{address}")
         if r.status_code != 200:
-            await msg.reply_text(
-                "❌ Could not fetch token data. Please try again in a moment.", parse_mode="HTML"
-            )
+            await msg.reply_text("❌ Could not fetch token data. Please try again in a moment.", parse_mode="HTML")
             return
 
         data = r.json()
@@ -113,6 +112,4 @@ async def cmd_simulate(update, ctx) -> None:
 
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
         logger.error(f"Simulate failed: {e}")
-        await msg.reply_text(
-            "❌ Simulation failed. Please try again in a moment.", parse_mode="HTML"
-        )
+        await msg.reply_text("❌ Simulation failed. Please try again in a moment.", parse_mode="HTML")

@@ -6,17 +6,14 @@ import asyncio
 import html
 from typing import TYPE_CHECKING
 
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.handlers.osint._common import _TIMEOUTS
-from app.domains.telegram.rugmunchbot.handlers.osint._format import (
-    _error_text,
-    _format_report,
-    _unavailable_text,
-)
+from app.domains.telegram.rugmunchbot.handlers.osint._format import _error_text, _format_report, _unavailable_text
 from app.domains.telegram.rugmunchbot.keyboards import back_kb
 from app.osint import OsintNotAvailable
 from app.osint.wallet import lookup_wallet
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -65,10 +62,6 @@ async def cmd_track(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             disable_web_page_preview=True,
         )
     except OsintNotAvailable as exc:
-        await msg.edit_text(
-            _unavailable_text(address, exc), parse_mode=ParseMode.HTML, reply_markup=back_kb()
-        )
+        await msg.edit_text(_unavailable_text(address, exc), parse_mode=ParseMode.HTML, reply_markup=back_kb())
     except (ValueError, TimeoutError, OSError) as exc:
-        await msg.edit_text(
-            _error_text(address, exc), parse_mode=ParseMode.HTML, reply_markup=back_kb()
-        )
+        await msg.edit_text(_error_text(address, exc), parse_mode=ParseMode.HTML, reply_markup=back_kb())

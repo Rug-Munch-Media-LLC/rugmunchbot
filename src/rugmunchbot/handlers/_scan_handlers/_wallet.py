@@ -13,6 +13,8 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     fmt_number,
@@ -46,7 +48,6 @@ from app.domains.telegram.rugmunchbot.scanner import (
     v2_wallet_to_legacy,
 )
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -81,16 +82,13 @@ async def cmd_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not allowed:
             tier = db.get_user_tier(user.id)
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                paywall_text(user.id, "scan"),
-                parse_mode=ParseMode.HTML,
-                reply_markup=upgrade_nudge_kb(tier),
+                paywall_text(user.id, "scan"), parse_mode=ParseMode.HTML, reply_markup=upgrade_nudge_kb(tier)
             )
             return
     addr = ctx.args[0]
     chain = ctx.args[1] if len(ctx.args) > 1 else None
     msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        "\U0001f9db <b>Analyzing wallet...</b>\n\u23f3 Querying on-chain data...",
-        parse_mode=ParseMode.HTML,
+        "\U0001f9db <b>Analyzing wallet...</b>\n\u23f3 Querying on-chain data...", parse_mode=ParseMode.HTML
     )
     try:
         result_v2 = await analyze_wallet_v2(addr, chain)
@@ -126,18 +124,12 @@ async def cmd_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
         report = format_wallet_report(result)
         db.increment_usage(user.id, scan=True)
-        await msg.edit_text(
-            report, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
-        )
+        await msg.edit_text(report, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True)
     except httpx.HTTPError as e:
         logger.debug("cmd_wallet_error", exc_info=True)
         logger.error(f"Wallet error: {e}")
         await msg.edit_text(
-            failure_card(
-                "Wallet Analysis Failed",
-                "Wallet forensics hit an unexpected error.",
-                ACTION_TRY_AGAIN,
-            ),
+            failure_card("Wallet Analysis Failed", "Wallet forensics hit an unexpected error.", ACTION_TRY_AGAIN),
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -167,24 +159,16 @@ async def cmd_compare(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not allowed:
             tier = db.get_user_tier(user.id)
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                paywall_text(user.id, "scan"),
-                parse_mode=ParseMode.HTML,
-                reply_markup=upgrade_nudge_kb(tier),
+                paywall_text(user.id, "scan"), parse_mode=ParseMode.HTML, reply_markup=upgrade_nudge_kb(tier)
             )
             return
-    msg = await update.message.reply_text(
-        "\u2696\ufe0f <b>Comparing tokens...</b>", parse_mode=ParseMode.HTML
-    )  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text("\u2696\ufe0f <b>Comparing tokens...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
     try:
-        v2_1, v2_2 = await asyncio.gather(
-            scan_token_v2((ctx.args or [])[0]), scan_token_v2((ctx.args or [])[1])
-        )
+        v2_1, v2_2 = await asyncio.gather(scan_token_v2((ctx.args or [])[0]), scan_token_v2((ctx.args or [])[1]))
         if v2_1 is not None and v2_2 is not None:
             r1, r2 = v2_token_to_legacy(v2_1), v2_token_to_legacy(v2_2)
         else:
-            r1, r2 = await asyncio.gather(
-                scan_token((ctx.args or [])[0]), scan_token((ctx.args or [])[1])
-            )
+            r1, r2 = await asyncio.gather(scan_token((ctx.args or [])[0]), scan_token((ctx.args or [])[1]))
         risk1 = r1["risk_score"]
         risk2 = r2["risk_score"]
         better = []
@@ -222,9 +206,7 @@ async def cmd_compare(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f"<b>\U0001f3c6 Verdict</b>\n{thin_sep()}\n" + "\n".join(better) + footer_links()
         )
         db.increment_usage(user.id, scan=True)
-        await msg.edit_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
-        )
+        await msg.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True)
     except (httpx.HTTPError, KeyError, TypeError) as e:
         logger.debug("mini_error", exc_info=True)
         logger.error(f"cmd_compare failed: {e}")

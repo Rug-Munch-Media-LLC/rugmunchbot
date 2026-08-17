@@ -19,6 +19,9 @@ import json
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot.config import WEBSITE_URL
 from app.domains.telegram.rugmunchbot.formatters import (
     detect_chain,
@@ -37,8 +40,6 @@ from app.domains.telegram.rugmunchbot.handlers._messages import (
 from app.domains.telegram.rugmunchbot.keyboards import back_kb
 from app.domains.telegram.rugmunchbot.services.pricing import resolve
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -149,11 +150,7 @@ async def cmd_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             kb = InlineKeyboardMarkup(
                 [
                     [InlineKeyboardButton("🔍 Full Scan", callback_data=f"scan_{address}_{chain}")],
-                    [
-                        InlineKeyboardButton(
-                            "📊 Charts & Analysis", url=f"{WEBSITE_URL}/markets/token/{address}"
-                        )
-                    ],
+                    [InlineKeyboardButton("📊 Charts & Analysis", url=f"{WEBSITE_URL}/markets/token/{address}")],
                     [InlineKeyboardButton("◀️ Back", callback_data="menu_main")],
                 ]
             )
@@ -177,9 +174,7 @@ async def cmd_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 ]
             )
 
-        await msg.edit_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True
-        )
+        await msg.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)
 
     except (httpx.HTTPError, ConnectionError, TimeoutError, ValueError, OSError) as e:
         logger.warning("cmd_price failed for %s: %s", address, e)
@@ -263,9 +258,7 @@ async def cmd_dex(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 f"   📊 Vol: {fmt_number(vol_24h)} | <code>{pair_addr}</code>"
             )
 
-        lines.append(
-            f"\n🌐 <a href='{WEBSITE_URL}/markets/token/{address}'>Full market data on RugMunch.io</a>"
-        )
+        lines.append(f"\n🌐 <a href='{WEBSITE_URL}/markets/token/{address}'>Full market data on RugMunch.io</a>")
         lines.append(footer_links())
 
         text = "\n".join(lines)
@@ -277,19 +270,9 @@ async def cmd_dex(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             ]
         )
 
-        await msg.edit_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True
-        )
+        await msg.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)
 
-    except (
-        httpx.HTTPError,
-        ConnectionError,
-        TimeoutError,
-        ValueError,
-        KeyError,
-        TypeError,
-        OSError,
-    ) as e:
+    except (httpx.HTTPError, ConnectionError, TimeoutError, ValueError, KeyError, TypeError, OSError) as e:
         logger.warning("cmd_dex failed for %s: %s", address, e)
         await msg.edit_text(
             failure_card(

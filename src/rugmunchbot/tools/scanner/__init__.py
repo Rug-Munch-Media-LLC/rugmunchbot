@@ -23,6 +23,7 @@ Layout:
 from __future__ import annotations
 
 import httpx as httpx
+
 from app.domains.scanner.gmgn_enrich import enrich_scan_with_gmgn as enrich_scan_with_gmgn
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client as get_shared_client
 from app.domains.telegram.rugmunchbot.tools.registry import (

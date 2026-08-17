@@ -100,9 +100,7 @@ def fabrication_note(stripped_symbols: list[str], stripped_addresses: list[str])
         unique = [s for s in dict.fromkeys(stripped_symbols) if s][:5]  # dedup, cap at 5
         tickers = ", ".join(f"${s}" for s in unique)
         if tickers:
-            parts.append(
-                f"some token symbols ({tickers}) were not verified against live data and were removed"
-            )
+            parts.append(f"some token symbols ({tickers}) were not verified against live data and were removed")
     if stripped_addresses:
         parts.append("some addresses were not verified against live data")
     if not parts:

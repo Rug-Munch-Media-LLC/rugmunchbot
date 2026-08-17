@@ -6,13 +6,14 @@ import asyncio
 import io
 from typing import TYPE_CHECKING
 
+from telegram.constants import ParseMode
+from telegram.error import TelegramError
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.handlers.osint._common import logger
 from app.domains.telegram.rugmunchbot.handlers.osint._format import _error_text, _format_face_result
 from app.domains.telegram.rugmunchbot.keyboards import back_kb
 from app.osint.face import HAARCASCADE_MODEL_PATH, YUNET_MODEL_PATH
-from telegram.constants import ParseMode
-from telegram.error import TelegramError
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -70,9 +71,7 @@ def _detect_faces(image: bytes) -> tuple[int, str | None]:
             cascade = cv2.CascadeClassifier(str(HAARCASCADE_MODEL_PATH))
             if not cascade.empty():
                 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                faces = cascade.detectMultiScale(
-                    gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
-                )
+                faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
                 return len(faces), None
 
         return 0, "face detection model not available on this server"
@@ -116,6 +115,4 @@ async def cmd_face(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             reply_markup=back_kb(),
         )
     except (TelegramError, ValueError, TimeoutError, OSError) as exc:
-        await msg.edit_text(
-            _error_text("photo", exc), parse_mode=ParseMode.HTML, reply_markup=back_kb()
-        )
+        await msg.edit_text(_error_text("photo", exc), parse_mode=ParseMode.HTML, reply_markup=back_kb())

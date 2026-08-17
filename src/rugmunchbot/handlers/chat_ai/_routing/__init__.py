@@ -20,6 +20,7 @@ Layout:
 from __future__ import annotations
 
 import httpx as httpx
+
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._delivery import (
     _edit_placeholder_if_slow as _edit_placeholder_if_slow,
     _keep_typing as _keep_typing,
@@ -45,9 +46,7 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._context import 
     _fetch_bridge_context as _fetch_bridge_context,
     _fetch_scan_context as _fetch_scan_context,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._core import (
-    chat_ai_response as chat_ai_response,
-)
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._core import chat_ai_response as chat_ai_response
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._handler import (
     _is_bot_addressed as _is_bot_addressed,
     ai_chat_handler as ai_chat_handler,

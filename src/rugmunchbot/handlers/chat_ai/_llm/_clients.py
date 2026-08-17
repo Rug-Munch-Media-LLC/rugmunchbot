@@ -16,6 +16,7 @@ import time
 from typing import Any
 
 import httpx
+
 from app.core.ai_guardrails import strip_think_tags
 from app.domains.telegram.rugmunchbot.config import backend_headers
 from app.domains.telegram.rugmunchbot.handlers.chat_ai import _llm as _llm_mod
@@ -120,11 +121,7 @@ async def _call_backend_chat(
     try:
         raw_message = raw.get("message")
         if not isinstance(raw_message, str):
-            logger.debug(
-                "backend chat malformed message (user=%s, type=%s)",
-                user_id,
-                type(raw_message).__name__,
-            )
+            logger.debug("backend chat malformed message (user=%s, type=%s)", user_id, type(raw_message).__name__)
             return None
         answer = _links_to_plain_text(raw_message.strip())
         usage = raw.get("usage")
@@ -194,9 +191,7 @@ async def _call_remote_fast(
     base_url = str(cfg.get("base_url") or "")
     model = str(cfg.get("model") or "")
     if not api_key or not base_url or not model:
-        logger.debug(
-            "remote LLM not configured (user=%s, tier=%s): key/base/model missing", user_id, tier
-        )
+        logger.debug("remote LLM not configured (user=%s, tier=%s): key/base/model missing", user_id, tier)
         return None
 
     timeout = REMOTE_SNAPPY_TIMEOUT if tier == "snappy" else REMOTE_LONG_TIMEOUT
@@ -221,9 +216,7 @@ async def _call_remote_fast(
     }
     t0 = time.monotonic()
     try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(timeout, connect=5.0, read=timeout, write=10.0)
-        ) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=5.0, read=timeout, write=10.0)) as client:
             r = await asyncio.wait_for(
                 client.post(base_url, headers=headers, json=payload),
                 timeout=timeout,
@@ -288,9 +281,7 @@ async def _call_remote_fast(
                 answer = strip_think_tags(answer)
                 answer = _links_to_plain_text(answer)
         except Exception as exc:
-            logger.debug(
-                "cost-aware chat fallback failed (user=%s, tier=%s): %s", user_id, tier, exc
-            )
+            logger.debug("cost-aware chat fallback failed (user=%s, tier=%s): %s", user_id, tier, exc)
             answer = ""
 
     if not answer:
@@ -438,9 +429,7 @@ async def _call_remote_llm(
     result = await _llm_mod._call_remote_fast(tier, messages, user_id, sources=sources)
     if result is not None:
         return result
-    logger.warning(
-        "remote LLM chain unavailable (user=%s, tier=%s) — graceful message", user_id, tier
-    )
+    logger.warning("remote LLM chain unavailable (user=%s, tier=%s) — graceful message", user_id, tier)
     return {
         "message": REMOTE_UNAVAILABLE_MESSAGE,
         "rag_count": len(sources or []),

@@ -110,9 +110,7 @@ def _env_queries(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
 
 
 IMPORTANCE_THRESHOLD: float = _env_float("RMI_NEWS_IMPORTANCE_THRESHOLD", 0.4)
-IMPORTANCE_QUERIES: tuple[str, ...] = _env_queries(
-    "RMI_NEWS_IMPORTANCE_QUERIES", DEFAULT_IMPORTANCE_QUERIES
-)
+IMPORTANCE_QUERIES: tuple[str, ...] = _env_queries("RMI_NEWS_IMPORTANCE_QUERIES", DEFAULT_IMPORTANCE_QUERIES)
 FOCUS_KEYWORDS: tuple[str, ...] = _env_queries("RMI_NEWS_FOCUS_KEYWORDS", ())
 MAX_ARTICLES_PER_BATCH: int = _env_int("RMI_NEWS_IMPORTANCE_MAX_BATCH", 100)
 
@@ -208,9 +206,7 @@ def _heuristic_importance(article: NewsArticle) -> float:
     try:
         from app.domains.news.ratings import rate_article
 
-        rating = rate_article(
-            title=article.title, content=article.body, source=article.source_channel
-        )
+        rating = rate_article(title=article.title, content=article.body, source=article.source_channel)
         score += abs(rating.sentiment_score) / 100.0 * 0.2
     except Exception:  # fail-open: sentiment is a bonus, never fatal
         logger.debug("importance:rate_article_fallback_failed", exc_info=True)
@@ -281,11 +277,7 @@ async def score_importance(
 
     batch = articles[:MAX_ARTICLES_PER_BATCH]
     if len(articles) > MAX_ARTICLES_PER_BATCH:
-        logger.warning(
-            "importance:batch_truncated articles=%s scored=%s",
-            len(articles),
-            MAX_ARTICLES_PER_BATCH,
-        )
+        logger.warning("importance:batch_truncated articles=%s scored=%s", len(articles), MAX_ARTICLES_PER_BATCH)
 
     texts = [_article_text(a) for a in batch]
     queries = _build_queries(focus_keywords)
@@ -296,9 +288,7 @@ async def score_importance(
         logger.debug("importance:reranker_breaker_skip fallback=heuristic")
         return _heuristic_scored(batch)
 
-    per_query: list[dict[int, float]] = await asyncio.gather(
-        *(_rerank_query(q, texts) for q in queries)
-    )
+    per_query: list[dict[int, float]] = await asyncio.gather(*(_rerank_query(q, texts) for q in queries))
 
     if not any(per_query):
         _consecutive_reranker_failures += 1
@@ -329,9 +319,7 @@ async def score_importance(
             if s > best_score:
                 best_score = s
                 best_query = query
-        scored.append(
-            ScoredArticle(article=article, importance=round(best_score, 4), best_query=best_query)
-        )
+        scored.append(ScoredArticle(article=article, importance=round(best_score, 4), best_query=best_query))
     return scored
 
 

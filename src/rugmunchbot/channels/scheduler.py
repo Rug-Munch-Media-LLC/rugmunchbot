@@ -95,6 +95,9 @@ import os
 import time
 from typing import TYPE_CHECKING, Any
 
+from telegram.constants import ParseMode
+from telegram.error import TelegramError
+
 from app.domains.news_ingest.models import NewsArticle
 from app.domains.telegram.rugmunchbot.channels import scheduler_state
 from app.domains.telegram.rugmunchbot.channels._media import send_news_photo
@@ -155,8 +158,6 @@ from app.domains.telegram.rugmunchbot.config import (
     _resolve_channel_id,
 )
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram.constants import ParseMode
-from telegram.error import TelegramError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
@@ -559,14 +560,10 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             reason="no_fresh",
         )
         return 0
-    main_items, channel_items, reranker_down = await _score_and_partition(
-        fresh, category="news", source="scanner"
-    )
+    main_items, channel_items, reranker_down = await _score_and_partition(fresh, category="news", source="scanner")
     posted = 0
     if channel_items:
-        ok = await _post_photo_aware(
-            ctx.bot, chat_id, format_alerts_post(channel_items), _safe_send
-        )
+        ok = await _post_photo_aware(ctx.bot, chat_id, format_alerts_post(channel_items), _safe_send)
         if ok:
             posted += 1
     main_chat_id = _chat_id("main")
@@ -574,9 +571,7 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         for item in sorted(main_items, key=lambda i: i.get("importance", 0.0), reverse=True):
             if not _remember("alertsmain", _dedupe_key("alertsmain", item)):
                 continue
-            ok = await _post_photo_aware(
-                ctx.bot, main_chat_id, format_main_escalation(item), _safe_send
-            )
+            ok = await _post_photo_aware(ctx.bot, main_chat_id, format_main_escalation(item), _safe_send)
             if ok:
                 posted += 1
     if posted:
@@ -651,9 +646,7 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # just spreads the day's notable scans across the day (~10/day at the
     # default 90m cadence).
     posted = 0
-    for item in sorted(keep, key=lambda i: i.get("importance", 0.0), reverse=True)[
-        :SCAN_CHANNEL_TICK_LIMIT
-    ]:
+    for item in sorted(keep, key=lambda i: i.get("importance", 0.0), reverse=True)[:SCAN_CHANNEL_TICK_LIMIT]:
         # One bounded witty one-liner per card (fail-open to no line).
         item = await attach_scan_commentary(item)
         ok = await _post_photo_aware(ctx.bot, chat_id, format_scan_card(item), _safe_send)
@@ -707,17 +700,9 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         smart_limit=ALPHA_CHANNEL_LIMIT,
         launch_limit=ALPHA_CHANNEL_LIMIT,
     )
-    whale_fresh = [
-        m for m in content["whale_moves"] if _remember("alpha:whale", _dedupe_key("whale", m))
-    ]
-    smart_fresh = [
-        w for w in content["smart_money"] if _remember("alpha:smart", _dedupe_key("smart", w))
-    ]
-    launch_fresh = [
-        item
-        for item in content["launches"]
-        if _remember("alpha:launch", _dedupe_key("launch", item))
-    ]
+    whale_fresh = [m for m in content["whale_moves"] if _remember("alpha:whale", _dedupe_key("whale", m))]
+    smart_fresh = [w for w in content["smart_money"] if _remember("alpha:smart", _dedupe_key("smart", w))]
+    launch_fresh = [item for item in content["launches"] if _remember("alpha:launch", _dedupe_key("launch", item))]
     swept = len(content["whale_moves"]) + len(content["smart_money"]) + len(content["launches"])
     scored = len(whale_fresh) + len(smart_fresh) + len(launch_fresh)
     if not scored:
@@ -762,9 +747,7 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         for item in escalated:
             if not _remember("alphamain", _dedupe_key("alphamain", item)):
                 continue
-            ok = await _post_photo_aware(
-                ctx.bot, main_chat_id, format_main_escalation(item), _safe_send
-            )
+            ok = await _post_photo_aware(ctx.bot, main_chat_id, format_main_escalation(item), _safe_send)
             if ok:
                 posted += 1
     if posted:

@@ -89,9 +89,7 @@ def _resolution_status(closed: bool | None, end_date: str | None) -> str:
 async def _backend_predictions(limit: int) -> list[dict[str, Any]] | None:
     """Our backend /api/v1/market/predictions — reuses the existing
     Polymarket provider (Gamma, backend-cached)."""
-    body = await backend_json_get(
-        "/api/v1/market/predictions", params={"limit": limit}, timeout=8.0
-    )
+    body = await backend_json_get("/api/v1/market/predictions", params={"limit": limit}, timeout=8.0)
     items = body.get("items") if isinstance(body, dict) else None
     if not isinstance(items, list) or not items:
         return None
@@ -234,9 +232,7 @@ async def _kalshi_markets(limit: int) -> list[dict[str, Any]] | None:
                 "price_change_1w": None,
                 "price_change_1m": None,
                 "change_24h": None,  # not exposed by Kalshi — honest null
-                "resolution_status": _resolution_status(
-                    bool(m.get("status") == "closed"), m.get("close_time")
-                ),
+                "resolution_status": _resolution_status(bool(m.get("status") == "closed"), m.get("close_time")),
                 "resolves_at": m.get("close_time") or "",
                 "category": (m.get("category") or "")[:40],
                 "source": "kalshi:trade-api/v2/markets (public, no auth)",
@@ -310,9 +306,7 @@ async def prediction_markets(*, limit: int = 8, venue: str = "all") -> ToolResul
         },
         symbols=[],
         addresses=[],
-        source=", ".join(k for k, ok in venues.items() if ok)
-        if any(venues.values())
-        else "no-live-source",
+        source=", ".join(k for k, ok in venues.items() if ok) if any(venues.values()) else "no-live-source",
     )
 
 

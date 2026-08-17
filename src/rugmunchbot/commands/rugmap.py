@@ -16,12 +16,8 @@ import io
 from typing import Any, cast
 
 import httpx
-from app.domains.telegram.rugmunchbot.config import (
-    BACKEND_URL,
-    DEXSCREENER,
-    WEBSITE_URL,
-    backend_headers,
-)
+
+from app.domains.telegram.rugmunchbot.config import BACKEND_URL, DEXSCREENER, WEBSITE_URL, backend_headers
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
 
@@ -168,12 +164,7 @@ def render_bubble_map_png(
         if is_center:
             for r in range(int(radius) + 6, int(radius) + 2, -2):
                 draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 200, 0, 30))
-        draw.ellipse(
-            [cx - radius, cy - radius, cx + radius, cy + radius],
-            fill=col,
-            outline=(232, 234, 237),
-            width=2,
-        )
+        draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=col, outline=(232, 234, 237), width=2)
         label = str(node.get("label") or "")[:10] or node_id(node)[:8]
         bbox = draw.textbbox((0, 0), label, font=small)
         lw = bbox[2] - bbox[0]
@@ -191,10 +182,7 @@ def render_bubble_map_png(
     draw.ellipse([310, legend_y, 324, legend_y + 12], fill=(66, 165, 245))
     draw.text((328, legend_y), "Unknown", font=small, fill=text_c)
     draw.text(
-        (16, legend_y + 18),
-        "Bubble size = wallet weight  ·  Arrow = fund flow direction",
-        font=small,
-        fill=text_c,
+        (16, legend_y + 18), "Bubble size = wallet weight  ·  Arrow = fund flow direction", font=small, fill=text_c
     )
 
     try:
@@ -207,9 +195,7 @@ def render_bubble_map_png(
         return None
 
 
-async def _fetch_token_graph(
-    client: httpx.AsyncClient, address: str, chain: str
-) -> dict[str, Any] | None:
+async def _fetch_token_graph(client: httpx.AsyncClient, address: str, chain: str) -> dict[str, Any] | None:
     """Fetch the token holder graph from the backend RugMaps engine."""
     try:
         r = await client.get(
@@ -287,13 +273,7 @@ async def cmd_rugmap(update, ctx) -> None:
                 fresh_wallet_pct = data.get("fresh_wallet_pct", 0)
                 smart_money = data.get("smart_money", [])
                 top_holders = data.get("top_holders", [])
-        except (
-            ConnectionError,
-            OSError,
-            TimeoutError,
-            httpx.HTTPError,
-            httpx.TimeoutException,
-        ) as exc:
+        except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
             logger.debug("RMI backend call failed: %s", exc)
 
         # DexScreener for basic info
@@ -307,13 +287,7 @@ async def cmd_rugmap(update, ctx) -> None:
                     name = p.get("baseToken", {}).get("name", "Unknown")
                     liquidity = float(p.get("liquidity", {}).get("usd", 0))
                     chain = chain or p.get("chainId", "")
-        except (
-            ConnectionError,
-            OSError,
-            TimeoutError,
-            httpx.HTTPError,
-            httpx.TimeoutException,
-        ) as exc:
+        except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
             logger.debug("DexScreener fallback failed: %s", exc)
 
         # ── Use branded visual engine. Pillow rendering is CPU-bound — run it
@@ -353,12 +327,8 @@ async def cmd_rugmap(update, ctx) -> None:
             kb = InlineKeyboardMarkup(
                 [
                     [
-                        InlineKeyboardButton(
-                            "📊 View Chart", callback_data=f"chart_{address}_{chain}"
-                        ),
-                        InlineKeyboardButton(
-                            "🔍 Deep Scan", callback_data=f"deep_{address}_{chain}"
-                        ),
+                        InlineKeyboardButton("📊 View Chart", callback_data=f"chart_{address}_{chain}"),
+                        InlineKeyboardButton("🔍 Deep Scan", callback_data=f"deep_{address}_{chain}"),
                     ],
                     [InlineKeyboardButton("🏠 Menu", callback_data="menu_main")],
                 ]
@@ -415,9 +385,7 @@ async def cmd_rugmap(update, ctx) -> None:
         if top_holders:
             lines.append("  💰 Funding → 🏦 Exchange")
             lines.append("  👛 Dev Wallet → 🗂️ Distribution Wallets")
-            lines.append(
-                f"  📊 Top {min(len(top_holders), 5)} Holders → 🔗 {len(top_holders)} connections"
-            )
+            lines.append(f"  📊 Top {min(len(top_holders), 5)} Holders → 🔗 {len(top_holders)} connections")
         else:
             lines.append("  No cluster data available")
 
@@ -435,9 +403,7 @@ async def cmd_rugmap(update, ctx) -> None:
 
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
         logger.error(f"RugMap failed: {e}")
-        await msg.reply_text(
-            "❌ Could not generate rug map.\n\nPlease try again in a moment.", parse_mode="HTML"
-        )
+        await msg.reply_text("❌ Could not generate rug map.\n\nPlease try again in a moment.", parse_mode="HTML")
 
 
 def _guess_chain(address: str) -> str:

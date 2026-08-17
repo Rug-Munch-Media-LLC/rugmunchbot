@@ -25,6 +25,8 @@ import asyncio
 import html
 from typing import TYPE_CHECKING
 
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.formatters import (
     format_deep_ml_scan_report,
@@ -39,7 +41,6 @@ from app.domains.telegram.rugmunchbot.handlers._messages import (
 from app.domains.telegram.rugmunchbot.keyboards import back_kb
 from app.domains.telegram.rugmunchbot.states import check_spam, is_owner
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update

@@ -108,37 +108,15 @@ class ScamSourceType(StrEnum):
 _DIALOG_HEURISTICS: tuple[tuple[ScamSourceType, tuple[str, ...]], ...] = (
     (
         ScamSourceType.SEED_PHRASE_SCAM,
-        (
-            "seed phrase",
-            "private key",
-            "wallet drain",
-            "wallet recovery",
-            "12 words",
-            "recover wallet",
-            "sync wallet",
-        ),
+        ("seed phrase", "private key", "wallet drain", "wallet recovery", "12 words", "recover wallet", "sync wallet"),
     ),
     (
         ScamSourceType.FAKE_AIRDROP,
-        (
-            "airdrop",
-            "presale",
-            "giveaway",
-            "free coins",
-            "free tokens",
-            "claim bonus",
-            "whitelist spot",
-        ),
+        ("airdrop", "presale", "giveaway", "free coins", "free tokens", "claim bonus", "whitelist spot"),
     ),
-    (
-        ScamSourceType.PUMP_GROUP,
-        ("pump", "pnd", "pump and dump", "pump group", "pump signal", "pumps"),
-    ),
+    (ScamSourceType.PUMP_GROUP, ("pump", "pnd", "pump and dump", "pump group", "pump signal", "pumps")),
     (ScamSourceType.SHILL_CHANNEL, ("shill", "shiller", "shillx", "promo")),
-    (
-        ScamSourceType.ALPHA_RUG_SHILL,
-        ("alpha", "100x", "1000x", "moon", "mooner", "gem", "calls", "signals"),
-    ),
+    (ScamSourceType.ALPHA_RUG_SHILL, ("alpha", "100x", "1000x", "moon", "mooner", "gem", "calls", "signals")),
     (ScamSourceType.SCAM_TOKEN_CHANNEL, ("rug", "honeypot", "scam token", "scam coin")),
 )
 
@@ -314,9 +292,7 @@ def _classify_dialog(title: str, username: str) -> ScamSourceType | None:
     return None
 
 
-async def discover_scam_channels(
-    client: Any, max_discovered: int | None = None
-) -> list[dict[str, Any]]:
+async def discover_scam_channels(client: Any, max_discovered: int | None = None) -> list[dict[str, Any]]:
     """Auto-discover scam/shill channels from the followed dialogs list.
 
     Reuses ``app.domains.news_ingest.discovery.discover_followed_channels``
@@ -492,9 +468,7 @@ def extract_token_addresses(article: NewsArticle) -> tuple[list[dict[str, str]],
                 tickers.append(ticker)
         elif kind in ("evm", "solana") and entity not in seen:
             seen.add(entity)
-            addresses.append(
-                {"address": entity, "chain": "ethereum" if kind == "evm" else "solana"}
-            )
+            addresses.append({"address": entity, "chain": "ethereum" if kind == "evm" else "solana"})
     return addresses, tickers
 
 

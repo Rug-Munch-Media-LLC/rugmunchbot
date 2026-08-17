@@ -253,9 +253,7 @@ async def _fetch_news(limit: int = NEWS_LIMIT) -> list[str]:
 
 async def _fetch_trending(limit: int = TRENDING_LIMIT) -> list[str]:
     """Top trending token labels (name/symbol + 24h change + address)."""
-    body = await backend_get_json(
-        TRENDING_PATH, params={"limit": limit}, timeout_secs=FETCH_TIMEOUT
-    )
+    body = await backend_get_json(TRENDING_PATH, params={"limit": limit}, timeout_secs=FETCH_TIMEOUT)
     if not body:
         return []
     items = body.get("items") or []
@@ -306,9 +304,7 @@ async def _enrich_token_name(item: dict[str, Any]) -> dict[str, Any]:
         return item
 
     try:
-        body = await http_get_json(
-            f"https://api.dexscreener.com/latest/dex/tokens/{addr}", timeout=5
-        )
+        body = await http_get_json(f"https://api.dexscreener.com/latest/dex/tokens/{addr}", timeout=5)
         if body:
             pairs = body.get("pairs", [])
             if pairs:

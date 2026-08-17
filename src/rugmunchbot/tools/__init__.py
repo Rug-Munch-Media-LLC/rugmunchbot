@@ -71,20 +71,14 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     from app.domains.telegram.rugmunchbot.tools.market import market_overview
     from app.domains.telegram.rugmunchbot.tools.market_condition import market_condition
     from app.domains.telegram.rugmunchbot.tools.onchain import smart_money, top_traders
-    from app.domains.telegram.rugmunchbot.tools.pattern_memory import (
-        register_tool as _register_pattern_memory,
-    )
-    from app.domains.telegram.rugmunchbot.tools.prediction_markets import (
-        register_tool as _register_prediction_markets,
-    )
+    from app.domains.telegram.rugmunchbot.tools.pattern_memory import register_tool as _register_pattern_memory
+    from app.domains.telegram.rugmunchbot.tools.prediction_markets import register_tool as _register_prediction_markets
     from app.domains.telegram.rugmunchbot.tools.price import price_lookup
     from app.domains.telegram.rugmunchbot.tools.rag_lookup import rag_lookup
     from app.domains.telegram.rugmunchbot.tools.security import security_scan, wallet_analysis
     from app.domains.telegram.rugmunchbot.tools.story_fetch import story_fetch
     from app.domains.telegram.rugmunchbot.tools.ta import register_tool as _register_ta
-    from app.domains.telegram.rugmunchbot.tools.trend_algo import (
-        register_tool as _register_trend_algo,
-    )
+    from app.domains.telegram.rugmunchbot.tools.trend_algo import register_tool as _register_trend_algo
     from app.domains.telegram.rugmunchbot.tools.trending import news_headlines, trending
     from app.domains.telegram.rugmunchbot.tools.web import web_search
 

@@ -14,6 +14,9 @@ import re
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
@@ -30,8 +33,6 @@ from app.domains.telegram.rugmunchbot.formatters import (
 from app.domains.telegram.rugmunchbot.keyboards import paywall_kb
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -62,9 +63,7 @@ _TOPIC_SUGGESTIONS = {
 }
 
 
-async def _query_rag(
-    query: str, collections: list[str] | None = None, top_k: int = 5
-) -> list[dict[str, Any]]:
+async def _query_rag(query: str, collections: list[str] | None = None, top_k: int = 5) -> list[dict[str, Any]]:
     """Query the RAG system across multiple collections."""
     if collections is None:
         collections = _RESEARCH_COLLECTIONS
@@ -193,9 +192,7 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         kb_rows = []
         for key, desc in list(_TOPIC_SUGGESTIONS.items())[:6]:
             kb_rows.append([InlineKeyboardButton(desc[:35], callback_data=f"research_{key}")])
-        kb_rows.append(
-            [InlineKeyboardButton("\U0001f310 Full Web Research", url=f"{WEBSITE_URL}/research")]
-        )
+        kb_rows.append([InlineKeyboardButton("\U0001f310 Full Web Research", url=f"{WEBSITE_URL}/research")])
         kb_rows.append([InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")])
 
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
@@ -285,38 +282,21 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             chain = "solana" if SOL_RE.match(address) else "ethereum"
             kb = InlineKeyboardMarkup(
                 [
+                    [InlineKeyboardButton("\U0001f50d Full Scan", callback_data=f"scan_{address}_{chain}")],
+                    [InlineKeyboardButton("\U0001f9db Wallet Check", callback_data=f"wallet_{address}_{chain}")],
                     [
                         InlineKeyboardButton(
-                            "\U0001f50d Full Scan", callback_data=f"scan_{address}_{chain}"
+                            "\U0001f52c Deep Investigate", callback_data=f"investigate_{address}_{chain}"
                         )
                     ],
-                    [
-                        InlineKeyboardButton(
-                            "\U0001f9db Wallet Check", callback_data=f"wallet_{address}_{chain}"
-                        )
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            "\U0001f52c Deep Investigate",
-                            callback_data=f"investigate_{address}_{chain}",
-                        )
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            "\U0001f310 Web Report", url=f"{WEBSITE_URL}/markets/token/{address}"
-                        )
-                    ],
+                    [InlineKeyboardButton("\U0001f310 Web Report", url=f"{WEBSITE_URL}/markets/token/{address}")],
                     [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
                 ]
             )
         else:
             kb = InlineKeyboardMarkup(
                 [
-                    [
-                        InlineKeyboardButton(
-                            "\U0001f310 Research on Web", url=f"{WEBSITE_URL}/research"
-                        )
-                    ],
+                    [InlineKeyboardButton("\U0001f310 Research on Web", url=f"{WEBSITE_URL}/research")],
                     [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
                 ]
             )
@@ -325,16 +305,10 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
         # Handle long messages
         if len(formatted) > 4000:
-            summary = (
-                formatted[:3500] + f"\n\n... <i>Result truncated. {len(hits)} documents found.</i>"
-            )
-            await msg.edit_text(
-                summary, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True
-            )
+            summary = formatted[:3500] + f"\n\n... <i>Result truncated. {len(hits)} documents found.</i>"
+            await msg.edit_text(summary, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)
         else:
-            await msg.edit_text(
-                formatted, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True
-            )
+            await msg.edit_text(formatted, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)
 
     except (httpx.HTTPError, ConnectionError, TimeoutError, ValueError, KeyError, TypeError) as e:
         logger.debug("cmd_research_error", exc_info=True)

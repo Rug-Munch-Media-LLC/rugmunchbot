@@ -205,9 +205,7 @@ _INTENT_RULES: list[tuple[re.Pattern[str], str]] = [
         ),
     ),
     (
-        re.compile(
-            r"\b(compare|vs |versus|better than|which (is|one)|difference)\b", re.IGNORECASE
-        ),
+        re.compile(r"\b(compare|vs |versus|better than|which (is|one)|difference)\b", re.IGNORECASE),
         (
             "\u2696\ufe0f <b>Token Comparison</b>\n\n"
             "Use <code>/compare &lt;addr1&gt; &lt;addr2&gt;</code> to pit two tokens "

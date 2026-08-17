@@ -133,9 +133,7 @@ async def ingest_into_rag(articles: list[NewsArticle]) -> dict[str, Any]:
                 )
                 return report
 
-        reports = await asyncio.gather(
-            *(_ingest_story(doc) for doc in story_docs), return_exceptions=True
-        )
+        reports = await asyncio.gather(*(_ingest_story(doc) for doc in story_docs), return_exceptions=True)
         for report in reports:
             if isinstance(report, BaseException):
                 counts["errors"] += 1

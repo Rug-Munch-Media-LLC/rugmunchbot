@@ -60,9 +60,7 @@ _CHAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
 def _detect_chains(text: str) -> list[str]:
     """Ordered chain mentions found in article text."""
     lowered = (text or "").lower()
-    return [
-        chain for chain, keywords in _CHAIN_KEYWORDS.items() if any(k in lowered for k in keywords)
-    ]
+    return [chain for chain, keywords in _CHAIN_KEYWORDS.items() if any(k in lowered for k in keywords)]
 
 
 def _tokens_from_entities(entities: list[str]) -> list[str]:
@@ -78,13 +76,12 @@ def _article_to_news_item(article: NewsArticle) -> Any | None:
     bias/sentiment/factual/tier columns on the website.
     """
     try:
-        from app.catalog.models import NewsItem, utcnow
-        from app.domains.news.ratings import rate_article
         from pydantic import HttpUrl
 
-        rating = rate_article(
-            title=article.title, content=article.body, source=article.source_channel
-        )
+        from app.catalog.models import NewsItem, utcnow
+        from app.domains.news.ratings import rate_article
+
+        rating = rate_article(title=article.title, content=article.body, source=article.source_channel)
         published = article.posted_at if article.posted_at is not None else utcnow()
         # ``news_id`` stays derived from the stable t.me URL (dedup key), but
         # the stored ``url`` prefers the canonical source URL so the website
@@ -110,9 +107,7 @@ def _article_to_news_item(article: NewsArticle) -> Any | None:
             rating_confidence=rating.confidence,
         )
     except Exception as exc:  # fail-open: a malformed article never aborts the batch
-        logger.warning(
-            "tg_news:article_build_failed title=%s err=%s", article.title[:60], str(exc)[:160]
-        )
+        logger.warning("tg_news:article_build_failed title=%s err=%s", article.title[:60], str(exc)[:160])
         return None
 
 
@@ -140,9 +135,7 @@ async def _ensure_postgres_health(catalog: Any) -> bool:
                 import asyncpg
 
                 cfg = getattr(catalog, "config", None)
-                pg: dict[str, Any] = (
-                    (cfg or {}).get("postgres", {}) if isinstance(cfg, dict) else {}
-                )
+                pg: dict[str, Any] = (cfg or {}).get("postgres", {}) if isinstance(cfg, dict) else {}
                 if not pg.get("password"):
                     return False
                 catalog._pg_pool = await asyncio.wait_for(
@@ -208,9 +201,7 @@ async def persist_articles(articles: list[NewsArticle]) -> dict[str, int]:
         async with catalog._pg_pool.acquire() as conn:
             for article, item in items:
                 try:
-                    existing = await conn.fetchval(
-                        "SELECT 1 FROM news_items WHERE news_id=$1", item.news_id
-                    )
+                    existing = await conn.fetchval("SELECT 1 FROM news_items WHERE news_id=$1", item.news_id)
                     if existing:
                         counts["duplicate"] += 1
                         continue
@@ -249,9 +240,7 @@ async def persist_articles(articles: list[NewsArticle]) -> dict[str, int]:
                     mark_articles_ingested([article], DEFAULT_DEDUP_COLLECTION)
                 except Exception:  # fail-open per item
                     counts["errors"] += 1
-                    logger.debug(
-                        "tg_news:item_insert_failed news_id=%s", item.news_id, exc_info=True
-                    )
+                    logger.debug("tg_news:item_insert_failed news_id=%s", item.news_id, exc_info=True)
     except Exception as exc:  # fail-open: an outage never crashes the job
         logger.warning("tg_news:persist_failed err=%s", str(exc)[:200])
         counts["errors"] = len(articles)

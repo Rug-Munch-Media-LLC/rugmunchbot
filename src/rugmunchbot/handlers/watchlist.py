@@ -10,6 +10,9 @@ from __future__ import annotations
 import secrets
 from typing import TYPE_CHECKING
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram.constants import ParseMode
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import SCAN_PACKS, TIERS
 from app.domains.telegram.rugmunchbot.formatters import (
@@ -20,8 +23,6 @@ from app.domains.telegram.rugmunchbot.formatters import (
 )
 from app.domains.telegram.rugmunchbot.handlers.alerts import _unsubscribe_backend_monitor
 from app.domains.telegram.rugmunchbot.keyboards import back_kb, pricing_kb, token_buttons
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -52,9 +53,7 @@ async def cmd_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
     tier = db.get_user_tier(user.id)
-    text = (
-        f"\U0001f440 <b>Watchlist</b> ({TIERS[tier]['emoji']} {TIERS[tier]['name']})\n{sep()}\n\n"
-    )
+    text = f"\U0001f440 <b>Watchlist</b> ({TIERS[tier]['emoji']} {TIERS[tier]['name']})\n{sep()}\n\n"
     monitors = {m["token_address"].lower() for m in db.get_monitors(user.id)}
     for i, w in enumerate(items, 1):
         alert = ""
@@ -135,9 +134,7 @@ async def cmd_unwatch(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f"\u2705 Removed <code>{addr}</code> from watchlist.", parse_mode=ParseMode.HTML
         )
     else:
-        await update.message.reply_text(
-            "\u274c Token not found in your watchlist.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text("\u274c Token not found in your watchlist.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
 
 
 # ── Monitor (Stars-paid premium feature) ─────────────────────────────────
@@ -237,7 +234,9 @@ async def cmd_monitors(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     text = f"\U0001f6f0\ufe0f <b>Active Monitors</b>\n{sep()}\n\n"
     for m in items:
-        text += f"\u2022 <b>{m.get('symbol') or '???'}</b> <code>{m['token_address']}</code> ({m.get('chain') or '?'})\n"
+        text += (
+            f"\u2022 <b>{m.get('symbol') or '???'}</b> <code>{m['token_address']}</code> ({m.get('chain') or '?'})\n"
+        )
     text += f"\nStop: /unmonitor <code>address</code>\n{footer_links()}"
     await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
@@ -264,6 +263,4 @@ async def cmd_unmonitor(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f"\u2705 Stopped monitoring <code>{addr}</code>.", parse_mode=ParseMode.HTML
         )
     else:
-        await update.message.reply_text(
-            "\u274c No active monitor for that token.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text("\u274c No active monitor for that token.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields

@@ -92,9 +92,7 @@ async def _build_fallback_answer(
     live_tools_task: asyncio.Task[dict[str, ToolResult]],
     rag_task: asyncio.Task[ToolResult | None] | None,
     router_ctx_task: asyncio.Task[tuple[str, list[dict[str, str]]]] | None = None,
-) -> tuple[
-    dict[str, Any] | None, list[dict[str, str]], list[dict[str, str]], ToolResult | None, bool
-]:
+) -> tuple[dict[str, Any] | None, list[dict[str, str]], list[dict[str, str]], ToolResult | None, bool]:
     """Backend-less answer path: gather the fail-open context fetches that
     ground the remote LLM fallback chain.
 
@@ -274,9 +272,7 @@ async def _build_fallback_answer(
     if not result or result.get("provider") == "unavailable":
         try:
             if not live_tools_task.done():
-                fallback_live_results = await _run_live_tools_bounded(
-                    live_tools_task, TOOL_ANSWER_EXTRA_WAIT
-                )
+                fallback_live_results = await _run_live_tools_bounded(live_tools_task, TOOL_ANSWER_EXTRA_WAIT)
             tool_answer = _format_tool_answer(fallback_live_results)
         except Exception as exc:
             logger.warning("fallback tools-only answer failed (user=%s): %s", user.id, exc)

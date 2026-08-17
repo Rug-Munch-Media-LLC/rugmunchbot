@@ -12,6 +12,7 @@ import re
 from typing import Any, cast
 
 import httpx
+
 from app.domains.telegram.rugmunchbot.config import backend_headers
 from app.domains.telegram.rugmunchbot.formatters import detect_chain
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._markup import _format_scan_summary
@@ -75,9 +76,7 @@ async def _fetch_bridge_context(
     ``None`` on any failure so chat never blocks on it.
     """
     try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(BRIDGE_TIMEOUT, connect=3.0, read=BRIDGE_TIMEOUT)
-        ) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(BRIDGE_TIMEOUT, connect=3.0, read=BRIDGE_TIMEOUT)) as client:
             r = await client.post(
                 BRIDGE_CONTEXT_ENDPOINT,
                 json={"message": message[:8000], "history": history},
@@ -99,13 +98,7 @@ async def _fetch_bridge_context(
         return None
     # Order matters: scanner (address-specific) > web (live) > rag > market.
     parts: list[str] = []
-    for key in (
-        "scanner_context",
-        "web_context",
-        "rag_context",
-        "market_context",
-        "rundown_context",
-    ):
+    for key in ("scanner_context", "web_context", "rag_context", "market_context", "rundown_context"):
         val = (blocks.get(key) or "").strip()
         if val:
             # Strip meta-instructions the bridge embeds for ITS OWN llama call

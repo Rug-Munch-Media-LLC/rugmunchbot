@@ -17,11 +17,7 @@ from typing import Any
 from app.domains.telegram.rugmunchbot.config import BACKEND_URL, DEXSCREENER, backend_headers
 from app.domains.telegram.rugmunchbot.handlers._market_helpers import _merge_trending_sources
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import (
-    get_shared_client,
-    http_get_any,
-    http_get_json,
-)
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client, http_get_any, http_get_json
 
 logger = get_logger("rmi_bot")
 
@@ -50,9 +46,7 @@ async def _fetch_cg_trending_news() -> list[dict[str, Any]] | None:
     return items
 
 
-async def _fetch_dexscreener_trending(
-    chain: str = "solana", limit: int = 20
-) -> list[dict[str, Any]] | None:
+async def _fetch_dexscreener_trending(chain: str = "solana", limit: int = 20) -> list[dict[str, Any]] | None:
     """Fetch trending from DexScreener token boosts, then enrich with token details."""
     try:
         client = get_shared_client(15)
@@ -78,9 +72,7 @@ async def _fetch_dexscreener_trending(
 
             async with semaphore:
                 try:
-                    r = await client.get(
-                        f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8
-                    )
+                    r = await client.get(f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8)
                     if r.status_code != 200:
                         return None
                     data = r.json()
@@ -142,9 +134,7 @@ async def _fetch_dexscreener_trending(
         return None
 
 
-async def _fetch_dexscreener_fresh_launches(
-    chain: str = "solana", limit: int = 12
-) -> list[dict[str, Any]] | None:
+async def _fetch_dexscreener_fresh_launches(chain: str = "solana", limit: int = 12) -> list[dict[str, Any]] | None:
     """Freshly deployed tokens from DexScreener token-profiles (pump.fun etc.).
 
     ``/token-profiles/latest/v1`` is the same feed the trending algorithm
@@ -155,9 +145,7 @@ async def _fetch_dexscreener_fresh_launches(
     """
     try:
         client = get_shared_client(15)
-        profiles = await http_get_any(
-            "https://api.dexscreener.com/token-profiles/latest/v1", timeout=15
-        )
+        profiles = await http_get_any("https://api.dexscreener.com/token-profiles/latest/v1", timeout=15)
         if not isinstance(profiles, list) or not profiles:
             return None
 
@@ -176,9 +164,7 @@ async def _fetch_dexscreener_fresh_launches(
 
             async with semaphore:
                 try:
-                    r = await client.get(
-                        f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8
-                    )
+                    r = await client.get(f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8)
                     if r.status_code != 200:
                         return None
                     pairs = r.json().get("pairs", [])
@@ -220,9 +206,7 @@ async def _fetch_dexscreener_fresh_launches(
         return None
 
 
-async def _fetch_fused_trending(
-    chain: str = "solana", limit: int = 20
-) -> list[dict[str, Any]] | None:
+async def _fetch_fused_trending(chain: str = "solana", limit: int = 20) -> list[dict[str, Any]] | None:
     """Fetch and fuse trending from degen sources with enrichment.
 
     Sources (no CoinGecko search-score — it has no contract addresses and is
@@ -261,9 +245,7 @@ async def _fetch_fused_trending(
     return enriched
 
 
-async def _fetch_rugcharts_trending(
-    chain: str = "solana", limit: int = 8
-) -> list[dict[str, Any]] | None:
+async def _fetch_rugcharts_trending(chain: str = "solana", limit: int = 8) -> list[dict[str, Any]] | None:
     """Fetch trending tokens from the RugCharts backend."""
     try:
         body = await http_get_json(

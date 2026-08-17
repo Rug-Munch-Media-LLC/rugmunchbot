@@ -227,9 +227,7 @@ class SchedulerState:
             await r.expire(skey, _DEFAULT_TTL)
         except Exception as exc:  # fail-open by contract
             self._mark_down()
-            logger.debug(
-                "channels:state_remember_failed channel=%s err=%s", channel, str(exc)[:120]
-            )
+            logger.debug("channels:state_remember_failed channel=%s err=%s", channel, str(exc)[:120])
 
     def reset(self) -> None:
         """Clear cached client + state (tests / config reload)."""

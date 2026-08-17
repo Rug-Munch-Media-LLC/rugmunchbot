@@ -39,9 +39,7 @@ _RUN_CARDS: dict[str, str] = {
         "Global market cap, 24h volume, BTC/ETH dominance, fear & greed "
         "index and top-asset movers \u2014 refreshed live from the backend."
     ),
-    "movers": (
-        "\U0001f680 <b>24h Market Movers</b>\n\nTop gainers and losers across the market over the last 24h."
-    ),
+    "movers": ("\U0001f680 <b>24h Market Movers</b>\n\nTop gainers and losers across the market over the last 24h."),
     "launches": (
         "\U0001f195 <b>New Token Launches</b>\n\n"
         "Freshly launched tokens with bundler flags \u2014 always "

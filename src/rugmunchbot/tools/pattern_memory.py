@@ -395,17 +395,14 @@ async def pattern_recall(
         )
 
     if matches:
-        parts = [
-            f"{count}x {label}"
-            for label, count in sorted(outcome_counts.items(), key=lambda kv: (-kv[1], kv[0]))
-        ]
+        parts = [f"{count}x {label}" for label, count in sorted(outcome_counts.items(), key=lambda kv: (-kv[1], kv[0]))]
         plural = "s" if len(matches) != 1 else ""
-        summary = f"{len(matches)} similar pattern{plural} seen before (of {len(patterns)} in memory): {', '.join(parts)}"
+        summary = (
+            f"{len(matches)} similar pattern{plural} seen before (of {len(patterns)} in memory): {', '.join(parts)}"
+        )
     else:
         plural = "s" if len(patterns) != 1 else ""
-        summary = (
-            f"No similar patterns in memory ({len(patterns)} pattern{plural} stored, none matched)."
-        )
+        summary = f"No similar patterns in memory ({len(patterns)} pattern{plural} stored, none matched)."
 
     return ToolResult(
         tool="pattern_recall",

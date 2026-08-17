@@ -7,6 +7,13 @@ All inline keyboard markup generators in one place.
 
 from __future__ import annotations
 
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
+
 from app.domains.telegram.rugmunchbot.config import (
     BUY_STARS_PACKS,
     CHANNELS,
@@ -26,17 +33,9 @@ from app.domains.telegram.rugmunchbot.formatters import (
     web_scan_button,
 )
 from app.domains.telegram.rugmunchbot.handlers._help_text import CODEBERG_ORG
-from telegram import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    KeyboardButton,
-    ReplyKeyboardMarkup,
-)
 
 
-def token_buttons(
-    address: str, chain: str, *, include_scan: bool = True
-) -> list[InlineKeyboardButton]:
+def token_buttons(address: str, chain: str, *, include_scan: bool = True) -> list[InlineKeyboardButton]:
     """Tap-to-action row for any token display: [📊 Scan] [📈 Chart] [🔍 Explorer].
 
     Scan re-runs the security scan via the ``scan_`` callback; Chart opens
@@ -46,9 +45,7 @@ def token_buttons(
     """
     buttons: list[InlineKeyboardButton] = []
     if include_scan:
-        buttons.append(
-            InlineKeyboardButton("\U0001f4ca Scan", callback_data=f"scan_{address}_{chain}")
-        )
+        buttons.append(InlineKeyboardButton("\U0001f4ca Scan", callback_data=f"scan_{address}_{chain}"))
     buttons.append(InlineKeyboardButton("\U0001f4c8 Chart", url=dexscreener_url(address, chain)))
     buttons.append(InlineKeyboardButton("\U0001f50d Explorer", url=explorer_url(address, chain)))
     return buttons
@@ -102,9 +99,7 @@ def _main_menu_rows(user_id: int | None = None) -> list[list[InlineKeyboardButto
     ]
     # Owner-only admin button — hidden from everyone else.
     if user_id is not None and is_owner(user_id):
-        rows.append(
-            [InlineKeyboardButton("\U0001f6e1\ufe0f Admin", callback_data="menu_cat_admin")]
-        )
+        rows.append([InlineKeyboardButton("\U0001f6e1\ufe0f Admin", callback_data="menu_cat_admin")])
     return rows
 
 
@@ -416,11 +411,7 @@ def category_help_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("\U0001f419 Open Source", url=CODEBERG_ORG)],
     ]
     channels_row = []
-    for key, label in (
-        ("alerts", "\U0001f4e2 Alerts"),
-        ("alpha", "\U0001f680 Alpha"),
-        ("news", "\U0001f4f0 News"),
-    ):
+    for key, label in (("alerts", "\U0001f4e2 Alerts"), ("alpha", "\U0001f680 Alpha"), ("news", "\U0001f4f0 News")):
         url = _channel_public_url(key)
         if url is not None:
             channels_row.append(InlineKeyboardButton(label, url=url))
@@ -456,15 +447,11 @@ def admin_kb() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("\U0001f465 User Lookup", callback_data="admin_user_prompt"),
             ],
             [
-                InlineKeyboardButton(
-                    "\U0001f4e2 Broadcast", callback_data="admin_broadcast_prompt"
-                ),
+                InlineKeyboardButton("\U0001f4e2 Broadcast", callback_data="admin_broadcast_prompt"),
                 InlineKeyboardButton("\U0001f4dd Logs", callback_data="admin_logs"),
             ],
             [
-                InlineKeyboardButton(
-                    "\U0001f6e1\ufe0f Bot ON/OFF", callback_data="admin_toggle_bot"
-                ),
+                InlineKeyboardButton("\U0001f6e1\ufe0f Bot ON/OFF", callback_data="admin_toggle_bot"),
                 InlineKeyboardButton("\U0001f4ac Chat ON/OFF", callback_data="admin_toggle_chat"),
             ],
             [InlineKeyboardButton("\U0001f3d9\ufe0f Main Menu", callback_data="menu_main")],
@@ -518,23 +505,16 @@ def scan_actions_kb(address: str, chain: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton(
-                    "\U0001f4c8 View Chart", callback_data=f"chart_{address}_{chain}"
-                ),
-                InlineKeyboardButton(
-                    "\U0001f5fa\ufe0f View RugMap", callback_data=f"rugmap_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f4c8 View Chart", callback_data=f"chart_{address}_{chain}"),
+                InlineKeyboardButton("\U0001f5fa\ufe0f View RugMap", callback_data=f"rugmap_{address}_{chain}"),
             ],
             [
                 InlineKeyboardButton("\U0001f4e4 Share", url=_share_token_url(address, chain)),
-                InlineKeyboardButton(
-                    "\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"),
             ],
             [
                 InlineKeyboardButton(
-                    "\U0001f6f0\ufe0f Monitor (250\u2605)",
-                    callback_data=f"monitor_{address}_{chain}",
+                    "\U0001f6f0\ufe0f Monitor (250\u2605)", callback_data=f"monitor_{address}_{chain}"
                 ),
                 InlineKeyboardButton("\U0001f3d9\ufe0f Main Menu", callback_data="menu_main"),
             ],
@@ -554,32 +534,22 @@ def scan_result_kb(address: str, chain: str) -> InlineKeyboardMarkup:
         [web_scan_button(address, chain)],
         [
             InlineKeyboardButton("\U0001f465 Holders", callback_data=f"holders_{address}_{chain}"),
-            InlineKeyboardButton(
-                "\U0001f50d Research", callback_data=f"research_{address}_{chain}"
-            ),
+            InlineKeyboardButton("\U0001f50d Research", callback_data=f"research_{address}_{chain}"),
         ],
         [
-            InlineKeyboardButton(
-                "\U0001f9db Wallet Check", callback_data=f"wallet_{address}_{chain}"
-            ),
+            InlineKeyboardButton("\U0001f9db Wallet Check", callback_data=f"wallet_{address}_{chain}"),
             InlineKeyboardButton("\U0001f4ca TA", callback_data=f"ta_{address}_{chain}"),
         ],
         [
-            InlineKeyboardButton(
-                "\U0001f514 Price Alert", callback_data=f"alert_{address}_{chain}"
-            ),
+            InlineKeyboardButton("\U0001f514 Price Alert", callback_data=f"alert_{address}_{chain}"),
             InlineKeyboardButton("\u2b50 Watch", callback_data=f"watch_{address}_{chain}"),
         ],
         [
-            InlineKeyboardButton(
-                "\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"
-            ),
+            InlineKeyboardButton("\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"),
             InlineKeyboardButton("\U0001f4e4 Share", callback_data=f"share_{address}_{chain}"),
         ],
         [
-            InlineKeyboardButton(
-                "\U0001f6f0\ufe0f Monitor (250\u2605)", callback_data=f"monitor_{address}_{chain}"
-            ),
+            InlineKeyboardButton("\U0001f6f0\ufe0f Monitor (250\u2605)", callback_data=f"monitor_{address}_{chain}"),
         ],
         [InlineKeyboardButton("\u2b50 Unlock Premium Features", callback_data="menu_pricing")],
         [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
@@ -597,8 +567,7 @@ def pricing_kb() -> InlineKeyboardMarkup:
     rows = [
         [
             InlineKeyboardButton(
-                "\U0001f6f0\ufe0f Monitor (250\u2605/30d) \u2014 /monitor <addr>",
-                callback_data="menu_monitor_howto",
+                "\U0001f6f0\ufe0f Monitor (250\u2605/30d) \u2014 /monitor <addr>", callback_data="menu_monitor_howto"
             )
         ],
         [InlineKeyboardButton("\u2b50 Buy Stars", callback_data="menu_buystars")],
@@ -613,9 +582,7 @@ def pricing_kb() -> InlineKeyboardMarkup:
                 )
             ]
         )
-    rows.append(
-        [InlineKeyboardButton("\U0001f310 Compare Plans on Website", url=f"{WEBSITE_URL}/pricing")]
-    )
+    rows.append([InlineKeyboardButton("\U0001f310 Compare Plans on Website", url=f"{WEBSITE_URL}/pricing")])
     rows.append([InlineKeyboardButton("\U0001f4e7 Enterprise", url=f"mailto:{SUPPORT_EMAIL}")])
     rows.append([InlineKeyboardButton("\U0001f3d9\ufe0f Back", callback_data="menu_main")])
     return InlineKeyboardMarkup(rows)
@@ -674,9 +641,7 @@ def scamschool_kb() -> InlineKeyboardMarkup:
 
 
 def back_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("\U0001f3d9\ufe0f Main Menu", callback_data="menu_main")]]
-    )
+    return InlineKeyboardMarkup([[InlineKeyboardButton("\U0001f3d9\ufe0f Main Menu", callback_data="menu_main")]])
 
 
 def social_kb() -> InlineKeyboardMarkup:
@@ -710,20 +675,12 @@ def holders_kb(address: str, chain: str) -> InlineKeyboardMarkup:
         [
             [web_scan_button(address, chain)],
             [
-                InlineKeyboardButton(
-                    "\U0001f50d Full Scan", callback_data=f"scan_{address}_{chain}"
-                ),
-                InlineKeyboardButton(
-                    "\U0001f9db Wallet", callback_data=f"wallet_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f50d Full Scan", callback_data=f"scan_{address}_{chain}"),
+                InlineKeyboardButton("\U0001f9db Wallet", callback_data=f"wallet_{address}_{chain}"),
             ],
             [
-                InlineKeyboardButton(
-                    "\U0001f514 Set Alert", callback_data=f"alert_{address}_{chain}"
-                ),
-                InlineKeyboardButton(
-                    "\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f514 Set Alert", callback_data=f"alert_{address}_{chain}"),
+                InlineKeyboardButton("\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"),
             ],
             [InlineKeyboardButton("\U0001f3d9\ufe0f Main Menu", callback_data="menu_main")],
         ]
@@ -735,17 +692,11 @@ def trace_kb(address: str, chain: str) -> InlineKeyboardMarkup:
         [
             [web_scan_button(address, chain)],
             [
-                InlineKeyboardButton(
-                    "\U0001f9db Wallet Analysis", callback_data=f"wallet_{address}_{chain}"
-                ),
-                InlineKeyboardButton(
-                    "\U0001f50d Scan Token", callback_data=f"scan_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f9db Wallet Analysis", callback_data=f"wallet_{address}_{chain}"),
+                InlineKeyboardButton("\U0001f50d Scan Token", callback_data=f"scan_{address}_{chain}"),
             ],
             [
-                InlineKeyboardButton(
-                    "\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"),
                 InlineKeyboardButton("\U0001f440 Watch", callback_data=f"watch_{address}_{chain}"),
             ],
             [InlineKeyboardButton("\U0001f3d9\ufe0f Main Menu", callback_data="menu_main")],
@@ -756,15 +707,9 @@ def trace_kb(address: str, chain: str) -> InlineKeyboardMarkup:
 def investigate_kb(address: str, chain: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
+            [InlineKeyboardButton("\U0001f310 Full Report", url=f"{WEBSITE_URL}/markets/token/{address}")],
             [
-                InlineKeyboardButton(
-                    "\U0001f310 Full Report", url=f"{WEBSITE_URL}/markets/token/{address}"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "\U0001f9db Wallet", callback_data=f"wallet_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f9db Wallet", callback_data=f"wallet_{address}_{chain}"),
                 InlineKeyboardButton("👥 Holders", callback_data=f"holders_{address}_{chain}"),
             ],
             [
@@ -798,39 +743,25 @@ def deep_scan_result_kb(address: str, chain: str) -> InlineKeyboardMarkup:
                 InlineKeyboardButton("🔍 Trace", callback_data=f"trace_{address}_{chain}"),
             ],
             [
-                InlineKeyboardButton(
-                    "\U0001f50d Research", callback_data=f"research_{address}_{chain}"
-                ),
-                InlineKeyboardButton(
-                    "\U0001f4c8 Sentiment", callback_data=f"sentiment_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f50d Research", callback_data=f"research_{address}_{chain}"),
+                InlineKeyboardButton("\U0001f4c8 Sentiment", callback_data=f"sentiment_{address}_{chain}"),
             ],
             [
-                InlineKeyboardButton(
-                    "\U0001f9db Wallet Check", callback_data=f"wallet_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f9db Wallet Check", callback_data=f"wallet_{address}_{chain}"),
                 InlineKeyboardButton("\U0001f4ca TA", callback_data=f"ta_{address}_{chain}"),
             ],
             [
-                InlineKeyboardButton(
-                    "\U0001f514 Set Alert", callback_data=f"alert_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f514 Set Alert", callback_data=f"alert_{address}_{chain}"),
                 InlineKeyboardButton("\u2b50 Watch", callback_data=f"watch_{address}_{chain}"),
             ],
             [
                 InlineKeyboardButton("\U0001f4c8 Chart", callback_data=f"chart_{address}_{chain}"),
-                InlineKeyboardButton(
-                    "\U0001f5fa\ufe0f RugMap", callback_data=f"rugmap_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f5fa\ufe0f RugMap", callback_data=f"rugmap_{address}_{chain}"),
                 InlineKeyboardButton("\U0001f4e4 Share", url=_share_token_url(address, chain)),
             ],
             [
-                InlineKeyboardButton(
-                    "\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"
-                ),
-                InlineKeyboardButton(
-                    "\U0001f575\ufe0f Investigate", callback_data=f"investigate_{address}_{chain}"
-                ),
+                InlineKeyboardButton("\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"),
+                InlineKeyboardButton("\U0001f575\ufe0f Investigate", callback_data=f"investigate_{address}_{chain}"),
             ],
             [InlineKeyboardButton("\U0001f3d9\ufe0f Main Menu", callback_data="menu_main")],
         ]
@@ -901,18 +832,14 @@ def daily_hook_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton(
-                    "\U0001f525 What's hot right now", callback_data="run_trending"
-                ),
+                InlineKeyboardButton("\U0001f525 What's hot right now", callback_data="run_trending"),
                 InlineKeyboardButton("\U0001f4ca Market pulse", callback_data="run_market"),
             ]
         ]
     )
 
 
-def merge_menu_kb(
-    main_kb: InlineKeyboardMarkup, extra_kb: InlineKeyboardMarkup
-) -> InlineKeyboardMarkup:
+def merge_menu_kb(main_kb: InlineKeyboardMarkup, extra_kb: InlineKeyboardMarkup) -> InlineKeyboardMarkup:
     """Append ``extra_kb`` rows to ``main_kb`` (additive merge, no mutation).
 
     Keeps existing buttons intact and just adds the engagement rows on top —

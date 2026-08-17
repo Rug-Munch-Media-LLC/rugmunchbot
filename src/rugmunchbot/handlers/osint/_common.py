@@ -14,9 +14,7 @@ _MAX_FINDINGS = 8
 _MAX_SITES = 10
 
 #: Domain-ish arg detection for /investigate routing (see cmd_investigate).
-_DOMAIN_RE = re.compile(
-    r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$", re.IGNORECASE
-)
+_DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$", re.IGNORECASE)
 
 #: Per-lookup wall-clock budgets (seconds) passed to each OSINT module.
 _TIMEOUTS: dict[str, int] = {

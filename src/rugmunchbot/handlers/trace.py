@@ -13,6 +13,10 @@ import html
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
+from telegram.ext import CommandHandler
+
 from app.core.ai_guardrails import sanitize_output
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.config import (
@@ -43,9 +47,6 @@ from app.domains.telegram.rugmunchbot.keyboards import back_kb, paywall_kb, trac
 from app.domains.telegram.rugmunchbot.states import check_spam
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
-from telegram.ext import CommandHandler
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -154,9 +155,7 @@ async def _render_ai_flow_read(flow_summary: dict[str, Any]) -> str:
         },
     ]
     try:
-        text = await asyncio.wait_for(
-            chat_with_fallback(messages, "snappy"), timeout=_TRACE_AI_TIMEOUT
-        )
+        text = await asyncio.wait_for(chat_with_fallback(messages, "snappy"), timeout=_TRACE_AI_TIMEOUT)
     except Exception as e:  # fail-open boundary for the AI read
         logger.warning("trace AI read failed: %s", e)
         text = ""
@@ -514,9 +513,7 @@ async def cmd_trace(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 d,
                 f"  💰 Balance: <b>{fmt_number(balance)}</b>",
                 f"  📝 Transactions: <b>{tx_count:,}</b>" if tx_count else "  📝 Transactions: N/A",
-                f"  ⏳ Wallet Age: <b>{age_days} days</b>"
-                if age_days
-                else "  ⏳ Wallet Age: Unknown",
+                f"  ⏳ Wallet Age: <b>{age_days} days</b>" if age_days else "  ⏳ Wallet Age: Unknown",
             ]
         )
 
@@ -890,9 +887,7 @@ async def cmd_flow(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 method = conn.get("method", "")
                 conf_pct = f"{conf * 100:.0f}%" if isinstance(conf, (int, float)) else ""
                 method_tag = f" ({method})" if method and method != "Direct lookup" else ""
-                lines.append(
-                    f"  🔗 <code>{short_addr(addr)}</code>{method_tag}{' | ' + conf_pct if conf_pct else ''}"
-                )
+                lines.append(f"  🔗 <code>{short_addr(addr)}</code>{method_tag}{' | ' + conf_pct if conf_pct else ''}")
             if len(connected) > 8:
                 lines.append(f"  ... and {len(connected) - 8} more")
             lines.append("")

@@ -71,13 +71,7 @@ def _format_deployer_section(r: dict[str, Any]) -> list[str]:
 
     # Reputation label
     if reputation_label and reputation_label != "UNKNOWN":
-        emoji = (
-            "🔴"
-            if reputation_label in ("CRITICAL", "HIGH")
-            else "🟡"
-            if reputation_label == "MEDIUM"
-            else "🟢"
-        )
+        emoji = "🔴" if reputation_label in ("CRITICAL", "HIGH") else "🟡" if reputation_label == "MEDIUM" else "🟢"
         lines.append(f"  {emoji} Reputation: <b>{html.escape(str(reputation_label))}</b>")
 
     # Reputation score (0-100, higher = more trusted)
@@ -116,16 +110,12 @@ def _format_deployer_section(r: dict[str, Any]) -> list[str]:
 
         if honeypot_pct:
             try:
-                hpct = (
-                    float(honeypot_pct) * 100 if float(honeypot_pct) <= 1.0 else float(honeypot_pct)
-                )
+                hpct = float(honeypot_pct) * 100 if float(honeypot_pct) <= 1.0 else float(honeypot_pct)
                 lines.append(f"  \U0001f52a Honeypot Rate: <b>{hpct:.0f}%</b>")
             except (TypeError, ValueError) as e:
                 logger.debug("wallet snapshot parse failed: %s", e)
         if chains_used:
-            lines.append(
-                f"  \U0001f310 Chains: <b>{html.escape(', '.join(str(c) for c in chains_used))}</b>"
-            )
+            lines.append(f"  \U0001f310 Chains: <b>{html.escape(', '.join(str(c) for c in chains_used))}</b>")
         if label:
             lines.append(f"  \U0001f3f7\ufe0f Label: <b>{html.escape(str(label))}</b>")
 
@@ -213,9 +203,7 @@ def _format_gmgn_section(r: dict[str, Any]) -> list[str]:
                 direction = html.escape(str(w.get("direction") or "MIXED"))
                 if not addr:
                     continue
-                arrow = {"BUY": "\U0001f7e2", "SELL": "\U0001f534", "MIXED": "\U0001f7e1"}.get(
-                    direction, "\u26aa"
-                )
+                arrow = {"BUY": "\U0001f7e2", "SELL": "\U0001f534", "MIXED": "\U0001f7e1"}.get(direction, "\u26aa")
                 parts.append(f"{arrow} {html.escape(_short_addr(addr))} {direction}")
             if parts:
                 lines.append(f"  \U0001f9e0 {' | '.join(parts)}")

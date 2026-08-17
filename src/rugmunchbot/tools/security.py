@@ -16,11 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools.registry import (
-    ToolResult,
-    backend_json_get,
-    backend_json_post,
-)
+from app.domains.telegram.rugmunchbot.tools.registry import ToolResult, backend_json_get, backend_json_post
 
 logger = get_logger("rmi_bot.tools.security")
 
@@ -35,9 +31,7 @@ async def security_scan(*, address: str = "", chain: str = "") -> ToolResult:
         timeout=8.0,
     )
     if not body or body.get("error"):
-        return ToolResult(
-            tool="security_scan", ok=False, error="no live data (scanner unavailable)"
-        )
+        return ToolResult(tool="security_scan", ok=False, error="no live data (scanner unavailable)")
     # Flatten the compact scanner payload so the LLM formats real numbers.
     keep = {
         "address": address,
@@ -80,14 +74,10 @@ async def wallet_analysis(*, address: str = "", chain: str = "") -> ToolResult:
     payload: dict[str, Any] = {"address": address, "chain": chain or ""}
     if tokens_body is not None:
         payload["tokens"] = (
-            tokens_body.get("tokens")
-            if isinstance(tokens_body.get("tokens"), list)
-            else tokens_body.get("data")
+            tokens_body.get("tokens") if isinstance(tokens_body.get("tokens"), list) else tokens_body.get("data")
         )
     if pnl_body is not None:
-        payload["pnl"] = (
-            pnl_body.get("pnl") if pnl_body.get("pnl") is not None else pnl_body.get("data")
-        )
+        payload["pnl"] = pnl_body.get("pnl") if pnl_body.get("pnl") is not None else pnl_body.get("data")
     if v2_body and v2_body.get("status") == "ok":
         payload["v2"] = v2_body
 

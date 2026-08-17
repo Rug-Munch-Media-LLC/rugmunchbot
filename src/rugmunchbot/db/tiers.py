@@ -15,17 +15,13 @@ def get_user_tier(user_id: int) -> str:
     if BETA_MODE:
         return "pro"  # Beta: all features unlocked for everyone
     conn = get_db()
-    row = conn.execute(
-        "SELECT tier, tier_expires FROM users WHERE user_id = ?", (user_id,)
-    ).fetchone()
+    row = conn.execute("SELECT tier, tier_expires FROM users WHERE user_id = ?", (user_id,)).fetchone()
     conn.close()
     if not row:
         return "free"
     if row["tier"] != "free" and row["tier_expires"] > 0 and time.time() > row["tier_expires"]:
         conn = get_db()
-        conn.execute(
-            "UPDATE users SET tier = 'free', tier_expires = 0 WHERE user_id = ?", (user_id,)
-        )
+        conn.execute("UPDATE users SET tier = 'free', tier_expires = 0 WHERE user_id = ?", (user_id,))
         conn.commit()
         conn.close()
         return "free"
@@ -35,9 +31,7 @@ def get_user_tier(user_id: int) -> str:
 def set_user_tier(user_id: int, tier: str, days: int = 30) -> None:
     expires = int(time.time() + timedelta(days=days).total_seconds()) if tier != "free" else 0
     conn = get_db()
-    conn.execute(
-        "UPDATE users SET tier = ?, tier_expires = ? WHERE user_id = ?", (tier, expires, user_id)
-    )
+    conn.execute("UPDATE users SET tier = ?, tier_expires = ? WHERE user_id = ?", (tier, expires, user_id))
     conn.commit()
     conn.close()
 
@@ -85,9 +79,7 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False) -> b
         row = conn.execute(
             "SELECT scans FROM weekly_usage WHERE user_id = ? AND week_start = ?", (user_id, week)
         ).fetchone()
-        user = conn.execute(
-            "SELECT bonus_scans FROM users WHERE user_id = ?", (user_id,)
-        ).fetchone()
+        user = conn.execute("SELECT bonus_scans FROM users WHERE user_id = ?", (user_id,)).fetchone()
         from app.domains.telegram.rugmunchbot.config import TIERS
 
         tier = get_user_tier(user_id)
@@ -106,9 +98,7 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False) -> b
             )
         elif user and user["bonus_scans"] > 0:
             # Use bonus balance
-            conn.execute(
-                "UPDATE users SET bonus_scans = bonus_scans - 1 WHERE user_id = ?", (user_id,)
-            )
+            conn.execute("UPDATE users SET bonus_scans = bonus_scans - 1 WHERE user_id = ?", (user_id,))
         else:
             conn.close()
             return False  # No quota available
@@ -119,9 +109,7 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False) -> b
         row = conn.execute(
             "SELECT ai_msgs FROM weekly_usage WHERE user_id = ? AND week_start = ?", (user_id, week)
         ).fetchone()
-        user = conn.execute(
-            "SELECT bonus_ai_msgs FROM users WHERE user_id = ?", (user_id,)
-        ).fetchone()
+        user = conn.execute("SELECT bonus_ai_msgs FROM users WHERE user_id = ?", (user_id,)).fetchone()
         from app.domains.telegram.rugmunchbot.config import TIERS
 
         tier = get_user_tier(user_id)
@@ -138,16 +126,12 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False) -> b
                 (user_id, week),
             )
         elif user and user["bonus_ai_msgs"] > 0:
-            conn.execute(
-                "UPDATE users SET bonus_ai_msgs = bonus_ai_msgs - 1 WHERE user_id = ?", (user_id,)
-            )
+            conn.execute("UPDATE users SET bonus_ai_msgs = bonus_ai_msgs - 1 WHERE user_id = ?", (user_id,))
         else:
             conn.close()
             return False
 
-        conn.execute(
-            "UPDATE users SET total_ai_msgs = total_ai_msgs + 1 WHERE user_id = ?", (user_id,)
-        )
+        conn.execute("UPDATE users SET total_ai_msgs = total_ai_msgs + 1 WHERE user_id = ?", (user_id,))
 
     conn.commit()
     conn.close()
@@ -164,9 +148,7 @@ def check_rate_limit(user_id: int, action: str = "scan") -> tuple[bool, int, int
     scans_used, ai_used = get_weekly_usage(user_id)
 
     conn = get_db()
-    user = conn.execute(
-        "SELECT bonus_scans, bonus_ai_msgs FROM users WHERE user_id = ?", (user_id,)
-    ).fetchone()
+    user = conn.execute("SELECT bonus_scans, bonus_ai_msgs FROM users WHERE user_id = ?", (user_id,)).fetchone()
     conn.close()
     bonus_s = user["bonus_scans"] if user else 0
     bonus_a = user["bonus_ai_msgs"] if user else 0

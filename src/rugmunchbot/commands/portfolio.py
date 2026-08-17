@@ -11,6 +11,7 @@ import asyncio
 from typing import Any
 
 import httpx
+
 from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
@@ -33,9 +34,7 @@ async def _fetch_solana_portfolio(client: httpx.AsyncClient, address: str) -> di
     # Try backend first
     try:
         r = await client.get(
-            f"{BACKEND_URL}/api/v1/databus/wallet/{address}/tokens",
-            headers=backend_headers(),
-            timeout=10,
+            f"{BACKEND_URL}/api/v1/databus/wallet/{address}/tokens", headers=backend_headers(), timeout=10
         )
         if r.status_code == 200:
             data = r.json()
@@ -62,9 +61,7 @@ async def _fetch_evm_portfolio(client: httpx.AsyncClient, address: str) -> dict[
     }
     try:
         r = await client.get(
-            f"{BACKEND_URL}/api/v1/databus/wallet/{address}/tokens",
-            headers=backend_headers(),
-            timeout=10,
+            f"{BACKEND_URL}/api/v1/databus/wallet/{address}/tokens", headers=backend_headers(), timeout=10
         )
         if r.status_code == 200:
             data = r.json()
@@ -117,7 +114,6 @@ async def cmd_portfolio(update, ctx) -> None:
     )
 
     client = get_shared_client(25)
-
     # Fetch every address concurrently (was a sequential per-address loop
     # — up to 3 x 10s worst case). Unrecognized formats yield None.
     async def _fetch_portfolio(address: str) -> dict[str, Any] | None:
@@ -191,9 +187,7 @@ async def cmd_portfolio(update, ctx) -> None:
                         pct = (val / total_value * 100) if total_value > 0 else 0
 
                     pct_str = f"{pct:.1f}%"
-                    lines.append(
-                        f"  <code>{i:<2} {sym:<14} {bal_str:<12} {val_str:<10} {pct_str}</code>"
-                    )
+                    lines.append(f"  <code>{i:<2} {sym:<14} {bal_str:<12} {val_str:<10} {pct_str}</code>")
 
                 lines.append(f"\n  <b>Total:</b> {_format_usd(total_value)}")
 
@@ -212,13 +206,7 @@ async def cmd_portfolio(update, ctx) -> None:
                 disable_web_page_preview=True,
             )
 
-        except (
-            ConnectionError,
-            OSError,
-            TimeoutError,
-            httpx.HTTPError,
-            httpx.TimeoutException,
-        ) as e:
+        except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
             logger.error("Portfolio failed for %s: %s", address, e)
             await msg.reply_text(
                 f"❌ Could not scan <code>{address}</code>. Make sure the address is valid.",

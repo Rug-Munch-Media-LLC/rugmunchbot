@@ -48,11 +48,9 @@ and ``cmd_scan`` stays lazily imported from ``handlers/scanning.py`` inside
 from __future__ import annotations
 
 import httpx as httpx
+
 from app.domains.telegram.rugmunchbot import anti_abuse as anti_abuse
-from app.domains.telegram.rugmunchbot.flood_control import (
-    check_flood as check_flood,
-    refund_flood as refund_flood,
-)
+from app.domains.telegram.rugmunchbot.flood_control import check_flood as check_flood, refund_flood as refund_flood
 from app.domains.telegram.rugmunchbot.formatters import is_evm as is_evm, is_sol as is_sol, thin_sep
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._format import (
     _format_tool_answer as _format_tool_answer,
@@ -109,9 +107,7 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing import (
 )
 from app.domains.telegram.rugmunchbot.handlers.chat_ai._trace import trace_answer as trace_answer
 from app.domains.telegram.rugmunchbot.states import check_spam as check_spam
-from app.domains.telegram.rugmunchbot.tools.guardrails import (
-    NO_LIVE_DATA_MESSAGE as NO_LIVE_DATA_MESSAGE,
-)
+from app.domains.telegram.rugmunchbot.tools.guardrails import NO_LIVE_DATA_MESSAGE as NO_LIVE_DATA_MESSAGE
 
 __all__ = [
     "CHAT_ENDPOINT",

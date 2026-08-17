@@ -13,15 +13,14 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+
 from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
 
 
-async def _fetch_rugcharts_ohlcv(
-    client: httpx.AsyncClient, chain: str, pair_address: str
-) -> list[dict[str, Any]]:
+async def _fetch_rugcharts_ohlcv(client: httpx.AsyncClient, chain: str, pair_address: str) -> list[dict[str, Any]]:
     """Fetch OHLCV candles from the backend RugCharts engine (own data).
 
     Same route the frontend chart uses:
@@ -48,9 +47,7 @@ async def _fetch_rugcharts_ohlcv(
     return []
 
 
-async def _fetch_rugcharts_intel(
-    client: httpx.AsyncClient, chain: str, pair_address: str
-) -> dict[str, Any]:
+async def _fetch_rugcharts_intel(client: httpx.AsyncClient, chain: str, pair_address: str) -> dict[str, Any]:
     """Fetch RugCharts intel (rug score + volume authenticity) for risk overlay."""
     if not pair_address or not chain:
         return {}

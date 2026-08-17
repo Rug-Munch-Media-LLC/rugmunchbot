@@ -69,10 +69,7 @@ async def cmd_mygroup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
             if _client_instance and hasattr(_client_instance, "_managed_groups"):
                 for _key, group in _client_instance._managed_groups.items():
-                    if (
-                        hasattr(group, "metadata")
-                        and group.metadata.get("creator_user_id") == user.id
-                    ):
+                    if hasattr(group, "metadata") and group.metadata.get("creator_user_id") == user.id:
                         chat_id = group.chat_id
                         _USER_GROUPS[user.id] = chat_id
                         break
@@ -152,9 +149,7 @@ async def cmd_groupinfo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         client = await get_headless_client()
         info = await client._fetch_group_info(chat_id)
     except (ImportError, RuntimeError, Exception):
-        await update.message.reply_text(
-            "❌ Could not fetch group info. Please try again in a moment."
-        )  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text("❌ Could not fetch group info. Please try again in a moment.")  # type: ignore[union-attr]  # PTB None-able fields
         return
 
     # Check voice chat status
@@ -242,9 +237,7 @@ async def cmd_voicechat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 parse_mode="Markdown",
             )
         except RuntimeError:
-            await update.message.reply_text(
-                "❌ Could not start the voice chat. Please try again in a moment."
-            )  # type: ignore[union-attr]  # PTB None-able fields
+            await update.message.reply_text("❌ Could not start the voice chat. Please try again in a moment.")  # type: ignore[union-attr]  # PTB None-able fields
     elif action == "end":
         try:
             from app.domains.telegram.voice_chat import end_voice_chat
@@ -252,9 +245,7 @@ async def cmd_voicechat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await end_voice_chat(bot, chat_id)
             await update.message.reply_text("✅ Voice chat ended.")  # type: ignore[union-attr]  # PTB None-able fields
         except RuntimeError:
-            await update.message.reply_text(
-                "❌ Could not end the voice chat. Please try again in a moment."
-            )  # type: ignore[union-attr]  # PTB None-able fields
+            await update.message.reply_text("❌ Could not end the voice chat. Please try again in a moment.")  # type: ignore[union-attr]  # PTB None-able fields
     else:
         await update.message.reply_text("❌ Unknown action. Use: start, start_video, or end.")  # type: ignore[union-attr]  # PTB None-able fields
 
@@ -288,8 +279,7 @@ async def cmd_banuser(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         success = await client.ban_user(chat_id, user_id, reason=reason)
         if success:
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                f"✅ User `{user_id}` banned from chat `{chat_id}`."
-                + (f"\nReason: {reason}" if reason else ""),
+                f"✅ User `{user_id}` banned from chat `{chat_id}`." + (f"\nReason: {reason}" if reason else ""),
                 parse_mode="Markdown",
             )
         else:

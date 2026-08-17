@@ -15,13 +15,14 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+from telegram.error import TelegramError
+
 from app.domains.telegram.rugmunchbot import db
 from app.domains.telegram.rugmunchbot.admin_state import (
     pop_broadcast,
     update_broadcast,
 )
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from telegram.error import TelegramError
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
