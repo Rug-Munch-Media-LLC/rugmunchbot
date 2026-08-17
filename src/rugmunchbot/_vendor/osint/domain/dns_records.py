@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import app.osint.domain as _domain
+import rugmunchbot._vendor.osint.domain as _domain
 from rugmunchbot._vendor.osint.domain._common import _DNS_RECORD_TYPES, _finding
 
 if TYPE_CHECKING:

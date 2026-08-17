@@ -51,7 +51,7 @@ from rugmunchbot._vendor.gmgn_fallbacks import (
     fallback_dexscreener_trades,
     normalize_trades,
 )
-from app.databus.proxy_rotator import get_proxy_rotator
+from rugmunchbot._vendor.proxy_rotator import get_proxy_rotator
 
 logger = get_logger(__name__)
 

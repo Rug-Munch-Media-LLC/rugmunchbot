@@ -608,7 +608,7 @@ def _confidence(available: int) -> float:
 def _query_deployer_scam_stats(address: str) -> list[tuple[Any, ...]] | None:
     """Total deployments + scam-related count for a wallet (deployer_history)."""
     try:
-        from app.domains.databus.providers.chains.lite_chain_indexer import _get_ch_client
+        from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
 
         client = _get_ch_client()
         if client is None:

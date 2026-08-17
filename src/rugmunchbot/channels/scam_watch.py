@@ -537,11 +537,16 @@ async def submit_for_scan(address: str, chain: str = "ethereum") -> bool:
     runtime error logs and returns ``False``.
     """
     try:
-        from app.domains.scanner.service import scan_token
+        # Phase 2d degod: HTTP scanner tool (same backend service, called
+        # over the API like every interactive scan) instead of the in-process
+        # app.domains.scanner.service import.
+        from rugmunchbot.tools.scanner._scans import scan_token as _http_scan
 
-        result = await scan_token(token_address=address, chain=chain, tiers=["free"])
-        flags = list(getattr(result, "risk_flags", []) or [])
-        safety = getattr(result, "safety_score", None)
+        result = await _http_scan(address, chain=chain, security_only=True)
+        if not result:
+            return False
+        flags = list(result.get("risk_flags") or [])
+        safety = result.get("safety_score")
         logger.info(
             "scam_watch:scan_done address=%s chain=%s safety=%s flags=%s",
             address[:12],

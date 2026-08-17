@@ -85,7 +85,7 @@ except ImportError:  # pragma: no cover
     CHDriverError = Exception
 
 from rugmunchbot._vendor.logging_shim import get_logger
-from app.domains.databus.providers.chains.lite_chain_indexer import (
+from rugmunchbot._vendor.lite_chain_indexer import (
     # ``as`` alias marks the re-export so mypy strict (implicit_reexport=False)
     # keeps treating ``deployer_fingerprint._get_ch_client`` as exportable —
     # the query submodule resolves the client lazily through this shim.

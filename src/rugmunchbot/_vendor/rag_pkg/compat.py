@@ -54,7 +54,7 @@ async def _get_redis() -> Any:
 
 # ── Embedder — re-export the active crypto embedder (not deprecated) ─────
 
-from app.crypto_embeddings import get_embedder  # noqa: E402 — module docstring precedes import block
+from rugmunchbot._vendor.crypto_embeddings import get_embedder  # noqa: E402 — module docstring precedes import block
 
 # ── Search shims ───────────────────────────────────────────────────────────
 
@@ -210,7 +210,7 @@ async def detect_scam_patterns(token_data: dict[str, Any], threshold: float = 0.
 
     # 1. Quick code-snippet keyword matches (same corpus as old service)
     try:
-        from app.crypto_embeddings import KNOWN_SCAM_PATTERNS
+        from rugmunchbot._vendor.crypto_embeddings import KNOWN_SCAM_PATTERNS
 
         code_lower = (token_data.get("contract_code") or "").lower()
         for pattern in KNOWN_SCAM_PATTERNS:

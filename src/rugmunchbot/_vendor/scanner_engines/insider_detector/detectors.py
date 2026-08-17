@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from rugmunchbot._vendor.logging_shim import get_logger
-from app.domains.scanner.engines import gmgn_client as gmgn
+from rugmunchbot._vendor.scanner_engines import gmgn_client as gmgn
 from rugmunchbot._vendor.scanner_engines.known_entities import label_wallet
 
 from .config import (

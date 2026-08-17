@@ -85,7 +85,7 @@ except ImportError:  # pragma: no cover
     CHDriverError = Exception
 
 from rugmunchbot._vendor.logging_shim import get_logger
-from app.domains.databus.providers.chains.lite_chain_indexer import _normalize_chain
+from rugmunchbot._vendor.lite_chain_indexer import _normalize_chain
 from rugmunchbot._vendor.scanner_engines._common import (
     _query_batch_labels,  # noqa: F401
     redis_get,  # noqa: F401

@@ -344,7 +344,7 @@ async def llm_writer(
     """
     completion_call: CompletionCallable
     if completion is None:
-        from app.ai_router import chat_completion as _chat_completion
+        from rugmunchbot.llm_config import chat_completion as _chat_completion
 
         completion_call = _chat_completion
     else:
@@ -592,7 +592,7 @@ async def publish_briefing(
     ``{"error": ...}`` dict on failure — it never raises (``create_post`` is
     already fail-open; the session cookie or network may be unavailable).
     """
-    from app.content_platform import create_post
+    from rugmunchbot._vendor.content_platform import create_post
 
     stamp = (now or datetime.now(UTC)).strftime("%A, %B %d, %Y")
     return await create_post(
@@ -648,7 +648,7 @@ async def publish_briefing_telegram(
     when skipped).
     """
     if channel_ids is None:
-        from app.domains.alerts.telegram_transport import CHANNEL_IDS
+        from rugmunchbot._vendor.telegram_transport import CHANNEL_IDS
 
         channel_ids = CHANNEL_IDS
     chat_id = next(

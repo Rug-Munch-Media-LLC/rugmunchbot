@@ -22,7 +22,7 @@ from typing import Any
 
 import httpx
 
-import app.rag.ingest_crypto_knowledge as _ingest
+import rugmunchbot._vendor.rag_pkg.ingest_crypto_knowledge as _ingest
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg._crawler_constants import (
     INCIDENT_CATEGORIES,

@@ -22,7 +22,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-import app.rag.ingest_crypto_knowledge as _ingest
+import rugmunchbot._vendor.rag_pkg.ingest_crypto_knowledge as _ingest
 from rugmunchbot._vendor.rag_pkg.ingest._orchestrator import _BULK_CHUNK_SIZE, ingest_collection
 
 # app/rag/seed_corpus/crypto_knowledge.jsonl — lives one directory up from

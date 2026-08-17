@@ -118,6 +118,23 @@ async def _chat_once(
     return content.strip()
 
 
+async def chat_completion(
+    messages: list[dict[str, str]],
+    model: str | None = None,
+    task_type: str = "chat",
+    temperature: float = 0.5,
+    max_tokens: int | None = None,
+) -> dict[str, Any]:
+    """ai_router.chat_completion-compatible wrapper (Phase 2d).
+
+    Vendored modules (briefing) call this with the ai_router signature;
+    returns ``{"content": ...}`` or ``{}`` on failure (fail-open).
+    """
+    tier = "long" if task_type in ("analysis", "deep") else "snappy"
+    answer = await chat_with_fallback(messages=messages, tier=tier, max_tokens=max_tokens)
+    return {"content": answer} if answer else {}
+
+
 async def chat_with_fallback(
     messages: list[dict[str, str]],
     tier: str,

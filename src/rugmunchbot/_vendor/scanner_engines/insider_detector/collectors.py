@@ -12,7 +12,7 @@ from typing import Any
 import httpx
 
 from rugmunchbot._vendor.logging_shim import get_logger
-from app.domains.scanner.engines import gmgn_client as gmgn
+from rugmunchbot._vendor.scanner_engines import gmgn_client as gmgn
 
 from .config import DEXSCREENER_BOOSTS, DEXSCREENER_PROFILES, DEXSCREENER_SEARCH, DEXSCREENER_TOKEN
 from .helpers import _parse_timestamp

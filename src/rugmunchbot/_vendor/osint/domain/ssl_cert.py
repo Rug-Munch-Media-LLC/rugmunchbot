@@ -9,7 +9,7 @@ import socket
 import ssl
 from typing import TYPE_CHECKING, Any
 
-import app.osint.domain as _domain
+import rugmunchbot._vendor.osint.domain as _domain
 from rugmunchbot._vendor.osint.domain._common import _finding
 
 if TYPE_CHECKING:

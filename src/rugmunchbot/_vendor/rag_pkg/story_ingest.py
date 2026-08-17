@@ -354,7 +354,7 @@ async def fetch_story(url: str, *, timeout: float = 12.0, rotator: Any = None) -
 
     if rotator is None:
         try:
-            from app.databus.proxy_rotator import get_proxy_rotator
+            from rugmunchbot._vendor.proxy_rotator import get_proxy_rotator
 
             rotator = get_proxy_rotator()
         except Exception as e:  # pragma: no cover - defensive degrade to direct

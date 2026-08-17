@@ -49,7 +49,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from app.domains.scanner.engines import _common
+from rugmunchbot._vendor.scanner_engines import _common
 
 # Default cache parameters (mirrors the old per-engine defaults).
 _DEFAULT_CACHE_TTL = 600  # 10 minutes
@@ -85,7 +85,7 @@ class BaseEngine:
         Caches the result on the instance so ``get_cache_stats`` can report
         connectivity without re-probing.
         """
-        from app.domains.databus.providers.chains.lite_chain_indexer import _get_ch_client
+        from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
 
         self._client = _get_ch_client()
         return self._client
@@ -94,7 +94,7 @@ class BaseEngine:
 
     def normalize_chain(self, chain: str) -> str:
         """Normalize a chain name to ClickHouse format (canonical map)."""
-        from app.domains.databus.providers.chains.lite_chain_indexer import _normalize_chain
+        from rugmunchbot._vendor.lite_chain_indexer import _normalize_chain
 
         return _normalize_chain(chain)
 

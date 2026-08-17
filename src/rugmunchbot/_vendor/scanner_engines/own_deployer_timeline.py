@@ -294,7 +294,7 @@ def _query_deployer_balance(deployer_address: str, chain_norm: str) -> float | N
     if not chain_norm:
         return None
     try:
-        from app.domains.databus.providers.chains.lite_chain_indexer import _get_ch_client
+        from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
 
         client = _get_ch_client()
         if client is None:

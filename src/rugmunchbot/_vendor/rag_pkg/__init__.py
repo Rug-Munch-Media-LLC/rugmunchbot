@@ -17,8 +17,8 @@ Public API (per v3 unfuck guide §M3):
 
 from __future__ import annotations
 
-from app.core import health as health_mod
-from app.core.health import DomainHealth
+from rugmunchbot._vendor import health as health_mod
+from rugmunchbot._vendor.health import DomainHealth
 
 
 async def _health_check() -> DomainHealth:
