@@ -25,7 +25,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
 import rugmunchbot.handlers.chat_ai as chat_ai
-from app.core.ai_guardrails import sanitize_output
+from rugmunchbot._vendor.ai_guardrails import sanitize_output
 from rugmunchbot import anti_abuse, db
 from rugmunchbot.admin_state import track_ai_query, track_tokens
 from rugmunchbot.db._base import run_db

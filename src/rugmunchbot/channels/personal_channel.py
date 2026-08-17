@@ -89,7 +89,7 @@ from rugmunchbot.tools._client import get_shared_client
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
 
-    from app.domains.news_ingest.models import NewsArticle
+    from rugmunchbot._vendor.news_ingest.models import NewsArticle
 
 logger = get_logger("rmi_bot.channels.personal")
 
@@ -250,7 +250,7 @@ def _article_image_url(article: NewsArticle) -> str:
         if isinstance(raw, str) and raw.strip() and raw.strip().lower() not in ("none", "null"):
             return raw.strip()
     try:
-        from app.domains.news_ingest.ingest import extract_image_url
+        from rugmunchbot._vendor.news_ingest.ingest import extract_image_url
 
         return extract_image_url(article)
     except Exception:  # soft dependency — degrade silently
@@ -271,7 +271,7 @@ def _article_canonical_url(article: NewsArticle) -> str:
     if isinstance(raw, str) and raw.strip():
         return raw.strip()
     try:
-        from app.domains.news_ingest.ingest import extract_canonical_url
+        from rugmunchbot._vendor.news_ingest.ingest import extract_canonical_url
 
         return extract_canonical_url(article)
     except Exception:  # soft dependency — degrade silently

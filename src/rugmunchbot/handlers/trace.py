@@ -17,7 +17,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import CommandHandler
 
-from app.core.ai_guardrails import sanitize_output
+from rugmunchbot._vendor.ai_guardrails import sanitize_output
 from rugmunchbot import db
 from rugmunchbot.config import (
     BACKEND_URL,
@@ -141,7 +141,7 @@ async def _render_ai_flow_read(flow_summary: dict[str, Any]) -> str:
         return ""
     import json
 
-    from app.llm_config import chat_with_fallback
+    from rugmunchbot.llm_config import chat_with_fallback
 
     messages: list[dict[str, str]] = [
         {"role": "system", "content": _TRACE_READ_SYSTEM},

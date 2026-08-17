@@ -1,1 +1,26 @@
-../standards/lefthook.yml
+# RugMunchBot lefthook config — repo-local override of the canonical
+# standards/lefthook.yml.
+#
+# WHY NOT A SYMLINK: the canonical hook runs `ruff check --fix && ruff
+# format` on staged *.py with stage_fixed. ruff 0.15.x rewrites
+# EXPLICITLY-PASSED files even when they are excluded in pyproject, and
+# lefthook's auto-merge of .lefthook.local.yml does not apply when the main
+# config is a symlink (local discovery happens beside the RESOLVED file,
+# i.e. in standards/). Both mechanisms let the hook rewrite
+# src/rugmunchbot (a byte-identical snapshot of the LIVE bot) at commit
+# time, silently breaking the drift gate.
+#
+# This file includes the canonical config and replaces ONLY the ruff
+# command with a path-filtered wrapper that skips src/rugmunchbot.
+#
+# WARNING: this file MUST stay a real file, never a symlink to standards/
+# (writing through the old symlink clobbered standards/lefthook.yml once —
+# restored 2026-08-17 from git).
+include: ../standards/lefthook.yml
+
+pre-commit:
+  commands:
+    ruff:
+      glob: "*.py"
+      run: bash scripts/ruff-staged.sh {staged_files}
+      stage_fixed: true

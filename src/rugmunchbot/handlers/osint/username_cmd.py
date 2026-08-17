@@ -17,7 +17,7 @@ from rugmunchbot.handlers.osint._format import (
 )
 from rugmunchbot.keyboards import back_kb
 from app.osint import OsintNotAvailable
-from app.osint_tools import OsintNotAvailable as ToolsOsintNotAvailable, lookup_username
+from rugmunchbot._vendor.osint_tools import OsintNotAvailable as ToolsOsintNotAvailable, lookup_username
 
 if TYPE_CHECKING:
     from telegram import Update

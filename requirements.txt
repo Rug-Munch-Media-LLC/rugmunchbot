@@ -1,0 +1,23 @@
+# RugMunchBot runtime dependencies (Phase 2a — canonical list).
+# The live bot currently runs from the rmi-backend venv; this file declares
+# the bot's direct deps so the standalone repo is reproducible (Phase 3).
+#
+# Core
+python-telegram-bot>=21.0
+httpx>=0.27
+structlog>=24.0
+redis>=5.0
+pydantic>=2.7
+Pillow>=10.0
+cachetools>=5.3
+
+# Guardrails (AI validators — ToxicLanguage/CompetitorCheck; requires
+# torch + transformers, already present in the rmi-backend venv)
+guardrails-ai>=0.11.0
+guardrails-ai-toxic-language>=0.0.2
+guardrails-ai-competitor-check>=0.0.2
+
+# OSINT / lookups
+python-whois>=0.8
+dnspython>=2.6
+email-validator>=2.1

@@ -830,7 +830,7 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     messages = build_messages(context)
     try:
-        from app.llm_config import chat_with_fallback
+        from rugmunchbot.llm_config import chat_with_fallback
 
         raw = await chat_with_fallback(messages, "long")
     except Exception as exc:  # fail-open — a broken LLM never crashes the tick

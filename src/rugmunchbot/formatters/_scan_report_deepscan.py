@@ -296,7 +296,7 @@ async def render_analyst_read_block(data: dict[str, Any]) -> str:
         return ""
     import json
 
-    from app.llm_config import chat_with_fallback
+    from rugmunchbot.llm_config import chat_with_fallback
 
     messages: list[dict[str, str]] = [
         {"role": "system", "content": _ANALYST_READ_SYSTEM},

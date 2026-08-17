@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, TypedDict
 
 import httpx
 
-from app.core.channels_registry import CHANNEL_ROLES
+from rugmunchbot._vendor.channels_registry import CHANNEL_ROLES
 
 if TYPE_CHECKING:
     from collections.abc import Callable

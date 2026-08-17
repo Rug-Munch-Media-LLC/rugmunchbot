@@ -22,7 +22,7 @@ from collections import Counter
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from app.domains.news_ingest.ingest import (
+from rugmunchbot._vendor.news_ingest.ingest import (
     extract_canonical_url,
     extract_image_url,
     lightweight_importance,
@@ -40,7 +40,7 @@ from rugmunchbot.channels.telegram_news._persist import _news_id_for
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
-    from app.domains.news_ingest.models import NewsArticle
+    from rugmunchbot._vendor.news_ingest.models import NewsArticle
     from rugmunchbot.channels import telegram_news as _tg
 else:
     _tg = sys.modules[__package__ or ""]
@@ -196,7 +196,7 @@ async def generate_commentary(item: dict[str, Any]) -> str:
         {"role": "user", "content": prompt},
     ]
     try:
-        from app.llm_config import chat_with_fallback
+        from rugmunchbot.llm_config import chat_with_fallback
 
         text = await asyncio.wait_for(chat_with_fallback(messages, "snappy"), timeout=_COMMENTARY_TIMEOUT)
     except Exception:  # bounded + fail-open by contract

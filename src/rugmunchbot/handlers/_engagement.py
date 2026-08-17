@@ -31,7 +31,7 @@ from __future__ import annotations
 import zlib
 from datetime import date
 
-from app.core.channels_registry import CHANNEL_ROLES
+from rugmunchbot._vendor.channels_registry import CHANNEL_ROLES
 
 #: (emoji, short phrase, command) — one line each, curated, HTML-safe.
 FOOTER_CTA_POOL: tuple[tuple[str, str, str], ...] = (

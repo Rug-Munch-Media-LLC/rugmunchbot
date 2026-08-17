@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING, Any
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
-from app.core.redis import get_redis_async
+from rugmunchbot._vendor.redis_client import get_redis_async
 from rugmunchbot.config import fmt_number
 from rugmunchbot.formatters import footer_links, sep, short_addr
 from rugmunchbot.states import check_alert_rate_limit

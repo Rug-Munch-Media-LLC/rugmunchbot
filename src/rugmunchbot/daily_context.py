@@ -56,7 +56,7 @@ from datetime import UTC, datetime
 from html import escape
 from typing import Any
 
-from app.core.redis import get_redis_async
+from rugmunchbot._vendor.redis_client import get_redis_async
 from rugmunchbot.config import fmt_number
 from rugmunchbot.data_resolver import backend_get_json
 from rugmunchbot.support.logging import get_logger

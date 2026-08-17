@@ -19,7 +19,7 @@ import hashlib
 import sys
 from typing import TYPE_CHECKING, Any
 
-from app.domains.news_ingest.ingest import (
+from rugmunchbot._vendor.news_ingest.ingest import (
     DEFAULT_DEDUP_COLLECTION,
     extract_canonical_url,
     extract_image_url,
@@ -28,7 +28,7 @@ from app.domains.news_ingest.ingest import (
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
-    from app.domains.news_ingest.models import NewsArticle
+    from rugmunchbot._vendor.news_ingest.models import NewsArticle
     from rugmunchbot.channels import telegram_news as _tg
 else:
     _tg = sys.modules[__package__ or ""]

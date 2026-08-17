@@ -43,7 +43,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from app.core.redis import get_redis_async
+from rugmunchbot._vendor.redis_client import get_redis_async
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools.registry import ToolResult
 

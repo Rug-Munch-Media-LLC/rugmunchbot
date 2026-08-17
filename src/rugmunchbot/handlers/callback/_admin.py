@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
-from app.domains.telegram import access_guard
+from rugmunchbot._vendor import access_guard
 from rugmunchbot import db
 from rugmunchbot.config import OWNER_IDS, TIERS
 from rugmunchbot.formatters import is_owner, thin_sep

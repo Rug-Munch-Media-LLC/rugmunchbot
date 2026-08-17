@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 # and ``chat_ai/_llm``; alias here so every caller resolves to the ONE helper
 # and the regexes cannot drift. Handles complete + unterminated (``max_tokens``-
 # truncated) blocks; idempotent; safe on plain text.
-from app.core.ai_guardrails import strip_think_tags as strip_think_blocks
+from rugmunchbot._vendor.ai_guardrails import strip_think_tags as strip_think_blocks
 
 # ══════════════════════════════════════════════
 # GROUNDING FOOTER — DISTINCT INTELLIGENCE SOURCES

@@ -134,7 +134,7 @@ _TRENDING_KEY_PREFIX = "trending:"  # spec key: trending:{chain}:{window}
 
 def _redis_client() -> Any:
     """Async Redis client (lazy import — fail-open when unavailable)."""
-    from app.core.redis import get_redis_async
+    from rugmunchbot._vendor.redis_client import get_redis_async
 
     return get_redis_async()
 

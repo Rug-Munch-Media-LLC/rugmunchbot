@@ -72,14 +72,14 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from app.core.redis import get_redis_async
-from app.core.shared_utils import is_evm_address, is_solana_address
-from app.domains.news_ingest.ingest import dedupe_articles, read_channel_messages
-from app.domains.news_ingest.normalize import channel_message_to_article
+from rugmunchbot._vendor.redis_client import get_redis_async
+from rugmunchbot._vendor.shared_utils import is_evm_address, is_solana_address
+from rugmunchbot._vendor.news_ingest.ingest import dedupe_articles, read_channel_messages
+from rugmunchbot._vendor.news_ingest.normalize import channel_message_to_article
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
-    from app.domains.news_ingest.models import ChannelMessage, NewsArticle
+    from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
 
 logger = get_logger("rmi_bot.channels.scam_watch")
 
@@ -188,7 +188,7 @@ SCAM_WATCH_EXCLUDE = _env_list("RMI_SCAM_WATCH_EXCLUDE", [])
 async def _build_headless_client() -> Any:
     """Return the singleton headless Telethon client, or ``None`` (never raises)."""
     try:
-        from app.domains.telegram.headless import get_headless_client
+        from rugmunchbot._vendor.headless import get_headless_client
 
         client = await get_headless_client()
         if getattr(client, "is_connected", False):
@@ -305,7 +305,7 @@ async def discover_scam_channels(client: Any, max_discovered: int | None = None)
     if cap <= 0:
         return []
     try:
-        from app.domains.news_ingest.discovery import discover_followed_channels
+        from rugmunchbot._vendor.news_ingest.discovery import discover_followed_channels
     except ImportError:
         return []
     try:

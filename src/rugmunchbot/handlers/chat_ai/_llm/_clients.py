@@ -17,7 +17,7 @@ from typing import Any
 
 import httpx
 
-from app.core.ai_guardrails import strip_think_tags
+from rugmunchbot._vendor.ai_guardrails import strip_think_tags
 from rugmunchbot.config import backend_headers
 from rugmunchbot.handlers.chat_ai import _llm as _llm_mod
 from rugmunchbot.handlers.chat_ai._llm._constants import (
@@ -273,7 +273,7 @@ async def _call_remote_fast(
         # chat_with_fallback retries the free tier once, then the cheap PAID
         # :lowest model, and returns "" only when both fail.
         try:
-            from app.llm_config import chat_with_fallback
+            from rugmunchbot.llm_config import chat_with_fallback
 
             answer = (await chat_with_fallback(messages, tier, max_tokens=max_tokens)) or ""
             used_fallback = bool(answer)
@@ -291,7 +291,7 @@ async def _call_remote_fast(
         # The paid :lowest model answered — report the fallback tier with the
         # cheap-fallback model name (token count is unknown; keep 0 honest).
         try:
-            from app.llm_config import get_cheap_fallback_config
+            from rugmunchbot.llm_config import get_cheap_fallback_config
 
             fallback_model = str(get_cheap_fallback_config().get("model") or "paid-fallback")
         except Exception:

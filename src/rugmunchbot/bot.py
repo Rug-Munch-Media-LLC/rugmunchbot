@@ -431,7 +431,7 @@ async def close_headless_on_shutdown(app: Application[Any, Any, Any, Any, Any, A
     Runs before Application.stop() waits on jobs, so in-flight Telethon sweeps
     fail fast instead of blocking shutdown indefinitely.
     """
-    from app.domains.telegram.headless import shutdown_headless_client
+    from rugmunchbot._vendor.headless import shutdown_headless_client
 
     try:
         await shutdown_headless_client()

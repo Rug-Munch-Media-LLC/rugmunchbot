@@ -33,12 +33,12 @@ import sys
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from app.domains.news_ingest.ingest import extract_canonical_url, extract_image_url
+from rugmunchbot._vendor.news_ingest.ingest import extract_canonical_url, extract_image_url
 from rugmunchbot.channels.telegram_news._persist import _news_id_for
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
-    from app.domains.news_ingest.models import NewsArticle
+    from rugmunchbot._vendor.news_ingest.models import NewsArticle
     from rugmunchbot.channels import telegram_news as _tg
 else:
     _tg = sys.modules[__package__ or ""]

@@ -52,13 +52,13 @@ SOL_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 
 
 def is_evm(addr: str) -> bool:
-    from app.core.shared_utils import is_evm_address
+    from rugmunchbot._vendor.shared_utils import is_evm_address
 
     return is_evm_address(addr)
 
 
 def is_sol(addr: str) -> bool:
-    from app.core.shared_utils import is_solana_address
+    from rugmunchbot._vendor.shared_utils import is_solana_address
 
     return is_solana_address(addr)
 

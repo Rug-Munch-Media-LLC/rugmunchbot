@@ -19,7 +19,7 @@ from rugmunchbot.handlers.osint._common import (
 
 if TYPE_CHECKING:
     from app.osint import OsintReport
-    from app.osint_tools import OsintResult
+    from rugmunchbot._vendor.osint_tools import OsintResult
 
 
 def _format_report(report: OsintReport, title: str) -> str:

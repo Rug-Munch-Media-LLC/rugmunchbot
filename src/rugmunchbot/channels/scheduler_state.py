@@ -44,7 +44,7 @@ import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from app.core.redis import get_redis_async
+from rugmunchbot._vendor.redis_client import get_redis_async
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:

@@ -74,7 +74,7 @@ async def attach_scan_commentary(item: dict[str, Any]) -> dict[str, Any]:
         {"role": "user", "content": prompt},
     ]
     try:
-        from app.llm_config import chat_with_fallback
+        from rugmunchbot.llm_config import chat_with_fallback
 
         text = await asyncio.wait_for(chat_with_fallback(messages, "snappy"), timeout=_COMMENTARY_TIMEOUT)
     except Exception:

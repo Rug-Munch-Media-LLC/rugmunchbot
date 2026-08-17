@@ -51,7 +51,7 @@ from typing import TYPE_CHECKING
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
-    from app.domains.news_ingest.models import NewsArticle
+    from rugmunchbot._vendor.news_ingest.models import NewsArticle
 
 logger = get_logger("rmi_bot.channels.importance")
 

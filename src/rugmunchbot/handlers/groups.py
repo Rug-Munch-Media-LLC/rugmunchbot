@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from app.domains.telegram import access_guard
+from rugmunchbot._vendor import access_guard
 from rugmunchbot import db
 from rugmunchbot.config import OWNER_IDS
 from rugmunchbot.support.logging import get_logger
@@ -65,7 +65,7 @@ async def cmd_mygroup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not chat_id:
         # Try to look up from database or headless client
         try:
-            from app.domains.telegram.headless import _client_instance
+            from rugmunchbot._vendor.headless import _client_instance
 
             if _client_instance and hasattr(_client_instance, "_managed_groups"):
                 for _key, group in _client_instance._managed_groups.items():
@@ -85,7 +85,7 @@ async def cmd_mygroup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     try:
-        from app.domains.telegram.headless import get_headless_client
+        from rugmunchbot._vendor.headless import get_headless_client
 
         client = await get_headless_client()
         # Force refresh to get current invite link
@@ -144,7 +144,7 @@ async def cmd_groupinfo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     try:
-        from app.domains.telegram.headless import get_headless_client
+        from rugmunchbot._vendor.headless import get_headless_client
 
         client = await get_headless_client()
         info = await client._fetch_group_info(chat_id)
@@ -273,7 +273,7 @@ async def cmd_banuser(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     reason = " ".join(args[2:]) if len(args) > 2 else None
 
     try:
-        from app.domains.telegram.headless import get_headless_client
+        from rugmunchbot._vendor.headless import get_headless_client
 
         client = await get_headless_client()
         success = await client.ban_user(chat_id, user_id, reason=reason)

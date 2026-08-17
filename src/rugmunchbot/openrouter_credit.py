@@ -45,7 +45,7 @@ async def fetch_openrouter_credit() -> dict[str, Any]:
     keys); ``usage`` is the cumulative USD spend.
     """
     try:
-        from app.llm_config import OPENROUTER_BACKUP_API_KEY
+        from rugmunchbot.llm_config import OPENROUTER_BACKUP_API_KEY
 
         api_key = (OPENROUTER_BACKUP_API_KEY or "").strip()
     except Exception as exc:  # pragma: no cover - import-time guard

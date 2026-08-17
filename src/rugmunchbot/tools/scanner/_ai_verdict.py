@@ -123,7 +123,7 @@ async def _llm_verdict_text(result: dict[str, Any]) -> str:
     """One bounded snappy-tier call. Returns the verdict text or "" (never raises)."""
     import json
 
-    from app.llm_config import chat_with_fallback
+    from rugmunchbot.llm_config import chat_with_fallback
 
     facts = _verdict_facts(result)
     prompt = (

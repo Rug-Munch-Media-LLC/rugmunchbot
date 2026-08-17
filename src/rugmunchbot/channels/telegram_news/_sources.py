@@ -22,8 +22,8 @@ import sys
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Final
 
-from app.domains.news_ingest.discovery import discover_followed_channels
-from app.domains.news_ingest.ingest import (
+from rugmunchbot._vendor.news_ingest.discovery import discover_followed_channels
+from rugmunchbot._vendor.news_ingest.ingest import (
     DEFAULT_DEDUP_COLLECTION,
     dedupe_articles,
     extract_canonical_url,
@@ -31,11 +31,11 @@ from app.domains.news_ingest.ingest import (
     is_channel_cooldown,
     read_channel_messages,
 )
-from app.domains.news_ingest.normalize import channel_message_to_article, is_telegram_link
+from rugmunchbot._vendor.news_ingest.normalize import channel_message_to_article, is_telegram_link
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
-    from app.domains.news_ingest.models import ChannelMessage, NewsArticle
+    from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
     from rugmunchbot.channels import telegram_news as _tg
 else:
     _tg = sys.modules[__package__ or ""]
@@ -412,7 +412,7 @@ async def _build_headless_client() -> Any:
     existing client raises; we log the exact setup needed and degrade.
     """
     try:
-        from app.domains.telegram.headless import get_headless_client
+        from rugmunchbot._vendor.headless import get_headless_client
 
         client = await get_headless_client()
         if getattr(client, "is_connected", False):

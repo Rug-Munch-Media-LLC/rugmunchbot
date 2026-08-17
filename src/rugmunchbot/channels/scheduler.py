@@ -98,7 +98,7 @@ from typing import TYPE_CHECKING, Any
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
-from app.domains.news_ingest.models import NewsArticle
+from rugmunchbot._vendor.news_ingest.models import NewsArticle
 from rugmunchbot.channels import scheduler_state
 from rugmunchbot.channels._media import send_news_photo
 from rugmunchbot.channels._scan_commentary import attach_scan_commentary
