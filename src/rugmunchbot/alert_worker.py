@@ -41,6 +41,7 @@ from app.domains.telegram.rugmunchbot.formatters import footer_links, sep, short
 from app.domains.telegram.rugmunchbot.states import check_alert_rate_limit
 from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from telegram.constants import ParseMode
+from telegram.error import TelegramError
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
