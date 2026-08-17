@@ -63,7 +63,9 @@ from config import (
     CHANNELS,
     DATABUS_URL,
     DEX_REF_LINKS,
-    LLAMA_HOST,
+    LLM_CHAT_URL,
+    LLM_LONG_MODEL,
+    LLM_MODEL,
     OWNER_IDS,
     OWNER_USERNAME,
     RAG_COLLECTIONS,
@@ -4072,26 +4074,25 @@ async def _call_litellm(
     task_type: str = "chat",
     max_tokens: int = 1024,
 ) -> str | None:
-    """Call local llama.cpp directly for AI chat/analysis.
+    """Call OpenRouter for AI chat/analysis.
 
-    LiteLLM was removed — this now calls the local llama-server directly.
-    Qwen 3 4B for chat (fast), Qwen3.5-9B for analysis (deep).
-    chat_template_kwargs.enable_thinking=false stops the model from burning
-    tokens on <think> blocks so all output is the actual answer.
+    Snappy tier: poolside/laguna-s-2.1:free (fast chat).
+    Long tier:   nvidia/nemotron-3-ultra-550b-a55b:free (deep analysis).
+    The response contains only the final answer — never chain-of-thought.
 
     Returns the response text or None if the LLM is unavailable.
 
     Args:
         prompt: User message / question.
-        task_type: "chat" → qwen-chat (fast), "analysis" → qwen-analysis (deep).
+        task_type: "chat" → snappy tier, "analysis" → long tier.
         max_tokens: Maximum tokens in response.
     """
     if task_type == "chat":
-        url = f"http://{LLAMA_HOST}:8085/v1/chat/completions"
-        model = "qwen-chat"
+        url = LLM_CHAT_URL
+        model = LLM_MODEL
     else:
-        url = f"http://{LLAMA_HOST}:8086/v1/chat/completions"
-        model = "qwen-analysis"
+        url = LLM_CHAT_URL
+        model = LLM_LONG_MODEL
     system_prompt = (
         "You are Rug Muncher, an AI crypto scam detective embedded in the @rugmunchbot Telegram bot. "
         "You help users detect scams, analyze tokens, and understand crypto security. "

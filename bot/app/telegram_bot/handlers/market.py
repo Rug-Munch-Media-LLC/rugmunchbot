@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V3 market handler — /market fetches the market rundown from the llama-server
+V3 market handler — /market fetches the market rundown from OpenRouter
 chat endpoint (Qwen3-4B) and renders it for the user.
 """
 

@@ -1,7 +1,7 @@
 # RugMunchBot V3 — Design Document
 
 > **Status:** Proposed design · **Owner:** crmuncher · **Created:** 2026-08-04
-> **Scope:** Scanner integration (RugMunchScan), SENTINEL deep scans, professional command menu, automated alert channels, rated news channels, Qwen3-4B AI chat.
+> **Scope:** Scanner integration (RugMunchScan), SENTINEL deep scans, professional command menu, automated alert channels, rated news channels, OpenRouter AI chat (Laguna S 2.1 / Nemotron 3 Ultra free + paid fallback).
 > **Repo context:** This design targets the canonical live bot at `rmi-backend/app/domains/telegram/rugmunchbot/` and the standalone reference at `bot/app/telegram_bot/`. See [Codebase State](#codebase-state) for the dual-tree reconciliation note.
 
 ---
@@ -16,7 +16,7 @@ four backend capabilities:
 |---|---|---|
 | Token security scan (RugMunchScan) | `POST /api/v1/scanner/scan` (v1) → v2 contract | ⚠️ partial |
 | SENTINEL deep forensic scan | `POST /api/v2/scanner/token/scan?depth=deep` (proposed) | ❌ planned |
-| AI chat (Qwen3-4B via llama-server) | `POST http://localhost:8093/v1/chat/completions` | ❌ not wired |
+| AI chat (OpenRouter) | `POST https://openrouter.ai/api/v1/chat/completions` | ❌ not wired |
 | RAG intelligence bridge | `POST /api/v1/rag/v2/search` | ✅ wired |
 | Rated news aggregator | `GET /api/v1/internal/news-feed` | ⚠️ partial |
 | Market overview / fear & greed | `GET /api/v1/market/fear-greed`, `/market/overview` | ⚠️ partial |
@@ -61,7 +61,7 @@ tree receives the code; this doc covers both with identical module names.)
 /market      — Market overview: fear & greed index, movers, sentiment
 /alerts [on|off] [security|whale|price] — Manage alert subscriptions
 /news [topic] — Latest rated news; topics: defi, security, general
-/chat [text] — Chat with RugMunch AI (Qwen3-4B); also catches non-command text
+/chat [text] — Chat with RugMunch AI (OpenRouter); also catches non-command text
 /help        — Full categorized command guide
 ```
 
@@ -235,16 +235,21 @@ Inline buttons: **🔬 Deep Scan · 🤖 AI Analysis · 📊 Chart · 👀 Watch
 
 ---
 
-## 5. Part 3 — AI Chat Integration (Qwen3-4B)
+## 5. Part 3 — AI Chat Integration (OpenRouter)
+
+> **Stack:** production chat runs **remote via OpenRouter** (Laguna S 2.1 free
+> snappy / Nemotron 3 Ultra free long + paid `:lowest` fallback). Local llama.cpp
+> is **dev/play only** (Qwen 3.5 4B quant for testing) — never part of the chat
+> path.
 
 ### 5.1 Endpoint
 
-`POST {LLM_CHAT_URL}` — default `http://localhost:8093/v1/chat/completions`
-(OpenAI-compatible llama-server, model `qwen3-4b`, already in `config.py` uncommitted).
+`POST {LLM_CHAT_URL}` — default `https://openrouter.ai/api/v1/chat/completions`
+(OpenRouter; snappy tier `poolside/laguna-s-2.1:free`, long tier `nvidia/nemotron-3-ultra-550b-a55b:free`, paid `:lowest` fallback).
 
 ```json
 {
-  "model": "qwen3-4b",
+  "model": "poolside/laguna-s-2.1:free",
   "messages": [
     {"role": "system", "content": "<system prompt with hardened directives>"},
     {"role": "user", "content": "Is this token safe? 0x6982..."}
@@ -299,7 +304,7 @@ async def _llm_chat(user_id: int, text: str, token_ctx: str | None = None) -> st
 - **Rate limits:** per-user weekly `db.check_rate_limit(user_id, "ai_msg")` AND the
   shared `ChatRateLimiter` (per user id) — double protection.
 - **Quotas:** `db.increment_usage(user_id, ai_msg=True)` after a successful completion.
-- **Fallbacks:** if llama-server is down → existing smart fallback responses (honeypot/
+- **Fallbacks:** if the OpenRouter free tier is rate-limited → paid `:lowest` model, then smart fallback responses (honeypot/
   price/help keywords), never a raw 500 to the user.
 - **`/analyze` command:** dedicated handler that runs `scan_token_v2` (quick) first,
   feeds the machine-readable scan result + RAG hits into the LLM, and returns a
@@ -449,10 +454,10 @@ async def hourly_news_post(context: ContextTypes.DEFAULT_TYPE):
          │              │                │
          ▼              ▼                ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────────┐
-│ RugMunchScan API│ │ llama-server    │ │ RMI RAG bridge          │
-│ POST /api/v2/   │ │ POST :8093/v1/  │ │ POST /api/v1/rag/v2/    │
+│ RugMunchScan API│ │ OpenRouter      │ │ RMI RAG bridge          │
+│ POST /api/v2/   │ │ POST /api/v1/chat/completions │ │ POST /api/v1/rag/v2/    │
 │ scanner/token/  │ │ chat/completions│ │ search (scam_intel)     │
-│ scan (→v1 poll) │ │ qwen3-4b      │ │ → top_k context          │
+│ scan (→v1 poll) │ │ laguna/nemotron │ │ → top_k context          │
 └────────┬────────┘ └─────────────────┘ └─────────────────────────┘
          │
          ▼
@@ -465,7 +470,7 @@ async def hourly_news_post(context: ContextTypes.DEFAULT_TYPE):
 ```
 
 Chat guardrails (`ChatGuardrails` + `ChatRateLimiter`) sit **between** the bot handlers
-and llama-server (input sanitize → classify → LLM → output sanitize).
+and OpenRouter (input sanitize → classify → LLM → output sanitize).
 
 ---
 
@@ -516,7 +521,7 @@ Ordered build plan (code lands in canonical live bot; port to standalone after):
 | Token security scan | ✅ RugMunchScan + DataBus | ⚠️ basic honeypot check | ⚠️ basic | ⚠️ basic | ❌ |
 | Deep forensic (SENTINEL) | ✅ planned (premium) | ❌ | ❌ | ❌ | ❌ |
 | Rug-pull / bundle detection | ✅ yes (DataBus bundle) | ❌ | ❌ | ❌ | ❌ |
-| AI chat (local Qwen3-4B) | ✅ free, on-prem | ❌ | ❌ | ❌ | ✅ (aixbt agent) |
+| AI chat (OpenRouter free) | ✅ free, hosted | ❌ | ❌ | ❌ | ✅ (aixbt agent) |
 | RAG-grounded answers | ✅ scam_intel KB | ❌ | ❌ | ❌ | ⚠️ social only |
 | Wallet forensics | ✅ existing | ❌ | ❌ | ⚠️ copy-trade focus | ⚠️ |
 | Rated news feed | ✅ bias/sentiment/factual | ❌ | ❌ | ❌ | ✅ (alpha feed) |

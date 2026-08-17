@@ -2,7 +2,7 @@
 """
 RMI AI Gateway — Access AI APIs through Telegram
 ==================================================
-Query DeepSeek, local llama.cpp, OpenRouter from the admin bot.
+Query OpenRouter (Laguna/Nemotron free, DeepSeek paid) from the admin bot.
 Streaming responses, model switching, usage tracking.
 """
 
@@ -39,25 +39,22 @@ if os.getenv("OPENROUTER_API_KEY"):
         "cost_per_1k": "$0.001",
         "context": "64K",
     }
-
-# Local llama.cpp (Talos, systemd)
-MODELS["llama:qwen-chat"] = {
-    "name": "Qwen3.5 4B Chat (Local)",
-    "provider": "llama",
-    "api_url": "http://172.22.0.1:8085/v1/chat/completions",
-    "api_key": "",
-    "cost_per_1k": "FREE",
-    "context": "8K",
-}
-
-MODELS["llama:qwen-analysis"] = {
-    "name": "Qwen3.5 9B Analysis (Local)",
-    "provider": "llama",
-    "api_url": "http://172.22.0.1:8086/v1/chat/completions",
-    "api_key": "",
-    "cost_per_1k": "FREE",
-    "context": "8K",
-}
+    MODELS["openrouter/laguna-s-2.1:free"] = {
+        "name": "Laguna S 2.1 (OpenRouter free)",
+        "provider": "openrouter",
+        "api_url": "https://openrouter.ai/api/v1/chat/completions",
+        "api_key": os.getenv("OPENROUTER_API_KEY"),
+        "cost_per_1k": "FREE",
+        "context": "128K",
+    }
+    MODELS["openrouter/nemotron-3-ultra:free"] = {
+        "name": "Nemotron 3 Ultra (OpenRouter free)",
+        "provider": "openrouter",
+        "api_url": "https://openrouter.ai/api/v1/chat/completions",
+        "api_key": os.getenv("OPENROUTER_API_KEY"),
+        "cost_per_1k": "FREE",
+        "context": "1M",
+    }
 
 # Default model
 DEFAULT_MODEL = (

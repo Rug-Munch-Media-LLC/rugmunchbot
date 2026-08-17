@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V3 LLM client — Qwen3-4B chat + DeepSeek-8B analysis via llama-server (OpenAI-compatible).
+V3 LLM client — OpenRouter chat (Laguna S 2.1 snappy / Nemotron 3 Ultra long, paid fallback).
 
 Used by /analyze (token verdict grounded in scanner context) and /market
 (market rundown). Output is sanitized (defense in depth) to redact internal
@@ -96,7 +96,7 @@ def _extract_text(body) -> str:
 
 
 async def analyze_token(address: str, scan_ctx: dict) -> str:
-    """Run DeepSeek-8B over scanner context and return a sanitized verdict."""
+    """Run OpenRouter model over scanner context and return a sanitized verdict."""
     system = build_analyze_system_prompt(address, scan_ctx)
     user = f"Token contract: {address}\nIs this token safe to interact with?"
     payload = {
@@ -119,7 +119,7 @@ async def analyze_token(address: str, scan_ctx: dict) -> str:
 
 
 async def fetch_market_rundown() -> str:
-    """Fetch the market rundown from the llama-server chat endpoint."""
+    """Fetch the market rundown from the OpenRouter chat endpoint."""
     async with httpx.AsyncClient(timeout=MARKET_TIMEOUT) as client:
         r = await client.get(MARKET_RUNDOWN_URL)
         r.raise_for_status()

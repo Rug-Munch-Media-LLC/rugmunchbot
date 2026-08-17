@@ -74,27 +74,19 @@ FREE_AI_DAILY_LIMIT = int(os.getenv("FREE_AI_DAILY_LIMIT", "30"))
 RMI_AUTH_TOKEN = os.getenv("RMI_AUTH_TOKEN", "")
 
 # ══════════════════════════════════════════════
-# LOCAL LLAMA.CPP — Direct llama-server endpoints
+# LLM — OpenRouter (remote, hosted)
 # ══════════════════════════════════════════════
-# llama.cpp servers run locally and provide OpenAI-compatible chat endpoints.
-# Model groups:
-#   - Qwen 3 4B on port 8085 → "qwen-chat" (fast, conversational)
-#   - Qwen3.5-9B on port 8086 → "qwen-analysis" (deep reasoning)
-# chat_template_kwargs.enable_thinking=false disables reasoning preamble.
-LLAMA_HOST = os.getenv("LLAMA_HOST", "172.22.0.1")
-
-# Legacy LiteLLM config (kept for backward compat, no longer used)
-LITELLM_URL = os.getenv("LITELLM_URL", "http://127.0.0.1:4000/v1")
-LITELLM_API_KEY = os.getenv("LITELLM_API_KEY", "sk-litellm")
-AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "chat")  # LiteLLM group → qwen-chat
-AI_ANALYSIS_MODEL = os.getenv("AI_ANALYSIS_MODEL", "analysis")  # LiteLLM group → qwen-analysis
-
-# Legacy direct llama.cpp backend (fallback when LiteLLM is unavailable)
-LLAMA_HOST = os.getenv("LLAMA_HOST", "172.22.0.1")
-LLM_CHAT_URL = os.getenv("LLM_CHAT_URL", "http://localhost:8093/v1/chat/completions")
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen3-8b")
-# Market rundown endpoint served by the same llama-server backend (chat mode).
-MARKET_RUNDOWN_URL = os.getenv("MARKET_RUNDOWN_URL", "http://localhost:8095/chat/rundown")
+# All AI chat runs through OpenRouter. Free tiers:
+#   - snappy: poolside/laguna-s-2.1:free (fast chat)
+#   - long:   nvidia/nemotron-3-ultra-550b-a55b:free (deep analysis)
+# Paid `:lowest` fallback keeps chat alive on free-tier rate limits.
+LLM_CHAT_URL = os.getenv("LLM_CHAT_URL", "https://openrouter.ai/api/v1/chat/completions")
+LLM_MODEL = os.getenv("LLM_MODEL", "poolside/laguna-s-2.1:free")
+LLM_LONG_MODEL = os.getenv("LLM_LONG_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free")
+# Market rundown endpoint (same OpenRouter chat backend).
+MARKET_RUNDOWN_URL = os.getenv(
+    "MARKET_RUNDOWN_URL", "https://openrouter.ai/api/v1/chat/completions"
+)
 
 # ══════════════════════════════════════════════
 # V3 — SCANNER & SENTINEL ENDPOINTS
