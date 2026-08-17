@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/_phase_helpers.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/_phase_helpers.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Phase helpers — background phase sub-runners for ``UnifiedTokenScanner``.
@@ -78,7 +78,7 @@ async def run_wallet_analysis(r: ScanResult, address: str, chain: str) -> None:
     is unavailable, so a failed sub-engine never fails the scan.
     """
     try:
-        from app.domains.scanner.engines.funding_analysis import (
+        from rugmunchbot._vendor.scanner_engines.funding_analysis import (
             analyze_funding_sources,
             analyze_scam_overlap,
             compute_wallet_freshness,
@@ -148,7 +148,7 @@ async def run_bundle_analysis(r: ScanResult, address: str, chain: str) -> None:
     outage degrades to ``unavailable``.
     """
     try:
-        from app.domains.scanner.engines.own_bundle_detect import (
+        from rugmunchbot._vendor.scanner_engines.own_bundle_detect import (
             detect_bundled_launch,
             detect_same_slot_bundler,
         )

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/news_ingest/normalize.py (Phase 2a — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/news_ingest/normalize.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Normalization: raw Telegram channel messages → ``NewsArticle``.

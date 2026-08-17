@@ -58,7 +58,7 @@ async def story_fetch(*, url: str = "", ingest: bool = False, **ctx: Any) -> Too
         return ToolResult(tool="story_fetch", ok=False, error="url required")
 
     try:
-        from app.rag.story_ingest import fetch_story
+        from rugmunchbot._vendor.rag_pkg.story_ingest import fetch_story
     except Exception as e:  # pragma: no cover - import must never raise out
         logger.error("story_fetch_import_failed", error=str(e)[:200])
         return ToolResult(tool="story_fetch", ok=False, error="couldn't fetch: story fetch layer unavailable")
@@ -91,7 +91,7 @@ async def story_fetch(*, url: str = "", ingest: bool = False, **ctx: Any) -> Too
     # Optional RAG side-effect — fail-open, never blocks the story return.
     if ingest:
         try:
-            from app.rag.story_ingest import ingest_url
+            from rugmunchbot._vendor.rag_pkg.story_ingest import ingest_url
 
             result = await asyncio.wait_for(ingest_url(url), timeout=STORY_INGEST_TIMEOUT)
             data["ingest"] = result if isinstance(result, dict) else {"status": "unknown"}

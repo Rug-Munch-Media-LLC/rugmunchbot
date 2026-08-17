@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/dedup.py (Phase 2a — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/rag/dedup.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Multi-level news deduplication for the RugBrain RAG pipeline.
@@ -415,8 +415,8 @@ async def _title_search(title: str, collection: str, limit: int = 5) -> list[Any
     """
     if not title or not title.strip():
         return []
-    from app.rag.embeddings import get_embedding
-    from app.rag.engine import _qdrant_search
+    from rugmunchbot._vendor.rag_pkg.embeddings import get_embedding
+    from rugmunchbot._vendor.rag_pkg.engine import _qdrant_search
 
     vec = await get_embedding(title)
     return await _qdrant_search(vec, collection, limit=limit, score_threshold=0.0)

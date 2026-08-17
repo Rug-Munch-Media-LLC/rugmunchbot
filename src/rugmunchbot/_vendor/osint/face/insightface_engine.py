@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/osint/face/insightface_engine.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/osint/face/insightface_engine.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Engine 1: insightface (ArcFace / Buffalo) face detection + embeddings."""

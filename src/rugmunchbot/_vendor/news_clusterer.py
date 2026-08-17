@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/news/clusterer.py (Phase 2a — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/news/clusterer.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """T03 - News story clustering (G04 FIX).

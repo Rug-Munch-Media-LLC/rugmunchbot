@@ -40,6 +40,8 @@ if [ "${1:-}" = "--check" ]; then
     [ -f "$TARGET/_vendor/$v" ] || { echo "FAIL: missing _vendor/$v" >&2; FAIL=1; }
   done
   [ -f "$TARGET/llm_config.py" ] || { echo "FAIL: missing llm_config.py" >&2; FAIL=1; }
+  [ -f "$TARGET/_vendor/settings_shim.py" ] || { echo "FAIL: missing _vendor/settings_shim.py" >&2; FAIL=1; }
+  [ -d "$TARGET/_vendor/rag_pkg" ] && [ -d "$TARGET/_vendor/scanner_engines" ] || { echo "FAIL: missing rag_pkg/scanner_engines" >&2; FAIL=1; }
   [ -f "$HERE/scripts/rewrite-imports.py" ] && [ -f "$HERE/scripts/vendor-from-backend.sh" ] || { echo "FAIL: missing sync scripts" >&2; FAIL=1; }
   if [ "$FAIL" -eq 0 ]; then
     echo "OK: src/rugmunchbot = live + import rewrite + _vendor + llm_config (invariants hold)."

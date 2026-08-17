@@ -212,7 +212,7 @@ async def _gather_rag_news_context(question: str) -> tuple[str, list[dict[str, s
     context so the LLM still answers from its own knowledge.
     """
     try:
-        from rugmunchbot._vendor.rag_tools import get_news as _rag_get_news
+        from rugmunchbot._vendor.rag_pkg.tools import get_news as _rag_get_news
 
         news = await asyncio.wait_for(_rag_get_news(question, top_k=5), timeout=_CONTEXT_GATHER_TIMEOUT)
     except Exception as exc:

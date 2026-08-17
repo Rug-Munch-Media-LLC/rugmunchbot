@@ -114,7 +114,7 @@ async def _fetch_clickhouse_flow(address: str, chain: str) -> dict[str, Any] | N
     failure so /trace fails open to the legacy external-API path.
     """
     try:
-        from app.domains.scanner.engines.wallet_flow import build_flow_summary
+        from rugmunchbot._vendor.scanner_engines.wallet_flow import build_flow_summary
 
         summary = await asyncio.wait_for(
             build_flow_summary(address, chain, hops=2),

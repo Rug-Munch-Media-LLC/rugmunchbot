@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/_merge_helpers.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/_merge_helpers.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Core-identity merge helper — price/meta/security payloads → ``ScanResult``.

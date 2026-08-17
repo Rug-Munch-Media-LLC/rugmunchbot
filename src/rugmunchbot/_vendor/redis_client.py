@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/core/redis.py (Phase 2a — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/core/redis.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Redis singleton - single source of truth for Redis connections.
@@ -30,7 +30,13 @@ def _get_redis_url() -> str:
     """Get Redis URL from settings, falling back to direct env var during boot.
     If the URL has no password, try fetching from gopass (bot runs on host)."""
     url = ""
-    # Phase 2a: app.config.settings lookup removed (bot-local env config).
+    try:
+        from rugmunchbot._vendor.settings_shim import settings as _s
+
+        if _s.redis_url:
+            url = _s.redis_url
+    except Exception:  # noqa: S110 — optional dependency
+        pass
     if not url:
         url = os.getenv("REDIS_URL", "")
     if not url:

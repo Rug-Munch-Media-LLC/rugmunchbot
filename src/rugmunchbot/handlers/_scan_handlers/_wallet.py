@@ -105,8 +105,8 @@ async def cmd_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # Fail-open: renders "—" when no signal resolves — never blocks the
         # wallet report.
         try:
-            from app.domains.scanner.engines.own_wallet_trust import get_wallet_trust
-            from app.rag.scan_memory import schedule_wallet_memory_index
+            from rugmunchbot._vendor.scanner_engines.own_wallet_trust import get_wallet_trust
+            from rugmunchbot._vendor.rag_pkg.scan_memory import schedule_wallet_memory_index
 
             trust_chain = chain or str(result.get("chain") or "") or detect_chain(addr)
             trust = await asyncio.wait_for(

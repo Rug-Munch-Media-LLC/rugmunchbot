@@ -75,7 +75,7 @@ async def ingest_into_rag(articles: list[NewsArticle]) -> dict[str, Any]:
             NewsItem as ClusterNewsItem,
             build_story_rag_docs,
         )
-        from app.rag.ingestion import BatchIngestor
+        from rugmunchbot._vendor.rag_pkg.ingestion import BatchIngestor
 
         cluster_input = [
             ClusterNewsItem(

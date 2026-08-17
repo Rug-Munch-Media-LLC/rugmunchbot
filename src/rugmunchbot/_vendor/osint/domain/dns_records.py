@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/osint/domain/dns_records.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/osint/domain/dns_records.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """DNS source — resolve A/AAAA/MX/NS/TXT/CNAME records via dnspython."""

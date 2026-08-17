@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/osint/phone.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/osint/phone.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Phone number OSINT — validation, carrier, region, timezone, line-type risk,

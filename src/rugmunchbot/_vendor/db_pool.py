@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/core/db_pool.py (Phase 2a — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/core/db_pool.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Database connection pooling - Redis + Postgres with auto-reconnect."""
@@ -12,7 +12,7 @@ from rugmunchbot._vendor.logging_shim import get_logger
 logger = get_logger(__name__)
 
 try:
-    from app.config import settings as _s
+    from rugmunchbot._vendor.settings_shim import settings as _s
 
     REDIS_URL = _s.redis_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
     PG_URL = _s.database_url or os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres")

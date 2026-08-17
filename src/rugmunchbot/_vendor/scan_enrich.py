@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/scan_enrich.py (Phase 2a — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/scan_enrich.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Consolidated risk-signal enrichment for the RugMunchBot scan report.
@@ -133,7 +133,7 @@ risk_verdict_text: Callable[[_ResultDict], str] | None
 rug_risk_score: Callable[[_ResultDict], _ResultDict] | None
 
 try:
-    from rugmunchbot._vendor.rug_risk_score import risk_verdict_text, rug_risk_score
+    from app.domains.scanner.rug_risk_score import risk_verdict_text, rug_risk_score
 except ImportError:  # pragma: no cover - exercised only when the module is absent
     risk_verdict_text = None
     rug_risk_score = None

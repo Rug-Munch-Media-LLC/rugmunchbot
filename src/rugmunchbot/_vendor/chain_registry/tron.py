@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/chain_registry/tron.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/chain_registry/tron.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """

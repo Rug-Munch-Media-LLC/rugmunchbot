@@ -180,7 +180,7 @@ async def persist_articles(articles: list[NewsArticle]) -> dict[str, int]:
         logger.info("tg_news:persist_disabled")
         return counts
     try:
-        from app.catalog.service import get_catalog
+        from rugmunchbot._vendor.catalog_service import get_catalog
 
         catalog = get_catalog()
         await catalog._init_stores()  # catalog store probe (same as RSS ingest)

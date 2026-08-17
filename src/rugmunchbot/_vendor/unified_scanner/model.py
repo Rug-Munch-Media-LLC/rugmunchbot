@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/model.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/model.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """ScanResult dataclass — data model for token scan results."""
@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from app.rag.intelligence import RAGContext
+    from rugmunchbot._vendor.rag_pkg.intelligence import RAGContext
 
 # RugBrain (rmi-rag) base URL — shared by scanner.py and market_context.py.
 # Lives here (the shared types module) to break the scanner <-> market_context

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/_finalize_helpers.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/_finalize_helpers.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Finalize helpers — post-phase tail for ``UnifiedTokenScanner``.
@@ -71,7 +71,7 @@ async def _enrich_scan_result_bounded(result: ScanResult) -> Any:
         )
         return None
     try:
-        from app.rag.intelligence import RAGIntelligenceEnricher
+        from rugmunchbot._vendor.rag_pkg.intelligence import RAGIntelligenceEnricher
 
         enricher = RAGIntelligenceEnricher()
         rag_context = await asyncio.wait_for(
@@ -115,7 +115,7 @@ async def run_news_sentiment(r: ScanResult, address: str, chain: str) -> None:
     best-effort enrichment, not a scan blocker.
     """
     try:
-        from app.domains.scanner.engines.news_sentiment import analyze_token_news_sentiment
+        from rugmunchbot._vendor.scanner_engines.news_sentiment import analyze_token_news_sentiment
 
         sentiment = await asyncio.wait_for(
             analyze_token_news_sentiment(
@@ -154,7 +154,7 @@ async def get_news_card(r: ScanResult, address: str, chain: str) -> None:
     is best-effort enrichment, not a scan blocker.
     """
     try:
-        from app.domains.scanner.engines.news_sentiment import get_token_news_card
+        from rugmunchbot._vendor.scanner_engines.news_sentiment import get_token_news_card
 
         on_chain: bool | None = None
         if isinstance(r.event_correlation, dict) and r.event_correlation.get("events"):

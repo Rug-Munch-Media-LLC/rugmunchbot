@@ -250,7 +250,7 @@ def _reranker_tripped() -> bool:
 async def _rerank_query(query: str, texts: list[str]) -> dict[int, float]:
     """Score all texts against one query via Infinity. Fail-open → {}."""
     try:
-        from app.rag.rerank import rerank_results
+        from rugmunchbot._vendor.rag_pkg.rerank import rerank_results
 
         results = await rerank_results(query, texts, top_n=len(texts))
     except Exception as exc:  # any failure degrades to an empty score map

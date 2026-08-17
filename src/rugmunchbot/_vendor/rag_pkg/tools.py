@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/tools.py (Phase 2a — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/rag/tools.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Real-time tool registry for the agentic RAG graph.
@@ -249,7 +249,7 @@ async def get_news(query: str, top_k: int = _NEWS_TOP_K) -> dict[str, Any]:
     empty result set.
     """
     try:
-        from app.rag.retrieval import HybridRetriever
+        from rugmunchbot._vendor.rag_pkg.retrieval import HybridRetriever
 
         hits = await HybridRetriever().retrieve(
             query=query,

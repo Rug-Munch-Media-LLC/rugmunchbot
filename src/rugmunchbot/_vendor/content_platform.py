@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/content_platform.py (Phase 2a — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/content_platform.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """
@@ -275,7 +275,7 @@ async def _generate_briefing_legacy() -> dict[str, Any]:
 
     # Pull from RAG
     try:
-        from app.rag.compat import three_pillar_search
+        from rugmunchbot._vendor.rag_pkg.compat import three_pillar_search
 
         for topic, query in [
             ("Scam Alerts", "rug pull honeypot scam today"),
@@ -309,7 +309,7 @@ async def generate_newsletter() -> dict[str, Any]:
     content_parts = [f"# 📰 Weekly Intelligence Report\n\n*Week of {datetime.now(UTC).strftime('%B %d, %Y')}*\n"]
 
     try:
-        from app.rag.compat import three_pillar_search
+        from rugmunchbot._vendor.rag_pkg.compat import three_pillar_search
 
         for section, query in [
             ("🔴 Top Threats", "major scam exploit hack this week"),

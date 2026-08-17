@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/scanner.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/scanner.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """UnifiedTokenScanner — main scan orchestration.
@@ -698,7 +698,7 @@ class UnifiedTokenScanner:
         to empty events when news/price data is unavailable.
         """
         try:
-            from app.domains.scanner.engines.event_correlation import correlate_news_with_price
+            from rugmunchbot._vendor.scanner_engines.event_correlation import correlate_news_with_price
 
             correlation = await correlate_news_with_price(address, chain, lookback_hours=24)
             if not isinstance(correlation, dict):

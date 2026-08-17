@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/scoring.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/scoring.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Token safety scoring — multi-dimensional, explainable risk scoring.
@@ -53,7 +53,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from rugmunchbot._vendor.unified_scanner.model import ScanResult
 
-from app.domains.scanner.engines.news_sentiment import HIGH_MEDIA_ATTENTION_THRESHOLD
+from rugmunchbot._vendor.scanner_engines.news_sentiment import HIGH_MEDIA_ATTENTION_THRESHOLD
 from rugmunchbot._vendor.unified_scanner._evidence import build_evidence
 from rugmunchbot._vendor.unified_scanner._score_helpers import apply_sentinel_scoring, build_breakdown
 

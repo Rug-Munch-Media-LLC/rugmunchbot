@@ -92,7 +92,7 @@ from rugmunchbot.tools.scanner._security import (
     _security_checks as _security_checks,
 )
 from rugmunchbot.tools.token_meta import token_meta as token_meta
-from app.rag.scan_memory import (
+from rugmunchbot._vendor.rag_pkg.scan_memory import (
     schedule_scan_memory_index as schedule_scan_memory_index,
     should_index_scan as should_index_scan,
 )

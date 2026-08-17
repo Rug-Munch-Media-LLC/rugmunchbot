@@ -31,6 +31,7 @@ import os
 import re
 from typing import Any
 
+from rugmunchbot._vendor.settings_shim import settings
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools._client import http_get_json, http_post_json
 from rugmunchbot.tools.registry import ToolResult
@@ -40,7 +41,7 @@ logger = get_logger("rmi_bot.tools.web")
 BRIDGE_CONTEXT_ENDPOINT = os.getenv("BRIDGE_CONTEXT_ENDPOINT", "http://127.0.0.1:8095/chat/context")
 # Single source of truth: app.config.searxng_base_url (env SEARXNG_BASE_URL,
 # default http://127.0.0.1:8889).
-SEARXNG_URL = os.getenv("SEARXNG_BASE_URL", "http://127.0.0.1:8889").rstrip("/")
+SEARXNG_URL = settings.searxng_base_url.rstrip("/")
 SEARXNG_TIMEOUT = 6.0
 
 # ══════════════════════════════════════════════════════════════════════════

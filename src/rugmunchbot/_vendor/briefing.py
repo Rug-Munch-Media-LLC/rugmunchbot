@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/content/briefing.py (Phase 2a — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/content/briefing.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """RMI Morning Brief assembler — draft → review → publish.
@@ -264,7 +264,7 @@ async def _fetch_market_data() -> dict[str, Any]:
 async def _fetch_rag_block(query: str, collections: list[str], limit: int) -> list[dict[str, Any]]:
     """One RAG block via ``three_pillar_search``; returns [] on any failure."""
     try:
-        from app.rag.compat import three_pillar_search
+        from rugmunchbot._vendor.rag_pkg.compat import three_pillar_search
 
         result = await three_pillar_search(
             query=query,

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/market_context.py (Phase 2b — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/market_context.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """Market context fetch + cache for the unified scanner.
@@ -29,7 +29,7 @@ from typing import Any
 import httpx
 
 from rugmunchbot._vendor.logging_shim import get_logger
-from app.domains.scanner.engines._common import redis_get, redis_set
+from rugmunchbot._vendor.scanner_engines._common import redis_get, redis_set
 from rugmunchbot._vendor.unified_scanner.model import (
     MARKET_CONTEXT_CACHE_TTL,
     RUG_BRAIN_API_URL,

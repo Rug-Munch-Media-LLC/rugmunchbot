@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/core/logging.py (Phase 2a — frozen copy; do not edit).
+# VENDORED 2026-08-17 from rmi-backend/app/core/logging.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/sync-from-live.sh
 # ---
 """RMI Backend — Structured logging with structlog + request ID tracking.
