@@ -78,7 +78,7 @@ def _article_to_news_item(article: NewsArticle) -> Any | None:
     try:
         from pydantic import HttpUrl
 
-        from app.catalog.models import NewsItem, utcnow
+        from rugmunchbot._vendor.catalog_models import NewsItem, utcnow
         from rugmunchbot._vendor.news_ratings import rate_article
 
         rating = rate_article(title=article.title, content=article.body, source=article.source_channel)

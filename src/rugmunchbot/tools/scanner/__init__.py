@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import httpx as httpx
 
-from app.domains.scanner.gmgn_enrich import enrich_scan_with_gmgn as enrich_scan_with_gmgn
+from rugmunchbot._vendor.gmgn_enrich import enrich_scan_with_gmgn as enrich_scan_with_gmgn
 from rugmunchbot.tools._client import get_shared_client as get_shared_client
 from rugmunchbot.tools.registry import (
     ToolResult as ToolResult,

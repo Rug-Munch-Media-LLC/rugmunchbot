@@ -26,7 +26,7 @@ def _bluechip_addresses() -> frozenset[str]:
     global _BLUECHIP_CACHE
     if _BLUECHIP_CACHE is None:
         try:
-            from app.domains.scanner.unified.scoring import BLUECHIP_ADDRESSES
+            from rugmunchbot._vendor.unified_scanner.scoring import BLUECHIP_ADDRESSES
 
             _BLUECHIP_CACHE = frozenset(a.lower() for a in BLUECHIP_ADDRESSES)
         except ImportError:  # pragma: no cover - defensive

@@ -332,7 +332,7 @@ async def _fetch_news() -> list[dict[str, Any]]:
     Fails open to [] — the RAG lane must never block the summary.
     """
     try:
-        from app.rag.tools import get_news
+        from rugmunchbot._vendor.rag_tools import get_news
 
         payload = await get_news("top crypto market news today", top_k=6)
         results = payload.get("results") or []

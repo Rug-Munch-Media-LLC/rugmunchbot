@@ -421,7 +421,7 @@ async def check_monitors(context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     logger.info("Found %s active monitor(s) to check.", len(monitors))
 
-    from app.domains.scanner.webhooks.telegram_bridge import enqueue_telegram_alert
+    from rugmunchbot._vendor.telegram_bridge import enqueue_telegram_alert
     from rugmunchbot.scanner import scan_token
 
     checked = 0

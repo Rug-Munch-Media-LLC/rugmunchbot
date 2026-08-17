@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 # if the module is not deployable on a given host.
 enrich_scan: Callable[[dict[str, Any], str, str], Awaitable[dict[str, Any]]] | None
 try:  # pragma: no cover - exercised only when scan_enrich is absent
-    from app.domains.scanner.scan_enrich import (
+    from rugmunchbot._vendor.scan_enrich import (
         enrich_scan as enrich_scan,
     )
 except ImportError:

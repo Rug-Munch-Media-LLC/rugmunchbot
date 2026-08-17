@@ -59,6 +59,18 @@ declare -A MAP=(
   ["app/databus/webshare_proxies.py"]="_vendor/webshare_proxies.py"
   ["app/domains/content/briefing.py"]="_vendor/briefing.py"
   ["app/core/db_pool.py"]="_vendor/db_pool.py"
+  ["app/rag/tools.py"]="_vendor/rag_tools.py"
+  ["app/domains/scanner/rug_risk_score.py"]="_vendor/rug_risk_score.py"
+  ["app/domains/scanner/scan_enrich.py"]="_vendor/scan_enrich.py"
+  ["app/domains/scanner/gmgn_enrich.py"]="_vendor/gmgn_enrich.py"
+  ["app/domains/scanner/engines/launchpad_registry.py"]="_vendor/launchpad_registry.py"
+  ["app/domains/scanner/webhooks/models.py"]="_vendor/webhook_models.py"
+  ["app/domains/scanner/webhooks/repository.py"]="_vendor/webhook_repository.py"
+  ["app/domains/scanner/webhooks/telegram_bridge.py"]="_vendor/telegram_bridge.py"
+  ["app/catalog/models.py"]="_vendor/catalog_models.py"
+  ["app/domains/databus/providers/chains/lite_chain_indexer.py"]="_vendor/lite_chain_indexer.py"
+  ["app/databus/gmgn_provider.py"]="_vendor/gmgn_provider.py"
+  ["app/databus/_gmgn_fallbacks.py"]="_vendor/gmgn_fallbacks.py"
 )
 
 rewrite_vendor() {
@@ -76,9 +88,26 @@ rewrite_vendor() {
     -e 's|from app\.domains\.news\.clusterer import|from rugmunchbot._vendor.news_clusterer import|g' \
     -e 's|from app\.osint\.|from rugmunchbot._vendor.osint.|g' \
     -e 's|from app\.osint import|from rugmunchbot._vendor.osint import|g' \
+    -e 's|from app\.domains\.scanner\.unified\.scoring import|from rugmunchbot._vendor.unified_scanner.scoring import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.telegram_bridge import|from rugmunchbot._vendor.telegram_bridge import|g' \
+    -e 's|from app\.domains\.scanner\.rug_risk_score import|from rugmunchbot._vendor.rug_risk_score import|g' \
+    -e 's|from app\.domains\.scanner\.engines\.launchpad_registry import|from rugmunchbot._vendor.launchpad_registry import|g' \
+    -e 's|from app\.domains\.scanner\.scan_enrich import|from rugmunchbot._vendor.scan_enrich import|g' \
+    -e 's|from app\.domains\.scanner\.gmgn_enrich import|from rugmunchbot._vendor.gmgn_enrich import|g' \
+    -e 's|from app\.catalog\.models import|from rugmunchbot._vendor.catalog_models import|g' \
+    -e 's|from app\.rag\.tools import|from rugmunchbot._vendor.rag_tools import|g' \
+    -e 's|from app\.domains\.databus\.providers\.chains\.lite_chain_indexer import|from rugmunchbot._vendor.lite_chain_indexer import|g' \
     -e 's|from app\.domains\.content\.briefing import|from rugmunchbot._vendor.briefing import|g' \
     -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
     -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
+    -e 's|from app\.domains\.scanner\.unified\.|from rugmunchbot._vendor.unified_scanner.|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.models import|from rugmunchbot._vendor.webhook_models import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.repository import|from rugmunchbot._vendor.webhook_repository import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.telegram_bridge import|from rugmunchbot._vendor.telegram_bridge import|g' \
+    -e 's|from app\.databus\.gmgn_provider import|from rugmunchbot._vendor.gmgn_provider import|g' \
+    -e 's|from app\.databus\._gmgn_fallbacks import|from rugmunchbot._vendor.gmgn_fallbacks import|g' \
+    -e 's|from app\.catalog\.models import|from rugmunchbot._vendor.catalog_models import|g' \
+    -e 's|from app\.rag\.tools import|from rugmunchbot._vendor.rag_tools import|g' \
     -e 's|from app\.domains\.news_ingest\.|from rugmunchbot._vendor.news_ingest.|g' \
     -e 's|from app\.rag\.dedup import|from rugmunchbot._vendor.dedup import|g' \
     -e 's|from app\.domains\.telegram\.headless_client import|from rugmunchbot._vendor.headless_client import|g' \
@@ -104,8 +133,10 @@ for src in "${!MAP[@]}"; do
 done
 
 # package copies (whole dirs, self-contained)
-for pkg_src in "app/osint" "app/chain_registry"; do
-  pkg_dst="$VENDOR/$(basename "$pkg_src")"
+for pkg_entry in "app/osint|osint" "app/chain_registry|chain_registry" "app/domains/scanner/unified|unified_scanner"; do
+  pkg_src="${pkg_entry%%|*}"
+  pkg_name="${pkg_entry##*|}"
+  pkg_dst="$VENDOR/$pkg_name"
   mkdir -p "$pkg_dst"
   ( cd "$BACKEND" && find "$pkg_src" -name '*.py' -not -path '*__pycache__*' | while read -r f; do
       rel="${f#$pkg_src/}"
@@ -169,12 +200,37 @@ find "$HERE/src/rugmunchbot" -name '*.py' -not -path '*/_vendor/*' | while read 
     -e 's|from app\.domains\.news\.clusterer import|from rugmunchbot._vendor.news_clusterer import|g' \
     -e 's|from app\.osint\.|from rugmunchbot._vendor.osint.|g' \
     -e 's|from app\.osint import|from rugmunchbot._vendor.osint import|g' \
+    -e 's|from app\.domains\.scanner\.unified\.scoring import|from rugmunchbot._vendor.unified_scanner.scoring import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.telegram_bridge import|from rugmunchbot._vendor.telegram_bridge import|g' \
+    -e 's|from app\.domains\.scanner\.rug_risk_score import|from rugmunchbot._vendor.rug_risk_score import|g' \
+    -e 's|from app\.domains\.scanner\.engines\.launchpad_registry import|from rugmunchbot._vendor.launchpad_registry import|g' \
+    -e 's|from app\.domains\.scanner\.scan_enrich import|from rugmunchbot._vendor.scan_enrich import|g' \
+    -e 's|from app\.domains\.scanner\.gmgn_enrich import|from rugmunchbot._vendor.gmgn_enrich import|g' \
+    -e 's|from app\.catalog\.models import|from rugmunchbot._vendor.catalog_models import|g' \
+    -e 's|from app\.rag\.tools import|from rugmunchbot._vendor.rag_tools import|g' \
+    -e 's|from app\.domains\.databus\.providers\.chains\.lite_chain_indexer import|from rugmunchbot._vendor.lite_chain_indexer import|g' \
     -e 's|from app\.domains\.content\.briefing import|from rugmunchbot._vendor.briefing import|g' \
     -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
     -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
+    -e 's|from app\.domains\.scanner\.unified\.|from rugmunchbot._vendor.unified_scanner.|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.models import|from rugmunchbot._vendor.webhook_models import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.repository import|from rugmunchbot._vendor.webhook_repository import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.telegram_bridge import|from rugmunchbot._vendor.telegram_bridge import|g' \
+    -e 's|from app\.databus\.gmgn_provider import|from rugmunchbot._vendor.gmgn_provider import|g' \
+    -e 's|from app\.databus\._gmgn_fallbacks import|from rugmunchbot._vendor.gmgn_fallbacks import|g' \
+    -e 's|from app\.catalog\.models import|from rugmunchbot._vendor.catalog_models import|g' \
+    -e 's|from app\.rag\.tools import|from rugmunchbot._vendor.rag_tools import|g' \
     -e 's|from app\.domains\.content\.briefing import|from rugmunchbot._vendor.briefing import|g' \
     -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
     -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
+    -e 's|from app\.domains\.scanner\.unified\.|from rugmunchbot._vendor.unified_scanner.|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.models import|from rugmunchbot._vendor.webhook_models import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.repository import|from rugmunchbot._vendor.webhook_repository import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.telegram_bridge import|from rugmunchbot._vendor.telegram_bridge import|g' \
+    -e 's|from app\.databus\.gmgn_provider import|from rugmunchbot._vendor.gmgn_provider import|g' \
+    -e 's|from app\.databus\._gmgn_fallbacks import|from rugmunchbot._vendor.gmgn_fallbacks import|g' \
+    -e 's|from app\.catalog\.models import|from rugmunchbot._vendor.catalog_models import|g' \
+    -e 's|from app\.rag\.tools import|from rugmunchbot._vendor.rag_tools import|g' \
     -e 's|from app\.core\.channels_registry import|from rugmunchbot._vendor.channels_registry import|g' \
     -e 's|from app\.core\.redis import|from rugmunchbot._vendor.redis_client import|g' \
     -e 's|from app\.domains\.telegram import access_guard|from rugmunchbot._vendor import access_guard|g' \
@@ -197,12 +253,37 @@ find "$HERE/src/rugmunchbot" -name '*.py' -not -path '*/_vendor/*' | while read 
     -e 's|from app\.deep_scan import|from rugmunchbot._vendor.deep_scan import|g' \
     -e 's|from app\.osint\.|from rugmunchbot._vendor.osint.|g' \
     -e 's|from app\.osint import|from rugmunchbot._vendor.osint import|g' \
+    -e 's|from app\.domains\.scanner\.unified\.scoring import|from rugmunchbot._vendor.unified_scanner.scoring import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.telegram_bridge import|from rugmunchbot._vendor.telegram_bridge import|g' \
+    -e 's|from app\.domains\.scanner\.rug_risk_score import|from rugmunchbot._vendor.rug_risk_score import|g' \
+    -e 's|from app\.domains\.scanner\.engines\.launchpad_registry import|from rugmunchbot._vendor.launchpad_registry import|g' \
+    -e 's|from app\.domains\.scanner\.scan_enrich import|from rugmunchbot._vendor.scan_enrich import|g' \
+    -e 's|from app\.domains\.scanner\.gmgn_enrich import|from rugmunchbot._vendor.gmgn_enrich import|g' \
+    -e 's|from app\.catalog\.models import|from rugmunchbot._vendor.catalog_models import|g' \
+    -e 's|from app\.rag\.tools import|from rugmunchbot._vendor.rag_tools import|g' \
+    -e 's|from app\.domains\.databus\.providers\.chains\.lite_chain_indexer import|from rugmunchbot._vendor.lite_chain_indexer import|g' \
     -e 's|from app\.domains\.content\.briefing import|from rugmunchbot._vendor.briefing import|g' \
     -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
     -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
+    -e 's|from app\.domains\.scanner\.unified\.|from rugmunchbot._vendor.unified_scanner.|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.models import|from rugmunchbot._vendor.webhook_models import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.repository import|from rugmunchbot._vendor.webhook_repository import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.telegram_bridge import|from rugmunchbot._vendor.telegram_bridge import|g' \
+    -e 's|from app\.databus\.gmgn_provider import|from rugmunchbot._vendor.gmgn_provider import|g' \
+    -e 's|from app\.databus\._gmgn_fallbacks import|from rugmunchbot._vendor.gmgn_fallbacks import|g' \
+    -e 's|from app\.catalog\.models import|from rugmunchbot._vendor.catalog_models import|g' \
+    -e 's|from app\.rag\.tools import|from rugmunchbot._vendor.rag_tools import|g' \
     -e 's|from app\.domains\.content\.briefing import|from rugmunchbot._vendor.briefing import|g' \
     -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
     -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
+    -e 's|from app\.domains\.scanner\.unified\.|from rugmunchbot._vendor.unified_scanner.|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.models import|from rugmunchbot._vendor.webhook_models import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.repository import|from rugmunchbot._vendor.webhook_repository import|g' \
+    -e 's|from app\.domains\.scanner\.webhooks\.telegram_bridge import|from rugmunchbot._vendor.telegram_bridge import|g' \
+    -e 's|from app\.databus\.gmgn_provider import|from rugmunchbot._vendor.gmgn_provider import|g' \
+    -e 's|from app\.databus\._gmgn_fallbacks import|from rugmunchbot._vendor.gmgn_fallbacks import|g' \
+    -e 's|from app\.catalog\.models import|from rugmunchbot._vendor.catalog_models import|g' \
+    -e 's|from app\.rag\.tools import|from rugmunchbot._vendor.rag_tools import|g' \
     -e '/^from app\.config import settings$/d' \
     "$f"
 done

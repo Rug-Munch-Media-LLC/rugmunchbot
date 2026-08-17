@@ -87,7 +87,7 @@ def _is_infrastructure(addr: str) -> bool:
 def _run_ch_query(sql: str, params: dict[str, Any] | None = None) -> list[tuple[Any, ...]]:
     """Run one ClickHouse query on the thread-local chain-indexer client."""
     try:
-        from app.domains.databus.providers.chains.lite_chain_indexer import _get_ch_client
+        from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
 
         client = _get_ch_client()
         if client is None:
@@ -106,7 +106,7 @@ async def _ch_query(sql: str, params: dict[str, Any] | None = None) -> list[tupl
 def _chain_filter(chain: str) -> tuple[str, dict[str, Any]]:
     """Build the allowlisted chain WHERE fragment + params ('' when none)."""
     try:
-        from app.domains.databus.providers.chains.lite_chain_indexer import _normalize_chain
+        from rugmunchbot._vendor.lite_chain_indexer import _normalize_chain
 
         normalized = _normalize_chain(chain)
     except Exception:

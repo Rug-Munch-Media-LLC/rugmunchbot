@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 # when the scorer module is not deployable.
 _risk_verdict_text: Callable[[dict[str, Any]], str] | None
 try:  # pragma: no cover - exercised only when the scorer helper is absent
-    from app.domains.scanner.rug_risk_score import risk_verdict_text as _risk_verdict_text
+    from rugmunchbot._vendor.rug_risk_score import risk_verdict_text as _risk_verdict_text
 except ImportError:
     _risk_verdict_text = None
 
