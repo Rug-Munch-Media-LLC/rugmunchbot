@@ -179,7 +179,6 @@ patch point.
 
 from __future__ import annotations
 
-from rugmunchbot._vendor.redis_client import get_redis_async  # noqa: F401
 from rugmunchbot._vendor.news_ingest.discovery import discover_followed_channels  # noqa: F401
 from rugmunchbot._vendor.news_ingest.ingest import (
     DEFAULT_DEDUP_COLLECTION,  # noqa: F401
@@ -196,6 +195,7 @@ from rugmunchbot._vendor.news_ingest.ingest import (
     read_channel_messages,  # noqa: F401
 )
 from rugmunchbot._vendor.news_ingest.normalize import channel_message_to_article  # noqa: F401
+from rugmunchbot._vendor.redis_client import get_redis_async  # noqa: F401
 from rugmunchbot.channels.formatters import (
     format_breaking_post,
     format_feature_post,

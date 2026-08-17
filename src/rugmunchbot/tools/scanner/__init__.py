@@ -25,6 +25,10 @@ from __future__ import annotations
 import httpx as httpx
 
 from rugmunchbot._vendor.gmgn_enrich import enrich_scan_with_gmgn as enrich_scan_with_gmgn
+from rugmunchbot._vendor.rag_pkg.scan_memory import (
+    schedule_scan_memory_index as schedule_scan_memory_index,
+    should_index_scan as should_index_scan,
+)
 from rugmunchbot.tools._client import get_shared_client as get_shared_client
 from rugmunchbot.tools.registry import (
     ToolResult as ToolResult,
@@ -92,10 +96,6 @@ from rugmunchbot.tools.scanner._security import (
     _security_checks as _security_checks,
 )
 from rugmunchbot.tools.token_meta import token_meta as token_meta
-from rugmunchbot._vendor.rag_pkg.scan_memory import (
-    schedule_scan_memory_index as schedule_scan_memory_index,
-    should_index_scan as should_index_scan,
-)
 
 # Self-registration: importing this package wires the extra tools into the
 # shared registry singleton (see tools/__init__.py additive import).

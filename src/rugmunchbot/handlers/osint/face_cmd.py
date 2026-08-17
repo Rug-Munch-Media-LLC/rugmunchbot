@@ -10,10 +10,10 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
 from rugmunchbot import db
+from rugmunchbot._vendor.osint.face import HAARCASCADE_MODEL_PATH, YUNET_MODEL_PATH
 from rugmunchbot.handlers.osint._common import logger
 from rugmunchbot.handlers.osint._format import _error_text, _format_face_result
 from rugmunchbot.keyboards import back_kb
-from rugmunchbot._vendor.osint.face import HAARCASCADE_MODEL_PATH, YUNET_MODEL_PATH
 
 if TYPE_CHECKING:
     from telegram import Update

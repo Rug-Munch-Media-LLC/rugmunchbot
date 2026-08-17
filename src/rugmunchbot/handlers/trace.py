@@ -17,8 +17,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import CommandHandler
 
-from rugmunchbot._vendor.ai_guardrails import sanitize_output
 from rugmunchbot import db
+from rugmunchbot._vendor.ai_guardrails import sanitize_output
 from rugmunchbot.config import (
     BACKEND_URL,
     DEXSCREENER,

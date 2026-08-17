@@ -7,13 +7,15 @@ re-exports are LAZY so light consumers (backend admin routers importing
 bot (telegram stack, osint, phonenumbers) at package import time.
 """
 
-__all__: list[str] = []
+__all__: list[str] = ["config", "db"]
 
 # Lazy re-exports for backward compatibility (avoids heavy import chain).
 # Direct imports of the submodules (``from rugmunchbot.bot import main``)
 # work regardless; this keeps ``import rugmunchbot`` cheap for the backend.
-from rugmunchbot import db  # noqa: E402  (lightweight, no bot deps)
-from rugmunchbot import config  # noqa: E402  (lightweight, env-driven)
+from rugmunchbot import (
+    config as config,
+    db as db,
+)
 
 
 def __getattr__(name: str):
@@ -27,9 +29,22 @@ def __getattr__(name: str):
                 "is_sol", "paywall_text", "sep", "short_addr", "social_proof_text",
                 "thin_sep", "web_scan_button"):
         from rugmunchbot.formatters import (  # noqa: F401
-            EVM_RE, SOL_RE, TOKEN_RE, detect_chain, footer_links,
-            format_scan_report, format_wallet_report, is_evm, is_owner, is_sol,
-            paywall_text, sep, short_addr, social_proof_text, thin_sep, web_scan_button,
+            EVM_RE,
+            SOL_RE,
+            TOKEN_RE,
+            detect_chain,
+            footer_links,
+            format_scan_report,
+            format_wallet_report,
+            is_evm,
+            is_owner,
+            is_sol,
+            paywall_text,
+            sep,
+            short_addr,
+            social_proof_text,
+            thin_sep,
+            web_scan_button,
         )
 
         return locals()[name]
@@ -37,8 +52,15 @@ def __getattr__(name: str):
                 "pricing_kb", "scamschool_kb", "scan_result_kb", "social_kb",
                 "topup_kb"):
         from rugmunchbot.keyboards import (  # noqa: F401
-            back_kb, buy_stars_kb, main_menu_kb, paywall_kb, pricing_kb,
-            scamschool_kb, scan_result_kb, social_kb, topup_kb,
+            back_kb,
+            buy_stars_kb,
+            main_menu_kb,
+            paywall_kb,
+            pricing_kb,
+            scamschool_kb,
+            scan_result_kb,
+            social_kb,
+            topup_kb,
         )
 
         return locals()[name]

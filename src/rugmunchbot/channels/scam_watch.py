@@ -72,10 +72,10 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from rugmunchbot._vendor.redis_client import get_redis_async
-from rugmunchbot._vendor.shared_utils import is_evm_address, is_solana_address
 from rugmunchbot._vendor.news_ingest.ingest import dedupe_articles, read_channel_messages
 from rugmunchbot._vendor.news_ingest.normalize import channel_message_to_article
+from rugmunchbot._vendor.redis_client import get_redis_async
+from rugmunchbot._vendor.shared_utils import is_evm_address, is_solana_address
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:

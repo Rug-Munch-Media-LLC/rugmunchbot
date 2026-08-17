@@ -101,8 +101,11 @@ from rugmunchbot.handlers.chat_ai._llm._sources import (
     _source_type_label as _source_type_label,
     _untrusted_block as _untrusted_block,
 )
+from rugmunchbot.llm_config import (
+    get_long_config as get_long_config,
+    get_snappy_config as get_snappy_config,
+)
 from rugmunchbot.prompts import (
     FALLBACK_SYSTEM_PROMPT as FALLBACK_SYSTEM_PROMPT,
     PERSONA_CONTEXT as PERSONA_CONTEXT,
 )
-from rugmunchbot.llm_config import get_long_config as get_long_config, get_snappy_config as get_snappy_config

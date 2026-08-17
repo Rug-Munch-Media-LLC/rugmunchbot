@@ -31,8 +31,8 @@ from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, Forbidden, RetryAfter, TelegramError
 
-from rugmunchbot._vendor import access_guard
 from rugmunchbot import db
+from rugmunchbot._vendor import access_guard
 from rugmunchbot.config import OWNER_IDS, TIERS
 from rugmunchbot.formatters import is_owner, thin_sep
 from rugmunchbot.keyboards import admin_confirm_kb, admin_kb

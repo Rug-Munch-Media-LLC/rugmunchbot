@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rugmunchbot._vendor import access_guard
 from rugmunchbot import db
+from rugmunchbot._vendor import access_guard
 from rugmunchbot.config import OWNER_IDS
 from rugmunchbot.support.logging import get_logger
 
@@ -155,8 +155,8 @@ async def cmd_groupinfo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Check voice chat status
     voice_status = "❌ None active"
     try:
-        from rugmunchbot.config import BOT_TOKEN
         from rugmunchbot._vendor.voice_chat import get_voice_chat_status
+        from rugmunchbot.config import BOT_TOKEN
 
         if BOT_TOKEN:
             from telegram import Bot

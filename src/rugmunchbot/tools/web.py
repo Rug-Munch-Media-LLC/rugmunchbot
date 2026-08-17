@@ -145,7 +145,7 @@ async def _knowledge_fallback_answer(query: str) -> str:
         {"role": "user", "content": query[:1500]},
     ]
     try:
-        result = await asyncio.wait_for(
+        answer = await asyncio.wait_for(
             chat_with_fallback(messages=messages, tier="snappy", max_tokens=400),
             timeout=KNOWLEDGE_FALLBACK_TIMEOUT,
         )
