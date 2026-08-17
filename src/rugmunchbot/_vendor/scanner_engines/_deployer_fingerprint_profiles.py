@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/_deployer_fingerprint_profiles.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Deployer-profile data / lookup for deployer_fingerprint (degodding 2026-08-14).
 

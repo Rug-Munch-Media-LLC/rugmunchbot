@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/osint/domain/_common.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Shared helpers and constants for the domain OSINT package.
 

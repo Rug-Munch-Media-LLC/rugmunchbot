@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/databus/provider_implementations/dune.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Dune Analytics provider — public query results via Dune API v1 (cached, fail-open).
 

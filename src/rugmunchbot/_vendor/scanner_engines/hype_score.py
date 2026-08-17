@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/hype_score.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
 C5 — Hype Score (v1) — Composite Token Momentum Score

@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/insider_detector/scoring.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Public API — detect_insiders, get_insider_score, find_pre_pump_wallets."""
 

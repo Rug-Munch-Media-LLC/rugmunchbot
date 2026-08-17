@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/osint/face/opencv_engine.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Engine 5: opencv (cv2, cheap fallback) with the committed models."""
 

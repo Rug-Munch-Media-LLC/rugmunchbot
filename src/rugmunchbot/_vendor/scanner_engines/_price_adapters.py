@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/_price_adapters.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Free API price adapters — DexScreener / CoinGecko / DeFiLlama / GeckoTerminal / ParaSwap / 1inch.
 

@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/own_dex_data/format.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Data transformation — DexScreener-compatible pair building with decimal normalization.
 

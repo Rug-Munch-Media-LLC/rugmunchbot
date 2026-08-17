@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/domains/databus/providers/chains/lite_chain_indexer.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
 Chain Indexer ClickHouse provider — reads chain-indexer data directly from ClickHouse.

@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/_deployer_fingerprint_helpers.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Pure helpers for deployer_fingerprint (extracted from ``engines/deployer_fingerprint.py``).
 

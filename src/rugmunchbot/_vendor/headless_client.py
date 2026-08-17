@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/domains/telegram/headless_client.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
 Headless Telegram Client — Core Client
@@ -573,7 +573,8 @@ class HeadlessTelegramClient:
         if not self._client:
             raise RuntimeError("Client not started")
 
-        from rugmunchbot.config import BOT_TOKEN
+        from rugmunchbot.config import BOT_TOKEN  # Phase 3: own repo
+
         from rugmunchbot._vendor.voice_chat import create_voice_chat
 
         if not BOT_TOKEN:
@@ -593,7 +594,8 @@ class HeadlessTelegramClient:
 
     async def end_voice_chat(self, chat_id: int) -> bool:
         """End an active voice/video chat."""
-        from rugmunchbot.config import BOT_TOKEN
+        from rugmunchbot.config import BOT_TOKEN  # Phase 3: own repo
+
         from rugmunchbot._vendor.voice_chat import end_voice_chat
 
         if not BOT_TOKEN:

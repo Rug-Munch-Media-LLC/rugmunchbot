@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/rug_risk_score.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Consolidated rug-risk scorer — the "25-point analysis".
 
@@ -84,8 +84,8 @@ if TYPE_CHECKING:
 # ── Degodded split (2026-08-14) ────────────────────────────────────────
 # Pure helpers live in sibling submodules and are re-exported here so every
 # existing importer keeps the same names / objects (NO behavior change).
-from ._rules import _RULES
-from ._signals import (  # noqa: F401 re-export
+from rugmunchbot._vendor.rug_risk_rules import _RULES
+from rugmunchbot._vendor.rug_risk_signals import (  # noqa: F401 re-export
     _bad_funder,
     _bundle_suspect,
     _coordinated_shill,
@@ -112,8 +112,8 @@ from ._signals import (  # noqa: F401 re-export
     _volume_concentrated,
     _whale_exit,
 )
-from ._text import _verdict_for, risk_analysis_text, risk_verdict_text
-from ._weights import (
+from rugmunchbot._vendor.rug_risk_text import _verdict_for, risk_analysis_text, risk_verdict_text
+from rugmunchbot._vendor.rug_risk_weights import (
     BAD_FUNDER_WEIGHT,
     BUNDLE_WEIGHT,
     BUNDLED_WEIGHT,

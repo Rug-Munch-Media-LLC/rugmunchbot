@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/rag/ingest/_knowledge_bases.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Curated knowledge base data for the RAG ingest pipeline.
 

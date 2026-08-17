@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/osint/domain/fingerprint.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Tech fingerprint source — HTTP status, final URL, interesting headers."""
 

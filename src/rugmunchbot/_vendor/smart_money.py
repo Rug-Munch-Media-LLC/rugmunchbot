@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/databus/rugcharts_intel/smart_money.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
 RugCharts Intel — Smart Money Feed.
@@ -16,7 +16,7 @@ import httpx
 
 from rugmunchbot._vendor.logging_shim import get_logger
 
-from .cache import ARKHAM_KEY, CACHE_TTL, HELIUS_KEY, _r
+from rugmunchbot._vendor.cache import ARKHAM_KEY, CACHE_TTL, HELIUS_KEY, _r
 
 logger = get_logger("rugcharts_intel")
 

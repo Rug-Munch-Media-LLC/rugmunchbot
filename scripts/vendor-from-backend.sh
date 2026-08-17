@@ -58,6 +58,11 @@ declare -A MAP=(
   ["app/databus/webshare_proxies.py"]="_vendor/webshare_proxies.py"
   ["app/databus/gmgn_provider.py"]="_vendor/gmgn_provider.py"
   ["app/databus/_gmgn_fallbacks.py"]="_vendor/gmgn_fallbacks.py"
+  ["app/databus/rugcharts_intel/cache.py"]="_vendor/cache.py"
+  ["app/domains/scanner/_rules.py"]="_vendor/rug_risk_rules.py"
+  ["app/domains/scanner/_signals.py"]="_vendor/rug_risk_signals.py"
+  ["app/domains/scanner/_text.py"]="_vendor/rug_risk_text.py"
+  ["app/domains/scanner/_weights.py"]="_vendor/rug_risk_weights.py"
   ["app/domains/news/clusterer.py"]="_vendor/news_clusterer.py"
   ["app/domains/news/ratings.py"]="_vendor/news_ratings.py"
   ["app/deep_scan.py"]="_vendor/deep_scan.py"
@@ -133,6 +138,11 @@ rewrite_vendor() {
     -e 's|from app\.domains\.telegram\.headless_credentials import|from rugmunchbot._vendor.headless_credentials import|g' \
     -e 's|from app\.domains\.telegram\.headless import|from rugmunchbot._vendor.headless import|g' \
     -e 's|from app\.osint_tools import|from rugmunchbot._vendor.osint_tools import|g' \
+    -e 's|from \._rules import|from rugmunchbot._vendor.rug_risk_rules import|g' \
+    -e 's|from \._signals import|from rugmunchbot._vendor.rug_risk_signals import|g' \
+    -e 's|from \._text import|from rugmunchbot._vendor.rug_risk_text import|g' \
+    -e 's|from \._weights import|from rugmunchbot._vendor.rug_risk_weights import|g' \
+    -e 's|from \.cache import|from rugmunchbot._vendor.cache import|g' \
     -e 's|from app\.crypto_embeddings\.|from rugmunchbot._vendor.crypto_embeddings.|g' \
     -e 's|from app\.crypto_embeddings import|from rugmunchbot._vendor.crypto_embeddings import|g' \
     "$f"
@@ -144,7 +154,7 @@ for src in "${!MAP[@]}"; do
   mkdir -p "$(dirname "$dst")"
   {
     echo "# VENDORED $DATE from rmi-backend/$src (frozen copy; do not edit)."
-    echo "# Re-vendor: bash scripts/sync-from-live.sh"
+    echo "# Re-vendor: bash scripts/refresh-vendors.sh"
     echo "# ---"
     cat "$BACKEND/$src"
   } >"$dst"
@@ -169,7 +179,7 @@ for pkg_entry in \
     mkdir -p "$pkg_dst/$(dirname "$rel")"
     {
       echo "# VENDORED $DATE from rmi-backend/$f (frozen copy; do not edit)."
-      echo "# Re-vendor: bash scripts/sync-from-live.sh"
+      echo "# Re-vendor: bash scripts/refresh-vendors.sh"
       echo "# ---"
       cat "$f"
     } >"$pkg_dst/$rel"
@@ -199,7 +209,9 @@ if old_block in raw:
 PYFIX
 
 # tools/web.py: SEARXNG_URL env + knowledge-fallback LLM -> bot-local
-python3 "$HERE/scripts/fix-web-knowledge-fallback.py" "$HERE/src/rugmunchbot/tools/web.py"
+if [ -f "$HERE/src/rugmunchbot/tools/web.py" ]; then
+  python3 "$HERE/scripts/fix-web-knowledge-fallback.py" "$HERE/src/rugmunchbot/tools/web.py"
+fi
 
 # bot-side import rewires (non-vendor files only)
 find "$HERE/src/rugmunchbot" -name '*.py' -not -path '*/_vendor/*' | while read -r f; do
@@ -215,6 +227,11 @@ find "$HERE/src/rugmunchbot" -name '*.py' -not -path '*/_vendor/*' | while read 
     -e 's|from app\.domains\.telegram\.headless import|from rugmunchbot._vendor.headless import|g' \
     -e 's|from app\.domains\.telegram\.voice_chat import|from rugmunchbot._vendor.voice_chat import|g' \
     -e 's|from app\.osint_tools import|from rugmunchbot._vendor.osint_tools import|g' \
+    -e 's|from \._rules import|from rugmunchbot._vendor.rug_risk_rules import|g' \
+    -e 's|from \._signals import|from rugmunchbot._vendor.rug_risk_signals import|g' \
+    -e 's|from \._text import|from rugmunchbot._vendor.rug_risk_text import|g' \
+    -e 's|from \._weights import|from rugmunchbot._vendor.rug_risk_weights import|g' \
+    -e 's|from \.cache import|from rugmunchbot._vendor.cache import|g' \
     -e 's|from app\.crypto_embeddings\.|from rugmunchbot._vendor.crypto_embeddings.|g' \
     -e 's|from app\.crypto_embeddings import|from rugmunchbot._vendor.crypto_embeddings import|g' \
     -e 's|from app\.osint\.|from rugmunchbot._vendor.osint.|g' \

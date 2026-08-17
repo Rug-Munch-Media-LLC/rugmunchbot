@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/rag/ann_index.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """M3 RAG ANN Index - numpy-based cosine similarity with Redis persistence.
 

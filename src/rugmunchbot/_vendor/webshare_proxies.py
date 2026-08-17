@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/databus/webshare_proxies.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Load the configured outbound proxy list.
 

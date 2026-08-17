@@ -1,5 +1,5 @@
 # VENDORED 2026-08-17 from rmi-backend/app/services/pryscraper_client.py (frozen copy; do not edit).
-# Re-vendor: bash scripts/sync-from-live.sh
+# Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Pryscraper Client — async HTTP client for the Pry web intelligence API.
 
