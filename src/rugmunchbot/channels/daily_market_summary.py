@@ -69,7 +69,7 @@ import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -278,7 +278,7 @@ async def _fetch_market_condition() -> dict[str, Any]:
     CoinGecko/DefiLlama/alternative.me fallbacks). Returns ``{}`` on failure.
     """
     try:
-        from app.domains.telegram.rugmunchbot.tools.market_condition import market_condition
+        from rugmunchbot.tools.market_condition import market_condition
 
         result = await market_condition()
         if result is not None and result.ok and isinstance(result.data, dict):
@@ -295,7 +295,7 @@ async def _fetch_trending() -> list[dict[str, Any]]:
     + CoinGecko) with a direct DexScreener token-boosts fallback. Returns [].
     """
     try:
-        from app.domains.telegram.rugmunchbot.tools.trending import trending
+        from rugmunchbot.tools.trending import trending
 
         result = await trending(chain="all", limit=8)
         if result is not None and result.ok and isinstance(result.data, dict):
@@ -313,7 +313,7 @@ async def _fetch_movers() -> dict[str, Any]:
     (stablecoins and flat majors filtered server-side). Returns ``{}``.
     """
     try:
-        from app.domains.telegram.rugmunchbot.tools.registry import backend_json_get
+        from rugmunchbot.tools.registry import backend_json_get
 
         body = await backend_json_get("/api/v1/market/movers", params={"tf": "24h", "limit": 6}, timeout=6.0)
         if isinstance(body, dict):
@@ -384,7 +384,7 @@ async def _fetch_narratives() -> list[dict[str, Any]]:
     ``query`` it came from so the LLM can attribute its narrative claim.
     """
     try:
-        from app.domains.telegram.rugmunchbot.tools.web import searxng_top_results
+        from rugmunchbot.tools.web import searxng_top_results
 
         results = await asyncio.gather(
             *(searxng_top_results(q, limit=3) for q in NARRATIVE_QUERIES),
@@ -438,7 +438,7 @@ async def _kol_fetch_page(url: str, timeout: float = 4.0) -> str | None:
     thin/empty SearXNG snippet so the LLM has real fetched content.
     """
     try:
-        from app.domains.telegram.rugmunchbot.channels.telegram_news._sources import _fetch_page
+        from rugmunchbot.channels.telegram_news._sources import _fetch_page
 
         return await asyncio.wait_for(_fetch_page(url, timeout), timeout=timeout + 1.0)
     except Exception as exc:  # fail-open by contract
@@ -457,7 +457,7 @@ async def _fetch_kol_signals(trending: list[dict[str, Any]]) -> list[dict[str, A
     ``page_preview``. Fail-open → ``[]``.
     """
     try:
-        from app.domains.telegram.rugmunchbot.tools.web import searxng_top_results
+        from rugmunchbot.tools.web import searxng_top_results
 
         queries = list(KOL_SIGNAL_QUERIES) + _kol_signal_queries(trending)
         results = await asyncio.gather(
@@ -816,7 +816,7 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """
     # Lazy import keeps the scheduler ↔ this module import graph acyclic
     # (scheduler.py imports this module at module scope for registration).
-    from app.domains.telegram.rugmunchbot.channels.scheduler import _chat_id, _safe_send
+    from rugmunchbot.channels.scheduler import _chat_id, _safe_send
 
     chat_id = _chat_id("main")  # registry ``main`` → @cryptorugmuncher
     if not chat_id:

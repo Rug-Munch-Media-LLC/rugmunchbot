@@ -39,14 +39,22 @@ echo "Syncing live bot -> src/rugmunchbot ..."
 rsync -a --delete --exclude='__pycache__' --exclude='*.pyc' "$LIVE/" "$TARGET/"
 echo "Sync complete."
 
-# Verify
+echo "Applying import rewrite (app.domains.telegram.rugmunchbot -> rugmunchbot) ..."
+python3 "$HERE/scripts/rewrite-imports.py"
+
+# Verify: the raw rsync tree must match live EXACTLY (rewrite is applied
+# on top; a second rewrite is a no-op so the check below is stable).
 if diff -rq --exclude='__pycache__' --exclude='*.pyc' "$LIVE" "$TARGET" >/dev/null; then
-  echo "OK: src/rugmunchbot matches the live bot exactly."
-else
-  echo "WARNING: drift remains after sync — investigate." >&2
-  diff -rq --exclude='__pycache__' --exclude='*.pyc' "$LIVE" "$TARGET" | head -20
+  echo "ERROR: expected rewritten imports but tree is byte-identical to live — rewrite-imports.py did not apply." >&2
   exit 1
 fi
+# Idempotency check: rewriting again must change nothing.
+python3 "$HERE/scripts/rewrite-imports.py" >/dev/null
+if ! python3 "$HERE/scripts/rewrite-imports.py" 2>&1 | grep -q "0 file(s)"; then
+  echo "WARNING: rewrite-imports.py is not idempotent — investigate." >&2
+  exit 1
+fi
+echo "OK: src/rugmunchbot = live + import rewrite (verified idempotent)."
 
 echo
-echo "Next: git add src/rugmunchbot && git commit -m 'chore(bot): sync from live (phase 0 snapshot)'"
+echo "Next: git add src/rugmunchbot && git commit -m 'chore(bot): sync from live (phase 1 transformed snapshot)'"

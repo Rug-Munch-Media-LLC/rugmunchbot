@@ -11,16 +11,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.config import _risk_gauge, fmt_chain, fmt_number, risk_bar
-from app.domains.telegram.rugmunchbot.formatters._base import (
+from rugmunchbot.config import _risk_gauge, fmt_chain, fmt_number, risk_bar
+from rugmunchbot.formatters._base import (
     explorer_url,
     footer_links,
     format_funding_analysis,
     sep,
     thin_sep,
 )
-from app.domains.telegram.rugmunchbot.formatters._scan_report import _clip
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.formatters._scan_report import _clip
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger(__name__)
 

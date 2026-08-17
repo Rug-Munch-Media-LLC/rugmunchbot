@@ -99,21 +99,21 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
 from app.domains.news_ingest.models import NewsArticle
-from app.domains.telegram.rugmunchbot.channels import scheduler_state
-from app.domains.telegram.rugmunchbot.channels._media import send_news_photo
-from app.domains.telegram.rugmunchbot.channels._scan_commentary import attach_scan_commentary
-from app.domains.telegram.rugmunchbot.channels.content import (
+from rugmunchbot.channels import scheduler_state
+from rugmunchbot.channels._media import send_news_photo
+from rugmunchbot.channels._scan_commentary import attach_scan_commentary
+from rugmunchbot.channels.content import (
     fetch_alpha_content,
     fetch_risk_alerts,
     fetch_scan_notes,
     fetch_trending_news,
 )
-from app.domains.telegram.rugmunchbot.channels.daily_market_summary import (
+from rugmunchbot.channels.daily_market_summary import (
     DAILY_MARKET_SUMMARY_ENABLED,
     post_daily_market_summary,
     summary_run_time,
 )
-from app.domains.telegram.rugmunchbot.channels.formatters import (
+from rugmunchbot.channels.formatters import (
     NewsPost,
     format_alerts_post,
     format_alpha_post,
@@ -121,28 +121,28 @@ from app.domains.telegram.rugmunchbot.channels.formatters import (
     format_news_post,
     format_scan_card,
 )
-from app.domains.telegram.rugmunchbot.channels.importance import score_importance
-from app.domains.telegram.rugmunchbot.channels.personal_channel import (
+from rugmunchbot.channels.importance import score_importance
+from rugmunchbot.channels.personal_channel import (
     PERSONAL_CHANNEL_ENABLED,
     PERSONAL_CHANNEL_INTERVAL_MINUTES,
     post_personal_channel,
     resolve_personal_chat_id,
 )
-from app.domains.telegram.rugmunchbot.channels.router import (
+from rugmunchbot.channels.router import (
     ROUTE_ALPHA_CATEGORY,
     ROUTE_NEWS_MIN_IMPORTANCE,
     route_news,
 )
-from app.domains.telegram.rugmunchbot.channels.scam_watch import (
+from rugmunchbot.channels.scam_watch import (
     SCAM_WATCH_ENABLED,
     SCAM_WATCH_INTERVAL_MINUTES,
     run_scam_watch,
 )
-from app.domains.telegram.rugmunchbot.channels.telegram_news import (
+from rugmunchbot.channels.telegram_news import (
     TG_NEWS_ENABLED,
     post_tg_news_update,
 )
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot.config import (
     ALERTS_CHANNEL_ENABLED,
     ALERTS_CHANNEL_INTERVAL_MINUTES,
     ALERTS_CHANNEL_LIMIT,
@@ -157,7 +157,7 @@ from app.domains.telegram.rugmunchbot.config import (
     SCAN_CHANNEL_TICK_LIMIT,
     _resolve_channel_id,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine

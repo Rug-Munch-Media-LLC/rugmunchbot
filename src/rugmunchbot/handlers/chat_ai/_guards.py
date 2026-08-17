@@ -24,14 +24,14 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
-import app.domains.telegram.rugmunchbot.handlers.chat_ai as chat_ai
+import rugmunchbot.handlers.chat_ai as chat_ai
 from app.core.ai_guardrails import sanitize_output
-from app.domains.telegram.rugmunchbot import anti_abuse, db
-from app.domains.telegram.rugmunchbot.admin_state import track_ai_query, track_tokens
-from app.domains.telegram.rugmunchbot.db._base import run_db
-from app.domains.telegram.rugmunchbot.formatters import paywall_text
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import _is_meaningful_question
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._helpers import (
+from rugmunchbot import anti_abuse, db
+from rugmunchbot.admin_state import track_ai_query, track_tokens
+from rugmunchbot.db._base import run_db
+from rugmunchbot.formatters import paywall_text
+from rugmunchbot.handlers.chat_ai._classify import _is_meaningful_question
+from rugmunchbot.handlers.chat_ai._helpers import (
     _CHAT_DISABLED,
     _DEGENERATE_MESSAGE,
     _INJECTION_MESSAGES,
@@ -39,21 +39,21 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._helpers import (
     _REDIRECT_MESSAGE,
     _SLOW_DOWN,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._live_tools import _run_live_tools_bounded
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._local_ai import local_ai_response
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._quality import is_degenerate_answer, strip_think_blocks
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._trace import trace_answer
-from app.domains.telegram.rugmunchbot.keyboards import back_kb, main_menu_kb, paywall_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools import known_addresses, known_symbols
-from app.domains.telegram.rugmunchbot.tools.guardrails import NO_LIVE_DATA_MESSAGE, fabrication_note, sanitize_answer
+from rugmunchbot.handlers.chat_ai._live_tools import _run_live_tools_bounded
+from rugmunchbot.handlers.chat_ai._local_ai import local_ai_response
+from rugmunchbot.handlers.chat_ai._quality import is_degenerate_answer, strip_think_blocks
+from rugmunchbot.handlers.chat_ai._trace import trace_answer
+from rugmunchbot.keyboards import back_kb, main_menu_kb, paywall_kb
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools import known_addresses, known_symbols
+from rugmunchbot.tools.guardrails import NO_LIVE_DATA_MESSAGE, fabrication_note, sanitize_answer
 
 if TYPE_CHECKING:
     import asyncio
 
     from telegram import Message, Update
 
-    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+    from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
 

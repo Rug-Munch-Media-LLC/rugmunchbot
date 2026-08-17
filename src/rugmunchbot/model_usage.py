@@ -75,7 +75,7 @@ def record(tier: str, model: str = "", latency_ms: float = 0.0, tokens: int = 0)
 
     # Mirror into Prometheus/observability counters (best-effort, never raises).
     with contextlib.suppress(Exception):
-        from app.domains.telegram.rugmunchbot.observability import record_chat
+        from rugmunchbot.observability import record_chat
 
         record_chat(tier, model, latency_ms)
 

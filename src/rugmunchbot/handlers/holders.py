@@ -13,14 +13,14 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     BACKEND_URL,
     DEXSCREENER,
     backend_headers,
 )
-from app.domains.telegram.rugmunchbot.data_resolver import backend_get_json, resolve_with_fallback
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.data_resolver import backend_get_json, resolve_with_fallback
+from rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     is_owner,
@@ -28,14 +28,14 @@ from app.domains.telegram.rugmunchbot.formatters import (
     sep,
     thin_sep,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot.handlers._messages import (
     ACTION_TRY_AGAIN,
     failure_card,
     usage_hint,
 )
-from app.domains.telegram.rugmunchbot.keyboards import back_kb, holders_kb, paywall_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json
+from rugmunchbot.keyboards import back_kb, holders_kb, paywall_kb
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import http_get_json
 
 if TYPE_CHECKING:
     from telegram import Update

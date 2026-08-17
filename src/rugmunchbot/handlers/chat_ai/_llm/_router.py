@@ -16,8 +16,8 @@ import html
 import re
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.handlers.chat_ai import _llm as _llm_mod
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._constants import (
+from rugmunchbot.handlers.chat_ai import _llm as _llm_mod
+from rugmunchbot.handlers.chat_ai._llm._constants import (
     _CONTEXT_GATHER_TIMEOUT,
     _CONTEXT_MAX_CHARS,
     _CTX_EDU_RE,
@@ -50,10 +50,10 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._constants import (
     _WEB_FALLBACK_TIMEOUT,
     _WEB_RESULTS_MAX,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._sources import _normalize_source_domain
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools.guardrails import extract_addresses
-from app.domains.telegram.rugmunchbot.tools.intent import _fmt_signal, build_tool_prompt_block, tool_kwargs
+from rugmunchbot.handlers.chat_ai._llm._sources import _normalize_source_domain
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools.guardrails import extract_addresses
+from rugmunchbot.tools.intent import _fmt_signal, build_tool_prompt_block, tool_kwargs
 
 logger = get_logger("rmi_bot.chat_ai")
 
@@ -345,7 +345,7 @@ async def _gather_web_fallback(question: str) -> tuple[str, list[dict[str, str]]
     the LLM answers from its own knowledge.
     """
     try:
-        from app.domains.telegram.rugmunchbot.tools.web import searxng_top_results
+        from rugmunchbot.tools.web import searxng_top_results
 
         results = await asyncio.wait_for(
             searxng_top_results(question, limit=_WEB_RESULTS_MAX),
@@ -452,7 +452,7 @@ async def _gather_context(question: str) -> tuple[str, list[dict[str, str]]]:
             spec["trending"]["limit"] = _TRENDING_FETCH_LIMIT
         return await _gather_trending_context(question, spec)
     try:
-        from app.domains.telegram.rugmunchbot.tools import get_registry
+        from rugmunchbot.tools import get_registry
 
         results = await asyncio.wait_for(get_registry().run_many_kwargs(spec), timeout=_CONTEXT_GATHER_TIMEOUT)
     except Exception as exc:
@@ -618,7 +618,7 @@ async def _gather_trending_context(question: str, spec: dict[str, Any]) -> tuple
     count) with the TRENDING answer hint (open "Here's what's trending:",
     scan links, sources only in the footer). Fail-open like every gather.
     """
-    from app.domains.telegram.rugmunchbot.tools import get_registry
+    from rugmunchbot.tools import get_registry
 
     render_cap = min(_requested_token_count(question) or 10, _TRENDING_FETCH_LIMIT)
     # Budget the token lines to COMPLETE entries: reserve the hint + a slice
@@ -700,8 +700,8 @@ async def _fetch_market_narrative() -> list[dict[str, Any]]:
     starve the market block. Fail-open → ``[]``.
     """
     try:
-        from app.domains.telegram.rugmunchbot.channels.daily_market_summary import NARRATIVE_QUERIES
-        from app.domains.telegram.rugmunchbot.tools.web import searxng_top_results
+        from rugmunchbot.channels.daily_market_summary import NARRATIVE_QUERIES
+        from rugmunchbot.tools.web import searxng_top_results
 
         queries = list(NARRATIVE_QUERIES)[:2]
         tasks = [asyncio.create_task(searxng_top_results(q, limit=3)) for q in queries]
@@ -995,8 +995,8 @@ async def _gather_market_today_context(question: str) -> tuple[str, list[dict[st
     contribute; when NO tool answered, the web fallback stands in. Never
     raises.
     """
-    from app.domains.telegram.rugmunchbot.tools import get_registry
-    from app.domains.telegram.rugmunchbot.tools.intent import tool_kwargs
+    from rugmunchbot.tools import get_registry
+    from rugmunchbot.tools.intent import tool_kwargs
 
     names = ["market_condition", "market_overview", "trending"]
     if _CTX_TA_RE.search(question.lower()):
@@ -1091,8 +1091,8 @@ async def _gather_edu_lore_context(question: str) -> tuple[str, list[dict[str, s
     appended to the RETRIEVED CONTEXT block. Fail-open: any failure returns
     empty context and the LLM answers from its own knowledge.
     """
-    from app.domains.telegram.rugmunchbot.tools import get_registry
-    from app.domains.telegram.rugmunchbot.tools.intent import tool_kwargs
+    from rugmunchbot.tools import get_registry
+    from rugmunchbot.tools.intent import tool_kwargs
 
     spec = tool_kwargs(question, ["rag_lookup"])
     spec["rag_lookup"] = {"query": question}

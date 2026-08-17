@@ -12,11 +12,11 @@ from typing import TYPE_CHECKING
 
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.handlers.investigate import cmd_investigate as _pro_investigate
-from app.domains.telegram.rugmunchbot.handlers.osint._common import _TIMEOUTS, _looks_like_domain
-from app.domains.telegram.rugmunchbot.handlers.osint._format import _error_text, _format_report, _unavailable_text
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
+from rugmunchbot import db
+from rugmunchbot.handlers.investigate import cmd_investigate as _pro_investigate
+from rugmunchbot.handlers.osint._common import _TIMEOUTS, _looks_like_domain
+from rugmunchbot.handlers.osint._format import _error_text, _format_report, _unavailable_text
+from rugmunchbot.keyboards import back_kb
 from app.osint import OsintNotAvailable
 from app.osint.domain import lookup_domain
 

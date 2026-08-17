@@ -6,8 +6,8 @@ Re-exports key symbols for backward compatibility.
 
 # Re-export from new modules for backward compatibility
 # Re-export main entry point
-from app.domains.telegram.rugmunchbot.bot import main
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.bot import main
+from rugmunchbot.formatters import (
     EVM_RE,
     SOL_RE,
     TOKEN_RE,
@@ -25,7 +25,7 @@ from app.domains.telegram.rugmunchbot.formatters import (
     thin_sep,
     web_scan_button,
 )
-from app.domains.telegram.rugmunchbot.keyboards import (
+from rugmunchbot.keyboards import (
     back_kb,
     buy_stars_kb,
     main_menu_kb,
@@ -36,8 +36,8 @@ from app.domains.telegram.rugmunchbot.keyboards import (
     social_kb,
     topup_kb,
 )
-from app.domains.telegram.rugmunchbot.scanner import analyze_wallet, scan_token
-from app.domains.telegram.rugmunchbot.states import check_spam, get_sol_price, is_owner
+from rugmunchbot.scanner import analyze_wallet, scan_token
+from rugmunchbot.states import check_spam, get_sol_price, is_owner
 
 __all__ = [
     "EVM_RE",

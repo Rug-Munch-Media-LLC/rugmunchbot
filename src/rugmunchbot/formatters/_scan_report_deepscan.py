@@ -17,16 +17,16 @@ import contextlib
 import html
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.config import fmt_chain
-from app.domains.telegram.rugmunchbot.formatters._base import footer_links, sep, thin_sep
-from app.domains.telegram.rugmunchbot.formatters._scan_report_common import _clip, _collapse_blank_lines
-from app.domains.telegram.rugmunchbot.formatters._scan_report_risk import _format_risk_signals_section
-from app.domains.telegram.rugmunchbot.formatters._sentinel_helpers import (
+from rugmunchbot.config import fmt_chain
+from rugmunchbot.formatters._base import footer_links, sep, thin_sep
+from rugmunchbot.formatters._scan_report_common import _clip, _collapse_blank_lines
+from rugmunchbot.formatters._scan_report_risk import _format_risk_signals_section
+from rugmunchbot.formatters._sentinel_helpers import (
     SENTINEL_MODULE_EMOJI,
     _risk_level_emoji,
     _sentinel_recommendations,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger(__name__)
 

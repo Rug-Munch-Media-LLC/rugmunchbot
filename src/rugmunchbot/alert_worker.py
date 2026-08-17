@@ -39,10 +39,10 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
 from app.core.redis import get_redis_async
-from app.domains.telegram.rugmunchbot.config import fmt_number
-from app.domains.telegram.rugmunchbot.formatters import footer_links, sep, short_addr
-from app.domains.telegram.rugmunchbot.states import check_alert_rate_limit
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.config import fmt_number
+from rugmunchbot.formatters import footer_links, sep, short_addr
+from rugmunchbot.states import check_alert_rate_limit
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -165,7 +165,7 @@ async def _deliver_one(ctx: ContextTypes.DEFAULT_TYPE, item: dict[str, Any]) -> 
 
     # Metrics: count the delivered webhook event (best-effort, never raises).
     try:
-        from app.domains.telegram.rugmunchbot.observability import record_webhook_event
+        from rugmunchbot.observability import record_webhook_event
 
         record_webhook_event(str(item.get("type") or "unknown"))
     except Exception:
@@ -193,7 +193,7 @@ async def _requeue_or_deadletter(item: dict[str, Any]) -> None:
             await r.lpush(ALERT_DEAD_LETTER_KEY, json.dumps(item))
             logger.warning("alert_worker: alert dead-lettered after %s attempts (%s): %s", retries, summary, reason)
             try:
-                from app.domains.telegram.rugmunchbot.observability import record_error
+                from rugmunchbot.observability import record_error
 
                 record_error(kind="alert_deadletter", message=f"{summary}: {reason}")
             except Exception:

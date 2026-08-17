@@ -14,8 +14,8 @@ from typing import Any
 
 import httpx
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.config import BACKEND_URL, backend_headers
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
 

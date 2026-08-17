@@ -12,11 +12,11 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
 from app.domains.telegram import access_guard
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import OWNER_IDS, TIERS
-from app.domains.telegram.rugmunchbot.formatters import is_owner, thin_sep
-from app.domains.telegram.rugmunchbot.keyboards import admin_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot import db
+from rugmunchbot.config import OWNER_IDS, TIERS
+from rugmunchbot.formatters import is_owner, thin_sep
+from rugmunchbot.keyboards import admin_kb
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -53,7 +53,7 @@ async def _dispatch_admin_cb(update: Update, ctx, data: str) -> None:
         await _deny_callback_attempt(update, ctx, query.data or "admin-cb")
         return
 
-    from app.domains.telegram.rugmunchbot.handlers.owner import (
+    from rugmunchbot.handlers.owner import (
         cb_broadcast_confirm,
         pending_broadcast,
     )
@@ -143,7 +143,7 @@ async def _dispatch_admin_cb(update: Update, ctx, data: str) -> None:
         await query.edit_message_text("\U0001f4e2 <b>Sending broadcast...</b>", parse_mode=ParseMode.HTML)
         await cb_broadcast_confirm(owner_uid, chat_id, ctx.bot)
     elif data == "admin_cancel":
-        from app.domains.telegram.rugmunchbot.handlers.owner import _pending_broadcast
+        from rugmunchbot.handlers.owner import _pending_broadcast
 
         _pending_broadcast.pop(owner_uid, None)
         await query.edit_message_text("\u274c Broadcast cancelled.", parse_mode=ParseMode.HTML, reply_markup=admin_kb())

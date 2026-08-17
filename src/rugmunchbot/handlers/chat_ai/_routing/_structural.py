@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import app.domains.telegram.rugmunchbot.handlers.chat_ai as chat_ai
-from app.domains.telegram.rugmunchbot import anti_abuse
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import _extract_addresses
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._guards import _scam_address_warning
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._token_card import _lookup_token_symbol
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+import rugmunchbot.handlers.chat_ai as chat_ai
+from rugmunchbot import anti_abuse
+from rugmunchbot.handlers.chat_ai._classify import _extract_addresses
+from rugmunchbot.handlers.chat_ai._guards import _scam_address_warning
+from rugmunchbot.handlers.chat_ai._routing._token_card import _lookup_token_symbol
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -69,7 +69,7 @@ async def _route_structural(
     # 2. Bare contract address (the whole message is the address) → full /scan.
     if chat_ai.is_evm(text) or chat_ai.is_sol(text):
         ctx.args = [text]
-        from app.domains.telegram.rugmunchbot.handlers.scanning import cmd_scan
+        from rugmunchbot.handlers.scanning import cmd_scan
 
         await cmd_scan(update, ctx)
         return True

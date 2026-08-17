@@ -24,10 +24,10 @@ from typing import TYPE_CHECKING, Any
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import _is_deep_question
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._format import _render_bridge_actions
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._helpers import _STILL_DIGGING
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._sources import (
+from rugmunchbot.handlers.chat_ai._classify import _is_deep_question
+from rugmunchbot.handlers.chat_ai._format import _render_bridge_actions
+from rugmunchbot.handlers.chat_ai._helpers import _STILL_DIGGING
+from rugmunchbot.handlers.chat_ai._llm._sources import (
     _internal_source_label,
     _normalize_source_domain,
     _scrub_internal_api_refs,
@@ -35,7 +35,7 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._sources import (
     _source_is_ours,
     _source_type_label,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._markup import (
+from rugmunchbot.handlers.chat_ai._markup import (
     CHUNK_MAX_CHARS,
     _beautify_answer,
     _cap_answer,
@@ -43,16 +43,16 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._markup import (
     _normalize_llm_markup,
     _tables_to_lists,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._parts import send_in_parts, split_in_parts
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._quality import strip_think_blocks
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._trace import trace_answer
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.handlers.chat_ai._parts import send_in_parts, split_in_parts
+from rugmunchbot.handlers.chat_ai._quality import strip_think_blocks
+from rugmunchbot.handlers.chat_ai._trace import trace_answer
+from rugmunchbot.keyboards import back_kb
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Message
 
-    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+    from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
 

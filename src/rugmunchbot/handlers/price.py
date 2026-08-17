@@ -22,8 +22,8 @@ import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot.config import WEBSITE_URL
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.config import WEBSITE_URL
+from rugmunchbot.formatters import (
     detect_chain,
     fmt_chain,
     fmt_number,
@@ -31,15 +31,15 @@ from app.domains.telegram.rugmunchbot.formatters import (
     footer_links,
     thin_sep,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot.handlers._messages import (
     ACTION_CHECK_ADDRESS,
     ACTION_TRY_AGAIN,
     failure_card,
     usage_hint,
 )
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
-from app.domains.telegram.rugmunchbot.services.pricing import resolve
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.keyboards import back_kb
+from rugmunchbot.services.pricing import resolve
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes

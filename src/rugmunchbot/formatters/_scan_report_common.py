@@ -26,8 +26,8 @@ import html
 import re
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.formatters._sentinel_helpers import _fmt_usd_amount
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.formatters._sentinel_helpers import _fmt_usd_amount
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger(__name__)
 

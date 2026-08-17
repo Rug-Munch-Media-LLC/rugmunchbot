@@ -24,9 +24,9 @@ import html
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from app.domains.telegram.rugmunchbot.config import _risk_gauge, fmt_chain, fmt_pct, risk_bar, threat_indicator
-from app.domains.telegram.rugmunchbot.formatters._base import footer_links, sep, thin_sep
-from app.domains.telegram.rugmunchbot.formatters._scan_report_common import (
+from rugmunchbot.config import _risk_gauge, fmt_chain, fmt_pct, risk_bar, threat_indicator
+from rugmunchbot.formatters._base import footer_links, sep, thin_sep
+from rugmunchbot.formatters._scan_report_common import (
     _clip,
     _collapse_blank_lines,
     _fmt_market_value,
@@ -36,18 +36,18 @@ from app.domains.telegram.rugmunchbot.formatters._scan_report_common import (
     _launch_intel_rows,
     _what_to_watch_line,
 )
-from app.domains.telegram.rugmunchbot.formatters._scan_report_risk import _format_risk_signals_section, _verdict_text
-from app.domains.telegram.rugmunchbot.formatters._scan_report_sentinel import _format_sentinel_pro
-from app.domains.telegram.rugmunchbot.formatters._scan_report_token import _token_description, _token_image_url
-from app.domains.telegram.rugmunchbot.formatters._scan_report_wallet import (
+from rugmunchbot.formatters._scan_report_risk import _format_risk_signals_section, _verdict_text
+from rugmunchbot.formatters._scan_report_sentinel import _format_sentinel_pro
+from rugmunchbot.formatters._scan_report_token import _token_description, _token_image_url
+from rugmunchbot.formatters._scan_report_wallet import (
     _format_deployer_section,
     _format_gmgn_section,
 )
-from app.domains.telegram.rugmunchbot.formatters._sentinel_helpers import (
+from rugmunchbot.formatters._sentinel_helpers import (
     _bundle_alert_line,
     _wallet_freshness_line,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -58,7 +58,7 @@ if TYPE_CHECKING:
 # _base.py. Import it defensively so this module works with or without it.
 format_verdict_header: Callable[[dict[str, Any]], str] | None
 try:  # pragma: no cover - exercised only when the _base helper is absent
-    from app.domains.telegram.rugmunchbot.formatters._base import format_verdict_header
+    from rugmunchbot.formatters._base import format_verdict_header
 except ImportError:
     format_verdict_header = None
 

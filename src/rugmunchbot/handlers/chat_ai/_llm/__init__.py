@@ -21,12 +21,12 @@ from __future__ import annotations
 
 import httpx as httpx
 
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._clients import (
+from rugmunchbot.handlers.chat_ai._llm._clients import (
     _call_backend_chat as _call_backend_chat,
     _call_remote_fast as _call_remote_fast,
     _call_remote_llm as _call_remote_llm,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._constants import (
+from rugmunchbot.handlers.chat_ai._llm._constants import (
     _CONTEXT_GATHER_TIMEOUT as _CONTEXT_GATHER_TIMEOUT,
     _CONTEXT_MAX_CHARS as _CONTEXT_MAX_CHARS,
     _CTX_EDU_RE as _CTX_EDU_RE,
@@ -71,11 +71,11 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._constants import (
     REMOTE_SNAPPY_TIMEOUT as REMOTE_SNAPPY_TIMEOUT,
     REMOTE_UNAVAILABLE_MESSAGE as REMOTE_UNAVAILABLE_MESSAGE,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._fallback import (
+from rugmunchbot.handlers.chat_ai._llm._fallback import (
     _build_fallback_answer as _build_fallback_answer,
     _gather_fallback_context as _gather_fallback_context,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._router import (
+from rugmunchbot.handlers.chat_ai._llm._router import (
     _classify_context_need as _classify_context_need,
     _classify_question as _classify_question,
     _gather_context as _gather_context,
@@ -86,7 +86,7 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._router import (
     _render_web_results as _render_web_results,
     _route_tier as _route_tier,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._sources import (
+from rugmunchbot.handlers.chat_ai._llm._sources import (
     _MD_LINK_RE as _MD_LINK_RE,
     _PRIMARY_SOURCE_MARKERS as _PRIMARY_SOURCE_MARKERS,
     _append_source_block as _append_source_block,
@@ -101,7 +101,7 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._sources import (
     _source_type_label as _source_type_label,
     _untrusted_block as _untrusted_block,
 )
-from app.domains.telegram.rugmunchbot.prompts import (
+from rugmunchbot.prompts import (
     FALLBACK_SYSTEM_PROMPT as FALLBACK_SYSTEM_PROMPT,
     PERSONA_CONTEXT as PERSONA_CONTEXT,
 )

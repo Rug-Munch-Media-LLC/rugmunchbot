@@ -19,10 +19,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
-from app.domains.telegram.rugmunchbot.config import DEXSCREENER, fmt_chain, fmt_number, fmt_pct
-from app.domains.telegram.rugmunchbot.formatters import TOKEN_RE, footer_links, web_scan_button
-from app.domains.telegram.rugmunchbot.handlers.chat_ai import _routing as _routing_mod
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.config import DEXSCREENER, fmt_chain, fmt_number, fmt_pct
+from rugmunchbot.formatters import TOKEN_RE, footer_links, web_scan_button
+from rugmunchbot.handlers.chat_ai import _routing as _routing_mod
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Message

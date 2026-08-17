@@ -30,7 +30,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.core.redis import get_redis_async
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -110,7 +110,7 @@ async def get_bot_state() -> dict[str, Any]:
 def _sqlite_state_fallback(state: dict[str, Any]) -> dict[str, Any]:
     """Overlay the bot's SQLite bot_state toggles when Redis has no value."""
     try:
-        from app.domains.telegram.rugmunchbot import db as bot_db
+        from rugmunchbot import db as bot_db
 
         enabled = bot_db.get_bot_state("bot_enabled", "on")
         chat_enabled = bot_db.get_bot_state("chat_enabled", "on")

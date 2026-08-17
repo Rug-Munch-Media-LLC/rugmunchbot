@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools.registry import backend_json_get
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools.registry import backend_json_get
 
 logger = get_logger("rmi.dune")
 

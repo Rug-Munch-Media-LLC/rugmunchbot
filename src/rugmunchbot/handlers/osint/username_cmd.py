@@ -8,14 +8,14 @@ from typing import TYPE_CHECKING
 
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.handlers.osint._common import _TIMEOUTS, _valid_username
-from app.domains.telegram.rugmunchbot.handlers.osint._format import (
+from rugmunchbot import db
+from rugmunchbot.handlers.osint._common import _TIMEOUTS, _valid_username
+from rugmunchbot.handlers.osint._format import (
     _error_text,
     _format_username_result,
     _unavailable_text,
 )
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
+from rugmunchbot.keyboards import back_kb
 from app.osint import OsintNotAvailable
 from app.osint_tools import OsintNotAvailable as ToolsOsintNotAvailable, lookup_username
 

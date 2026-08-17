@@ -14,25 +14,25 @@ import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     BACKEND_URL,
     DEXSCREENER,
     TIERS,
     backend_headers,
     fmt_number,
 )
-from app.domains.telegram.rugmunchbot.data_resolver import backend_get_json, resolve_with_fallback
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.data_resolver import backend_get_json, resolve_with_fallback
+from rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     sep,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import failure_card, usage_hint
-from app.domains.telegram.rugmunchbot.keyboards import back_kb, pricing_kb
-from app.domains.telegram.rugmunchbot.states import check_alert_rate_limit
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client, http_get_json
+from rugmunchbot.handlers._messages import failure_card, usage_hint
+from rugmunchbot.keyboards import back_kb, pricing_kb
+from rugmunchbot.states import check_alert_rate_limit
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client, http_get_json
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -422,7 +422,7 @@ async def check_monitors(context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info("Found %s active monitor(s) to check.", len(monitors))
 
     from app.domains.scanner.webhooks.telegram_bridge import enqueue_telegram_alert
-    from app.domains.telegram.rugmunchbot.scanner import scan_token
+    from rugmunchbot.scanner import scan_token
 
     checked = 0
     # Per-tick refresh cache: monitors on the same token share one

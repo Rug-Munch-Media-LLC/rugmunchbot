@@ -15,9 +15,9 @@ from typing import Any
 
 import httpx
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL, GOPLUS, HONEYPOT, backend_headers
-from app.domains.telegram.rugmunchbot.formatters import is_evm
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.config import BACKEND_URL, GOPLUS, HONEYPOT, backend_headers
+from rugmunchbot.formatters import is_evm
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.tools.scanner")
 

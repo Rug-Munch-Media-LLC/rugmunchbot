@@ -25,8 +25,8 @@ from typing import Final
 
 # PERSONA_CONTEXT is a contract pin: the rewrite reuses the bot's tier-1
 # client (_call_backend_chat), which already ships it via context_override.
-from app.domains.telegram.rugmunchbot.prompts import PERSONA_CONTEXT  # noqa: F401
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.prompts import PERSONA_CONTEXT  # noqa: F401
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.channels.tg_news")
 
@@ -84,7 +84,7 @@ async def rewrite_news_title(title: str) -> str:
     try:
         # Lazy import keeps this module import-light (no chat_ai deps at
         # module scope) and mirrors the codebase's lazy-client pattern.
-        from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm import _call_backend_chat
+        from rugmunchbot.handlers.chat_ai._llm import _call_backend_chat
 
         result = await asyncio.wait_for(
             # record_usage=False: channel title rewrites are NOT chat calls —

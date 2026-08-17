@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.tools.scanner._deployer import _EMPTY_ADDR
-from app.domains.telegram.rugmunchbot.tools.scanner._providers import _safe_float
-from app.domains.telegram.rugmunchbot.tools.scanner._security import _honeypot_verdict, _security_checks
+from rugmunchbot.tools.scanner._deployer import _EMPTY_ADDR
+from rugmunchbot.tools.scanner._providers import _safe_float
+from rugmunchbot.tools.scanner._security import _honeypot_verdict, _security_checks
 
 
 def _wash_trading_block(market: dict[str, Any]) -> dict[str, Any]:

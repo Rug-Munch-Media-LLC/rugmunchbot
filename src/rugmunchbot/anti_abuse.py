@@ -19,7 +19,7 @@ from __future__ import annotations
 import os
 import re
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.anti_abuse")
 
@@ -145,7 +145,7 @@ def is_known_scam_address(address: str) -> bool:
     if addr in _ENV_DENYLIST:
         return True
     try:
-        from app.domains.telegram.rugmunchbot import db
+        from rugmunchbot import db
 
         return addr in db.get_known_scam_addresses()
     except Exception:

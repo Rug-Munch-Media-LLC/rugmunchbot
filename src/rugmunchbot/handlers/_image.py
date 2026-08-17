@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.formatters._sentinel import _token_image_url
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.formatters._sentinel import _token_image_url
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
 

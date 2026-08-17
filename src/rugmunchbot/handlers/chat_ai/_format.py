@@ -12,11 +12,11 @@ from typing import TYPE_CHECKING
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.domains.telegram.rugmunchbot.config import fmt_chain, fmt_number, fmt_pct
-from app.domains.telegram.rugmunchbot.formatters import detect_chain
+from rugmunchbot.config import fmt_chain, fmt_number, fmt_pct
+from rugmunchbot.formatters import detect_chain
 
 if TYPE_CHECKING:
-    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+    from rugmunchbot.tools.registry import ToolResult
 
 
 def _render_bridge_actions(

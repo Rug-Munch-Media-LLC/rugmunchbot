@@ -14,14 +14,14 @@ from urllib.parse import quote
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     BOT_USERNAME,
     SUPPORT_EMAIL,
     TIERS,
     WEBSITE_URL,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     BETA_BANNER,
     BETA_PAYMENTS_LINE,
     BETA_STATUS_LINE,
@@ -29,7 +29,7 @@ from app.domains.telegram.rugmunchbot.formatters import (
     sep,
     thin_sep,
 )
-from app.domains.telegram.rugmunchbot.keyboards import (
+from rugmunchbot.keyboards import (
     buy_stars_kb,
     pricing_kb,
     scamschool_kb,

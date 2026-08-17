@@ -17,12 +17,12 @@ from typing import TYPE_CHECKING
 
 from telegram.error import TelegramError
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.admin_state import (
+from rugmunchbot import db
+from rugmunchbot.admin_state import (
     pop_broadcast,
     update_broadcast,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes

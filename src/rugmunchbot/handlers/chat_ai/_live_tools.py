@@ -13,11 +13,11 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools import registry, run_for_message
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools import registry, run_for_message
 
 if TYPE_CHECKING:
-    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+    from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
 

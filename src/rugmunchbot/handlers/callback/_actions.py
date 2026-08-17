@@ -20,9 +20,9 @@ from typing import TYPE_CHECKING, Any
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import SCAM_SCHOOL_TOPICS, TIERS
-from app.domains.telegram.rugmunchbot.keyboards import back_kb, scamschool_kb
+from rugmunchbot import db
+from rugmunchbot.config import SCAM_SCHOOL_TOPICS, TIERS
+from rugmunchbot.keyboards import back_kb, scamschool_kb
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -86,7 +86,7 @@ async def handle(
         if topic:
             await query.edit_message_text(topic["content"], parse_mode=ParseMode.MARKDOWN, reply_markup=scamschool_kb())
     elif data.startswith("scan_"):
-        await _run_addr_cmd(update, ctx, data, "app.domains.telegram.rugmunchbot.handlers.scanning", "cmd_scan")
+        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.scanning", "cmd_scan")
     elif data.startswith("share_"):
         pair = _addr_chain(data)
         if pair is not None:
@@ -103,11 +103,11 @@ async def handle(
                 reply_markup=back_kb(),
             )
     elif data.startswith("holders_"):
-        await _run_addr_cmd(update, ctx, data, "app.domains.telegram.rugmunchbot.handlers.holders", "cmd_holders")
+        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.holders", "cmd_holders")
     elif data.startswith("trace_"):
-        await _run_addr_cmd(update, ctx, data, "app.domains.telegram.rugmunchbot.handlers.trace", "cmd_trace")
+        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.trace", "cmd_trace")
     elif data.startswith("wallet_"):
-        await _run_addr_cmd(update, ctx, data, "app.domains.telegram.rugmunchbot.handlers.scanning", "cmd_wallet")
+        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.scanning", "cmd_wallet")
     elif data.startswith("chart_"):
         pair = _addr_chain(data)
         if pair is not None:
@@ -116,7 +116,7 @@ async def handle(
                 f"\U0001f4c8 <b>Generating chart...</b>\n<code>{addr}</code>",
                 parse_mode=ParseMode.HTML,
             )
-        await _run_addr_cmd(update, ctx, data, "app.domains.telegram.rugmunchbot.commands.chart", "cmd_chart")
+        await _run_addr_cmd(update, ctx, data, "rugmunchbot.commands.chart", "cmd_chart")
     elif data.startswith("rugmap_"):
         pair = _addr_chain(data)
         if pair is not None:
@@ -125,10 +125,10 @@ async def handle(
                 f"\U0001f5fa\ufe0f <b>Generating RugMap...</b>\n<code>{addr}</code>",
                 parse_mode=ParseMode.HTML,
             )
-        await _run_addr_cmd(update, ctx, data, "app.domains.telegram.rugmunchbot.commands.rugmap", "cmd_rugmap")
+        await _run_addr_cmd(update, ctx, data, "rugmunchbot.commands.rugmap", "cmd_rugmap")
     elif data.startswith("alert_"):
         await _run_addr_cmd(
-            update, ctx, data, "app.domains.telegram.rugmunchbot.handlers.alerts", "cmd_alerts", args=[]
+            update, ctx, data, "rugmunchbot.handlers.alerts", "cmd_alerts", args=[]
         )
     elif data.startswith("upgrade_"):
         tier_key = data[8:]
@@ -204,20 +204,20 @@ async def handle(
             )
         elif len(parts) >= 3:
             addr_s, _chain_s = parts[1], parts[2]
-            from app.domains.telegram.rugmunchbot.handlers.research import cmd_research
+            from rugmunchbot.handlers.research import cmd_research
 
             ctx.args = [addr_s]
             await cmd_research(update, ctx)
     elif data.startswith("sentiment_"):
         await _run_addr_cmd(
-            update, ctx, data, "app.domains.telegram.rugmunchbot.handlers.sentiment", "cmd_sentiment", args=[]
+            update, ctx, data, "rugmunchbot.handlers.sentiment", "cmd_sentiment", args=[]
         )
     elif data.startswith("investigate_"):
-        await _run_addr_cmd(update, ctx, data, "app.domains.telegram.rugmunchbot.handlers.osint", "cmd_investigate")
+        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.osint", "cmd_investigate")
     elif data.startswith("ta_"):
-        await _run_addr_cmd(update, ctx, data, "app.domains.telegram.rugmunchbot.handlers.scanning", "cmd_ta")
+        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.scanning", "cmd_ta")
     elif data.startswith("mev_"):
-        await _run_addr_cmd(update, ctx, data, "app.domains.telegram.rugmunchbot.commands.premium", "cmd_mev")
+        await _run_addr_cmd(update, ctx, data, "rugmunchbot.commands.premium", "cmd_mev")
     else:
         return False
     return True

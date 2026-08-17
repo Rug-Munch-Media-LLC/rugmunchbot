@@ -30,13 +30,13 @@ Every job fails open: a missing channel id, backend outage, or malformed
 item logs and skips — it never crashes the bot's JobQueue.
 """
 
-from app.domains.telegram.rugmunchbot.channels.personal_channel import (
+from rugmunchbot.channels.personal_channel import (
     PERSONAL_CHANNEL_ENABLED,
     PERSONAL_CHANNEL_INTERVAL_MINUTES,
     PERSONAL_CHANNEL_THRESHOLD,
     post_personal_channel,
 )
-from app.domains.telegram.rugmunchbot.channels.scheduler import (
+from rugmunchbot.channels.scheduler import (
     post_alert_update,
     post_alpha_update,
     post_news_update,

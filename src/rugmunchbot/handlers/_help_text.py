@@ -36,8 +36,8 @@ from __future__ import annotations
 
 import html
 
-from app.domains.telegram.rugmunchbot.config import CHANNELS, TELEGRAM_CHANNEL
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.config import CHANNELS, TELEGRAM_CHANNEL
+from rugmunchbot.formatters import (
     footer_links,
     sep,
     thin_sep,

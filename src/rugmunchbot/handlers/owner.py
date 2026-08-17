@@ -32,11 +32,11 @@ from telegram.constants import ParseMode
 from telegram.error import BadRequest, Forbidden, RetryAfter, TelegramError
 
 from app.domains.telegram import access_guard
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import OWNER_IDS, TIERS
-from app.domains.telegram.rugmunchbot.formatters import is_owner, thin_sep
-from app.domains.telegram.rugmunchbot.keyboards import admin_confirm_kb, admin_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot import db
+from rugmunchbot.config import OWNER_IDS, TIERS
+from rugmunchbot.formatters import is_owner, thin_sep
+from rugmunchbot.keyboards import admin_confirm_kb, admin_kb
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -90,7 +90,7 @@ def _format_model_usage_line() -> str:
     totals; the durable per-answer audit trail stays in the JSON trace logs.
     """
     try:
-        from app.domains.telegram.rugmunchbot.model_usage import snapshot as model_usage_snapshot
+        from rugmunchbot.model_usage import snapshot as model_usage_snapshot
 
         snap = model_usage_snapshot()
     except Exception as exc:
@@ -122,7 +122,7 @@ def _format_model_usage_line() -> str:
 async def _fetch_credit_block() -> str:
     """Live OpenRouter credit line for /admin and /credits (fail-open)."""
     try:
-        from app.domains.telegram.rugmunchbot.openrouter_credit import (
+        from rugmunchbot.openrouter_credit import (
             fetch_openrouter_credit,
             format_credit_summary,
         )

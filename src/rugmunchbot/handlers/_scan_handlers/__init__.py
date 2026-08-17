@@ -8,30 +8,30 @@ focused submodules (mirroring the scanner/_llm/_routing splits):
 package re-exports everything so existing importers/tests keep working
 unchanged:
 
-    from app.domains.telegram.rugmunchbot.handlers._scan_handlers import cmd_scan
+    from rugmunchbot.handlers._scan_handlers import cmd_scan
 """
 
 from __future__ import annotations
 
-from app.domains.telegram.rugmunchbot.handlers._scan_handlers._deepscan import (
+from rugmunchbot.handlers._scan_handlers._deepscan import (
     cmd_deepscan,
     sentinel_scan,
 )
-from app.domains.telegram.rugmunchbot.handlers._scan_handlers._extras import (
+from rugmunchbot.handlers._scan_handlers._extras import (
     cmd_deployer,
     cmd_hype,
     cmd_quick,
 )
-from app.domains.telegram.rugmunchbot.handlers._scan_handlers._progress import (
+from rugmunchbot.handlers._scan_handlers._progress import (
     _edit_stage_if_slow,
     _staged_progress,
     _stop_task,
 )
-from app.domains.telegram.rugmunchbot.handlers._scan_handlers._scan import (
+from rugmunchbot.handlers._scan_handlers._scan import (
     _poll_v2_scan_completion,
     cmd_scan,
 )
-from app.domains.telegram.rugmunchbot.handlers._scan_handlers._wallet import (
+from rugmunchbot.handlers._scan_handlers._wallet import (
     cmd_compare,
     cmd_wallet,
 )

@@ -10,7 +10,7 @@ from ._base import get_db
 
 
 def get_user_tier(user_id: int) -> str:
-    from app.domains.telegram.rugmunchbot.config import BETA_MODE
+    from rugmunchbot.config import BETA_MODE
 
     if BETA_MODE:
         return "pro"  # Beta: all features unlocked for everyone
@@ -80,7 +80,7 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False) -> b
             "SELECT scans FROM weekly_usage WHERE user_id = ? AND week_start = ?", (user_id, week)
         ).fetchone()
         user = conn.execute("SELECT bonus_scans FROM users WHERE user_id = ?", (user_id,)).fetchone()
-        from app.domains.telegram.rugmunchbot.config import TIERS
+        from rugmunchbot.config import TIERS
 
         tier = get_user_tier(user_id)
         limit = TIERS.get(tier, TIERS["free"]).get("scans_per_week", 25)
@@ -110,7 +110,7 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False) -> b
             "SELECT ai_msgs FROM weekly_usage WHERE user_id = ? AND week_start = ?", (user_id, week)
         ).fetchone()
         user = conn.execute("SELECT bonus_ai_msgs FROM users WHERE user_id = ?", (user_id,)).fetchone()
-        from app.domains.telegram.rugmunchbot.config import TIERS
+        from rugmunchbot.config import TIERS
 
         tier = get_user_tier(user_id)
         limit = TIERS.get(tier, TIERS["free"]).get("ai_msgs_per_week", 15)
@@ -141,7 +141,7 @@ def increment_usage(user_id: int, scan: bool = False, ai_msg: bool = False) -> b
 def check_rate_limit(user_id: int, action: str = "scan") -> tuple[bool, int, int]:
     """Returns (allowed, current_used, max_allowed).
     'allowed' is True if weekly allotment OR bonus balance has room."""
-    from app.domains.telegram.rugmunchbot.config import TIERS
+    from rugmunchbot.config import TIERS
 
     tier = get_user_tier(user_id)
     tier_config = TIERS.get(tier, TIERS["free"])

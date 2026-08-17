@@ -14,8 +14,8 @@ from typing import Any
 
 from telegram import InlineKeyboardButton
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     CHAIN_IDS,
     DEX_REF_LINKS,
     TELEGRAM_CHANNEL,

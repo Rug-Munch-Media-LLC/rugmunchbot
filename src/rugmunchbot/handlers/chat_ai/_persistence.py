@@ -14,9 +14,9 @@ from __future__ import annotations
 
 import contextlib
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.admin_state import track_ai_query, track_tokens
-from app.domains.telegram.rugmunchbot.db._base import run_db
+from rugmunchbot import db
+from rugmunchbot.admin_state import track_ai_query, track_tokens
+from rugmunchbot.db._base import run_db
 
 
 async def _persist_answer(user_id: int, text: str, answer: str) -> None:

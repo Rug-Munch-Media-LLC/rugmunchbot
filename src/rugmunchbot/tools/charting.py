@@ -29,12 +29,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.config import DEXSCREENER
-from app.domains.telegram.rugmunchbot.data_resolver import resolve_with_fallback
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.ta_indicators import analyze_candles
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json
-from app.domains.telegram.rugmunchbot.tools.registry import ToolResult, backend_json_get
+from rugmunchbot.config import DEXSCREENER
+from rugmunchbot.data_resolver import resolve_with_fallback
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.ta_indicators import analyze_candles
+from rugmunchbot.tools._client import http_get_json
+from rugmunchbot.tools.registry import ToolResult, backend_json_get
 
 logger = get_logger("rmi_bot.tools.charting")
 

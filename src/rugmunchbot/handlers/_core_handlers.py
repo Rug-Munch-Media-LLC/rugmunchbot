@@ -18,20 +18,20 @@ if TYPE_CHECKING:
     from telegram import Update
     from telegram.ext import ContextTypes
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.daily_context import get_market_section
-from app.domains.telegram.rugmunchbot.formatters import faq_text, is_owner, welcome_card_text
-from app.domains.telegram.rugmunchbot.handlers._engagement import channels_menu_text, rotating_cta_for
-from app.domains.telegram.rugmunchbot.handlers._help_text import HELP_TEXT, MENU_TEXT
-from app.domains.telegram.rugmunchbot.handlers.onboarding import is_first_run, send_onboarding_welcome
-from app.domains.telegram.rugmunchbot.keyboards import (
+from rugmunchbot import db
+from rugmunchbot.daily_context import get_market_section
+from rugmunchbot.formatters import faq_text, is_owner, welcome_card_text
+from rugmunchbot.handlers._engagement import channels_menu_text, rotating_cta_for
+from rugmunchbot.handlers._help_text import HELP_TEXT, MENU_TEXT
+from rugmunchbot.handlers.onboarding import is_first_run, send_onboarding_welcome
+from rugmunchbot.keyboards import (
     daily_hook_kb,
     menu_kb,
     merge_menu_kb,
     owner_admin_reply_kb,
     welcome_menu_kb,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
 
@@ -100,7 +100,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     # v7: attach the persistent admin reply keyboard for the owner in DMs so
     # admin commands stay one tap away on every message.
     if is_owner(user.id) and update.effective_chat and update.effective_chat.type == "private":
-        from app.domains.telegram.rugmunchbot.handlers.message import (
+        from rugmunchbot.handlers.message import (
             admin_kb_mark_sent,
             admin_kb_reset,
         )

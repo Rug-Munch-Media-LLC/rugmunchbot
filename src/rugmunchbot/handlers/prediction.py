@@ -25,10 +25,10 @@ import httpx
 from telegram.constants import ParseMode
 from telegram.ext import CommandHandler
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers, fmt_number
-from app.domains.telegram.rugmunchbot.formatters import footer_links, sep
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.config import BACKEND_URL, backend_headers, fmt_number
+from rugmunchbot.formatters import footer_links, sep
+from rugmunchbot.keyboards import back_kb
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update

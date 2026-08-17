@@ -18,7 +18,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import CommandHandler
 
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot.config import (
     BACKEND_URL,
     TELEGRAM_CHANNEL,
     WEBSITE_URL,
@@ -26,26 +26,26 @@ from app.domains.telegram.rugmunchbot.config import (
     fmt_chain,
     fmt_pct,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     dexscreener_url,
     footer_links,
     sep,
     thin_sep,
 )
-from app.domains.telegram.rugmunchbot.handlers._market_helpers import (
+from rugmunchbot.handlers._market_helpers import (
     _build_trending_kb,
     _render_trending_text,
     _resolve_chain,
     _time_ago as _time_ago,  # re-exported — handlers/callback imports from market
     _window_change,
 )
-from app.domains.telegram.rugmunchbot.handlers._trending import (
+from rugmunchbot.handlers._trending import (
     _fetch_cg_trending_news,
     _fetch_fused_trending,
 )
-from app.domains.telegram.rugmunchbot.keyboards import back_kb, token_buttons
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import (
+from rugmunchbot.keyboards import back_kb, token_buttons
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import (
     http_get_json,
 )
 
@@ -85,7 +85,7 @@ async def cmd_rugcheck(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Quick rug pull checklist - educational."""
     from telegram.constants import ParseMode
 
-    from app.domains.telegram.rugmunchbot.formatters import footer_links, sep
+    from rugmunchbot.formatters import footer_links, sep
 
     text = (
         f"\U0001f6a9 <b>Rug Pull Checklist</b>\n{sep()}\n\n"

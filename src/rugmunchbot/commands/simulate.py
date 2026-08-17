@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import httpx
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client
 
 logger = get_logger("rmi.simulate")
 

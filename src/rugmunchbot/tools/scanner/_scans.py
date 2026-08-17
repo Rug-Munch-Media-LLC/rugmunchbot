@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot.config import (
     BACKEND_URL,
     DEXSCREENER,
     SENTINEL_TIMEOUT,
@@ -23,14 +23,14 @@ from app.domains.telegram.rugmunchbot.config import (
     SOLANAFM_API,
     backend_headers,
 )
-from app.domains.telegram.rugmunchbot.formatters import detect_chain, is_sol
-from app.domains.telegram.rugmunchbot.states import get_sol_price
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools import scanner as _scanner
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json
-from app.domains.telegram.rugmunchbot.tools.scanner._deployer import _extract_pair_intel
-from app.domains.telegram.rugmunchbot.tools.scanner._market import _ds_market_snapshot
-from app.domains.telegram.rugmunchbot.tools.scanner._providers import (
+from rugmunchbot.formatters import detect_chain, is_sol
+from rugmunchbot.states import get_sol_price
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools import scanner as _scanner
+from rugmunchbot.tools._client import http_get_json
+from rugmunchbot.tools.scanner._deployer import _extract_pair_intel
+from rugmunchbot.tools.scanner._market import _ds_market_snapshot
+from rugmunchbot.tools.scanner._providers import (
     _safe_float,
     _scan_evm_security_provider,
     _scan_rmi_provider,

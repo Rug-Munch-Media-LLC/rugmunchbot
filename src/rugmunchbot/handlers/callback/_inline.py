@@ -13,12 +13,12 @@ import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL, COINGECKO, backend_headers, fmt_number
-from app.domains.telegram.rugmunchbot.data_resolver import resolve_fear_greed, resolve_market_global
-from app.domains.telegram.rugmunchbot.formatters import footer_links, sep, thin_sep
-from app.domains.telegram.rugmunchbot.keyboards import back_kb, token_buttons
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json
+from rugmunchbot.config import BACKEND_URL, COINGECKO, backend_headers, fmt_number
+from rugmunchbot.data_resolver import resolve_fear_greed, resolve_market_global
+from rugmunchbot.formatters import footer_links, sep, thin_sep
+from rugmunchbot.keyboards import back_kb, token_buttons
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import http_get_json
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -31,7 +31,7 @@ async def _inline_trending(update: Update, ctx) -> None:
     if query is None:
         return
     await query.edit_message_text("\U0001f525 <b>Fetching trending...</b>", parse_mode=ParseMode.HTML)
-    from app.domains.telegram.rugmunchbot.handlers.market import render_trending
+    from rugmunchbot.handlers.market import render_trending
 
     text, kb = await render_trending("solana", limit=8, window="24h")
     if text is None or kb is None:
@@ -54,7 +54,7 @@ async def _inline_market_data(update: Update, ctx, kind: str) -> None:
     wiring as the /market, /movers, /launches and /whales commands) so menu
     buttons show live data instead of usage cards.
     """
-    from app.domains.telegram.rugmunchbot.handlers.market import (
+    from rugmunchbot.handlers.market import (
         _change_emoji,
         _fetch_market_intel,
         _fmt_usd,
@@ -115,7 +115,7 @@ async def _inline_market_overview(fetch, fmt_usd) -> str | None:
     if not overview:
         return None
 
-    from app.domains.telegram.rugmunchbot.config import fmt_pct
+    from rugmunchbot.config import fmt_pct
 
     lines = ["\U0001f4ca <b>Market Overview</b>", sep()]
     if overview.get("total_market_cap") is not None:
@@ -165,7 +165,7 @@ async def _inline_market_overview(fetch, fmt_usd) -> str | None:
 
 async def _inline_movers_text(fetch, fmt_usd, change_emoji) -> str | None:
     """Render the /movers report as text for inline callbacks."""
-    from app.domains.telegram.rugmunchbot.config import fmt_pct
+    from rugmunchbot.config import fmt_pct
 
     data = await fetch("/api/v1/market/movers", params={"limit": 20})
     items = (data or {}).get("items") or []
@@ -212,7 +212,7 @@ async def _inline_launches_text(fetch, fmt_usd, change_emoji) -> tuple[str | Non
 
     Returns ``(text, token_items)`` so callers can attach per-token buttons.
     """
-    from app.domains.telegram.rugmunchbot.config import fmt_chain, fmt_pct
+    from rugmunchbot.config import fmt_chain, fmt_pct
 
     data = await fetch("/api/v1/market/launches", params={"limit": 8})
     items = (data or {}).get("items") or []
@@ -244,7 +244,7 @@ async def _inline_whales_text(fetch, fmt_usd) -> tuple[str | None, list[dict[str
 
     Returns ``(text, token_items)`` so callers can attach per-token buttons.
     """
-    from app.domains.telegram.rugmunchbot.config import fmt_chain
+    from rugmunchbot.config import fmt_chain
 
     data = await fetch("/api/v1/market/whales", params={"limit": 5})
     items = (data or {}).get("items") or []
@@ -288,7 +288,7 @@ async def _inline_news(update: Update, ctx) -> None:
     else:
         logger.warning("inline news backend failed")
     if not articles:
-        from app.domains.telegram.rugmunchbot.handlers.market import _fetch_cg_trending_news
+        from rugmunchbot.handlers.market import _fetch_cg_trending_news
 
         cg_items = await _fetch_cg_trending_news()
         if cg_items:

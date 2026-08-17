@@ -14,7 +14,7 @@ global structlog config is never clobbered.
 
 Usage::
 
-    from app.domains.telegram.rugmunchbot.support.logging import get_logger
+    from rugmunchbot.support.logging import get_logger
 
     logger = get_logger(__name__)
     logger.info("scan_complete", token_count=42, chain="solana")

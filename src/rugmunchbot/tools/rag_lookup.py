@@ -35,9 +35,9 @@ import hashlib
 import re
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools.guardrails import extract_addresses, extract_symbols
-from app.domains.telegram.rugmunchbot.tools.registry import ToolResult, backend_json_post
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools.guardrails import extract_addresses, extract_symbols
+from rugmunchbot.tools.registry import ToolResult, backend_json_post
 
 logger = get_logger("rmi_bot.tools.rag_lookup")
 

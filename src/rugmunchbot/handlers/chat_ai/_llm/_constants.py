@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL
+from rugmunchbot.config import BACKEND_URL
 
 # ══════════════════════════════════════════════
 # ENDPOINTS & BUDGETS — BACKEND RAG CHAT (tier-1)

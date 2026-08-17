@@ -16,12 +16,12 @@ from typing import Any
 
 import httpx
 
-from app.domains.telegram.rugmunchbot.config import DEXSCREENER
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools import scanner as _scanner
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json
-from app.domains.telegram.rugmunchbot.tools.scanner._market import _ds_market_snapshot, _merge_market_snapshot
-from app.domains.telegram.rugmunchbot.tools.scanner._providers import _detect_chain
+from rugmunchbot.config import DEXSCREENER
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools import scanner as _scanner
+from rugmunchbot.tools._client import http_get_json
+from rugmunchbot.tools.scanner._market import _ds_market_snapshot, _merge_market_snapshot
+from rugmunchbot.tools.scanner._providers import _detect_chain
 
 logger = get_logger("rmi_bot.tools.scanner")
 

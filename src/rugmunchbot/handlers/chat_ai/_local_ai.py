@@ -14,8 +14,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.formatters import footer_links
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import _SELF_IMPROVEMENT_RE
+from rugmunchbot.formatters import footer_links
+from rugmunchbot.handlers.chat_ai._classify import _SELF_IMPROVEMENT_RE
 
 _SELF_IMPROVEMENT_ANSWER = (
     "\U0001f6e0\ufe0f <b>What would genuinely help me</b>\n\n"

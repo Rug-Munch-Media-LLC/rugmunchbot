@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.handlers.osint._common import logger
-from app.domains.telegram.rugmunchbot.handlers.osint._format import _error_text, _format_face_result
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
+from rugmunchbot import db
+from rugmunchbot.handlers.osint._common import logger
+from rugmunchbot.handlers.osint._format import _error_text, _format_face_result
+from rugmunchbot.keyboards import back_kb
 from app.osint.face import HAARCASCADE_MODEL_PATH, YUNET_MODEL_PATH
 
 if TYPE_CHECKING:

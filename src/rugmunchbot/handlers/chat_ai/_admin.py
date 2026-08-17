@@ -20,13 +20,13 @@ from typing import TYPE_CHECKING
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
-from app.domains.telegram.rugmunchbot.handlers.message import (
+from rugmunchbot.handlers.message import (
     admin_kb_is_sent,
     admin_kb_mark_sent,
     admin_kb_reset,
 )
-from app.domains.telegram.rugmunchbot.keyboards import owner_admin_reply_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.keyboards import owner_admin_reply_kb
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -71,7 +71,7 @@ async def _ensure_admin_reply_kb(update: Update) -> None:
 
 async def _dispatch_admin_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE, text: str) -> None:
     """Route an admin reply-keyboard button press to its /admin_* command."""
-    from app.domains.telegram.rugmunchbot.handlers.owner import (
+    from rugmunchbot.handlers.owner import (
         cmd_admin,
         cmd_admin_broadcast,
         cmd_admin_stats,
@@ -79,7 +79,7 @@ async def _dispatch_admin_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
         cmd_admin_toggle_chat,
         cmd_admin_user,
     )
-    from app.domains.telegram.rugmunchbot.handlers.scanning import cmd_start
+    from rugmunchbot.handlers.scanning import cmd_start
 
     cmd = _ADMIN_BUTTON_MAP[text]
     ctx.args = []

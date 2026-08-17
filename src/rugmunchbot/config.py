@@ -66,7 +66,7 @@ def _get_token(gopass_path: str, env_keys: list[str]) -> str:
         if token:
             return token
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        from app.domains.telegram.rugmunchbot.support.logging import get_logger
+        from rugmunchbot.support.logging import get_logger
 
         get_logger("rmi.config").debug("gopass token fetch failed, falling back to env: %s", e.__class__.__name__)
     for key in env_keys:
@@ -103,7 +103,7 @@ def _resolve_owner_ids() -> set[int]:
     is logged once per process."""
     raw = os.getenv("TELEGRAM_ALLOWED_USERS", "").strip()
     if not raw:
-        from app.domains.telegram.rugmunchbot.support.logging import get_logger
+        from rugmunchbot.support.logging import get_logger
 
         get_logger("rmi.config").warning(
             "TELEGRAM_ALLOWED_USERS is unset/empty — no owner/operator ids configured (owner commands disabled)."
@@ -234,15 +234,15 @@ async def check_backend_health() -> None:
         async with httpx.AsyncClient(timeout=5) as client:
             r = await client.get(f"{backend_url}/health", headers=backend_headers())
             if r.status_code == 200:
-                from app.domains.telegram.rugmunchbot.support.logging import get_logger
+                from rugmunchbot.support.logging import get_logger
 
                 get_logger("rmi.config").info("Backend reachable at %s", backend_url)
             else:
-                from app.domains.telegram.rugmunchbot.support.logging import get_logger
+                from rugmunchbot.support.logging import get_logger
 
                 get_logger("rmi.config").warning("Backend at %s returned status %d", backend_url, r.status_code)
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
-        from app.domains.telegram.rugmunchbot.support.logging import get_logger
+        from rugmunchbot.support.logging import get_logger
 
         get_logger("rmi.config").warning("Backend UNREACHABLE at %s: %s", backend_url, exc)
 

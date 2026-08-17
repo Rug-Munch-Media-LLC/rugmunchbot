@@ -24,7 +24,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.databus.rugcharts_intel.smart_money import smart_money_feed
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.channels.clickhouse_fetchers")
 

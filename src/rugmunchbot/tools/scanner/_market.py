@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.tools.scanner._providers import _safe_float
+from rugmunchbot.tools.scanner._providers import _safe_float
 
 #: DexScreener timeframe keys we actually surface (priceChange m1/m5/h1/h6/h24,
 #: volume m5/h1/h6/h24). DexScreener exposes no 7d window — those stay honest

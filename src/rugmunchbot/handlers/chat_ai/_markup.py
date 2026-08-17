@@ -15,8 +15,8 @@ import re
 from html import escape as _html_escape, unescape as _html_unescape
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.formatters import thin_sep
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._parts import _is_fence_line
+from rugmunchbot.formatters import thin_sep
+from rugmunchbot.handlers.chat_ai._parts import _is_fence_line
 
 # Telegram hard limit is 4096; leave headroom for escape expansion.
 CHUNK_MAX_CHARS = 3800

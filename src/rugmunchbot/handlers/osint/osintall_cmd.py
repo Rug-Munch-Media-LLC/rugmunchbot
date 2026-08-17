@@ -8,14 +8,14 @@ from typing import TYPE_CHECKING
 
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.handlers.osint._common import (
+from rugmunchbot import db
+from rugmunchbot.handlers.osint._common import (
     _AGGREGATE_TIMEOUT,
     _OSINT_TYPES,
     logger,
 )
-from app.domains.telegram.rugmunchbot.handlers.osint._format import _format_aggregate_result
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
+from rugmunchbot.handlers.osint._format import _format_aggregate_result
+from rugmunchbot.keyboards import back_kb
 
 if TYPE_CHECKING:
     from telegram import Update

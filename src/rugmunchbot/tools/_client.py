@@ -29,8 +29,8 @@ from typing import Any
 
 import httpx
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools.budget import budget, maybe_log_summary, provider_for_url
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools.budget import budget, maybe_log_summary, provider_for_url
 
 logger = get_logger("rmi_bot.tools.client")
 

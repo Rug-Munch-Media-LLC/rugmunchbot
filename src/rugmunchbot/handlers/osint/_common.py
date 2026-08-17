@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.osint")
 

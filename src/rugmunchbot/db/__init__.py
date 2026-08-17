@@ -8,7 +8,7 @@ Thin re-export shim: the implementation lives in the ``db`` package
 submodules (``_base``, ``users``, ``tiers``, ``watchlist``, ``stars``,
 ``alerts``). Every public function and module-level constant from the old
 single-file ``db.py`` is re-exported here so existing importers
-(``from app.domains.telegram.rugmunchbot import db``) resolve unchanged.
+(``from rugmunchbot import db``) resolve unchanged.
 """
 
 from __future__ import annotations

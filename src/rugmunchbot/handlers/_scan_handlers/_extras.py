@@ -16,14 +16,14 @@ import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     DEXSCREENER,
     fmt_chain,
     fmt_number,
     fmt_pct,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     is_evm,
@@ -34,25 +34,25 @@ from app.domains.telegram.rugmunchbot.formatters import (
     thin_sep,
     web_scan_button,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot.handlers._messages import (
     ACTION_TRY_AGAIN,
     failure_card,
 )
-from app.domains.telegram.rugmunchbot.handlers._scanning_helpers import (
+from rugmunchbot.handlers._scanning_helpers import (
     _bucket_emoji,
     _ds_pairs,
 )
-from app.domains.telegram.rugmunchbot.keyboards import (
+from rugmunchbot.keyboards import (
     back_kb,
     upgrade_nudge_kb,
 )
-from app.domains.telegram.rugmunchbot.scanner import (
+from rugmunchbot.scanner import (
     fetch_deployer_fingerprint,
     fetch_hype_score,
     scan_token_v2,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client, http_get_json
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client, http_get_json
 
 if TYPE_CHECKING:
     from telegram import Update

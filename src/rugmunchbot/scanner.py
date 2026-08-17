@@ -14,7 +14,7 @@ allowed behavior drift).
 Keep this module as a pure re-export shim — do not add scan logic here.
 """
 
-from app.domains.telegram.rugmunchbot.tools.scanner import (
+from rugmunchbot.tools.scanner import (
     analyze_wallet,
     analyze_wallet_v2,
     fetch_deployer_fingerprint,

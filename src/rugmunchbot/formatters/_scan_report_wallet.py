@@ -10,10 +10,10 @@ import contextlib
 import html
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.formatters._base import explorer_url, thin_sep
-from app.domains.telegram.rugmunchbot.formatters._scan_report_common import _short_addr
-from app.domains.telegram.rugmunchbot.formatters._sentinel_helpers import _deployer_history_line
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.formatters._base import explorer_url, thin_sep
+from rugmunchbot.formatters._scan_report_common import _short_addr
+from rugmunchbot.formatters._sentinel_helpers import _deployer_history_line
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger(__name__)
 

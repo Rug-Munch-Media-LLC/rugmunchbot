@@ -77,14 +77,14 @@ import os
 import time
 from typing import TYPE_CHECKING, Any
 
-from app.domains.telegram.rugmunchbot.channels.importance import (
+from rugmunchbot.channels.importance import (
     IMPORTANCE_THRESHOLD,
     ScoredArticle,
     score_importance,
 )
-from app.domains.telegram.rugmunchbot.channels.telegram_news import sweep_telegram_news
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.channels.telegram_news import sweep_telegram_news
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -480,7 +480,7 @@ def resolve_personal_chat_id() -> str | None:
     if dedicated:
         return dedicated
     try:
-        from app.domains.telegram.rugmunchbot.config import _resolve_channel_id
+        from rugmunchbot.config import _resolve_channel_id
 
         return _resolve_channel_id("main")
     except Exception:  # fail-open: config import must not crash the job
@@ -499,7 +499,7 @@ async def post_personal_channel(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """
     # Lazy import keeps the scheduler ↔ this module import graph acyclic
     # (scheduler.py imports this module at module scope for registration).
-    from app.domains.telegram.rugmunchbot.channels.scheduler import (
+    from rugmunchbot.channels.scheduler import (
         _dedupe_key,
         _remember,
         _safe_send,

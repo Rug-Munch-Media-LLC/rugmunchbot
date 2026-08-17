@@ -14,7 +14,7 @@ from telegram import (
     ReplyKeyboardMarkup,
 )
 
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot.config import (
     BUY_STARS_PACKS,
     CHANNELS,
     SCAM_SCHOOL_TOPICS,
@@ -26,13 +26,13 @@ from app.domains.telegram.rugmunchbot.config import (
     TWITTER_URL,
     WEBSITE_URL,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     dexscreener_url,
     explorer_url,
     is_owner,
     web_scan_button,
 )
-from app.domains.telegram.rugmunchbot.handlers._help_text import CODEBERG_ORG
+from rugmunchbot.handlers._help_text import CODEBERG_ORG
 
 
 def token_buttons(address: str, chain: str, *, include_scan: bool = True) -> list[InlineKeyboardButton]:

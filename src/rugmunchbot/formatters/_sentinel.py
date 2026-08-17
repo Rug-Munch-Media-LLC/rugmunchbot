@@ -15,11 +15,11 @@ so ``formatters/__init__.py`` and all importers keep working unchanged.
 
 from __future__ import annotations
 
-from app.domains.telegram.rugmunchbot.formatters._news import (
+from rugmunchbot.formatters._news import (
     format_news_card,
     format_news_sentiment,
 )
-from app.domains.telegram.rugmunchbot.formatters._scan_report import (
+from rugmunchbot.formatters._scan_report import (
     _SENTINEL_CODE_MAP,
     SENTINEL_MODULE_EMOJI,
     _bluechip_addresses,
@@ -51,7 +51,7 @@ from app.domains.telegram.rugmunchbot.formatters._scan_report import (
     is_bluechip,
     render_analyst_read_block,
 )
-from app.domains.telegram.rugmunchbot.formatters._wallet import (
+from rugmunchbot.formatters._wallet import (
     format_wallet_composition_section,
 )
 

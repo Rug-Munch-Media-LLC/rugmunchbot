@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Message

@@ -17,9 +17,9 @@ from typing import Any, cast
 
 import httpx
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL, DEXSCREENER, WEBSITE_URL, backend_headers
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.config import BACKEND_URL, DEXSCREENER, WEBSITE_URL, backend_headers
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client
 
 logger = get_logger("rmi.rugmap")
 
@@ -292,7 +292,7 @@ async def cmd_rugmap(update, ctx) -> None:
 
         # ── Use branded visual engine. Pillow rendering is CPU-bound — run it
         # in a worker thread so the bot event loop never stalls on image draw.
-        from app.domains.telegram.rugmunchbot.services.visuals import render_cluster_map
+        from rugmunchbot.services.visuals import render_cluster_map
 
         # Holder stats for the map footer (top_holders entries carry pct).
         total_holders = len(top_holders)
@@ -407,7 +407,7 @@ async def cmd_rugmap(update, ctx) -> None:
 
 
 def _guess_chain(address: str) -> str:
-    from app.domains.telegram.rugmunchbot.formatters import detect_chain
+    from rugmunchbot.formatters import detect_chain
 
     return detect_chain(address) or "solana"
 

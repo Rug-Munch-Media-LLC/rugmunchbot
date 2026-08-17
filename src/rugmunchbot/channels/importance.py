@@ -48,7 +48,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from app.domains.news_ingest.models import NewsArticle

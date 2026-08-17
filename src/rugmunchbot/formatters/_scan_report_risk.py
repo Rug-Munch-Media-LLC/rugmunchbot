@@ -10,8 +10,8 @@ from __future__ import annotations
 import html
 from typing import TYPE_CHECKING, Any
 
-from app.domains.telegram.rugmunchbot.formatters._base import thin_sep
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.formatters._base import thin_sep
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -12,9 +12,9 @@ from typing import Any
 
 from cachetools import TTLCache
 
-from app.domains.telegram.rugmunchbot.config import OWNER_IDS
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.config import OWNER_IDS
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client
 
 logger = get_logger("rmi_bot")
 

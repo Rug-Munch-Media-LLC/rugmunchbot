@@ -14,10 +14,10 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL, DEXSCREENER, backend_headers
-from app.domains.telegram.rugmunchbot.handlers._market_helpers import _merge_trending_sources
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client, http_get_any, http_get_json
+from rugmunchbot.config import BACKEND_URL, DEXSCREENER, backend_headers
+from rugmunchbot.handlers._market_helpers import _merge_trending_sources
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client, http_get_any, http_get_json
 
 logger = get_logger("rmi_bot")
 

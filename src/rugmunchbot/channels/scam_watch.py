@@ -76,7 +76,7 @@ from app.core.redis import get_redis_async
 from app.core.shared_utils import is_evm_address, is_solana_address
 from app.domains.news_ingest.ingest import dedupe_articles, read_channel_messages
 from app.domains.news_ingest.normalize import channel_message_to_article
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from app.domains.news_ingest.models import ChannelMessage, NewsArticle

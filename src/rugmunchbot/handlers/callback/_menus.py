@@ -16,22 +16,22 @@ from typing import TYPE_CHECKING, Any
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     BOT_USERNAME,
     TELEGRAM_CHANNEL,
     TELEGRAM_GROUP,
     TIERS,
     WEBSITE_URL,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     is_owner,
     thin_sep,
     welcome_card_text,
 )
-from app.domains.telegram.rugmunchbot.handlers._help_text import MENU_TEXT
-from app.domains.telegram.rugmunchbot.handlers.callback._admin import _deny_callback_attempt
-from app.domains.telegram.rugmunchbot.keyboards import (
+from rugmunchbot.handlers._help_text import MENU_TEXT
+from rugmunchbot.handlers.callback._admin import _deny_callback_attempt
+from rugmunchbot.keyboards import (
     admin_kb,
     back_kb,
     buy_stars_kb,
@@ -195,7 +195,7 @@ async def handle(
         )
     elif data == "menu_cat_chat":
         # Direct entry to AI chat — show welcome card with examples
-        from app.domains.telegram.rugmunchbot.handlers.chat import CHAT_WELCOME
+        from rugmunchbot.handlers.chat import CHAT_WELCOME
 
         await _edit(query, CHAT_WELCOME, kb=back_kb())
     elif data == "menu_cat_portfolio":
@@ -323,7 +323,7 @@ async def handle(
         )
     elif data == "menu_trending":
         await _edit(query, "\U0001f525 <b>Fetching trending...</b>")
-        from app.domains.telegram.rugmunchbot.handlers.market import render_trending
+        from rugmunchbot.handlers.market import render_trending
 
         trend_text, trend_kb = await render_trending("solana", limit=8, window="24h")
         if trend_text is None or trend_kb is None:

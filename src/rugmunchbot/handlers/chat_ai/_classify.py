@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 
-from app.domains.telegram.rugmunchbot.tools.classify import (
+from rugmunchbot.tools.classify import (
     MAX_ADDRESS_HINTS,
     _extract_addresses,
 )

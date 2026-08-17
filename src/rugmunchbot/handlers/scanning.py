@@ -72,17 +72,17 @@ __all__ = [
     "sentinel_scan",
 ]
 
-from app.domains.telegram.rugmunchbot.handlers._charts import (  # re-exported
+from rugmunchbot.handlers._charts import (  # re-exported
     _fetch_rugcharts_intel,
     _fetch_rugcharts_ohlcv,
 )
-from app.domains.telegram.rugmunchbot.handlers._core_handlers import (  # re-exported
+from rugmunchbot.handlers._core_handlers import (  # re-exported
     cmd_faq,
     cmd_help,
     cmd_menu,
     cmd_start,
 )
-from app.domains.telegram.rugmunchbot.handlers._help_text import (  # re-exported for callers/tests
+from rugmunchbot.handlers._help_text import (  # re-exported for callers/tests
     _HELP_EMOJI,
     _HELP_SECTIONS,
     _MENU_EMOJI,
@@ -95,8 +95,8 @@ from app.domains.telegram.rugmunchbot.handlers._help_text import (  # re-exporte
     _channel_url,
     _channels_section,
 )
-from app.domains.telegram.rugmunchbot.handlers._image import _maybe_send_token_image  # re-exported
-from app.domains.telegram.rugmunchbot.handlers._scan_handlers import (  # re-exported
+from rugmunchbot.handlers._image import _maybe_send_token_image  # re-exported
+from rugmunchbot.handlers._scan_handlers import (  # re-exported
     _poll_v2_scan_completion,
     cmd_compare,
     cmd_deepscan,
@@ -107,7 +107,7 @@ from app.domains.telegram.rugmunchbot.handlers._scan_handlers import (  # re-exp
     cmd_wallet,
     sentinel_scan,
 )
-from app.domains.telegram.rugmunchbot.handlers._scanning_helpers import (  # re-exported for tests
+from rugmunchbot.handlers._scanning_helpers import (  # re-exported for tests
     _DEPLOYER_BUCKET_EMOJI,
     _bucket_emoji,
     _ds_created_iso,
@@ -118,4 +118,4 @@ from app.domains.telegram.rugmunchbot.handlers._scanning_helpers import (  # re-
     _ta_vol_arrow,
     format_ta_card,
 )
-from app.domains.telegram.rugmunchbot.handlers._ta_handlers import cmd_ta  # re-exported
+from rugmunchbot.handlers._ta_handlers import cmd_ta  # re-exported

@@ -34,7 +34,7 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.formatters import footer_links, gmgn_url, sep, short_addr
+from rugmunchbot.formatters import footer_links, gmgn_url, sep, short_addr
 
 _MAX_BODY_CHARS = 4090
 #: Length of the summary shown under a solo breaking post.

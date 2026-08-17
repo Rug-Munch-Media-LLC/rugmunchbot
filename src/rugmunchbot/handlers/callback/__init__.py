@@ -9,7 +9,7 @@ callback-data prefix into per-group handler modules (mirroring the adminbot
 split): ``_menus``, ``_actions``, ``_refresh`` and ``_invoices``. The public
 entry point is unchanged:
 
-    from app.domains.telegram.rugmunchbot.handlers.callback import handle_callback
+    from rugmunchbot.handlers.callback import handle_callback
 """
 
 from __future__ import annotations
@@ -18,18 +18,18 @@ from typing import TYPE_CHECKING, Any
 
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.formatters import footer_links
-from app.domains.telegram.rugmunchbot.handlers.callback import _actions, _invoices, _menus, _refresh
-from app.domains.telegram.rugmunchbot.handlers.callback._admin import _dispatch_admin_cb
-from app.domains.telegram.rugmunchbot.handlers.callback._inline import (
+from rugmunchbot import db
+from rugmunchbot.formatters import footer_links
+from rugmunchbot.handlers.callback import _actions, _invoices, _menus, _refresh
+from rugmunchbot.handlers.callback._admin import _dispatch_admin_cb
+from rugmunchbot.handlers.callback._inline import (
     _inline_market_data,
     _inline_news,
     _inline_sentiment,
     _inline_trending,
 )
-from app.domains.telegram.rugmunchbot.handlers.callback._run_cards import _RUN_CARDS
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
+from rugmunchbot.handlers.callback._run_cards import _RUN_CARDS
+from rugmunchbot.keyboards import back_kb
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -133,15 +133,15 @@ async def _exec_live_command(update: Update, ctx, cmd: str) -> None:
     flow instead of a static card.
     """
     if cmd == "scan":
-        from app.domains.telegram.rugmunchbot.handlers.scanning import cmd_scan
+        from rugmunchbot.handlers.scanning import cmd_scan
 
         handler: Any = cmd_scan
     elif cmd == "price":
-        from app.domains.telegram.rugmunchbot.handlers.price import cmd_price
+        from rugmunchbot.handlers.price import cmd_price
 
         handler = cmd_price
     else:
-        from app.domains.telegram.rugmunchbot.commands.chart import cmd_chart
+        from rugmunchbot.commands.chart import cmd_chart
 
         handler = cmd_chart
     ctx.args = []

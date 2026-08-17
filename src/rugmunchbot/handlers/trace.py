@@ -18,8 +18,8 @@ from telegram.constants import ParseMode
 from telegram.ext import CommandHandler
 
 from app.core.ai_guardrails import sanitize_output
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     BACKEND_URL,
     DEXSCREENER,
     backend_headers,
@@ -28,7 +28,7 @@ from app.domains.telegram.rugmunchbot.config import (
     fmt_pct,
     risk_bar,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     is_owner,
@@ -38,15 +38,15 @@ from app.domains.telegram.rugmunchbot.formatters import (
     thin_sep,
     web_scan_button,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot.handlers._messages import (
     ACTION_TRY_AGAIN,
     failure_card,
     usage_hint,
 )
-from app.domains.telegram.rugmunchbot.keyboards import back_kb, paywall_kb, trace_kb
-from app.domains.telegram.rugmunchbot.states import check_spam
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.keyboards import back_kb, paywall_kb, trace_kb
+from rugmunchbot.states import check_spam
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client
 
 if TYPE_CHECKING:
     from telegram import Update

@@ -23,8 +23,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._cache import TTLCache
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._cache import TTLCache
 
 logger = get_logger("rmi_bot.tools")
 
@@ -282,8 +282,8 @@ async def backend_json_get(
     path: str, *, params: dict[str, Any] | None = None, timeout: float = 6.0
 ) -> dict[str, Any] | None:
     """GET a backend (own-data) endpoint with the shared-secret header."""
-    from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
-    from app.domains.telegram.rugmunchbot.tools._client import http_get_json
+    from rugmunchbot.config import BACKEND_URL, backend_headers
+    from rugmunchbot.tools._client import http_get_json
 
     return await http_get_json(
         f"{BACKEND_URL}{path}",
@@ -297,8 +297,8 @@ async def backend_json_post(
     path: str, *, json: dict[str, Any] | None = None, timeout: float = 8.0
 ) -> dict[str, Any] | None:
     """POST a backend (own-data) endpoint with the shared-secret header."""
-    from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
-    from app.domains.telegram.rugmunchbot.tools._client import http_post_json
+    from rugmunchbot.config import BACKEND_URL, backend_headers
+    from rugmunchbot.tools._client import http_post_json
 
     return await http_post_json(
         f"{BACKEND_URL}{path}",

@@ -14,7 +14,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+    from rugmunchbot.tools.registry import ToolResult
 
 # Single shared implementation — see ``app.core.ai_guardrails.strip_think_tags``.
 # The strip logic used to be duplicated across ``ai_router``, ``chat_ai/_quality``

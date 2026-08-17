@@ -21,8 +21,8 @@ would create an import cycle.
 
 from __future__ import annotations
 
-from app.domains.telegram.rugmunchbot.formatters._base import TOKEN_RE as SYMBOL_RE
-from app.domains.telegram.rugmunchbot.tools.guardrails import EVM_RE, SOL_RE
+from rugmunchbot.formatters._base import TOKEN_RE as SYMBOL_RE
+from rugmunchbot.tools.guardrails import EVM_RE, SOL_RE
 
 # cap address-triggered scans per message
 MAX_ADDRESS_HINTS = 2

@@ -16,15 +16,15 @@ from typing import TYPE_CHECKING
 import httpx
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.tools._client import get_shared_client
 
 if TYPE_CHECKING:
     from telegram import Update
     from telegram.ext import ContextTypes
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import DEXSCREENER, fmt_number, fmt_pct
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot import db
+from rugmunchbot.config import DEXSCREENER, fmt_number, fmt_pct
+from rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     is_owner,
@@ -32,20 +32,20 @@ from app.domains.telegram.rugmunchbot.formatters import (
     sep,
     thin_sep,
 )
-from app.domains.telegram.rugmunchbot.handlers._charts import (
+from rugmunchbot.handlers._charts import (
     _fetch_rugcharts_intel,
     _fetch_rugcharts_ohlcv,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot.handlers._messages import (
     ACTION_TRY_AGAIN,
     failure_card,
     token_not_found_card,
     usage_hint,
 )
-from app.domains.telegram.rugmunchbot.handlers._scanning_helpers import _ds_pairs, format_ta_card
-from app.domains.telegram.rugmunchbot.keyboards import back_kb, upgrade_nudge_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.ta_indicators import analyze_candles
+from rugmunchbot.handlers._scanning_helpers import _ds_pairs, format_ta_card
+from rugmunchbot.keyboards import back_kb, upgrade_nudge_kb
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.ta_indicators import analyze_candles
 
 logger = get_logger("rmi_bot")
 

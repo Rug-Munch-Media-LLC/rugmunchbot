@@ -15,12 +15,12 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     fmt_number,
     fmt_pct,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     _price_diff_pct,
     _risk_indicator,
     detect_chain,
@@ -31,15 +31,15 @@ from app.domains.telegram.rugmunchbot.formatters import (
     sep,
     thin_sep,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot.handlers._messages import (
     ACTION_TRY_AGAIN,
     failure_card,
 )
-from app.domains.telegram.rugmunchbot.keyboards import (
+from rugmunchbot.keyboards import (
     back_kb,
     upgrade_nudge_kb,
 )
-from app.domains.telegram.rugmunchbot.scanner import (
+from rugmunchbot.scanner import (
     analyze_wallet,
     analyze_wallet_v2,
     scan_token,
@@ -47,7 +47,7 @@ from app.domains.telegram.rugmunchbot.scanner import (
     v2_token_to_legacy,
     v2_wallet_to_legacy,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update

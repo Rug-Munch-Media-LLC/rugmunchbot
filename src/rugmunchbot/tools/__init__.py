@@ -17,8 +17,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools.registry import ToolRegistry, ToolResult
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools.registry import ToolRegistry, ToolResult
 
 # The from-import above registers the ``tools.registry`` SUBMODULE as an
 # attribute of this package, which would shadow the lazy ``registry`` API
@@ -57,7 +57,7 @@ def get_registry() -> ToolRegistry:
         # Self-registers scanner_intel + token_meta (single additive import;
         # must run after `_registry` exists so its ``from ...tools import
         # registry`` resolves to the singleton above).
-        from app.domains.telegram.rugmunchbot.tools import scanner as _scanner_extra  # noqa: F401
+        from rugmunchbot.tools import scanner as _scanner_extra  # noqa: F401
     return _registry
 
 
@@ -66,21 +66,21 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     replaces handlers, so repeated imports do not duplicate anything."""
     # Self-registering intelligence tools — each module owns its register_tool
     # (name, handler, timeout, TTL). Additive imports, safe for parallel agents.
-    from app.domains.telegram.rugmunchbot.tools.birdeye import birdeye_market
-    from app.domains.telegram.rugmunchbot.tools.charting import register_tool as _register_charting
-    from app.domains.telegram.rugmunchbot.tools.market import market_overview
-    from app.domains.telegram.rugmunchbot.tools.market_condition import market_condition
-    from app.domains.telegram.rugmunchbot.tools.onchain import smart_money, top_traders
-    from app.domains.telegram.rugmunchbot.tools.pattern_memory import register_tool as _register_pattern_memory
-    from app.domains.telegram.rugmunchbot.tools.prediction_markets import register_tool as _register_prediction_markets
-    from app.domains.telegram.rugmunchbot.tools.price import price_lookup
-    from app.domains.telegram.rugmunchbot.tools.rag_lookup import rag_lookup
-    from app.domains.telegram.rugmunchbot.tools.security import security_scan, wallet_analysis
-    from app.domains.telegram.rugmunchbot.tools.story_fetch import story_fetch
-    from app.domains.telegram.rugmunchbot.tools.ta import register_tool as _register_ta
-    from app.domains.telegram.rugmunchbot.tools.trend_algo import register_tool as _register_trend_algo
-    from app.domains.telegram.rugmunchbot.tools.trending import news_headlines, trending
-    from app.domains.telegram.rugmunchbot.tools.web import web_search
+    from rugmunchbot.tools.birdeye import birdeye_market
+    from rugmunchbot.tools.charting import register_tool as _register_charting
+    from rugmunchbot.tools.market import market_overview
+    from rugmunchbot.tools.market_condition import market_condition
+    from rugmunchbot.tools.onchain import smart_money, top_traders
+    from rugmunchbot.tools.pattern_memory import register_tool as _register_pattern_memory
+    from rugmunchbot.tools.prediction_markets import register_tool as _register_prediction_markets
+    from rugmunchbot.tools.price import price_lookup
+    from rugmunchbot.tools.rag_lookup import rag_lookup
+    from rugmunchbot.tools.security import security_scan, wallet_analysis
+    from rugmunchbot.tools.story_fetch import story_fetch
+    from rugmunchbot.tools.ta import register_tool as _register_ta
+    from rugmunchbot.tools.trend_algo import register_tool as _register_trend_algo
+    from rugmunchbot.tools.trending import news_headlines, trending
+    from rugmunchbot.tools.web import web_search
 
     registry_.register("price_lookup", price_lookup, timeout=6.0, ttl=60.0)
     registry_.register("trending", trending, timeout=6.0, ttl=120.0)
@@ -140,7 +140,7 @@ async def run_for_message(text: str, **ctx: Any) -> dict[str, ToolResult]:
     Returns:
         ``{tool_name: ToolResult}`` for every tool the router selected.
     """
-    from app.domains.telegram.rugmunchbot.tools.intent import route_tools, tool_kwargs
+    from rugmunchbot.tools.intent import route_tools, tool_kwargs
 
     names = route_tools(text)
     if not names:

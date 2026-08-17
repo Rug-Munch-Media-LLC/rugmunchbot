@@ -44,8 +44,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.core.redis import get_redis_async
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.tools.pattern_memory")
 
@@ -227,8 +227,8 @@ async def _snapshot_signals(address: str, symbol: str) -> dict[str, float] | Non
     Returns None when no pair can be resolved. Only real snapshot numbers are
     used — no synthesis. The best pair is the highest-24h-volume one.
     """
-    from app.domains.telegram.rugmunchbot.config import DEXSCREENER
-    from app.domains.telegram.rugmunchbot.tools._client import http_get_json
+    from rugmunchbot.config import DEXSCREENER
+    from rugmunchbot.tools._client import http_get_json
 
     if address:
         body = await http_get_json(f"{DEXSCREENER}/tokens/{address}", timeout=6.0)

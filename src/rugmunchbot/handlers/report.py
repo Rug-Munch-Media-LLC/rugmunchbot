@@ -17,16 +17,16 @@ from typing import TYPE_CHECKING
 
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import anti_abuse, db
-from app.domains.telegram.rugmunchbot.config import OWNER_IDS
-from app.domains.telegram.rugmunchbot.formatters import detect_chain
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot import anti_abuse, db
+from rugmunchbot.config import OWNER_IDS
+from rugmunchbot.formatters import detect_chain
+from rugmunchbot.handlers._messages import (
     ACTION_CHECK_ADDRESS,
     ACTION_TRY_AGAIN,
     failure_card,
     usage_hint,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -64,7 +64,7 @@ async def cmd_report(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     reason = " ".join(ctx.args[1:]) if len(ctx.args) > 1 else ""
 
     # Basic address sanity: must look like an EVM or Solana address.
-    from app.domains.telegram.rugmunchbot.formatters import is_evm, is_sol
+    from rugmunchbot.formatters import is_evm, is_sol
 
     if not (is_evm(address) or is_sol(address)):
         await update.message.reply_text(

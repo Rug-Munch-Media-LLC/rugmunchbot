@@ -14,23 +14,23 @@ from typing import TYPE_CHECKING, Any
 
 from telegram import MessageEntity, Update
 
-from app.domains.telegram.rugmunchbot import anti_abuse, db
-from app.domains.telegram.rugmunchbot.admin_state import track_message
-from app.domains.telegram.rugmunchbot.db._base import run_db
-from app.domains.telegram.rugmunchbot.formatters import TOKEN_RE, is_owner
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._admin import (
+from rugmunchbot import anti_abuse, db
+from rugmunchbot.admin_state import track_message
+from rugmunchbot.db._base import run_db
+from rugmunchbot.formatters import TOKEN_RE, is_owner
+from rugmunchbot.handlers.chat_ai._admin import (
     _ADMIN_BUTTON_MAP,
     _dispatch_admin_button,
     _ensure_admin_reply_kb,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._guards import _injection_warning
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._core import chat_ai_response
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._structural import _route_structural
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._token_card import (
+from rugmunchbot.handlers.chat_ai._guards import _injection_warning
+from rugmunchbot.handlers.chat_ai._routing._core import chat_ai_response
+from rugmunchbot.handlers.chat_ai._routing._structural import _route_structural
+from rugmunchbot.handlers.chat_ai._routing._token_card import (
     _lookup_token_symbol,
     _TokenCardFlag,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Message
@@ -207,7 +207,7 @@ def register_chat_ai(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
 
     One-line wiring for bot.py — this is the ONLY free-text handler:
 
-        from app.domains.telegram.rugmunchbot.handlers.chat_ai import register_chat_ai
+        from rugmunchbot.handlers.chat_ai import register_chat_ai
         register_chat_ai(app)
 
     WIRING NOTE: python-telegram-bot dispatches to the FIRST matching handler,

@@ -18,26 +18,26 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING, Any
 
-from app.domains.telegram.rugmunchbot.channels._media import send_news_photo
-from app.domains.telegram.rugmunchbot.channels.formatters import (
+from rugmunchbot.channels._media import send_news_photo
+from rugmunchbot.channels.formatters import (
     NewsPost,
     format_breaking_post,
     format_feature_post,
     format_news_post,
 )
-from app.domains.telegram.rugmunchbot.channels.importance import select_important
-from app.domains.telegram.rugmunchbot.channels.telegram_news._digest import (
+from rugmunchbot.channels.importance import select_important
+from rugmunchbot.channels.telegram_news._digest import (
     _apply_commentaries,
     _article_to_post_dict,
     _news_post_for,
 )
-from app.domains.telegram.rugmunchbot.channels.telegram_news._sources import TG_NEWS_POST_LIMIT
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.channels.telegram_news._sources import TG_NEWS_POST_LIMIT
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
 
-    from app.domains.telegram.rugmunchbot.channels import telegram_news as _tg
+    from rugmunchbot.channels import telegram_news as _tg
 else:
     _tg = sys.modules[__package__ or ""]
 
@@ -125,8 +125,8 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """
     # Lazy import keeps the scheduler ↔ this module import graph acyclic
     # (scheduler.py imports this module at module scope for registration).
-    from app.domains.telegram.rugmunchbot.channels.router import ROUTE_ALPHA_CATEGORY, route_news
-    from app.domains.telegram.rugmunchbot.channels.scheduler import (
+    from rugmunchbot.channels.router import ROUTE_ALPHA_CATEGORY, route_news
+    from rugmunchbot.channels.scheduler import (
         _chat_id,
         _dedupe_key,
         _remember,

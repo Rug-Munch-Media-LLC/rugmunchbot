@@ -19,17 +19,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.config import COINGECKO
-from app.domains.telegram.rugmunchbot.services.pricing import (
+from rugmunchbot.config import COINGECKO
+from rugmunchbot.services.pricing import (
     _coingecko_headers,
     coincap_quote,
     coingecko_quote,
     coinpaprika_quote,
     symbol_quote_fallback,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import http_get_any, http_get_json
-from app.domains.telegram.rugmunchbot.tools.registry import ToolResult, backend_json_get
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import http_get_any, http_get_json
+from rugmunchbot.tools.registry import ToolResult, backend_json_get
 
 logger = get_logger("rmi_bot.tools.market")
 

@@ -17,7 +17,7 @@ from typing import Any
 
 import httpx
 
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot.config import (
     BACKEND_URL,
     COINGECKO,
     DEXSCREENER,
@@ -26,8 +26,8 @@ from app.domains.telegram.rugmunchbot.config import (
     fmt_number,
     fmt_pct,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client
 
 logger = get_logger("rmi.chart")
 
@@ -414,7 +414,7 @@ async def cmd_chart(update, ctx) -> None:
         candles = await _fetch_rugcharts_ohlcv(client, chain, pair_address, "1h")
     # Use branded visual engine. Pillow rendering is CPU-bound — run it in
     # a worker thread so the bot event loop never stalls on image draw.
-    from app.domains.telegram.rugmunchbot.services.visuals import render_candlestick_chart
+    from rugmunchbot.services.visuals import render_candlestick_chart
 
     png = None
     if candles:

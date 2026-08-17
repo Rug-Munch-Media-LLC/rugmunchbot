@@ -19,54 +19,54 @@ from typing import TYPE_CHECKING, Any, cast
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
-import app.domains.telegram.rugmunchbot.handlers.chat_ai as chat_ai
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.daily_context import get_daily_context
-from app.domains.telegram.rugmunchbot.db._base import run_db
-from app.domains.telegram.rugmunchbot.handlers.chat_ai import _routing as _routing_mod
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import (
+import rugmunchbot.handlers.chat_ai as chat_ai
+from rugmunchbot import db
+from rugmunchbot.daily_context import get_daily_context
+from rugmunchbot.db._base import run_db
+from rugmunchbot.handlers.chat_ai import _routing as _routing_mod
+from rugmunchbot.handlers.chat_ai._classify import (
     _extract_addresses,
     _is_capability_question,
     _is_greeting_or_thanks,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._delivery import (
+from rugmunchbot.handlers.chat_ai._delivery import (
     _edit_placeholder_if_slow,
     _keep_typing,
     _send_and_trace_answer,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._guards import (
+from rugmunchbot.handlers.chat_ai._guards import (
     _post_guardrail,
     _reply_local_intent,
     _run_entry_guards,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._helpers import _FALLBACK_MESSAGE
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._live_tools import _run_rag_lookup
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._persistence import _persist_answer
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._constants import (
+from rugmunchbot.handlers.chat_ai._helpers import _FALLBACK_MESSAGE
+from rugmunchbot.handlers.chat_ai._live_tools import _run_rag_lookup
+from rugmunchbot.handlers.chat_ai._persistence import _persist_answer
+from rugmunchbot.handlers.chat_ai._routing._constants import (
     CHAT_TURN_DEADLINE,
     CHAT_TURN_DEADLINE_LONG,
     TIMEOUT_REPLY,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._context import (
+from rugmunchbot.handlers.chat_ai._routing._context import (
     _fetch_bridge_context,
     _fetch_scan_context,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._token_card import (
+from rugmunchbot.handlers.chat_ai._routing._token_card import (
     _cancel_token_lookup,
     _token_card_won,
     _TokenCardFlag,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._trace import trace_answer
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools.menus import capability_menu_kb
-from app.domains.telegram.rugmunchbot.tools.rag_lookup import should_rag_lookup
+from rugmunchbot.handlers.chat_ai._trace import trace_answer
+from rugmunchbot.keyboards import back_kb
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools.menus import capability_menu_kb
+from rugmunchbot.tools.rag_lookup import should_rag_lookup
 
 if TYPE_CHECKING:
     from telegram import Message, Update
     from telegram.ext import ContextTypes
 
-    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+    from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
 

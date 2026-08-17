@@ -28,8 +28,8 @@ from typing import TYPE_CHECKING
 
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot.handlers._help_text import project_links_section
-from app.domains.telegram.rugmunchbot.keyboards import quick_start_kb
+from rugmunchbot.handlers._help_text import project_links_section
+from rugmunchbot.keyboards import quick_start_kb
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

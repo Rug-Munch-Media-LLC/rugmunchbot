@@ -9,7 +9,7 @@ v5: world-class menu (/start categories), freestyle AI chat (/chat), and the
 admin control panel (/admin, /admin_stats, /admin_toggle*, /admin_user,
 /admin_set_tier, /admin_ban, /admin_unban, /admin_broadcast, /admin_logs).
 
-Run: cd /root/backend && python3 -m app.domains.telegram.rugmunchbot.bot
+Run: cd /root/backend && python3 -m rugmunchbot.bot
 """
 
 from __future__ import annotations
@@ -37,12 +37,12 @@ from telegram.ext import (
 )
 from telegram.request import HTTPXRequest
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.admin_state import track_command
-from app.domains.telegram.rugmunchbot.alert_worker import deliver_pending_alerts
-from app.domains.telegram.rugmunchbot.broadcast_worker import deliver_pending_broadcasts
-from app.domains.telegram.rugmunchbot.channels import register_channel_jobs
-from app.domains.telegram.rugmunchbot.commands import (
+from rugmunchbot import db
+from rugmunchbot.admin_state import track_command
+from rugmunchbot.alert_worker import deliver_pending_alerts
+from rugmunchbot.broadcast_worker import deliver_pending_broadcasts
+from rugmunchbot.channels import register_channel_jobs
+from rugmunchbot.commands import (
     cmd_chart,
     cmd_dune,
     cmd_events,
@@ -51,18 +51,18 @@ from app.domains.telegram.rugmunchbot.commands import (
     cmd_simulate,
     cmd_smartmoney,
 )
-from app.domains.telegram.rugmunchbot.commands.premium import (
+from rugmunchbot.commands.premium import (
     cmd_cluster,
     cmd_deathclock,
     cmd_impersonation,
     cmd_mev,
 )
-from app.domains.telegram.rugmunchbot.commands.premium_extra import cmd_whale
-from app.domains.telegram.rugmunchbot.commands.premium_v2 import (
+from rugmunchbot.commands.premium_extra import cmd_whale
+from rugmunchbot.commands.premium_v2 import (
     cmd_honeypot,
     cmd_laundry,
 )
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot.config import (
     ALERT_CHECK_INTERVAL,
     BOT_DESCRIPTION,
     BOT_SHORT_DESCRIPTION,
@@ -72,7 +72,7 @@ from app.domains.telegram.rugmunchbot.config import (
     WEBSITE_URL,
     check_backend_health,
 )
-from app.domains.telegram.rugmunchbot.handlers.account import (
+from rugmunchbot.handlers.account import (
     cmd_account,
     cmd_buystars,
     cmd_pricing,
@@ -80,31 +80,31 @@ from app.domains.telegram.rugmunchbot.handlers.account import (
     cmd_scamschool,
     cmd_topup,
 )
-from app.domains.telegram.rugmunchbot.handlers.alerts import (
+from rugmunchbot.handlers.alerts import (
     MONITOR_CHECK_INTERVAL,
     check_alerts,
     check_monitors,
     cmd_alert,
     cmd_alerts,
 )
-from app.domains.telegram.rugmunchbot.handlers.api_access import cmd_api
-from app.domains.telegram.rugmunchbot.handlers.ask import cmd_ask
-from app.domains.telegram.rugmunchbot.handlers.callback import handle_callback
-from app.domains.telegram.rugmunchbot.handlers.chat import cmd_chat
-from app.domains.telegram.rugmunchbot.handlers.chat_ai import register_chat_ai
-from app.domains.telegram.rugmunchbot.handlers.deepscan import cmd_deepscan
-from app.domains.telegram.rugmunchbot.handlers.defi import cmd_lpcheck, register_defi
-from app.domains.telegram.rugmunchbot.handlers.error import error_handler
-from app.domains.telegram.rugmunchbot.handlers.groups import (
+from rugmunchbot.handlers.api_access import cmd_api
+from rugmunchbot.handlers.ask import cmd_ask
+from rugmunchbot.handlers.callback import handle_callback
+from rugmunchbot.handlers.chat import cmd_chat
+from rugmunchbot.handlers.chat_ai import register_chat_ai
+from rugmunchbot.handlers.deepscan import cmd_deepscan
+from rugmunchbot.handlers.defi import cmd_lpcheck, register_defi
+from rugmunchbot.handlers.error import error_handler
+from rugmunchbot.handlers.groups import (
     cmd_banuser,
     cmd_groupinfo,
     cmd_mygroup,
     cmd_voicechat,
 )
-from app.domains.telegram.rugmunchbot.handlers.holders import cmd_holders
-from app.domains.telegram.rugmunchbot.handlers.inline import handle_inline
-from app.domains.telegram.rugmunchbot.handlers.market import cmd_news, cmd_rugcheck, register_market
-from app.domains.telegram.rugmunchbot.handlers.osint import (
+from rugmunchbot.handlers.holders import cmd_holders
+from rugmunchbot.handlers.inline import handle_inline
+from rugmunchbot.handlers.market import cmd_news, cmd_rugcheck, register_market
+from rugmunchbot.handlers.osint import (
     cmd_email,
     cmd_face,
     cmd_investigate,
@@ -113,7 +113,7 @@ from app.domains.telegram.rugmunchbot.handlers.osint import (
     cmd_phone,
     cmd_track,
 )
-from app.domains.telegram.rugmunchbot.handlers.owner import (
+from rugmunchbot.handlers.owner import (
     cmd_admin,
     cmd_admin_ban,
     cmd_admin_broadcast,
@@ -127,12 +127,12 @@ from app.domains.telegram.rugmunchbot.handlers.owner import (
     cmd_admin_user,
     cmd_admin_users,
 )
-from app.domains.telegram.rugmunchbot.handlers.payments import precheckout, successful_payment
-from app.domains.telegram.rugmunchbot.handlers.prediction import register_prediction
-from app.domains.telegram.rugmunchbot.handlers.price import cmd_dex, cmd_price
-from app.domains.telegram.rugmunchbot.handlers.report import cmd_report
-from app.domains.telegram.rugmunchbot.handlers.research import cmd_research
-from app.domains.telegram.rugmunchbot.handlers.scanning import (
+from rugmunchbot.handlers.payments import precheckout, successful_payment
+from rugmunchbot.handlers.prediction import register_prediction
+from rugmunchbot.handlers.price import cmd_dex, cmd_price
+from rugmunchbot.handlers.report import cmd_report
+from rugmunchbot.handlers.research import cmd_research
+from rugmunchbot.handlers.scanning import (
     cmd_compare,
     cmd_deployer,
     cmd_faq,
@@ -146,9 +146,9 @@ from app.domains.telegram.rugmunchbot.handlers.scanning import (
     cmd_wallet,
     sentinel_scan,
 )
-from app.domains.telegram.rugmunchbot.handlers.sentiment import cmd_sentiment
-from app.domains.telegram.rugmunchbot.handlers.trace import cmd_trace, register_trace_commands
-from app.domains.telegram.rugmunchbot.handlers.watchlist import (
+from rugmunchbot.handlers.sentiment import cmd_sentiment
+from rugmunchbot.handlers.trace import cmd_trace, register_trace_commands
+from rugmunchbot.handlers.watchlist import (
     cmd_monitor,
     cmd_monitors,
     cmd_unmonitor,
@@ -156,16 +156,16 @@ from app.domains.telegram.rugmunchbot.handlers.watchlist import (
     cmd_watch,
     cmd_watchlist,
 )
-from app.domains.telegram.rugmunchbot.handlers.webhook import cmd_webhook
-from app.domains.telegram.rugmunchbot.observability import (
+from rugmunchbot.handlers.webhook import cmd_webhook
+from rugmunchbot.observability import (
     record_error,
     record_job,
     set_scheduler_running,
     start_server,
     stop_server,
 )
-from app.domains.telegram.rugmunchbot.states import is_owner
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.states import is_owner
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
 
@@ -253,7 +253,7 @@ def install_maintenance_gate(app: Application[Any, Any, Any, Any, Any, Any]) -> 
     the bot agree; fails open (bot enabled) when Redis is down.
     Owner updates always pass through.
     """
-    from app.domains.telegram.rugmunchbot import admin_state
+    from rugmunchbot import admin_state
 
     async def guarded(update: object) -> None:
         effective_user = getattr(update, "effective_user", None)
@@ -328,7 +328,7 @@ def install_ban_gate(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     so they can still reach /admin_unban. Banned users receive a single
     "You are banned" notice and the update is dropped — no command executes.
     """
-    from app.domains.telegram.rugmunchbot import admin_state
+    from rugmunchbot import admin_state
 
     async def guarded(update: object) -> None:
         effective_user = getattr(update, "effective_user", None)

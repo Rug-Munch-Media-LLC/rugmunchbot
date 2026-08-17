@@ -24,13 +24,13 @@ below, so ``from ...handlers.osint import cmd_*`` keeps working unchanged.
 
 from __future__ import annotations
 
-from app.domains.telegram.rugmunchbot.handlers.osint.domain_cmd import cmd_investigate
-from app.domains.telegram.rugmunchbot.handlers.osint.email_cmd import cmd_email
-from app.domains.telegram.rugmunchbot.handlers.osint.face_cmd import cmd_face
-from app.domains.telegram.rugmunchbot.handlers.osint.osintall_cmd import cmd_osintall
-from app.domains.telegram.rugmunchbot.handlers.osint.phone_cmd import cmd_phone
-from app.domains.telegram.rugmunchbot.handlers.osint.username_cmd import cmd_osint
-from app.domains.telegram.rugmunchbot.handlers.osint.wallet_cmd import cmd_track
+from rugmunchbot.handlers.osint.domain_cmd import cmd_investigate
+from rugmunchbot.handlers.osint.email_cmd import cmd_email
+from rugmunchbot.handlers.osint.face_cmd import cmd_face
+from rugmunchbot.handlers.osint.osintall_cmd import cmd_osintall
+from rugmunchbot.handlers.osint.phone_cmd import cmd_phone
+from rugmunchbot.handlers.osint.username_cmd import cmd_osint
+from rugmunchbot.handlers.osint.wallet_cmd import cmd_track
 
 __all__ = [
     "cmd_email",

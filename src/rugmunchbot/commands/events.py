@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot.formatters import footer_links, sep
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.formatters import footer_links, sep
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update

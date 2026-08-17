@@ -25,11 +25,11 @@ from app.domains.news_ingest.ingest import (
     extract_image_url,
     mark_articles_ingested,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from app.domains.news_ingest.models import NewsArticle
-    from app.domains.telegram.rugmunchbot.channels import telegram_news as _tg
+    from rugmunchbot.channels import telegram_news as _tg
 else:
     _tg = sys.modules[__package__ or ""]
 

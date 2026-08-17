@@ -28,28 +28,28 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import CommandHandler
 
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot.config import (
     BACKEND_URL,
     backend_headers,
     fmt_chain,
     fmt_number,
     fmt_pct,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     sep,
     thin_sep,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot.handlers._messages import (
     ACTION_CHECK_ADDRESS,
     ACTION_TRY_AGAIN,
     failure_card,
     usage_hint,
 )
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client, http_get_any
+from rugmunchbot.keyboards import back_kb
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client, http_get_any
 
 if TYPE_CHECKING:
     from telegram.ext import Application, ContextTypes

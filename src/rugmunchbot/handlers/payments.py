@@ -12,16 +12,16 @@ from typing import TYPE_CHECKING, Any
 
 from telegram.error import TelegramError
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     BUY_STARS_PACKS,
     TIERS,
     TOP_UP_PACKS,
 )
-from app.domains.telegram.rugmunchbot.keyboards import scan_result_kb
-from app.domains.telegram.rugmunchbot.scanner import scan_token
-from app.domains.telegram.rugmunchbot.states import _pending_deep_scans, _pending_monitors
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.keyboards import scan_result_kb
+from rugmunchbot.scanner import scan_token
+from rugmunchbot.states import _pending_deep_scans, _pending_monitors
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -139,7 +139,7 @@ async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
                     _SEP,
                     "",
                 ]
-                from app.domains.telegram.rugmunchbot.formatters import format_scan_report
+                from rugmunchbot.formatters import format_scan_report
 
                 report = format_scan_report(result)
                 full_report = "\n".join(report_lines) + report
@@ -176,7 +176,7 @@ async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
             deployer: str | None = None
             symbol: str | None = None
             try:
-                from app.domains.telegram.rugmunchbot.handlers.alerts import _monitor_baseline
+                from rugmunchbot.handlers.alerts import _monitor_baseline
 
                 result = await scan_token(addr, chain)
                 baseline = _monitor_baseline(result)
@@ -194,7 +194,7 @@ async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
                 baseline=baseline,
             )
             if ok:
-                from app.domains.telegram.rugmunchbot.handlers.alerts import _subscribe_backend_monitor
+                from rugmunchbot.handlers.alerts import _subscribe_backend_monitor
 
                 await _subscribe_backend_monitor(user.id, addr)
                 await msg.edit_text(

@@ -16,44 +16,44 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     BACKEND_URL,
     backend_headers,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     detect_chain,
     format_scan_report,
     is_owner,
     paywall_text,
 )
-from app.domains.telegram.rugmunchbot.handlers._image import _maybe_send_token_image
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot.handlers._image import _maybe_send_token_image
+from rugmunchbot.handlers._messages import (
     ACTION_CHECK_ADDRESS,
     failure_card,
     token_not_found_card,
 )
-from app.domains.telegram.rugmunchbot.handlers._scan_handlers._progress import (
+from rugmunchbot.handlers._scan_handlers._progress import (
     _edit_stage_if_slow,
     _stop_task,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._delivery import _keep_typing
-from app.domains.telegram.rugmunchbot.keyboards import (
+from rugmunchbot.handlers.chat_ai._delivery import _keep_typing
+from rugmunchbot.keyboards import (
     back_kb,
     deep_scan_result_kb,
     scan_result_kb,
     upgrade_nudge_kb,
 )
-from app.domains.telegram.rugmunchbot.observability import record_scan
-from app.domains.telegram.rugmunchbot.scanner import (
+from rugmunchbot.observability import record_scan
+from rugmunchbot.scanner import (
     scan_token,
     scan_token_v2,
     v2_token_to_legacy,
 )
-from app.domains.telegram.rugmunchbot.states import check_spam
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
-from app.domains.telegram.rugmunchbot.tools.scanner import (
+from rugmunchbot.states import check_spam
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.tools.scanner import (
     _scan_cache_get,
     _scan_cache_set,
     _supplement_deployer_socials,

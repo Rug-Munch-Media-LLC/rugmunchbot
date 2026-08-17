@@ -20,12 +20,12 @@ from typing import TYPE_CHECKING, Any
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL, TELEGRAM_CHANNEL, backend_headers
-from app.domains.telegram.rugmunchbot.formatters import footer_links, sep
-from app.domains.telegram.rugmunchbot.handlers.callback._inline import _inline_market_data
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json
+from rugmunchbot.config import BACKEND_URL, TELEGRAM_CHANNEL, backend_headers
+from rugmunchbot.formatters import footer_links, sep
+from rugmunchbot.handlers.callback._inline import _inline_market_data
+from rugmunchbot.keyboards import back_kb
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import http_get_json
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -36,7 +36,7 @@ logger = get_logger("rmi_bot")
 
 async def _render_trending_reply(query: Any, chain: str, window: str) -> None:
     """Fetch and render trending, with fail-open error card."""
-    from app.domains.telegram.rugmunchbot.handlers.market import render_trending
+    from rugmunchbot.handlers.market import render_trending
 
     trend_text, trend_kb = await render_trending(chain, limit=8, window=window)
     if trend_text is None or trend_kb is None:
@@ -80,7 +80,7 @@ async def handle(
         else:
             logger.warning("news_refresh backend failed")
         if not articles:
-            from app.domains.telegram.rugmunchbot.handlers.market import (
+            from rugmunchbot.handlers.market import (
                 _fetch_cg_trending_news,
                 _time_ago,
             )
@@ -123,7 +123,7 @@ async def handle(
     elif data.startswith("news_refresh"):
         await query.edit_message_text("\U0001f4f0 <b>Refreshing news...</b>", parse_mode=ParseMode.HTML)
         # Import and re-run cmd_news
-        from app.domains.telegram.rugmunchbot.handlers.market import cmd_news as _news
+        from rugmunchbot.handlers.market import cmd_news as _news
 
         ctx.args = []
         await _news(update, ctx)
@@ -131,7 +131,7 @@ async def handle(
         # Shadowed by the earlier ``sentiment_`` branch (see module docstring);
         # kept for structural fidelity with the original chain.
         await query.edit_message_text("\U0001f4c8 <b>Refreshing sentiment...</b>", parse_mode=ParseMode.HTML)
-        from app.domains.telegram.rugmunchbot.handlers.sentiment import cmd_sentiment as _sentiment
+        from rugmunchbot.handlers.sentiment import cmd_sentiment as _sentiment
 
         ctx.args = []
         await _sentiment(update, ctx)
@@ -156,7 +156,7 @@ async def handle(
             await query.answer("Invalid request.", show_alert=True)
     elif data.startswith("trending_refresh"):
         await query.edit_message_text("\U0001f525 <b>Refreshing trending...</b>", parse_mode=ParseMode.HTML)
-        from app.domains.telegram.rugmunchbot.handlers.market import cmd_trending as _trending
+        from rugmunchbot.handlers.market import cmd_trending as _trending
 
         parts = data.split("_", 2)
         ctx.args = [parts[2]] if len(parts) == 3 and parts[2] else []

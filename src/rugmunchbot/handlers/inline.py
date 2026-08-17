@@ -13,7 +13,7 @@ from telegram import (
     Update,
 )
 
-from app.domains.telegram.rugmunchbot.formatters import is_evm, is_sol
+from rugmunchbot.formatters import is_evm, is_sol
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes

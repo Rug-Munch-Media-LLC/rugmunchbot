@@ -33,18 +33,18 @@ import asyncio
 import time
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.config import COINGECKO
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import make_client
-from app.domains.telegram.rugmunchbot.tools.budget import budget, provider_for_url
-from app.domains.telegram.rugmunchbot.tools.market import (
+from rugmunchbot.config import COINGECKO
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import make_client
+from rugmunchbot.tools.budget import budget, provider_for_url
+from rugmunchbot.tools.market import (
     _backend_fear_greed,
     _backend_prices,
     _coingecko_global,
     _coingecko_headers,
     _direct_fear_greed,
 )
-from app.domains.telegram.rugmunchbot.tools.registry import ToolResult, backend_json_get
+from rugmunchbot.tools.registry import ToolResult, backend_json_get
 
 logger = get_logger("rmi_bot.tools.market_condition")
 

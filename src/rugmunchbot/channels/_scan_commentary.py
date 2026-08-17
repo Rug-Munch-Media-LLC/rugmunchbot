@@ -13,7 +13,7 @@ import asyncio
 from contextlib import suppress
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.channels.scan_commentary")
 

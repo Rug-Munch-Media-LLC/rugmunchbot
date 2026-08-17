@@ -13,19 +13,19 @@ from typing import TYPE_CHECKING
 
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     BACKEND_URL,
     WEBSITE_URL,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     footer_links,
     is_owner,
     sep,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import failure_card
-from app.domains.telegram.rugmunchbot.keyboards import api_kb, paywall_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.handlers._messages import failure_card
+from rugmunchbot.keyboards import api_kb, paywall_kb
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update

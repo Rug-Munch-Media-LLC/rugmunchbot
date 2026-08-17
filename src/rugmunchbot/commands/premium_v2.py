@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json, http_post_json
+from rugmunchbot.config import BACKEND_URL, backend_headers
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import http_get_json, http_post_json
 
 logger = get_logger("rmi.premium_v2")
 

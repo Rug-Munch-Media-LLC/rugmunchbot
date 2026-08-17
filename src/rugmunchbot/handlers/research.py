@@ -17,22 +17,22 @@ import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     BACKEND_URL,
     WEBSITE_URL,
     backend_headers,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     is_owner,
     paywall_text,
     sep,
     short_addr,
     thin_sep,
 )
-from app.domains.telegram.rugmunchbot.keyboards import paywall_kb
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.keyboards import paywall_kb
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes

@@ -9,9 +9,9 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.formatters._base import thin_sep
-from app.domains.telegram.rugmunchbot.formatters._scan_report_common import _clip
-from app.domains.telegram.rugmunchbot.formatters._sentinel_helpers import (
+from rugmunchbot.formatters._base import thin_sep
+from rugmunchbot.formatters._scan_report_common import _clip
+from rugmunchbot.formatters._sentinel_helpers import (
     _decode_sentinel_warning,
     _fmt_usd_amount,
     _module_warnings,

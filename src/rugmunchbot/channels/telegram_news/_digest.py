@@ -27,7 +27,7 @@ from app.domains.news_ingest.ingest import (
     extract_image_url,
     lightweight_importance,
 )
-from app.domains.telegram.rugmunchbot.channels.formatters import (
+from rugmunchbot.channels.formatters import (
     NewsPost,
     format_breaking_post,
     format_feature_post,
@@ -35,13 +35,13 @@ from app.domains.telegram.rugmunchbot.channels.formatters import (
     format_news_post,
     format_themed_post,
 )
-from app.domains.telegram.rugmunchbot.channels.importance import top_headlines, trending_tokens
-from app.domains.telegram.rugmunchbot.channels.telegram_news._persist import _news_id_for
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.channels.importance import top_headlines, trending_tokens
+from rugmunchbot.channels.telegram_news._persist import _news_id_for
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from app.domains.news_ingest.models import NewsArticle
-    from app.domains.telegram.rugmunchbot.channels import telegram_news as _tg
+    from rugmunchbot.channels import telegram_news as _tg
 else:
     _tg = sys.modules[__package__ or ""]
 
@@ -364,7 +364,7 @@ async def inject_into_news_cache(articles: list[NewsArticle]) -> int:
 
 #: Redis key the bot's chat context can pull for a lightweight "what's moving"
 #: snapshot built directly from the sweep (headlines + trending tokens).
-#: ``app.domains.telegram.rugmunchbot.daily_context`` already covers the chat
+#: ``rugmunchbot.daily_context`` already covers the chat
 #: context via ``/api/v1/news/trending`` (which includes TG items); this key
 #: is the sweep's own direct artifact, refreshed every run.
 _MARKET_AWARENESS_KEY = "rmi:news:market_awareness"

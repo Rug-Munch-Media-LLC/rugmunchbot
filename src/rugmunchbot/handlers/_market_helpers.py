@@ -14,9 +14,9 @@ from typing import Any
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.domains.telegram.rugmunchbot.config import fmt_number, fmt_pct
-from app.domains.telegram.rugmunchbot.formatters import footer_links, sep
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.config import fmt_number, fmt_pct
+from rugmunchbot.formatters import footer_links, sep
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger(__name__)
 

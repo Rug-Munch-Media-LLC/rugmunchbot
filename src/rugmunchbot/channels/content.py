@@ -32,9 +32,9 @@ import asyncio
 from contextlib import suppress
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.data_resolver import backend_get_json
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json
+from rugmunchbot.data_resolver import backend_get_json
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import http_get_json
 
 logger = get_logger("rmi_bot.channels.content")
 
@@ -213,7 +213,7 @@ async def _fetch_whale_moves(chain: str, limit: int) -> list[dict[str, Any]]:
     registry — replaces the helius WhaleWatcher path whose ``_alert_history``
     was never populated. Fail-open ``[]`` when ClickHouse is down or quiet.
     """
-    from app.domains.telegram.rugmunchbot.channels import clickhouse_fetchers
+    from rugmunchbot.channels import clickhouse_fetchers
 
     return await clickhouse_fetchers.fetch_whale_moves(chain=chain, limit=limit)
 
@@ -224,7 +224,7 @@ async def _fetch_early_entries(chain: str, limit: int) -> list[dict[str, Any]]:
     From ``deployer_events`` + the earliest ``token_transfers`` after each
     deploy; each entry carries the USD size. Fail-open ``[]``.
     """
-    from app.domains.telegram.rugmunchbot.channels import clickhouse_fetchers
+    from rugmunchbot.channels import clickhouse_fetchers
 
     return await clickhouse_fetchers.fetch_early_whale_entries(chain=chain, limit=limit)
 
@@ -235,7 +235,7 @@ async def _fetch_smart_money(chain: str, limit: int) -> list[dict[str, Any]]:
     The previous backend premium endpoint (``/api/v1/databus/premium/smart-money``)
     is dead; the live feed still resolves ``smart_money_wallets``.
     """
-    from app.domains.telegram.rugmunchbot.channels import clickhouse_fetchers
+    from rugmunchbot.channels import clickhouse_fetchers
 
     return await clickhouse_fetchers.fetch_smart_money_wallets(chain=chain, limit=limit)
 

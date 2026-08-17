@@ -9,19 +9,19 @@ names (``backend_json_post``, ``token_meta``) resolve through the package.
 
 from __future__ import annotations
 
-from app.domains.telegram.rugmunchbot.config import DEXSCREENER
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools import scanner as _scanner
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json
-from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
-from app.domains.telegram.rugmunchbot.tools.scanner._deployer import (
+from rugmunchbot.config import DEXSCREENER
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools import scanner as _scanner
+from rugmunchbot.tools._client import http_get_json
+from rugmunchbot.tools.registry import ToolResult
+from rugmunchbot.tools.scanner._deployer import (
     _extract_pair_intel,
     _supplement_deployer_socials,
     _token_meta_dict,
 )
-from app.domains.telegram.rugmunchbot.tools.scanner._flatten import _flatten_dexscreener, _flatten_v1, _flatten_v2
-from app.domains.telegram.rugmunchbot.tools.scanner._providers import _detect_chain
-from app.domains.telegram.rugmunchbot.tools.scanner._scans import scan_token_v2
+from rugmunchbot.tools.scanner._flatten import _flatten_dexscreener, _flatten_v1, _flatten_v2
+from rugmunchbot.tools.scanner._providers import _detect_chain
+from rugmunchbot.tools.scanner._scans import scan_token_v2
 
 logger = get_logger("rmi_bot.tools.scanner")
 
@@ -126,7 +126,7 @@ def register_extra_tools() -> None:
     Called on import (self-registration) so the tools package wires them in
     with a single additive import line in ``tools/__init__.py``.
     """
-    from app.domains.telegram.rugmunchbot.tools import registry
+    from rugmunchbot.tools import registry
 
     registry.register("scanner_intel", scanner_intel, timeout=35.0, ttl=120.0)
     registry.register("token_meta", _scanner.token_meta, timeout=12.0, ttl=300.0)

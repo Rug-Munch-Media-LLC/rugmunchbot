@@ -18,9 +18,9 @@ from typing import Any
 import httpx
 
 from app.core.ai_guardrails import strip_think_tags
-from app.domains.telegram.rugmunchbot.config import backend_headers
-from app.domains.telegram.rugmunchbot.handlers.chat_ai import _llm as _llm_mod
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._constants import (
+from rugmunchbot.config import backend_headers
+from rugmunchbot.handlers.chat_ai import _llm as _llm_mod
+from rugmunchbot.handlers.chat_ai._llm._constants import (
     _SNAPPY_CONTEXT_BUDGET,
     _SNAPPY_DIGEST_CHARS,
     _SNAPPY_HISTORY_CHARS,
@@ -35,15 +35,15 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._constants import (
     REMOTE_SNAPPY_TIMEOUT,
     REMOTE_UNAVAILABLE_MESSAGE,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._router import _route_tier
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._sources import (
+from rugmunchbot.handlers.chat_ai._llm._router import _route_tier
+from rugmunchbot.handlers.chat_ai._llm._sources import (
     _append_source_block,
     _links_to_plain_text,
     _untrusted_block,
 )
-from app.domains.telegram.rugmunchbot.model_usage import record as _record_model_usage
-from app.domains.telegram.rugmunchbot.prompts import FALLBACK_SYSTEM_PROMPT, PERSONA_CONTEXT
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.model_usage import record as _record_model_usage
+from rugmunchbot.prompts import FALLBACK_SYSTEM_PROMPT, PERSONA_CONTEXT
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.chat_ai")
 

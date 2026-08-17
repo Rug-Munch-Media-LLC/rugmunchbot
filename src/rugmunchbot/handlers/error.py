@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from telegram import Update
 from telegram.error import NetworkError, RetryAfter, TimedOut
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -32,7 +32,7 @@ async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Metrics: count every error (incl. transient) + remember the last one.
     try:
-        from app.domains.telegram.rugmunchbot.observability import record_error
+        from rugmunchbot.observability import record_error
 
         record_error(kind=type(error).__name__, message=str(error))
     except Exception:

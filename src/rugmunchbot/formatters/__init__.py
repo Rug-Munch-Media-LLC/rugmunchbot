@@ -17,8 +17,8 @@ re-exported below, so ``from ...formatters import X`` keeps working unchanged.
 
 from __future__ import annotations
 
-from app.domains.telegram.rugmunchbot.config import OWNER_IDS, fmt_chain, fmt_number, fmt_pct
-from app.domains.telegram.rugmunchbot.formatters._base import (
+from rugmunchbot.config import OWNER_IDS, fmt_chain, fmt_number, fmt_pct
+from rugmunchbot.formatters._base import (
     BETA_BANNER,
     BETA_PAYMENTS_LINE,
     BETA_STATUS_LINE,
@@ -49,7 +49,7 @@ from app.domains.telegram.rugmunchbot.formatters._base import (
     web_scan_button,
     welcome_card_text,
 )
-from app.domains.telegram.rugmunchbot.formatters._sentinel import (
+from rugmunchbot.formatters._sentinel import (
     _SENTINEL_CODE_MAP,
     SENTINEL_MODULE_EMOJI,
     _bluechip_addresses,
@@ -76,12 +76,12 @@ from app.domains.telegram.rugmunchbot.formatters._sentinel import (
     is_bluechip,
     render_analyst_read_block,
 )
-from app.domains.telegram.rugmunchbot.formatters._wallet import (
+from rugmunchbot.formatters._wallet import (
     _activity_score,
     _explorer_link,
     format_wallet_report,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
 

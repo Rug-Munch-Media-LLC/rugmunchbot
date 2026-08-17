@@ -57,10 +57,10 @@ from html import escape
 from typing import Any
 
 from app.core.redis import get_redis_async
-from app.domains.telegram.rugmunchbot.config import fmt_number
-from app.domains.telegram.rugmunchbot.data_resolver import backend_get_json
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json
+from rugmunchbot.config import fmt_number
+from rugmunchbot.data_resolver import backend_get_json
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import http_get_json
 
 logger = get_logger("rmi_bot.daily_context")
 

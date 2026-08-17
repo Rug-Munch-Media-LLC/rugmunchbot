@@ -13,16 +13,16 @@ from typing import Any, cast
 
 import httpx
 
-from app.domains.telegram.rugmunchbot.config import backend_headers
-from app.domains.telegram.rugmunchbot.formatters import detect_chain
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._markup import _format_scan_summary
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._constants import (
+from rugmunchbot.config import backend_headers
+from rugmunchbot.formatters import detect_chain
+from rugmunchbot.handlers.chat_ai._markup import _format_scan_summary
+from rugmunchbot.handlers.chat_ai._routing._constants import (
     BRIDGE_CONTEXT_ENDPOINT,
     BRIDGE_TIMEOUT,
     SCAN_ENDPOINT,
     SCAN_TIMEOUT,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.chat_ai")
 

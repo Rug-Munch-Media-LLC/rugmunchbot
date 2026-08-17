@@ -13,16 +13,16 @@ from typing import TYPE_CHECKING
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import SCAN_PACKS, TIERS
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot import db
+from rugmunchbot.config import SCAN_PACKS, TIERS
+from rugmunchbot.formatters import (
     detect_chain,
     fmt_number,
     footer_links,
     sep,
 )
-from app.domains.telegram.rugmunchbot.handlers.alerts import _unsubscribe_backend_monitor
-from app.domains.telegram.rugmunchbot.keyboards import back_kb, pricing_kb, token_buttons
+from rugmunchbot.handlers.alerts import _unsubscribe_backend_monitor
+from rugmunchbot.keyboards import back_kb, pricing_kb, token_buttons
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -186,7 +186,7 @@ async def cmd_monitor(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     token = secrets.token_hex(8)
-    from app.domains.telegram.rugmunchbot.states import _pending_monitors
+    from rugmunchbot.states import _pending_monitors
 
     _pending_monitors[token] = {
         "user_id": user.id,
@@ -207,7 +207,7 @@ async def cmd_monitor(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             prices=[LabeledPrice("Token Monitor (30d)", MONITOR_STARS)],
         )
     except Exception as e:  # invoice failures must not crash the command
-        from app.domains.telegram.rugmunchbot.support.logging import get_logger
+        from rugmunchbot.support.logging import get_logger
 
         get_logger("rmi_bot").warning("monitor_invoice_error user=%s err=%s", user.id, e)
         _pending_monitors.pop(token, None)

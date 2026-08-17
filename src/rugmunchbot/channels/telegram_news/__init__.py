@@ -196,24 +196,24 @@ from app.domains.news_ingest.ingest import (
     read_channel_messages,  # noqa: F401
 )
 from app.domains.news_ingest.normalize import channel_message_to_article  # noqa: F401
-from app.domains.telegram.rugmunchbot.channels.formatters import (
+from rugmunchbot.channels.formatters import (
     format_breaking_post,
     format_feature_post,
     format_hybrid_post,
     format_news_post,
     format_themed_post,
 )
-from app.domains.telegram.rugmunchbot.channels.importance import (
+from rugmunchbot.channels.importance import (
     score_importance,  # noqa: F401
     select_important,  # noqa: F401
     top_headlines,  # noqa: F401
     trending_tokens,  # noqa: F401
 )
-from app.domains.telegram.rugmunchbot.channels.rewrite_titles import (
+from rugmunchbot.channels.rewrite_titles import (
     TITLE_REWRITE_ENABLED,
     rewrite_news_title,  # noqa: F401
 )
-from app.domains.telegram.rugmunchbot.channels.telegram_news._digest import (
+from rugmunchbot.channels.telegram_news._digest import (
     _MARKET_AWARENESS_HEADLINES,  # noqa: F401
     _MARKET_AWARENESS_KEY,  # noqa: F401
     _MARKET_AWARENESS_TOKENS,  # noqa: F401
@@ -236,7 +236,7 @@ from app.domains.telegram.rugmunchbot.channels.telegram_news._digest import (
     publish_market_awareness,
     publish_story_to_feed,
 )
-from app.domains.telegram.rugmunchbot.channels.telegram_news._persist import (
+from rugmunchbot.channels.telegram_news._persist import (
     _CHAIN_KEYWORDS,  # noqa: F401
     _article_to_news_item,  # noqa: F401
     _detect_chains,  # noqa: F401
@@ -244,9 +244,9 @@ from app.domains.telegram.rugmunchbot.channels.telegram_news._persist import (
     _tokens_from_entities,  # noqa: F401
     persist_articles,
 )
-from app.domains.telegram.rugmunchbot.channels.telegram_news._rag import ingest_into_rag
-from app.domains.telegram.rugmunchbot.channels.telegram_news._scheduler import post_tg_news_update
-from app.domains.telegram.rugmunchbot.channels.telegram_news._sources import (
+from rugmunchbot.channels.telegram_news._rag import ingest_into_rag
+from rugmunchbot.channels.telegram_news._scheduler import post_tg_news_update
+from rugmunchbot.channels.telegram_news._sources import (
     _CHANNEL_ALPHA_KEYWORDS,  # noqa: F401
     _CHANNEL_NEWS_KEYWORDS,  # noqa: F401
     _CHANNEL_OWN_KEYWORDS,  # noqa: F401
@@ -274,7 +274,7 @@ from app.domains.telegram.rugmunchbot.channels.telegram_news._sources import (
     resolve_channel_sources,
     sweep_telegram_news,
 )
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.channels.tg_news")
 

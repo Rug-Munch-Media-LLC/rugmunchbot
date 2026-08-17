@@ -12,9 +12,9 @@ from typing import Any
 
 import httpx
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.config import BACKEND_URL, backend_headers
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client
 
 logger = get_logger("rmi.portfolio")
 
@@ -108,7 +108,7 @@ async def cmd_portfolio(update, ctx) -> None:
 
     await msg.chat.send_action("typing")
 
-    from app.domains.telegram.rugmunchbot.formatters import (
+    from rugmunchbot.formatters import (
         is_evm,
         is_sol,
     )

@@ -27,20 +27,20 @@ from typing import TYPE_CHECKING
 
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot import db
+from rugmunchbot.formatters import (
     format_deep_ml_scan_report,
     paywall_text,
     render_analyst_read_block,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot.handlers._messages import (
     ACTION_CHECK_ADDRESS,
     failure_card,
     usage_hint,
 )
-from app.domains.telegram.rugmunchbot.keyboards import back_kb
-from app.domains.telegram.rugmunchbot.states import check_spam, is_owner
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.keyboards import back_kb
+from rugmunchbot.states import check_spam, is_owner
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update

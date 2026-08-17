@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-logger = logging.getLogger("app.domains.telegram.rugmunchbot.db")
+logger = logging.getLogger("rugmunchbot.db")
 
 T = TypeVar("T")
 
@@ -66,7 +66,7 @@ def _db_path() -> str:
     Reads ``DB_PATH`` from the package shim so runtime monkeypatching
     (``monkeypatch.setattr(db, "DB_PATH", ...)``) keeps working after the split.
     """
-    pkg = sys.modules.get("app.domains.telegram.rugmunchbot.db")
+    pkg = sys.modules.get("rugmunchbot.db")
     if pkg is not None:
         return getattr(pkg, "DB_PATH", _DEFAULT_DB_PATH)
     return _DEFAULT_DB_PATH

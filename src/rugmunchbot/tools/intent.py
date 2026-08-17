@@ -51,7 +51,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-from app.domains.telegram.rugmunchbot.tools.classify import (
+from rugmunchbot.tools.classify import (
     SYMBOL_RE,
     extract_addresses,
     has_symbol,
@@ -698,7 +698,7 @@ def build_tool_prompt_block(results: Mapping[str, object]) -> str:
         result = results[name]
         if getattr(result, "ok", False) is False:
             continue
-        from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+        from rugmunchbot.tools.registry import ToolResult
 
         if not isinstance(result, ToolResult):
             continue

@@ -27,7 +27,7 @@ from __future__ import annotations
 import time
 from collections import deque
 
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.budget")
 

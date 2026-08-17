@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import re
 
-from app.domains.telegram.rugmunchbot.formatters import footer_links
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import (
+from rugmunchbot.formatters import footer_links
+from rugmunchbot.handlers.chat_ai._classify import (
     MAX_ADDRESS_HINTS,
     _extract_addresses,
     _is_capability_question,
@@ -24,13 +24,13 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import (
     _is_meaningful_question,
     _is_self_improvement_question,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._local_ai import (
+from rugmunchbot.handlers.chat_ai._local_ai import (
     _INTENT_RULES,
     _SELF_DESCRIPTION_ANSWER,
     _SELF_IMPROVEMENT_ANSWER,
     local_ai_response,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._markup import (
+from rugmunchbot.handlers.chat_ai._markup import (
     CHUNK_MAX_CHARS,
     MAX_ANSWER_CHARS,
     _beautify_answer,
@@ -44,7 +44,7 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._markup import (
     _tables_to_lists,
     _unescape_llm_entities,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._quality import (
+from rugmunchbot.handlers.chat_ai._quality import (
     _grounding_sources_count,
     is_degenerate_answer,
     strip_think_blocks,

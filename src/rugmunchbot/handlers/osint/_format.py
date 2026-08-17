@@ -5,8 +5,8 @@ from __future__ import annotations
 import html
 from typing import TYPE_CHECKING, Any
 
-from app.domains.telegram.rugmunchbot.formatters import footer_links, thin_sep
-from app.domains.telegram.rugmunchbot.handlers.osint._common import (
+from rugmunchbot.formatters import footer_links, thin_sep
+from rugmunchbot.handlers.osint._common import (
     _CATEGORY_EMOJI,
     _CONFIDENCE_EMOJI,
     _MAX_AGGREGATE_ERRORS,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from app.domains.telegram.rugmunchbot.config import BACKEND_URL
+from rugmunchbot.config import BACKEND_URL
 
 # ══════════════════════════════════════════════
 # ENDPOINTS & BUDGETS — BACKEND / BRIDGE

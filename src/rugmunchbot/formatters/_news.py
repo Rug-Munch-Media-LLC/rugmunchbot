@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.formatters._base import thin_sep
+from rugmunchbot.formatters._base import thin_sep
 
 __all__ = ["format_news_card", "format_news_sentiment"]
 

@@ -27,38 +27,38 @@ keep working unchanged.
 
 from __future__ import annotations
 
-from app.domains.telegram.rugmunchbot.formatters._scan_report_common import (
+from rugmunchbot.formatters._scan_report_common import (
     _clip,
     _collapse_blank_lines,
     _short_addr,
 )
-from app.domains.telegram.rugmunchbot.formatters._scan_report_deepscan import (
+from rugmunchbot.formatters._scan_report_deepscan import (
     format_deep_ml_scan_report,
     format_sentinel_deepscan_section,
     format_sentinel_scan_report,
     render_analyst_read_block,
 )
-from app.domains.telegram.rugmunchbot.formatters._scan_report_main import (
+from rugmunchbot.formatters._scan_report_main import (
     format_deep_scan_report,
     format_scan_report,
 )
-from app.domains.telegram.rugmunchbot.formatters._scan_report_risk import (
+from rugmunchbot.formatters._scan_report_risk import (
     _format_risk_signals_section,
     _verdict_text,
 )
-from app.domains.telegram.rugmunchbot.formatters._scan_report_sentinel import (
+from rugmunchbot.formatters._scan_report_sentinel import (
     _format_sentinel_pro,
     format_sentinel_flags,
 )
-from app.domains.telegram.rugmunchbot.formatters._scan_report_token import (
+from rugmunchbot.formatters._scan_report_token import (
     _token_description,
     _token_image_url,
 )
-from app.domains.telegram.rugmunchbot.formatters._scan_report_wallet import (
+from rugmunchbot.formatters._scan_report_wallet import (
     _format_deployer_section,
     _format_gmgn_section,
 )
-from app.domains.telegram.rugmunchbot.formatters._sentinel_helpers import (
+from rugmunchbot.formatters._sentinel_helpers import (
     _SENTINEL_CODE_MAP,  # re-exported via _sentinel shim (listed in __all__)
     SENTINEL_MODULE_EMOJI,
     _bluechip_addresses,  # re-exported via _sentinel shim (listed in __all__)

@@ -32,11 +32,11 @@ from app.domains.news_ingest.ingest import (
     read_channel_messages,
 )
 from app.domains.news_ingest.normalize import channel_message_to_article, is_telegram_link
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from app.domains.news_ingest.models import ChannelMessage, NewsArticle
-    from app.domains.telegram.rugmunchbot.channels import telegram_news as _tg
+    from rugmunchbot.channels import telegram_news as _tg
 else:
     _tg = sys.modules[__package__ or ""]
 
@@ -311,7 +311,7 @@ def classify_channel_category(title: str, username: str) -> str:
     if any(word in haystack for word in _CHANNEL_OWN_KEYWORDS):
         return "other"
     try:
-        from app.domains.telegram.rugmunchbot.channels.scam_watch import (
+        from rugmunchbot.channels.scam_watch import (
             ScamSourceType,
             _classify_dialog,
         )
@@ -760,7 +760,7 @@ async def _enrich_articles(articles: list[NewsArticle]) -> None:
                     article.resolved_url = resolved
 
     if _tg.TITLE_REWRITE_ENABLED:
-        from app.domains.telegram.rugmunchbot.channels.rewrite_titles import rewrite_news_title
+        from rugmunchbot.channels.rewrite_titles import rewrite_news_title
 
         sem = asyncio.Semaphore(_TITLE_REWRITE_CONCURRENCY)
 

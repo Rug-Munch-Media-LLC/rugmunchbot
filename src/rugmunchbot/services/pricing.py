@@ -38,11 +38,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.config import COINGECKO, DEXSCREENER, _get_token
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json
-from app.domains.telegram.rugmunchbot.tools.birdeye import birdeye_price
-from app.domains.telegram.rugmunchbot.tools.registry import backend_json_get
+from rugmunchbot.config import COINGECKO, DEXSCREENER, _get_token
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import http_get_json
+from rugmunchbot.tools.birdeye import birdeye_price
+from rugmunchbot.tools.registry import backend_json_get
 
 logger = get_logger("rmi_bot.services.pricing")
 

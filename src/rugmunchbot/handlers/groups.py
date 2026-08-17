@@ -16,9 +16,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from app.domains.telegram import access_guard
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import OWNER_IDS
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from rugmunchbot import db
+from rugmunchbot.config import OWNER_IDS
+from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -155,7 +155,7 @@ async def cmd_groupinfo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Check voice chat status
     voice_status = "❌ None active"
     try:
-        from app.domains.telegram.rugmunchbot.config import BOT_TOKEN
+        from rugmunchbot.config import BOT_TOKEN
         from app.domains.telegram.voice_chat import get_voice_chat_status
 
         if BOT_TOKEN:
@@ -213,7 +213,7 @@ async def cmd_voicechat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     title = " ".join(args[2:]) if len(args) > 2 else None
 
-    from app.domains.telegram.rugmunchbot.config import BOT_TOKEN
+    from rugmunchbot.config import BOT_TOKEN
 
     if not BOT_TOKEN:
         await update.message.reply_text("❌ Bot not configured. Please contact the operator.")  # type: ignore[union-attr]  # PTB None-able fields

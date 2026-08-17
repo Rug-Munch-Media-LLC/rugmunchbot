@@ -29,7 +29,7 @@ import time
 from collections import OrderedDict
 from typing import Any, Generic, TypeVar
 
-from app.domains.telegram.rugmunchbot.tools.budget import effective_ttl
+from rugmunchbot.tools.budget import effective_ttl
 
 T = TypeVar("T")
 

@@ -21,17 +21,17 @@ from __future__ import annotations
 
 import httpx as httpx
 
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._delivery import (
+from rugmunchbot.handlers.chat_ai._delivery import (
     _edit_placeholder_if_slow as _edit_placeholder_if_slow,
     _keep_typing as _keep_typing,
     _send_answer as _send_answer,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm import (
+from rugmunchbot.handlers.chat_ai._llm import (
     _build_fallback_answer as _build_fallback_answer,
     _gather_context as _gather_context,
     _route_tier as _route_tier,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._constants import (
+from rugmunchbot.handlers.chat_ai._routing._constants import (
     BRIDGE_CONTEXT_ENDPOINT as BRIDGE_CONTEXT_ENDPOINT,
     BRIDGE_TIMEOUT as BRIDGE_TIMEOUT,
     CHAT_TURN_DEADLINE as CHAT_TURN_DEADLINE,
@@ -42,20 +42,20 @@ from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._constants impor
     TIMEOUT_REPLY as TIMEOUT_REPLY,
     TOKEN_CARD_DECIDE_WAIT as TOKEN_CARD_DECIDE_WAIT,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._context import (
+from rugmunchbot.handlers.chat_ai._routing._context import (
     _fetch_bridge_context as _fetch_bridge_context,
     _fetch_scan_context as _fetch_scan_context,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._core import chat_ai_response as chat_ai_response
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._handler import (
+from rugmunchbot.handlers.chat_ai._routing._core import chat_ai_response as chat_ai_response
+from rugmunchbot.handlers.chat_ai._routing._handler import (
     _is_bot_addressed as _is_bot_addressed,
     ai_chat_handler as ai_chat_handler,
     register_chat_ai as register_chat_ai,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._structural import (
+from rugmunchbot.handlers.chat_ai._routing._structural import (
     _route_structural as _route_structural,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing._token_card import (
+from rugmunchbot.handlers.chat_ai._routing._token_card import (
     _cancel_token_lookup as _cancel_token_lookup,
     _lookup_token_symbol as _lookup_token_symbol,
     _safe_float as _safe_float,

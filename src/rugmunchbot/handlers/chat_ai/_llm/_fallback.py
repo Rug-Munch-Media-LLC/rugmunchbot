@@ -15,26 +15,26 @@ import asyncio
 import time
 from typing import TYPE_CHECKING, Any
 
-import app.domains.telegram.rugmunchbot.handlers.chat_ai as chat_ai
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._format import _format_tool_answer
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._live_tools import (
+import rugmunchbot.handlers.chat_ai as chat_ai
+from rugmunchbot.handlers.chat_ai._format import _format_tool_answer
+from rugmunchbot.handlers.chat_ai._live_tools import (
     LIVE_TOOLS_WAIT,
     TOOL_ANSWER_EXTRA_WAIT,
     _run_live_tools_bounded,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._constants import (
+from rugmunchbot.handlers.chat_ai._llm._constants import (
     _CONTEXT_GATHER_TIMEOUT,
     FALLBACK_CONTEXT_HARD_CAP,
     FALLBACK_CONTEXT_WAIT,
     RAG_LOOKUP_WAIT,
 )
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._router import _gather_context
-from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm._sources import _untrusted_block
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools.intent import build_tool_prompt_block
+from rugmunchbot.handlers.chat_ai._llm._router import _gather_context
+from rugmunchbot.handlers.chat_ai._llm._sources import _untrusted_block
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools.intent import build_tool_prompt_block
 
 if TYPE_CHECKING:
-    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+    from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
 

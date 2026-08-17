@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.telegram.rugmunchbot.config import fmt_chain, fmt_number, fmt_pct
-from app.domains.telegram.rugmunchbot.formatters import footer_links, sep, thin_sep
+from rugmunchbot.config import fmt_chain, fmt_number, fmt_pct
+from rugmunchbot.formatters import footer_links, sep, thin_sep
 
 
 def _ds_pairs(data: Any) -> list[dict[str, Any]]:

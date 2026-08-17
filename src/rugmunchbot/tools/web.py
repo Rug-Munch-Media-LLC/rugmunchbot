@@ -32,9 +32,9 @@ import re
 from typing import Any
 
 from app.config import settings
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import http_get_json, http_post_json
-from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import http_get_json, http_post_json
+from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.tools.web")
 

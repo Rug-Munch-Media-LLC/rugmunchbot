@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from telegram.constants import ParseMode
 
-from app.domains.telegram.rugmunchbot import db
-from app.domains.telegram.rugmunchbot.config import (
+from rugmunchbot import db
+from rugmunchbot.config import (
     BACKEND_URL,
     WEBSITE_URL,
     backend_headers,
@@ -23,7 +23,7 @@ from app.domains.telegram.rugmunchbot.config import (
     fmt_pct,
     risk_bar,
 )
-from app.domains.telegram.rugmunchbot.formatters import (
+from rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     is_owner,
@@ -31,16 +31,16 @@ from app.domains.telegram.rugmunchbot.formatters import (
     sep,
     thin_sep,
 )
-from app.domains.telegram.rugmunchbot.handlers._messages import (
+from rugmunchbot.handlers._messages import (
     ACTION_TRY_AGAIN,
     failure_card,
     usage_hint,
 )
-from app.domains.telegram.rugmunchbot.keyboards import back_kb, investigate_kb, paywall_kb
-from app.domains.telegram.rugmunchbot.scanner import scan_token, scan_token_v2, v2_token_to_legacy
-from app.domains.telegram.rugmunchbot.states import check_spam
-from app.domains.telegram.rugmunchbot.support.logging import get_logger
-from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.keyboards import back_kb, investigate_kb, paywall_kb
+from rugmunchbot.scanner import scan_token, scan_token_v2, v2_token_to_legacy
+from rugmunchbot.states import check_spam
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import get_shared_client
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -312,7 +312,7 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
                 f"Risk: <b>{scan_result.get('risk_level', 'unknown').upper()}</b>"
             )
             if scan_result.get("breakdown"):
-                from app.domains.telegram.rugmunchbot.formatters import format_scoring_breakdown
+                from rugmunchbot.formatters import format_scoring_breakdown
 
                 lines.append(format_scoring_breakdown(scan_result["breakdown"]))
         lines.append("")
