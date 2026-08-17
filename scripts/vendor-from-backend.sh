@@ -44,7 +44,50 @@ declare -A MAP=(
   ["app/domains/news_ingest/ingest.py"]="_vendor/news_ingest/ingest.py"
   ["app/domains/news_ingest/normalize.py"]="_vendor/news_ingest/normalize.py"
   ["app/domains/news_ingest/discovery.py"]="_vendor/news_ingest/discovery.py"
+  ["app/alert_pipeline.py"]="_vendor/alert_pipeline.py"
+  ["app/content_platform.py"]="_vendor/content_platform.py"
+  ["app/entity_registry.py"]="_vendor/entity_registry.py"
+  ["app/domains/telegram/voice_chat.py"]="_vendor/voice_chat.py"
+  ["app/databus/tg_channel_registry.py"]="_vendor/tg_channel_registry.py"
+  ["app/databus/proxy_rotator.py"]="_vendor/proxy_rotator.py"
+  ["app/databus/rugcharts_intel/smart_money.py"]="_vendor/smart_money.py"
+  ["app/databus/provider_implementations/dune.py"]="_vendor/dune.py"
+  ["app/domains/news/clusterer.py"]="_vendor/news_clusterer.py"
+  ["app/domains/news/ratings.py"]="_vendor/news_ratings.py"
+  ["app/deep_scan.py"]="_vendor/deep_scan.py"
+  ["app/deep_scan_runners.py"]="_vendor/deep_scan_runners.py"
+  ["app/databus/webshare_proxies.py"]="_vendor/webshare_proxies.py"
+  ["app/domains/content/briefing.py"]="_vendor/briefing.py"
+  ["app/core/db_pool.py"]="_vendor/db_pool.py"
 )
+
+rewrite_vendor() {
+  local f="$1"
+  sed -i \
+    -e 's|from app\.core\.logging import|from rugmunchbot._vendor.logging_shim import|g' \
+    -e 's|from app\.core\.logging_config import|from rugmunchbot._vendor.logging_config import|g' \
+    -e 's|from app\.core\.degradation import|from rugmunchbot._vendor.degradation import|g' \
+    -e 's|from app\.core\.redis import|from rugmunchbot._vendor.redis_client import|g' \
+    -e 's|from app\.core\.shared_utils import|from rugmunchbot._vendor.shared_utils import|g' \
+    -e 's|from app\.chain_registry\.|from rugmunchbot._vendor.chain_registry.|g' \
+    -e 's|from app\.chain_registry import|from rugmunchbot._vendor.chain_registry import|g' \
+    -e 's|from app\.deep_scan_runners import|from rugmunchbot._vendor.deep_scan_runners import|g' \
+    -e 's|from app\.domains\.news\.ratings import|from rugmunchbot._vendor.news_ratings import|g' \
+    -e 's|from app\.domains\.news\.clusterer import|from rugmunchbot._vendor.news_clusterer import|g' \
+    -e 's|from app\.osint\.|from rugmunchbot._vendor.osint.|g' \
+    -e 's|from app\.osint import|from rugmunchbot._vendor.osint import|g' \
+    -e 's|from app\.domains\.content\.briefing import|from rugmunchbot._vendor.briefing import|g' \
+    -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
+    -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
+    -e 's|from app\.domains\.news_ingest\.|from rugmunchbot._vendor.news_ingest.|g' \
+    -e 's|from app\.rag\.dedup import|from rugmunchbot._vendor.dedup import|g' \
+    -e 's|from app\.domains\.telegram\.headless_client import|from rugmunchbot._vendor.headless_client import|g' \
+    -e 's|from app\.domains\.telegram\.headless_models import|from rugmunchbot._vendor.headless_models import|g' \
+    -e 's|from app\.domains\.telegram\.headless_credentials import|from rugmunchbot._vendor.headless_credentials import|g' \
+    -e 's|from app\.domains\.telegram\.headless import|from rugmunchbot._vendor.headless import|g' \
+    -e 's|from app\.osint_tools import|from rugmunchbot._vendor.osint_tools import|g' \
+    "$f"
+}
 
 mkdir -p "$VENDOR/news_ingest"
 for src in "${!MAP[@]}"; do
@@ -56,22 +99,25 @@ for src in "${!MAP[@]}"; do
     echo "# ---"
     cat "$BACKEND/$src"
   } >"$dst"
-  # vendor-internal namespace rewires (pure moves)
-  sed -i \
-    -e 's|from app\.core\.logging import|from rugmunchbot._vendor.logging_shim import|g' \
-    -e 's|from app\.core\.logging_config import|from rugmunchbot._vendor.logging_config import|g' \
-    -e 's|from app\.core\.degradation import|from rugmunchbot._vendor.degradation import|g' \
-    -e 's|from app\.core\.redis import|from rugmunchbot._vendor.redis_client import|g' \
-    -e 's|from app\.core\.shared_utils import|from rugmunchbot._vendor.shared_utils import|g' \
-    -e 's|from app\.domains\.news_ingest\.|from rugmunchbot._vendor.news_ingest.|g' \
-    -e 's|from app\.rag\.dedup import|from rugmunchbot._vendor.dedup import|g' \
-    -e 's|from app\.domains\.telegram\.headless_client import|from rugmunchbot._vendor.headless_client import|g' \
-    -e 's|from app\.domains\.telegram\.headless_models import|from rugmunchbot._vendor.headless_models import|g' \
-    -e 's|from app\.domains\.telegram\.headless_credentials import|from rugmunchbot._vendor.headless_credentials import|g' \
-    -e 's|from app\.domains\.telegram\.headless import|from rugmunchbot._vendor.headless import|g' \
-    -e 's|from app\.osint_tools import|from rugmunchbot._vendor.osint_tools import|g' \
-    "$dst"
-  echo "vendored: $src -> ${MAP[$src]}"
+  rewrite_vendor "$dst"
+    echo "vendored: $src -> ${MAP[$src]}"
+done
+
+# package copies (whole dirs, self-contained)
+for pkg_src in "app/osint" "app/chain_registry"; do
+  pkg_dst="$VENDOR/$(basename "$pkg_src")"
+  mkdir -p "$pkg_dst"
+  ( cd "$BACKEND" && find "$pkg_src" -name '*.py' -not -path '*__pycache__*' | while read -r f; do
+      rel="${f#$pkg_src/}"
+      mkdir -p "$pkg_dst/$(dirname "$rel")"
+      { echo "# VENDORED $DATE from rmi-backend/$f (Phase 2b — frozen copy; do not edit)."
+        echo "# Re-vendor: bash scripts/sync-from-live.sh"
+        echo "# ---"
+        cat "$f"
+      } > "$pkg_dst/$rel"
+      rewrite_vendor "$pkg_dst/$rel"
+    done )
+  echo "vendored package: $pkg_src -> _vendor/$(basename "$pkg_src")"
 done
 
 # redis_client: drop the app.config.settings lookup (env fallback below keeps
@@ -94,16 +140,20 @@ p.write_text(raw)
 print("redis_client.py: settings lookup -> env (documented deviation)")
 PYFIX
 
-# tools/web.py: SEARXNG_URL via env (Phase 2a — settings.searxng_base_url
-# replaced by SEARXNG_BASE_URL env, default mirrors the backend).
+# tools/web.py: SEARXNG_URL via env (Phase 2a) + knowledge-fallback LLM
+# swapped from app.ai_router.chat_completion to the bot-local
+# rugmunchbot.llm_config.chat_with_fallback (Phase 2b).
+python3 "$HERE/scripts/fix-web-knowledge-fallback.py" "$HERE/src/rugmunchbot/tools/web.py"
 python3 - "$HERE/src/rugmunchbot/tools/web.py" <<'PYFIX'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1])
 raw = p.read_text()
 old = 'SEARXNG_URL = settings.searxng_base_url.rstrip("/")'
 new = 'SEARXNG_URL = os.getenv("SEARXNG_BASE_URL", "http://127.0.0.1:8889").rstrip("/")'
-assert old in raw, "web.py SEARXNG line not found"
-raw = raw.replace(old, new)
+if old in raw:
+    raw = raw.replace(old, new)
+elif new not in raw:
+    raise SystemExit("web.py SEARXNG line not found (neither old nor new form)")
 p.write_text(raw)
 PYFIX
 
@@ -112,6 +162,19 @@ find "$HERE/src/rugmunchbot" -name '*.py' -not -path '*/_vendor/*' | while read 
   sed -i \
     -e 's|from app\.core\.ai_guardrails import|from rugmunchbot._vendor.ai_guardrails import|g' \
     -e 's|from app\.core\.shared_utils import|from rugmunchbot._vendor.shared_utils import|g' \
+    -e 's|from app\.chain_registry\.|from rugmunchbot._vendor.chain_registry.|g' \
+    -e 's|from app\.chain_registry import|from rugmunchbot._vendor.chain_registry import|g' \
+    -e 's|from app\.deep_scan_runners import|from rugmunchbot._vendor.deep_scan_runners import|g' \
+    -e 's|from app\.domains\.news\.ratings import|from rugmunchbot._vendor.news_ratings import|g' \
+    -e 's|from app\.domains\.news\.clusterer import|from rugmunchbot._vendor.news_clusterer import|g' \
+    -e 's|from app\.osint\.|from rugmunchbot._vendor.osint.|g' \
+    -e 's|from app\.osint import|from rugmunchbot._vendor.osint import|g' \
+    -e 's|from app\.domains\.content\.briefing import|from rugmunchbot._vendor.briefing import|g' \
+    -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
+    -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
+    -e 's|from app\.domains\.content\.briefing import|from rugmunchbot._vendor.briefing import|g' \
+    -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
+    -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
     -e 's|from app\.core\.channels_registry import|from rugmunchbot._vendor.channels_registry import|g' \
     -e 's|from app\.core\.redis import|from rugmunchbot._vendor.redis_client import|g' \
     -e 's|from app\.domains\.telegram import access_guard|from rugmunchbot._vendor import access_guard|g' \
@@ -120,6 +183,26 @@ find "$HERE/src/rugmunchbot" -name '*.py' -not -path '*/_vendor/*' | while read 
     -e 's|from app\.osint_tools import|from rugmunchbot._vendor.osint_tools import|g' \
     -e 's|from app\.domains\.news_ingest\.|from rugmunchbot._vendor.news_ingest.|g' \
     -e 's|from app\.llm_config import|from rugmunchbot.llm_config import|g' \
+    -e 's|from app\.alert_pipeline import|from rugmunchbot._vendor.alert_pipeline import|g' \
+    -e 's|from app\.content_platform import|from rugmunchbot._vendor.content_platform import|g' \
+    -e 's|from app\.entity_registry import|from rugmunchbot._vendor.entity_registry import|g' \
+    -e 's|from app\.domains\.telegram\.voice_chat import|from rugmunchbot._vendor.voice_chat import|g' \
+    -e 's|from app\.databus\.tg_channel_registry import|from rugmunchbot._vendor.tg_channel_registry import|g' \
+    -e 's|from app\.databus\.proxy_rotator import|from rugmunchbot._vendor.proxy_rotator import|g' \
+    -e 's|from app\.databus\.rugcharts_intel\.smart_money import|from rugmunchbot._vendor.smart_money import|g' \
+    -e 's|from app\.databus\.provider_implementations\.dune import|from rugmunchbot._vendor.dune import|g' \
+    -e 's|from app\.domains\.news\.clusterer import|from rugmunchbot._vendor.news_clusterer import|g' \
+    -e 's|from app\.domains\.news\.ratings import|from rugmunchbot._vendor.news_ratings import|g' \
+    -e 's|from app\.chain_registry import|from rugmunchbot._vendor.chain_registry import|g' \
+    -e 's|from app\.deep_scan import|from rugmunchbot._vendor.deep_scan import|g' \
+    -e 's|from app\.osint\.|from rugmunchbot._vendor.osint.|g' \
+    -e 's|from app\.osint import|from rugmunchbot._vendor.osint import|g' \
+    -e 's|from app\.domains\.content\.briefing import|from rugmunchbot._vendor.briefing import|g' \
+    -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
+    -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
+    -e 's|from app\.domains\.content\.briefing import|from rugmunchbot._vendor.briefing import|g' \
+    -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
+    -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
     -e '/^from app\.config import settings$/d' \
     "$f"
 done

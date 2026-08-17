@@ -104,7 +104,7 @@ async def _fetch_digest() -> dict[str, Any] | None:
     except Exception as exc:  # fail-open to direct provider
         logger.debug("backend /dune digest unavailable (%s), using direct provider", exc.__class__.__name__)
     try:
-        from app.databus.provider_implementations.dune import dune_onchain_intel
+        from rugmunchbot._vendor.dune import dune_onchain_intel
 
         return await dune_onchain_intel(limit=ROW_LIMIT)
     except Exception as exc:  # never let the command crash

@@ -234,7 +234,7 @@ def _registry_scam_sources(include_watchers: bool | None = None) -> list[dict[st
     ``include_watchers=True``. Fail-open → ``[]``.
     """
     try:
-        from app.databus.tg_channel_registry import load_tg_channels
+        from rugmunchbot._vendor.tg_channel_registry import load_tg_channels
     except ImportError:
         return []
     include_watchers = SCAM_WATCH_INCLUDE_WATCHERS if include_watchers is None else include_watchers

@@ -71,7 +71,7 @@ async def ingest_into_rag(articles: list[NewsArticle]) -> dict[str, Any]:
         logger.info("tg_news:rag_ingest_disabled articles=%s", len(articles))
         return counts
     try:
-        from app.domains.news.clusterer import (
+        from rugmunchbot._vendor.news_clusterer import (
             NewsItem as ClusterNewsItem,
             build_story_rag_docs,
         )

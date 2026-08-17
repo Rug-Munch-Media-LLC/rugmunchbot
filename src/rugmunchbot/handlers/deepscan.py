@@ -112,7 +112,7 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         parse_mode=ParseMode.HTML,
     )
     try:
-        from app.deep_scan import deep_scan_address
+        from rugmunchbot._vendor.deep_scan import deep_scan_address
     except (ImportError, AttributeError) as exc:
         logger.warning("deep_scan module unavailable: %s", exc)
         await msg.edit_text(

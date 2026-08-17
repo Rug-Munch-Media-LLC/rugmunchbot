@@ -156,7 +156,7 @@ async def cmd_groupinfo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     voice_status = "❌ None active"
     try:
         from rugmunchbot.config import BOT_TOKEN
-        from app.domains.telegram.voice_chat import get_voice_chat_status
+        from rugmunchbot._vendor.voice_chat import get_voice_chat_status
 
         if BOT_TOKEN:
             from telegram import Bot
@@ -226,7 +226,7 @@ async def cmd_voicechat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if action in ("start", "start_video"):
         is_video = action == "start_video"
         try:
-            from app.domains.telegram.voice_chat import create_voice_chat
+            from rugmunchbot._vendor.voice_chat import create_voice_chat
 
             session = await create_voice_chat(bot, chat_id, title=title, is_video=is_video)
             link = session.invite_link or ""
@@ -240,7 +240,7 @@ async def cmd_voicechat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await update.message.reply_text("❌ Could not start the voice chat. Please try again in a moment.")  # type: ignore[union-attr]  # PTB None-able fields
     elif action == "end":
         try:
-            from app.domains.telegram.voice_chat import end_voice_chat
+            from rugmunchbot._vendor.voice_chat import end_voice_chat
 
             await end_voice_chat(bot, chat_id)
             await update.message.reply_text("✅ Voice chat ended.")  # type: ignore[union-attr]  # PTB None-able fields

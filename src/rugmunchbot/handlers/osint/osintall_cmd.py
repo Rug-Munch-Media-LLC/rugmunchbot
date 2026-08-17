@@ -74,7 +74,7 @@ async def cmd_osintall(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         parse_mode=ParseMode.HTML,
     )
     try:
-        from app.osint.engine import run_aggregate
+        from rugmunchbot._vendor.osint.engine import run_aggregate
     except (ImportError, AttributeError) as exc:
         logger.warning("osint engine unavailable: %s", exc)
         await msg.edit_text(

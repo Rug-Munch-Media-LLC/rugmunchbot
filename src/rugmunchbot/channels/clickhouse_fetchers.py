@@ -23,7 +23,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.databus.rugcharts_intel.smart_money import smart_money_feed
+from rugmunchbot._vendor.smart_money import smart_money_feed
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.channels.clickhouse_fetchers")
@@ -60,7 +60,7 @@ def _fmt_usd(value: Any) -> str:
 def _entity_label(addr: str) -> str:
     """Best-effort entity label for an address ('' when unknown/infra)."""
     try:
-        from app.entity_registry import get_entity_registry
+        from rugmunchbot._vendor.entity_registry import get_entity_registry
 
         match = get_entity_registry().classify_address(addr)
     except Exception as exc:  # fail-open by contract
@@ -74,7 +74,7 @@ def _entity_label(addr: str) -> str:
 def _is_infrastructure(addr: str) -> bool:
     """True when an address is a known exchange/DeFi/mixer (not a whale)."""
     try:
-        from app.entity_registry import get_entity_registry
+        from rugmunchbot._vendor.entity_registry import get_entity_registry
 
         return get_entity_registry().is_infrastructure(addr)
     except Exception:  # fail-open: unknown addresses pass through

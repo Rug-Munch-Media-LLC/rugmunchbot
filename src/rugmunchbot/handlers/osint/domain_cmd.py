@@ -17,8 +17,8 @@ from rugmunchbot.handlers.investigate import cmd_investigate as _pro_investigate
 from rugmunchbot.handlers.osint._common import _TIMEOUTS, _looks_like_domain
 from rugmunchbot.handlers.osint._format import _error_text, _format_report, _unavailable_text
 from rugmunchbot.keyboards import back_kb
-from app.osint import OsintNotAvailable
-from app.osint.domain import lookup_domain
+from rugmunchbot._vendor.osint import OsintNotAvailable
+from rugmunchbot._vendor.osint.domain import lookup_domain
 
 if TYPE_CHECKING:
     from telegram import Update

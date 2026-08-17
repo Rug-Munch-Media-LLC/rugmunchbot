@@ -455,7 +455,7 @@ async def publish_story_to_feed(post_text: str, *, title: str) -> dict[str, Any]
         logger.info("tg_news:feed_publish_disabled title=%s", title[:80])
         return {"skipped": True}
     try:
-        from app.content_platform import create_post
+        from rugmunchbot._vendor.content_platform import create_post
 
         return await create_post(
             content=post_text,

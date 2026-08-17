@@ -16,7 +16,7 @@ from rugmunchbot.handlers.osint._format import (
     _unavailable_text,
 )
 from rugmunchbot.keyboards import back_kb
-from app.osint import OsintNotAvailable
+from rugmunchbot._vendor.osint import OsintNotAvailable
 from rugmunchbot._vendor.osint_tools import OsintNotAvailable as ToolsOsintNotAvailable, lookup_username
 
 if TYPE_CHECKING:

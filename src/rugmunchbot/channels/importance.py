@@ -204,7 +204,7 @@ def _heuristic_importance(article: NewsArticle) -> float:
 
     score = 0.1 + 0.2 * min(strong, 4) + 0.05 * min(weak, 4)
     try:
-        from app.domains.news.ratings import rate_article
+        from rugmunchbot._vendor.news_ratings import rate_article
 
         rating = rate_article(title=article.title, content=article.body, source=article.source_channel)
         score += abs(rating.sentiment_score) / 100.0 * 0.2

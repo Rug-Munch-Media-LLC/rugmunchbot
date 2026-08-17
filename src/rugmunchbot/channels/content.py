@@ -376,7 +376,7 @@ async def _fetch_pushed_webhook_alerts(limit: int) -> list[dict[str, Any]]:
     high/critical. Fail-open: Redis down → ``[]``, the digest still runs.
     """
     try:
-        from app.alert_pipeline import get_recent_alerts
+        from rugmunchbot._vendor.alert_pipeline import get_recent_alerts
 
         entries = await get_recent_alerts(limit=limit * 2, severity="")
     except Exception as exc:  # fail-open by contract

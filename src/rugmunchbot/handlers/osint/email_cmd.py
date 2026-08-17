@@ -12,8 +12,8 @@ from rugmunchbot import db
 from rugmunchbot.handlers.osint._common import _TIMEOUTS, _valid_email
 from rugmunchbot.handlers.osint._format import _error_text, _format_report, _unavailable_text
 from rugmunchbot.keyboards import back_kb
-from app.osint import OsintNotAvailable
-from app.osint.email import lookup_email
+from rugmunchbot._vendor.osint import OsintNotAvailable
+from rugmunchbot._vendor.osint.email import lookup_email
 
 if TYPE_CHECKING:
     from telegram import Update

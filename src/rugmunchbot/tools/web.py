@@ -137,7 +137,7 @@ async def _knowledge_fallback_answer(query: str) -> str:
     Returns "" when the whole LLM chain is down / times out / produces no
     usable content — the caller then returns an honest message instead.
     """
-    from app.ai_router import chat_completion as _chat_completion
+    from rugmunchbot.llm_config import chat_with_fallback
 
     messages: list[dict[str, str]] = [
         {"role": "system", "content": _KNOWLEDGE_SYSTEM_PROMPT},
@@ -145,22 +145,15 @@ async def _knowledge_fallback_answer(query: str) -> str:
     ]
     try:
         result = await asyncio.wait_for(
-            _chat_completion(
-                messages=messages,
-                model=None,
-                task_type="chat",
-                temperature=0.5,
-                max_tokens=400,
-            ),
+            chat_with_fallback(messages=messages, tier="snappy", max_tokens=400),
             timeout=KNOWLEDGE_FALLBACK_TIMEOUT,
         )
     except Exception as exc:
         logger.warning("web_search knowledge fallback LLM unavailable: %s", str(exc)[:160])
         return ""
-    if not isinstance(result, dict):
+    if not isinstance(answer, str):
         return ""
-    content = result.get("content")
-    answer = content.strip() if isinstance(content, str) else ""
+    answer = answer.strip()
     if not answer:
         return ""
     # ai_router replaces degenerate output with its canned "couldn't answer"
@@ -275,7 +268,7 @@ async def _searxng_search_via_proxy(query: str, limit: int) -> list[dict[str, st
     failure. Proxy credentials are never logged (the rotator logs host only).
     """
     try:
-        from app.databus.proxy_rotator import get_proxy_rotator
+        from rugmunchbot._vendor.proxy_rotator import get_proxy_rotator
 
         rotator = get_proxy_rotator()
         if not rotator.enabled:

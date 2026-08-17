@@ -18,7 +18,7 @@ from rugmunchbot.handlers.osint._common import (
 )
 
 if TYPE_CHECKING:
-    from app.osint import OsintReport
+    from rugmunchbot._vendor.osint import OsintReport
     from rugmunchbot._vendor.osint_tools import OsintResult
 
 

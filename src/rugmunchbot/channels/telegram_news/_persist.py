@@ -79,7 +79,7 @@ def _article_to_news_item(article: NewsArticle) -> Any | None:
         from pydantic import HttpUrl
 
         from app.catalog.models import NewsItem, utcnow
-        from app.domains.news.ratings import rate_article
+        from rugmunchbot._vendor.news_ratings import rate_article
 
         rating = rate_article(title=article.title, content=article.body, source=article.source_channel)
         published = article.posted_at if article.posted_at is not None else utcnow()

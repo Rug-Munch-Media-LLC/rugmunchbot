@@ -791,7 +791,7 @@ async def publish_to_feed(report: str, *, title: str | None = None) -> dict[str,
     """
     stamp = datetime.now(UTC).strftime("%B %d, %Y")
     try:
-        from app.content_platform import create_post
+        from rugmunchbot._vendor.content_platform import create_post
 
         return await create_post(
             content=report,

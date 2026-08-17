@@ -566,7 +566,7 @@ async def _fetch_page(url: str, timeout: float) -> str | None:
     # app.databus.proxy_rotator: proxy → next proxy (once) → fall through to
     # FlareSolverr. Credentials are never logged.
     try:
-        from app.databus.proxy_rotator import get_proxy_rotator
+        from rugmunchbot._vendor.proxy_rotator import get_proxy_rotator
 
         rotator = get_proxy_rotator()
         if rotator.enabled:
