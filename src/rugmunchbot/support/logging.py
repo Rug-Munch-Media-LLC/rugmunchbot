@@ -1,12 +1,12 @@
 """RugMunchBot standalone logging shim.
 
 First migration step toward rugmunchbot's own repository: provides a
-``get_logger(name)`` with the same interface as ``rugmunchbot.support.logging``
+``get_logger(name)`` with the same interface as ``app.core.logging``
 (structlog-style bound logger: ``logger.info("msg", key=value)``, JSON
 output in production, coloured console in dev) WITHOUT importing
 ``app.core``.
 
-The structlog processor chain mirrors ``rugmunchbot.support.logging.setup_logging``
+The structlog processor chain mirrors ``app.core.logging.setup_logging``
 so log output is byte-identical.  Configuration is applied lazily on the
 first ``get_logger()`` call *only if* structlog is not already configured
 (e.g. when the backend's lifespan already ran ``setup_logging``) — the
@@ -14,7 +14,7 @@ global structlog config is never clobbered.
 
 Usage::
 
-    from rugmunchbot.support.logging import get_logger
+    from app.domains.telegram.rugmunchbot.support.logging import get_logger
 
     logger = get_logger(__name__)
     logger.info("scan_complete", token_count=42, chain="solana")
@@ -32,7 +32,7 @@ import structlog
 
 __all__ = ["get_logger"]
 
-# ── Log sampler (mirror of rugmunchbot.support.logging.LogSampler) ──────────────
+# ── Log sampler (mirror of app.core.logging.LogSampler) ──────────────
 
 _SAMPLE_RATES: dict[str, float] = {}  # logger name prefix → rate
 
@@ -76,7 +76,7 @@ class LogSampler:
         return event_dict
 
 
-# ── Setup (mirror of rugmunchbot.support.logging.setup_logging) ─────────────────
+# ── Setup (mirror of app.core.logging.setup_logging) ─────────────────
 
 _configured = False
 
@@ -84,7 +84,7 @@ _configured = False
 def setup_logging(level: str = "INFO") -> None:
     """Configure structlog with JSON output for production, console for dev.
 
-    Byte-identical to ``rugmunchbot.support.logging.setup_logging``.  No-op if
+    Byte-identical to ``app.core.logging.setup_logging``.  No-op if
     structlog was already configured (e.g. by the backend lifespan).
     """
     global _configured

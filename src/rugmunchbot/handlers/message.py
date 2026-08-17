@@ -5,7 +5,7 @@ RugMunchBot -- DEPRECATED free-text message handler module (v5).
 This module was the OLD free-text AI chat pipeline (``handle_message`` with
 $TOKEN symbol lookup, bare-address auto-scan, tiered ``ai_chat_response``:
 RAG -> LLM -> local intent -> redirect). It has been SUPERSEDED by
-``handlers/chat_ai.py``, which is now the SINGLE free-text pipeline:
+``handlers/chat_ai/`` package, which is now the SINGLE free-text pipeline:
 
   * feature routing (owner admin console, bot kill-switch, known-scam block,
     bare-address auto-scan, $TOKEN price card)
@@ -26,13 +26,15 @@ _admin_kb_sent: set[int] = set()
 
 
 def admin_kb_is_sent(chat_id: int) -> bool:
+    """True when the persistent admin reply keyboard is already attached."""
     return chat_id in _admin_kb_sent
 
 
 def admin_kb_mark_sent(chat_id: int) -> None:
+    """Record that the admin reply keyboard is attached to ``chat_id``."""
     _admin_kb_sent.add(chat_id)
 
 
 def admin_kb_reset(chat_id: int) -> None:
-    """Forget the tracked chat so the next message re-attaches the keyboard."""
+    """Forget the sentinel so the next message re-attaches the keyboard."""
     _admin_kb_sent.discard(chat_id)

@@ -13,11 +13,11 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools import registry, run_for_message
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools import registry, run_for_message
 
 if TYPE_CHECKING:
-    from rugmunchbot.tools.registry import ToolResult
+    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
 
@@ -33,7 +33,9 @@ LIVE_TOOLS_WAIT = 8.0
 TOOL_ANSWER_EXTRA_WAIT = 5.0
 
 
-async def _run_live_tools(text: str, history: list[dict[str, str]] | None = None) -> dict[str, ToolResult]:
+async def _run_live_tools(
+    text: str, history: list[dict[str, str]] | None = None
+) -> dict[str, ToolResult]:
     """Run the tool registry for a user question (best-effort, bounded).
 
     Returns ``{tool_name: ToolResult}`` — possibly empty when no tools

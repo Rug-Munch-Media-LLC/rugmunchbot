@@ -7,28 +7,31 @@ Background price alert checker and alert management commands.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
-
-from rugmunchbot import db
-from rugmunchbot.config import (
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import (
+    BACKEND_URL,
     DEXSCREENER,
     TIERS,
+    backend_headers,
     fmt_number,
 )
-from rugmunchbot.data_resolver import backend_get_json, resolve_with_fallback
-from rugmunchbot.formatters import (
+from app.domains.telegram.rugmunchbot.data_resolver import backend_get_json, resolve_with_fallback
+from app.domains.telegram.rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     sep,
 )
-from rugmunchbot.keyboards import back_kb, pricing_kb
-from rugmunchbot.states import check_alert_rate_limit
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools.registry import backend_json_post
+from app.domains.telegram.rugmunchbot.handlers._messages import failure_card, usage_hint
+from app.domains.telegram.rugmunchbot.keyboards import back_kb, pricing_kb
+from app.domains.telegram.rugmunchbot.states import check_alert_rate_limit
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client, http_get_json
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -43,13 +46,6 @@ DIRECTION_LABELS = {
     "change_5": "\U0001f4ca 5% change",
     "any": "\U0001f504 significant change",
 }
-
-
-def _tier_cfg(tier: str) -> dict:
-    # [REVIEW] OSS config.py ships a single "free" tier (premium tiers are
-    # feature flags). Guard the lookup the same way db.py does so a stored
-    # premium tier never KeyErrors on the display line.
-    return TIERS.get(tier, TIERS["free"])
 
 
 async def _fetch_prices_batch(addresses: list[str]) -> dict[str, float]:
@@ -89,26 +85,17 @@ async def _fetch_prices_batch(addresses: list[str]) -> dict[str, float]:
         ext: dict[str, float] = {}
         if not missing:
             return ext
-        try:
-            batch = ",".join(missing)
-            async with httpx.AsyncClient(timeout=10) as client:
-                r = await client.get(f"{DEXSCREENER}/tokens/{batch}")
-                if r.status_code == 200:
-                    data = r.json()
-                    pairs = data.get("pairs", [])
-                    for pair in pairs:
-                        addr = pair.get("baseToken", {}).get("address", "").lower()
-                        price = float(pair.get("priceUsd", 0))
-                        if addr and price > 0 and addr not in ext:
-                            ext[addr] = price
-        except (
-            ConnectionError,
-            OSError,
-            TimeoutError,
-            httpx.HTTPError,
-            httpx.TimeoutException,
-        ) as e:
-            logger.warning(f"Batch price fetch error: {e}")
+        batch = ",".join(missing)
+        data = await http_get_json(f"{DEXSCREENER}/tokens/{batch}", timeout=10)
+        if data is None:
+            logger.warning("Batch price fetch error")
+            return ext
+        pairs = data.get("pairs", [])
+        for pair in pairs:
+            addr = pair.get("baseToken", {}).get("address", "").lower()
+            price = float(pair.get("priceUsd", 0))
+            if addr and price > 0 and addr not in ext:
+                ext[addr] = price
         return ext
 
     # Own data first: try the scanner cache for the whole batch. If ANY address
@@ -258,6 +245,28 @@ ALERT_EVENT_TYPES = [
 ]
 
 
+# Event types the Stars-paid Monitor subscribes to. These are the on-chain
+# signals the webhook engine emits per token (provider → engine → Redis queue
+# → deliver_pending_alerts → DM): LP add/remove (``token.liquidity_change``),
+# large/deployer wallet moves (``token.whale_move``) and price swings
+# (``token.price_change``). Tax/ownership/mint changes are covered by the
+# periodic ``check_monitors`` re-scan delta job (those properties only change
+# on-chain, and the scanner cache surfaces them). ``transaction.enhanced``
+# (Helius-style) is intentionally NOT subscribed here: the engine routes it by
+# wallet_address, and the bot bridge only filters by token.
+MONITOR_EVENT_TYPES = [
+    "token.liquidity_change",
+    "token.whale_move",
+    "token.price_change",
+]
+
+# How often the tax/ownership/mint delta job re-scans active monitors.
+MONITOR_CHECK_INTERVAL = 1800  # seconds (30 min)
+# Hard cap on monitors re-scanned per tick so a paid-user burst never stalls
+# the JobQueue (unscanned monitors are picked up on the next tick).
+MONITOR_SCAN_BUDGET = 25
+
+
 async def _subscribe_backend_alerts(
     user_id: int, token_address: str, event_types: list[str] | None = None
 ) -> bool:
@@ -266,26 +275,216 @@ async def _subscribe_backend_alerts(
     Fail-open: local price alerts keep working even if the backend
     subscription cannot be created (e.g. backend down).
     """
-    # [REVIEW] routed through backend_json_post (operator-supplied
-    # RMI_BACKEND_URL + RMI_API_KEY header). accept_status=(200, 201) so a
-    # 201-created subscription counts as success; any other status (or a
-    # down backend) is a miss and the local alert path stays functional
-    # (fail-open).
-    result = await backend_json_post(
-        "/api/v1/scanner/webhooks/telegram",
-        json={
-            "user_id": user_id,
-            "event_types": event_types or ALERT_EVENT_TYPES,
-            "token_addresses": [token_address],
-        },
-        timeout=10,
-        accept_status=(200, 201),
-    )
-    if result is not None:
-        logger.info("alert_subscribed_backend user=%s token=%s", user_id, token_address[:10])
-        return True
-    logger.warning("alert_backend_subscribe_failed user=%s token=%s", user_id, token_address[:10])
-    return False
+    try:
+        client = get_shared_client(10)
+        resp = await client.post(
+            f"{BACKEND_URL}/api/v1/scanner/webhooks/telegram",
+            json={
+                "user_id": user_id,
+                "event_types": event_types or ALERT_EVENT_TYPES,
+                "token_addresses": [token_address],
+            },
+            headers=backend_headers(),
+            timeout=10,
+        )
+        if resp.status_code in (200, 201):
+            logger.info("alert_subscribed_backend user=%s token=%s", user_id, token_address[:10])
+            return True
+        logger.warning(
+            "alert_backend_subscribe_failed user=%s status=%s body=%s",
+            user_id,
+            resp.status_code,
+            resp.text[:200],
+        )
+        return False
+    except (httpx.HTTPError, ConnectionError, TimeoutError, OSError) as e:
+        logger.warning(f"alert_backend_subscribe_error user={user_id}: {e}")
+        return False
+
+
+async def _subscribe_backend_monitor(user_id: int, token_address: str) -> bool:
+    """Subscribe a paid monitor to the live on-chain event stream.
+
+    Reuses the same internal-telegram webhook bridge as price alerts, with
+    the monitor event set (LP / whale / price). Fail-open like the alert
+    path — the periodic ``check_monitors`` delta job still runs.
+    """
+    return await _subscribe_backend_alerts(user_id, token_address, event_types=MONITOR_EVENT_TYPES)
+
+
+async def _unsubscribe_backend_monitor(user_id: int, token_address: str) -> bool:
+    """Remove the monitor's internal webhook subscription for a token."""
+    try:
+        client = get_shared_client(10)
+        resp = await client.request(
+            "DELETE",
+            f"{BACKEND_URL}/api/v1/scanner/webhooks/telegram",
+            json={
+                "user_id": user_id,
+                "event_types": MONITOR_EVENT_TYPES,
+                "token_addresses": [token_address],
+            },
+            headers=backend_headers(),
+            timeout=10,
+        )
+        if resp.status_code in (200, 204):
+            logger.info(
+                "monitor_unsubscribed_backend user=%s token=%s", user_id, token_address[:10]
+            )
+            return True
+        logger.warning(
+            "monitor_backend_unsubscribe_failed user=%s status=%s body=%s",
+            user_id,
+            resp.status_code,
+            resp.text[:200],
+        )
+        return False
+    except (httpx.HTTPError, ConnectionError, TimeoutError, OSError) as e:
+        logger.warning(f"monitor_backend_unsubscribe_error user={user_id}: {e}")
+        return False
+
+
+# ── Monitor baseline / delta (tax / ownership / LP / mint changes) ─────────
+
+
+def _monitor_baseline(result: dict[str, Any]) -> dict[str, Any]:
+    """Project a scan result onto the security properties a monitor watches.
+
+    Mirrors the fields the scanner populates (``tools/scanner.scan_token``):
+    tax fractions, ownership-renounced flag, mint authority, LP lock fraction
+    and honeypot state. Absent values stay None — never fabricated.
+    """
+    return {
+        "buy_tax": result.get("buy_tax"),
+        "sell_tax": result.get("sell_tax"),
+        "owner_renounced": result.get("owner_renounced"),
+        "mintable": result.get("mintable"),
+        "lp_locked": result.get("lp_locked"),
+        "honeypot": result.get("honeypot"),
+    }
+
+
+def _pct(v) -> str:
+    try:
+        return f"{float(v) * 100:.1f}%"
+    except (ValueError, TypeError):
+        return "unknown"
+
+
+def _monitor_deltas(baseline: dict[str, Any], current: dict[str, Any]) -> list[str]:
+    """Return human-readable change lines between two security snapshots."""
+    changes: list[str] = []
+    for field in ("buy_tax", "sell_tax"):
+        before, after = baseline.get(field), current.get(field)
+        if before is None or after is None:
+            continue
+        try:
+            if abs(float(after) - float(before)) >= 0.01:
+                changes.append(
+                    f"{field.replace('_', ' ').title()}: {_pct(before)} \u2192 {_pct(after)}"
+                )
+        except (ValueError, TypeError):
+            continue
+    for field, label in (
+        ("owner_renounced", "Ownership renounced"),
+        ("mintable", "Mint authority"),
+        ("honeypot", "Honeypot"),
+    ):
+        before, after = baseline.get(field), current.get(field)
+        if before is None or after is None:
+            continue
+        if bool(before) != bool(after):
+            changes.append(f"{label}: {bool(before)} \u2192 {bool(after)}")
+    before_lp, after_lp = baseline.get("lp_locked"), current.get("lp_locked")
+    if before_lp is not None and after_lp is not None:
+        try:
+            if float(after_lp) <= float(before_lp) - 0.2:
+                changes.append(f"LP locked: {_pct(before_lp)} \u2192 {_pct(after_lp)}")
+        except (ValueError, TypeError) as e:
+            logger.debug("lp delta parse failed: %s", e)
+    return changes
+
+
+async def check_monitors(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Background job: re-scan paid monitors and DM meaningful security deltas.
+
+    Real-time LP/whale/price signals already flow through the webhook bridge
+    (``MONITOR_EVENT_TYPES``). This job covers the properties that only change
+    on-chain and are surfaced by a re-scan: tax %, ownership-renounce state,
+    mint authority, LP lock %, honeypot. Deltas are pushed through the SAME
+    Redis alert queue as webhook events (``enqueue_telegram_alert``) so the
+    bot's ``deliver_pending_alerts`` job formats + sends the DM — no new
+    delivery rail. Fail-open: one bad scan never crashes the tick.
+
+    LIGHT PATH: each monitor is refreshed with ``scan_token(...,
+    security_only=True)`` — the cheap EVM security-only recheck (GoPlus →
+    honeypot.is), skipping market data, databus, GMGN/risk enrichment and
+    RAG indexing. Multiple monitors on the SAME token share ONE refresh per
+    tick via a local cache, so a paid-user burst of N monitors on one token
+    costs one light upstream call instead of N full scans.
+    """
+    logger.info("\U0001f6f0\ufe0f Checking token monitors...")
+    try:
+        expired = db.expire_monitors()
+        if expired:
+            logger.info("monitors_expired count=%s", expired)
+    except Exception:
+        logger.warning("monitors_expire_failed", exc_info=True)
+
+    monitors = db.get_active_monitors()
+    if not monitors:
+        return
+    logger.info("Found %s active monitor(s) to check.", len(monitors))
+
+    from app.domains.scanner.webhooks.telegram_bridge import enqueue_telegram_alert
+    from app.domains.telegram.rugmunchbot.scanner import scan_token
+
+    checked = 0
+    # Per-tick refresh cache: monitors on the same token share one
+    # security-only refresh (keyed by chain:address).
+    tick_cache: dict[str, dict[str, Any]] = {}
+    for mon in monitors:
+        if checked >= MONITOR_SCAN_BUDGET:
+            logger.info("monitor_scan_budget_reached budget=%s", MONITOR_SCAN_BUDGET)
+            break
+        checked += 1
+        baseline = mon.get("baseline") or {}
+        addr = mon["token_address"]
+        chain = mon.get("chain") or None
+        cache_key = f"{(chain or 'unknown').lower()}:{addr.lower()}"
+        result = tick_cache.get(cache_key)
+        if result is None:
+            try:
+                result = await scan_token(addr, chain, security_only=True)
+            except (
+                ConnectionError,
+                OSError,
+                TimeoutError,
+                httpx.HTTPError,
+                httpx.TimeoutException,
+            ) as e:
+                logger.warning("monitor_scan_failed token=%s err=%s", addr[:10], e)
+                continue
+            tick_cache[cache_key] = result
+        current = _monitor_baseline(result)
+        deltas = _monitor_deltas(baseline, current)
+        db.update_monitor_baseline(mon["id"], current)
+        if not deltas:
+            continue
+        payload = {
+            "token_address": addr,
+            "chain": result.get("chain") or chain or "unknown",
+            "token_symbol": result.get("symbol") or mon.get("symbol") or "",
+            "changes": deltas,
+        }
+        await enqueue_telegram_alert(
+            user_id=mon["user_id"],
+            event_type="token.monitor_change",
+            payload=payload,
+            event_id=f"mon:{mon['id']}:{int(time.time())}",
+        )
+        logger.info("monitor_change_enqueued token=%s deltas=%s", addr[:10], deltas)
+    logger.info("Monitor check complete: %s scanned.", checked)
 
 
 async def cmd_alerts(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -295,13 +494,15 @@ async def cmd_alerts(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     tier = db.get_user_tier(user.id)
     if tier in ("free",):
-        cfg = _tier_cfg(tier)
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             f"\U0001f514 <b>Price Alerts</b>\n\n"
             f"Get notified when tokens hit your target price.\n\n"
             f"\u26a0\ufe0f <b>Requires Scout tier</b> or higher.\n"
-            f"You're on {cfg['emoji']} {cfg['name']}.\n\n"
-            f"\U0001f3af <b>Hunter+</b> gets real-time exchange flow alerts too!",
+            f"You're on {TIERS[tier]['emoji']} {TIERS[tier]['name']}.\n\n"
+            f"\U0001f6f0\ufe0f <b>Monitor (250\u2605/30d)</b> — live LP, whale "
+            f"and tax/ownership/mint change alerts on any token.\n"
+            f"\U0001f52c <b>Deep Scan (250\u2605)</b> — full forensics on demand.\n"
+            f"\U0001f4b0 <b>Core /scan + chat stay free.</b>",
             parse_mode=ParseMode.HTML,
             reply_markup=pricing_kb(),
         )
@@ -329,8 +530,7 @@ async def cmd_alerts(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    cfg = _tier_cfg(tier)
-    text = f"\U0001f514 <b>Alerts</b> ({cfg['emoji']} {cfg['name']})\n{sep()}\n\n"
+    text = f"\U0001f514 <b>Alerts</b> ({TIERS[tier]['emoji']} {TIERS[tier]['name']})\n{sep()}\n\n"
 
     if active_alerts:
         text += "<b>\U0001f7e2 Active</b>\n"
@@ -350,8 +550,8 @@ async def cmd_alerts(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                     ts = a["alert_triggered_at"]
                     if "T" in ts:
                         ts_str = f" \u2014 {ts[:10]}"
-                except (ConnectionError, OSError, TimeoutError):
-                    pass
+                except (ConnectionError, OSError, TimeoutError) as e:
+                    logger.warning("alert triggered ts parse failed: %s", e)
             text += f"  \u2022 <b>{a.get('symbol', '???')}</b> \U0001f514 {fmt_number(a['alert_price'])}{ts_str}\n"
         if len(triggered_alerts) > 5:
             text += f"  ... and {len(triggered_alerts) - 5} more\n"
@@ -374,10 +574,11 @@ async def cmd_alert(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "\U0001f514 <b>Price Alerts</b>\n\n"
             "Price alerts require <b>Scout tier</b> or higher.\n\n"
-            # [REVIEW] USD tier prices scrubbed (private billing — checklist §6 #17).
-            "\U0001f50d <b>Scout tier</b> \u2014 10 watchlist slots + alerts\n"
-            "\U0001f3af <b>Hunter tier</b> \u2014 50 slots + real-time alerts\n"
-            "\U0001f451 <b>Pro tier</b> \u2014 unlimited + custom rules",
+            "\U0001f6f0\ufe0f <b>Monitor (250\u2605/30d)</b> \u2014 live LP/whale + "
+            "tax/ownership/mint change alerts on any token.\n"
+            "\U0001f52c <b>Deep Scan (250\u2605)</b> \u2014 full forensics on demand.\n"
+            "\U0001f4b0 <b>Core /scan + chat stay free.</b>\n\n"
+            "Run /monitor <code>address</code> to start a monitor.",
             parse_mode=ParseMode.HTML,
             reply_markup=pricing_kb(),
         )
@@ -386,13 +587,17 @@ async def cmd_alert(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if len(ctx.args or []) < 2:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "\U0001f514 <b>Set Price Alert</b>\n\n"
-            "Usage: /alert <code>ABOVE|BELOW|CHANGE_5|ANY</code> <code>address</code> <price>\n\n"
-            "<b>Examples:</b>\n"
-            "  /alert ABOVE 0x6982508145454Ce325dDbE47a25d4ec3d2311933 0.005\n"
-            "  /alert BELOW EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v 0.85\n"
-            "  /alert CHANGE_5 0x... \u2014 5% move in either direction\n"
-            "  /alert ANY 0x... 0.01 \u2014 alert on 2%+ change\n\n"
-            "<i>Add the token to your watchlist first with /watch</i>",
+            + usage_hint(
+                "alert",
+                "ABOVE|BELOW|CHANGE_5|ANY address [price]",
+                "ABOVE 0x6982508145454Ce325dDbE47a25d4ec3d2311933 0.005",
+                examples=(
+                    "BELOW EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v 0.85",
+                    "CHANGE_5 0x6982508145454Ce325dDbE47a25d4ec3d2311933 — 5% move in either direction",
+                    "ANY 0x6982508145454Ce325dDbE47a25d4ec3d2311933 — alert on 2%+ change",
+                ),
+                extra="<i>Add the token to your watchlist first with /watch</i>",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -404,15 +609,22 @@ async def cmd_alert(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     valid_directions = {"ABOVE", "BELOW", "CHANGE_5", "ANY"}
     if direction_raw not in valid_directions:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            f"\u274c Invalid direction. Use one of: {', '.join(d.lower() for d in valid_directions)}",
+            failure_card(
+                "Invalid Direction",
+                f"Choose one of: {', '.join(d.lower() for d in valid_directions)}",
+                "Example: /alert ABOVE <code>address</code> 0.005",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
 
     if direction_raw in ("ABOVE", "BELOW") and not price_str:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "\u274c Please provide a target price for ABOVE/BELOW alerts.\n"
-            "Example: /alert ABOVE <code>address</code> 0.005",
+            failure_card(
+                "Missing Target Price",
+                "ABOVE/BELOW alerts need a target price.",
+                "Example: /alert ABOVE <code>address</code> 0.005",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -420,7 +632,11 @@ async def cmd_alert(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     chain = detect_chain(addr)
     if chain == "unknown":
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "\u274c Could not detect chain. Ensure it's a valid EVM (0x...) or Solana address.",
+            failure_card(
+                "Chain Not Detected",
+                "Ensure it's a valid EVM (0x...) or Solana address.",
+                "Example: /alert BELOW EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v 0.85",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -433,7 +649,11 @@ async def cmd_alert(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 raise ValueError
         except (ValueError, TypeError):
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                "\u274c Invalid price. Use a positive number (e.g., 0.005, 1.50, 42000).",
+                failure_card(
+                    "Invalid Price",
+                    "Use a positive number (e.g., 0.005, 1.50, 42000).",
+                    "Example: /alert ABOVE <code>address</code> 1.50",
+                ),
                 parse_mode=ParseMode.HTML,
             )
             return
@@ -480,6 +700,10 @@ async def cmd_alert(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
         else:
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                "\u274c Could not set alert. Watchlist limit reached or already exists.",
+                failure_card(
+                    "Alert Not Set",
+                    "Watchlist limit reached or already exists.",
+                    "Try /watchlist to manage your saved tokens.",
+                ),
                 parse_mode=ParseMode.HTML,
             )

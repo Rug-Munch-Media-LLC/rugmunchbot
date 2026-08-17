@@ -16,6 +16,17 @@ paths never hammer the backend more than once per cache window. Every
 fetch and cache operation is fail-open: any error degrades to an empty
 section instead of breaking chat.
 
+Stable-prefix contract:
+  The digest CONTENT is volatile — it re-renders every ``CACHE_TTL`` (5 min)
+  with live prices/news/trending/launches. Timestamps are DAY-GRANULARITY
+  only (``%b %d %Y`` / ``%b %d`` — no HH:MM), so the *date prefix* is stable
+  for the whole day, but the digest text itself is not. Consumers that build
+  an LLM prompt MUST inject the digest AFTER the stable system-prompt prefix
+  (e.g. appended to the user turn) — never inside the byte-stable prefix —
+  otherwise the 5-minute re-render changes the shared prefix on every window.
+  (Verified 2026-08-15: timestamps in both formatters are day-granularity;
+  the volatile part is the data, not the date stamp.)
+
 Public API
 ----------
 ``get_daily_context()`` -> str
@@ -45,10 +56,11 @@ from datetime import UTC, datetime
 from html import escape
 from typing import Any
 
-from rugmunchbot.config import fmt_number
-from rugmunchbot.data_resolver import backend_get_json
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.support.redis import get_redis_async
+from app.core.redis import get_redis_async
+from app.domains.telegram.rugmunchbot.config import fmt_number
+from app.domains.telegram.rugmunchbot.data_resolver import backend_get_json
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import http_get_json
 
 logger = get_logger("rmi_bot.daily_context")
 
@@ -294,23 +306,22 @@ async def _enrich_token_name(item: dict[str, Any]) -> dict[str, Any]:
         return item
 
     try:
-        import httpx
-
-        async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get(f"https://api.dexscreener.com/latest/dex/tokens/{addr}")
-            if r.status_code == 200:
-                pairs = r.json().get("pairs", [])
-                if pairs:
-                    p = pairs[0]
-                    base = p.get("baseToken", {})
-                    if not name:
-                        item["name"] = base.get("name", "")
-                    if not symbol:
-                        item["symbol"] = base.get("symbol", "")
-                    if not item.get("chain"):
-                        item["chain"] = p.get("chainId", "")
+        body = await http_get_json(
+            f"https://api.dexscreener.com/latest/dex/tokens/{addr}", timeout=5
+        )
+        if body:
+            pairs = body.get("pairs", [])
+            if pairs:
+                p = pairs[0]
+                base = p.get("baseToken", {})
+                if not name:
+                    item["name"] = base.get("name", "")
+                if not symbol:
+                    item["symbol"] = base.get("symbol", "")
+                if not item.get("chain"):
+                    item["chain"] = p.get("chainId", "")
     except Exception:
-        pass
+        logger.debug("daily_context:dex enrichment failed for %s", addr, exc_info=True)
     return item
 
 

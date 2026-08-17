@@ -4,29 +4,21 @@ RugMunchBot -- /holders command: Top holders + concentration analysis.
 
 Scout tier and above. Shows holder distribution, concentration risk,
 whale alerts, and smart money detection.
-
-Ported from the private monorepo (rmi-backend rugmunchbot) — import-rewritten
-to ``rugmunchbot.*`` per docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md §2.3.
-Hardcoded tier pricing ($29.99/mo etc.) scrubbed per checklist §6.17 —
-tier names + feature descriptions kept, dollar amounts removed. [REVIEW]
 """
 
 from __future__ import annotations
 
-import contextlib
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import httpx
-from telegram.constants import ParseMode
-
-from rugmunchbot import db
-from rugmunchbot.config import (
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
     DEXSCREENER,
     backend_headers,
 )
-from rugmunchbot.data_resolver import backend_get_json, resolve_with_fallback
-from rugmunchbot.formatters import (
+from app.domains.telegram.rugmunchbot.data_resolver import backend_get_json, resolve_with_fallback
+from app.domains.telegram.rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     is_owner,
@@ -34,8 +26,15 @@ from rugmunchbot.formatters import (
     sep,
     thin_sep,
 )
-from rugmunchbot.keyboards import back_kb, holders_kb, paywall_kb
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.handlers._messages import (
+    ACTION_TRY_AGAIN,
+    failure_card,
+    usage_hint,
+)
+from app.domains.telegram.rugmunchbot.keyboards import back_kb, holders_kb, paywall_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import http_get_json
+from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -96,12 +95,13 @@ async def cmd_holders(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not ctx.args:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "👥 <b>Holder Analysis</b>\n\n"
-            "Usage: /holders <code>address</code> [chain]\n\n"
-            "<b>Examples:</b>\n"
-            "  /holders <code>0x6982508145454Ce325dDbE47a25d4ec3d2311933</code>\n"
-            "  /holders <code>EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v</code>\n\n"
-            "Shows top holders, concentration risk, whale detection.\n"
-            "🔍 <b>Scout tier</b> or higher required.",
+            + usage_hint(
+                "holders",
+                "address [chain]",
+                "0x6982508145454Ce325dDbE47a25d4ec3d2311933",
+                examples=("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",),
+                extra="Shows top holders, concentration risk, whale detection.\n🔍 <b>Scout tier</b> or higher required.",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -111,9 +111,7 @@ async def cmd_holders(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "👥 <b>Holder Analysis</b>\n\n"
             "This feature requires <b>Scout tier</b> or higher.\n\n"
-            "🔍 <b>Scout</b> — Holder distribution + concentration\n"
-            "🎯 <b>Hunter</b> — Whale alerts + smart money detection\n"
-            "👑 <b>Pro</b> — Full holder timeline + clustering",
+            "🛰️ <b>Monitor (250★/30d)</b> — live LP/whale + tax/ownership/mint alerts · 🔬 <b>Deep Scan (250★)</b> — full forensics",
             parse_mode=ParseMode.HTML,
             reply_markup=paywall_kb(),
         )
@@ -168,11 +166,10 @@ async def cmd_holders(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             ]
 
         async def _external_token_info() -> list[dict[str, Any]]:
-            async with httpx.AsyncClient(timeout=20) as client:
-                dex_resp = await client.get(f"{DEXSCREENER}/tokens/{address}")
-                if dex_resp.status_code != 200:
-                    return []
-                return cast("list[dict[str, Any]]", dex_resp.json().get("pairs", []))
+            body = await http_get_json(f"{DEXSCREENER}/tokens/{address}", timeout=20)
+            if not body:
+                return []
+            return body.get("pairs", [])
 
         dex_pairs = await resolve_with_fallback(
             f"holder_token_info:{address[:10]}",
@@ -189,35 +186,24 @@ async def cmd_holders(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
         # Get backend holder data
         backend_holders = []
-        backend_data = {}
+        backend_data: dict[str, Any] = {}
         try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                bh_resp = await client.get(
-                    f"{BACKEND_URL}/api/v1/databus/token/{address}",
-                    headers=backend_headers(),
-                    timeout=10,
-                )
-                if bh_resp.status_code == 200:
-                    backend_data = bh_resp.json()
-                    backend_holders = backend_data.get("top_holders", [])
-        except (httpx.HTTPError, ConnectionError, TimeoutError):
-            pass
+            fetched = await http_get_json(
+                f"{BACKEND_URL}/api/v1/databus/token/{address}",
+                headers=backend_headers(),
+                timeout=10,
+            )
+            if fetched:
+                backend_data = fetched
+            if backend_data:
+                backend_holders = backend_data.get("top_holders", [])
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
+            logger.warning("holders backend fetch failed: %s", e)
 
         # Build holder list from available data sources
         top_holders = []
         if backend_holders:
             top_holders = backend_holders[:20]
-        elif dex_pairs:
-            # Try to extract holders from GoPlus via DexScreener metadata
-            pair = dex_pairs[0]
-            pair_addr = pair.get("pairAddress", "")
-            # Get pair info for holder data
-            with contextlib.suppress(httpx.HTTPError, ConnectionError, TimeoutError):
-                async with httpx.AsyncClient(timeout=20) as client:
-                    await client.get(
-                        f"https://api.dexscreener.com/orders/v1/{chain}/{pair_addr}",
-                        timeout=5,
-                    )
 
         # Build report
         s = sep()
@@ -308,8 +294,8 @@ async def cmd_holders(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                         )
                     if backend_data.get("bundle_detected"):
                         lines.append("  📦 Bundle activity detected — coordinated buys")
-                except (KeyError, TypeError):
-                    pass
+                except (KeyError, TypeError) as e:
+                    logger.debug("holders line render failed: %s", e)
 
         else:
             # Fallback: show what we can from DEX data
@@ -350,9 +336,11 @@ async def cmd_holders(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         logger.debug("cmd_holders_error", exc_info=True)
         logger.error(f"Holder analysis error: {e}")
         await msg.edit_text(
-            f"❌ <b>Holder Analysis Failed</b>\n\n"
-            f"Could not fetch holder data for <code>{address}</code>.\n"
-            f"Error: {str(e)[:150]}",
+            failure_card(
+                "Holder Analysis Failed",
+                f"Could not fetch holder data for <code>{address}</code>.",
+                ACTION_TRY_AGAIN,
+            ),
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )

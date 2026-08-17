@@ -63,6 +63,9 @@ ignore = ["ASYNC109"]
 # import guards) — same convention as the live rmi-backend per-file ignores.
 "src/rugmunchbot/admin_state.py" = ["S110"]
 "src/rugmunchbot/daily_context.py" = ["S110"]
+# F811: duplicate is_owner import pre-exists in the LIVE source —
+# ignored the same way rmi-backend does (per-file-ignores, F811).
+"src/rugmunchbot/__init__.py" = ["F811"]
 # Ported renderer nit (ambiguous loop var) — keep behavior identical.
 "src/rugmunchbot/formatters/_advanced.py" = ["E741"]
 # Ported handlers carry intentional try/except/contextmanager patterns that
@@ -70,6 +73,19 @@ ignore = ["ASYNC109"]
 # does not block the ported code.
 "src/rugmunchbot/handlers/scanning.py" = ["S110", "SIM105"]
 "src/rugmunchbot/handlers/webhook.py" = ["B904"]
+"src/rugmunchbot/bot.py" = ["S110", "S311"]
+"src/rugmunchbot/config.py" = ["S603", "S607"]
+"src/rugmunchbot/alert_worker.py" = ["F401"]
+"src/rugmunchbot/commands/rugmap.py" = ["F821", "F841"]
+"src/rugmunchbot/formatters.py" = ["E741", "PIE810"]
+"src/rugmunchbot/handlers/_scan_handlers.py" = ["S110", "SIM105"]
+"src/rugmunchbot/scanner.py" = ["F601"]
+"src/rugmunchbot/services/visuals.py" = ["B007", "F841"]
+"src/rugmunchbot/ta_indicators.py" = ["RUF002", "RUF022"]
+"src/rugmunchbot/formatters/_sentinel.py" = ["PIE810", "E741"]
+# Mirrored from rmi-backend per-file-ignores (live bot lint debt) — snapshot
+# must stay byte-identical to live; lint rules align with live.
+
 
 [tool.mypy]
 python_version = "3.11"

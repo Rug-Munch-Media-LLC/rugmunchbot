@@ -5,6 +5,8 @@ RugMunchBot -- Owner/admin command handlers (v5 admin panel).
 Owner-only commands:
   /admin                  -> admin dashboard with bot stats + actions
   /admin_stats            -> users, active today, messages, RAG, AI tokens
+  /credits                -> OpenRouter credit balance (usage / limit / free tier)
+  /users                  -> user count, top users, DAU
   /admin_broadcast <msg>  -> broadcast to all users (with confirmation)
   /admin_toggle [on|off]  -> disable/enable the bot globally
   /admin_toggle_chat [on|off] -> disable/enable AI chat (commands keep working)
@@ -15,29 +17,37 @@ Owner-only commands:
   /admin_logs             -> recent admin actions
 
 Every action is written to the admin audit log (db.log_admin_action).
-Owner gating is config-driven: ``BOT_OWNER_IDS`` env (comma ints), empty
-default = admin commands disabled.
+All commands are owner-gated (``is_owner``) and fail closed when
+``TELEGRAM_ALLOWED_USERS`` is unset (no hardcoded owner default).
 """
 
 from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
+from app.domains.telegram import access_guard
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import OWNER_IDS, TIERS
+from app.domains.telegram.rugmunchbot.formatters import is_owner, thin_sep
+from app.domains.telegram.rugmunchbot.keyboards import admin_confirm_kb, admin_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, Forbidden, RetryAfter, TelegramError
 
-from rugmunchbot import db
-from rugmunchbot.config import OWNER_IDS, TIERS
-from rugmunchbot.formatters import is_owner, thin_sep
-from rugmunchbot.keyboards import admin_confirm_kb, admin_kb
-from rugmunchbot.support.logging import get_logger
+if TYPE_CHECKING:
+    from telegram.ext import ContextTypes
 
 logger = get_logger("rmi_bot")
 
 # Pending broadcast confirmation state (keyed by owner user_id).
 _pending_broadcast: dict[int, str] = {}
+
+# Alert target for denied attempts: the owner's private chat (chat id ==
+# user id for private chats). Pick the first owner deterministically.
+_OWNER_ALERT_CHAT: int = next(iter(sorted(OWNER_IDS)), 0)
 
 
 def _log(admin_id: int, action: str, details: str = "") -> None:
@@ -45,12 +55,7 @@ def _log(admin_id: int, action: str, details: str = "") -> None:
 
 
 async def _deny_admin_attempt(update: Update, ctx) -> None:
-    """Log + audit a non-owner admin attempt (defense-in-depth). Fail-open.
-
-    The live bot also alerts the owner through a private owner-alert rate
-    limiter (kept in the private monorepo). OSS drops the alert; the attempt
-    is still recorded in the admin audit log.
-    """
+    """Log + alert a non-owner admin attempt (defense-in-depth). Fail-open."""
     user = update.effective_user
     chat = update.effective_chat
     surface = "admin-cmd"
@@ -58,17 +63,16 @@ async def _deny_admin_attempt(update: Update, ctx) -> None:
         surface = f"cb:{update.callback_query.data}"
     elif update.message is not None and update.message.text:
         surface = f"cmd:{update.message.text.split()[0]}"
-    db.log_admin_action(
-        0,
-        "denied_admin_attempt",
-        f"surface={surface} user={user.id if user else None} "
-        f"username={user.username if user else None} "
-        f"chat={chat.id if chat else None} type={chat.type if chat else None}",
-    )
-    logger.warning(
-        "denied_admin_attempt",
+    await access_guard.deny_admin_attempt(
+        bot=ctx.bot,
+        owner_chat_id=_OWNER_ALERT_CHAT,
+        bot_name="rugmunchbot",
         surface=surface,
         user_id=user.id if user else None,
+        username=user.username if user else None,
+        chat_id=chat.id if chat else None,
+        chat_type=chat.type if chat else None,
+        audit=db.log_admin_action,
     )
 
 
@@ -77,8 +81,66 @@ def _usage_line(uid: int) -> str:
     return f"Scans: {scans} | AI msgs: {ai}"
 
 
-async def cmd_admin(update: Update, ctx) -> None:
-    """/admin — admin dashboard with stats and quick actions."""
+def _format_model_usage_line() -> str:
+    """Compact per-model chat usage block for the /admin dashboard.
+
+    Reads the lightweight in-process counter (tier / model / latency /
+    tokens) recorded by every successful chat LLM call. Process-lifetime
+    totals; the durable per-answer audit trail stays in the JSON trace logs.
+    """
+    try:
+        from app.domains.telegram.rugmunchbot.model_usage import snapshot as model_usage_snapshot
+
+        snap = model_usage_snapshot()
+    except Exception as exc:
+        logger.debug("model usage snapshot unavailable: %s", exc)
+        return "\U0001f916 Model usage: <i>unavailable</i>"
+    if not snap.get("total_calls"):
+        return "\U0001f916 Model usage: <i>no chat calls since start</i>"
+    tiers = snap.get("tiers", {})
+    tier_line = (
+        " | ".join(
+            f"{t}: {tiers[t]['calls']} calls, {tiers[t]['tokens']:,} tok"
+            for t in ("snappy", "long", "fallback", "backend")
+            if t in tiers
+        )
+        or "n/a"
+    )
+    top_models = (
+        " | ".join(
+            f"{m}: {md['calls']} calls" for m, md in list(snap.get("models", {}).items())[:4]
+        )
+        or "n/a"
+    )
+    avg_latency = (
+        round(snap["total_latency_ms"] / snap["total_calls"], 0) if snap.get("total_calls") else 0
+    )
+    return (
+        f"\U0001f916 <b>Model usage (process)</b>\n{thin_sep()}\n"
+        f"\U0001f4ac Chat calls: <b>{snap.get('total_calls', 0):,}</b> | "
+        f"Tokens: <b>{snap.get('total_tokens', 0):,}</b> | "
+        f"\u23f1\ufe0f Avg: <b>{avg_latency:.0f}ms</b>\n"
+        f"\U0001f3af {tier_line}\n"
+        f"\U0001f4e6 {top_models}"
+    )
+
+
+async def _fetch_credit_block() -> str:
+    """Live OpenRouter credit line for /admin and /credits (fail-open)."""
+    try:
+        from app.domains.telegram.rugmunchbot.openrouter_credit import (
+            fetch_openrouter_credit,
+            format_credit_summary,
+        )
+
+        return format_credit_summary(await fetch_openrouter_credit())
+    except Exception as exc:
+        logger.debug("openrouter credit block failed: %s", exc)
+        return "\u26a0\ufe0f OpenRouter credit check unavailable"
+
+
+async def cmd_admin(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/admin — admin dashboard with stats and actions."""
     uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
     if not is_owner(uid):
         await _deny_admin_attempt(update, ctx)
@@ -97,6 +159,8 @@ async def cmd_admin(update: Update, ctx) -> None:
         f"\U0001f4ca <b>Today</b>\n{thin_sep()}\n"
         f"\U0001f4ac Messages: {ds['messages']} | \U0001f4d6 Commands: {ds['commands']}\n"
         f"\U0001f50d RAG queries: {ds['rag_queries']} | \U0001f916 AI tokens: {ds['ai_tokens']:,}\n\n"
+        f"{_format_model_usage_line()}\n\n"
+        f"{await _fetch_credit_block()}\n\n"
         f"\U0001f6e1\ufe0f Bot: <b>{db.get_bot_state('bot_enabled', 'on')}</b> | "
         f"\U0001f4ac Chat: <b>{db.get_bot_state('chat_enabled', 'on')}</b>\n\n"
         f"<i>Use /admin_stats for full details. Actions are logged.</i>"
@@ -104,7 +168,7 @@ async def cmd_admin(update: Update, ctx) -> None:
     await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=admin_kb())  # type: ignore[union-attr]  # PTB None-able fields
 
 
-async def cmd_admin_stats(update: Update, ctx) -> None:
+async def cmd_admin_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/admin_stats — users count, active today, messages today, RAG queries, AI tokens."""
     uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
     if not is_owner(uid):
@@ -147,7 +211,55 @@ async def cmd_admin_stats(update: Update, ctx) -> None:
     )
 
 
-async def cmd_admin_broadcast(update: Update, ctx) -> None:
+async def cmd_admin_credits(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/credits — live OpenRouter credit balance (owner-only)."""
+    uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
+    if not is_owner(uid):
+        await _deny_admin_attempt(update, ctx)
+        return
+    _log(uid, "admin_credits")
+    block = await _fetch_credit_block()
+    await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+        f"{block}\n\n<i>Checked live from OpenRouter \u2014 the API key is never shown.</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=admin_kb(),
+    )
+
+
+async def cmd_admin_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/users — user count, top users, DAU (owner-only)."""
+    uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
+    if not is_owner(uid):
+        await _deny_admin_attempt(update, ctx)
+        return
+    _log(uid, "admin_users")
+    conn = db.get_db()
+    total = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+    banned = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_banned = 1").fetchone()["c"]
+    top = conn.execute(
+        "SELECT user_id, username, tier, total_scans, total_ai_msgs "
+        "FROM users ORDER BY (total_scans + total_ai_msgs) DESC LIMIT 10"
+    ).fetchall()
+    conn.close()
+    active_today = db.count_active_today()
+    lines = [
+        "\U0001f465 <b>Users</b>",
+        thin_sep(),
+        f"\U0001f4c8 Total: <b>{total}</b> | Active today (DAU): <b>{active_today}</b>",
+        f"\U0001f6ab Banned: <b>{banned}</b>",
+        thin_sep(),
+        "\U0001f3c6 <b>Top 10 by activity</b>",
+    ]
+    for i, row in enumerate(top, 1):
+        name = f"@{row['username']}" if row["username"] else f"<code>{row['user_id']}</code>"
+        activity = int(row["total_scans"] or 0) + int(row["total_ai_msgs"] or 0)
+        lines.append(f"{i}. {name} ({row['tier']}) \u2014 {activity:,} actions")
+    await update.message.reply_text(
+        "\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=admin_kb()
+    )  # type: ignore[union-attr]  # PTB None-able fields
+
+
+async def cmd_admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/admin_broadcast <message> — request confirmation, then broadcast."""
     uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
     if not is_owner(uid):
@@ -208,7 +320,7 @@ async def _do_broadcast(bot: Bot, msg_text: str, owner_uid: int | None = None) -
     return sent, failed
 
 
-async def cmd_admin_toggle(update: Update, ctx) -> None:
+async def cmd_admin_toggle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/admin_toggle [on|off] — globally enable/disable the bot (maintenance)."""
     uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
     if not is_owner(uid):
@@ -247,7 +359,7 @@ async def cmd_admin_toggle(update: Update, ctx) -> None:
     )
 
 
-async def cmd_admin_toggle_chat(update: Update, ctx) -> None:
+async def cmd_admin_toggle_chat(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/admin_toggle_chat [on|off] — disable/enable AI chat (commands keep working)."""
     uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
     if not is_owner(uid):
@@ -283,7 +395,7 @@ async def cmd_admin_toggle_chat(update: Update, ctx) -> None:
     )
 
 
-async def cmd_admin_user(update: Update, ctx) -> None:
+async def cmd_admin_user(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/admin_user <user_id> — show user details, tier, usage."""
     uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
     if not is_owner(uid):
@@ -299,9 +411,9 @@ async def cmd_admin_user(update: Update, ctx) -> None:
         return
     user = db.get_user_by_id(target)
     if not user:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(
             f"\u274c User <code>{target}</code> not found.", parse_mode=ParseMode.HTML
-        )
+        )  # type: ignore[union-attr]  # PTB None-able fields
         return
     _log(uid, "admin_user_lookup", str(target))
     created = (
@@ -349,12 +461,13 @@ async def cmd_admin_user(update: Update, ctx) -> None:
     )
 
 
-async def cmd_admin_set_tier(update: Update, ctx) -> None:
+async def cmd_admin_set_tier(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/admin_set_tier <user_id> <tier> [days] — change user tier."""
     uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
     if not is_owner(uid):
         await _deny_admin_attempt(update, ctx)
         return
+    ctx.args = ctx.args or []
     if len(ctx.args) < 2:
         await update.message.reply_text("Usage: /admin_set_tier <user_id> <tier> [days]")  # type: ignore[union-attr]  # PTB None-able fields
         return
@@ -368,9 +481,9 @@ async def cmd_admin_set_tier(update: Update, ctx) -> None:
         await update.message.reply_text(f"Invalid tier. Options: {', '.join(TIERS.keys())}")  # type: ignore[union-attr]  # PTB None-able fields
         return
     if not db.get_user_by_id(target):
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(
             f"\u274c User <code>{target}</code> not found.", parse_mode=ParseMode.HTML
-        )
+        )  # type: ignore[union-attr]  # PTB None-able fields
         return
     db.set_user_tier(target, tier, days)
     _log(uid, "admin_set_tier", f"user={target} tier={tier} days={days}")
@@ -379,7 +492,7 @@ async def cmd_admin_set_tier(update: Update, ctx) -> None:
     )
 
 
-async def cmd_admin_ban(update: Update, ctx) -> None:
+async def cmd_admin_ban(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/admin_ban <user_id> — ban user."""
     uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
     if not is_owner(uid):
@@ -391,7 +504,7 @@ async def cmd_admin_ban(update: Update, ctx) -> None:
     try:
         target = int(ctx.args[0])
     except (ValueError, TypeError):
-        await update.message.reply_text("Invalid user_id.")  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text("Invalid user_id. Use the numeric Telegram ID.")  # type: ignore[union-attr]  # PTB None-able fields
         return
     if target in OWNER_IDS:
         await update.message.reply_text("\u274c Cannot ban the owner.")  # type: ignore[union-attr]  # PTB None-able fields
@@ -399,16 +512,16 @@ async def cmd_admin_ban(update: Update, ctx) -> None:
     ok = db.set_banned(target, True)
     _log(uid, "admin_ban", str(target))
     if ok:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(
             f"\U0001f6ab Banned user {target}.", parse_mode=ParseMode.HTML
-        )
+        )  # type: ignore[union-attr]  # PTB None-able fields
     else:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(
             f"\u274c User {target} not found.", parse_mode=ParseMode.HTML
-        )
+        )  # type: ignore[union-attr]  # PTB None-able fields
 
 
-async def cmd_admin_unban(update: Update, ctx) -> None:
+async def cmd_admin_unban(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/admin_unban <user_id> — unban user."""
     uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
     if not is_owner(uid):
@@ -420,21 +533,21 @@ async def cmd_admin_unban(update: Update, ctx) -> None:
     try:
         target = int(ctx.args[0])
     except (ValueError, TypeError):
-        await update.message.reply_text("Invalid user_id.")  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text("Invalid user_id. Use the numeric Telegram ID.")  # type: ignore[union-attr]  # PTB None-able fields
         return
     ok = db.set_banned(target, False)
     _log(uid, "admin_unban", str(target))
     if ok:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(
             f"\u2705 Unbanned user {target}.", parse_mode=ParseMode.HTML
-        )
+        )  # type: ignore[union-attr]  # PTB None-able fields
     else:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(
             f"\u274c User {target} not found.", parse_mode=ParseMode.HTML
-        )
+        )  # type: ignore[union-attr]  # PTB None-able fields
 
 
-async def cmd_admin_logs(update: Update, ctx) -> None:
+async def cmd_admin_logs(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/admin_logs — recent admin actions."""
     uid = update.effective_user.id  # type: ignore[union-attr]  # PTB None-able fields
     if not is_owner(uid):
@@ -442,9 +555,9 @@ async def cmd_admin_logs(update: Update, ctx) -> None:
         return
     logs = db.get_admin_logs(limit=15)
     if not logs:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(
             "\U0001f4dd No admin actions logged yet.", parse_mode=ParseMode.HTML
-        )
+        )  # type: ignore[union-attr]  # PTB None-able fields
         return
     lines = ["\U0001f4dd <b>Recent Admin Actions</b>", thin_sep()]
     for entry in logs:
@@ -453,16 +566,16 @@ async def cmd_admin_logs(update: Update, ctx) -> None:
         lines.append(f"\u2022 <code>{ts}</code> <b>{entry.get('action')}</b> {details[:60]}")
     lines.append(thin_sep())
     lines.append(f"<i>Total actions stored: {len(db.get_admin_logs(limit=10000))}</i>")
-    await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+    await update.message.reply_text(
         "\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=admin_kb()
-    )
+    )  # type: ignore[union-attr]  # PTB None-able fields
 
 
 # ── Callback helpers (used by handlers/callback.py) ──
 
 
 async def cb_broadcast_confirm(
-    owner_uid: int, chat_id: int, bot, message_id: int | None = None
+    owner_uid: int, chat_id: int, bot: Bot, message_id: int | None = None
 ) -> None:
     """Execute a confirmed broadcast."""
     msg_text = _pending_broadcast.pop(owner_uid, "")
@@ -480,4 +593,5 @@ async def cb_broadcast_confirm(
 
 
 def pending_broadcast(owner_uid: int) -> str | None:
+    """Return the pending broadcast text for the owner, or None."""
     return _pending_broadcast.get(owner_uid)

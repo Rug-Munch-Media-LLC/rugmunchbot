@@ -12,10 +12,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from app.domains.telegram.rugmunchbot.config import fmt_number, fmt_pct
+from app.domains.telegram.rugmunchbot.formatters import footer_links, sep
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from rugmunchbot.config import fmt_number, fmt_pct
-from rugmunchbot.formatters import footer_links, sep
+logger = get_logger(__name__)
 
 
 def _time_ago(dt_iso: str | None) -> str:
@@ -104,8 +106,8 @@ def _age_badge(created_at_ms: int | None) -> str:
         for threshold, badge in AGE_BADGES:
             if age_hours < threshold:
                 return badge
-    except Exception:  # noqa: S110 — badge is best-effort
-        pass
+    except (ValueError, TypeError, OverflowError, OSError) as e:
+        logger.debug("age badge compute failed: %s", e)
     return "❓"
 
 
@@ -128,7 +130,8 @@ def _risk_emoji(risk_score: int | float | None) -> str:
         if score >= 40:
             return "🟡"
         return "🟢"
-    except Exception:
+    except (TypeError, ValueError) as e:
+        logger.debug("risk emoji score parse failed: %s", e)
         return "⚪"
 
 
@@ -243,7 +246,12 @@ def _merge_trending_sources(
                 )
 
             if not existing or quality > existing_quality:
-                merged[norm] = {**t, "_priority": priority, "_quality": quality, "_source": t.get("source", "unknown")}
+                merged[norm] = {
+                    **t,
+                    "_priority": priority,
+                    "_quality": quality,
+                    "_source": t.get("source", "unknown"),
+                }
 
     # Convert to list and sort by: quality + freshness + mover magnitude, then
     # |24h change| (both directions), then volume.
@@ -258,7 +266,11 @@ def _merge_trending_sources(
     result.sort(key=_rank_key, reverse=True)
 
     # Filter out tokens with "Unknown" names (prefer named tokens from DexScreener)
-    result = [t for t in result if (t.get("name") or "").strip() and (t.get("name") or "").strip() != "Unknown"]
+    result = [
+        t
+        for t in result
+        if (t.get("name") or "").strip() and (t.get("name") or "").strip() != "Unknown"
+    ]
 
     return result[:limit]
 
@@ -404,7 +416,9 @@ def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str)
     return "\n".join(lines)
 
 
-def _build_trending_kb(tokens: list[dict[str, Any]], chain: str, window: str) -> InlineKeyboardMarkup:
+def _build_trending_kb(
+    tokens: list[dict[str, Any]], chain: str, window: str
+) -> InlineKeyboardMarkup:
     """Trending keyboard: named token buttons + chain/window selectors.
 
     Design: each token gets ONE button with its name → opens scan.
@@ -437,14 +451,18 @@ def _build_trending_kb(tokens: list[dict[str, Any]], chain: str, window: str) ->
             rows.append(chain_row)
             chain_row = []
         chain_row.append(
-            InlineKeyboardButton(f"[{label}]" if c == chain else label, callback_data=f"trending_chain_{c}")
+            InlineKeyboardButton(
+                f"[{label}]" if c == chain else label, callback_data=f"trending_chain_{c}"
+            )
         )
     if chain_row:
         rows.append(chain_row)
 
     # Window selector row
     win_row = [
-        InlineKeyboardButton(f"[{w}]" if w == window else w, callback_data=f"trending_win_{chain}_{w}")
+        InlineKeyboardButton(
+            f"[{w}]" if w == window else w, callback_data=f"trending_win_{chain}_{w}"
+        )
         for w in TRENDING_WINDOWS
     ]
     rows.append(win_row)

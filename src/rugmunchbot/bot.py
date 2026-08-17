@@ -1,27 +1,157 @@
 #!/usr/bin/env python3
 """
-CryptoRugMunch Bot v6 - Module-based architecture (OSS build)
-================================================================
+CryptoRugMunch Bot v6 - Module-based architecture
+===================================================
 Initialization, profile setup, scheduled jobs, and main entry point.
 Command handlers and business logic live in handlers/ and supporting modules.
 
-Ported from the live production copy (extraction checklist, Stage 4). All
-imports were rewritten from the private monorepo package to ``rugmunchbot.*``
-and private constants (owner IDs, channel IDs, branding) replaced with env
-configuration per the checklist §3 scrub list.
+v5: world-class menu (/start categories), freestyle AI chat (/chat), and the
+admin control panel (/admin, /admin_stats, /admin_toggle*, /admin_user,
+/admin_set_tier, /admin_ban, /admin_unban, /admin_broadcast, /admin_logs).
 
-Run: python3 -m rugmunchbot.bot
+Run: cd /root/backend && python3 -m app.domains.telegram.rugmunchbot.bot
 """
 
 from __future__ import annotations
 
+import asyncio
 import random
+import signal
 import sys
 from datetime import time as dtime  # noqa: F401 — used by daily_scam_tip if re-enabled
 from functools import wraps
 from typing import Any
 
 import httpx
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.admin_state import track_command
+from app.domains.telegram.rugmunchbot.alert_worker import deliver_pending_alerts
+from app.domains.telegram.rugmunchbot.broadcast_worker import deliver_pending_broadcasts
+from app.domains.telegram.rugmunchbot.channels import register_channel_jobs
+from app.domains.telegram.rugmunchbot.commands import (
+    cmd_chart,
+    cmd_dune,
+    cmd_events,
+    cmd_portfolio,
+    cmd_rugmap,
+    cmd_simulate,
+    cmd_smartmoney,
+)
+from app.domains.telegram.rugmunchbot.commands.premium import (
+    cmd_cluster,
+    cmd_deathclock,
+    cmd_impersonation,
+    cmd_mev,
+)
+from app.domains.telegram.rugmunchbot.commands.premium_extra import cmd_whale
+from app.domains.telegram.rugmunchbot.commands.premium_v2 import (
+    cmd_honeypot,
+    cmd_laundry,
+)
+from app.domains.telegram.rugmunchbot.config import (
+    ALERT_CHECK_INTERVAL,
+    BOT_DESCRIPTION,
+    BOT_SHORT_DESCRIPTION,
+    BOT_TOKEN,
+    CHANNELS,
+    SCAM_SCHOOL_TOPICS,
+    WEBSITE_URL,
+    check_backend_health,
+)
+from app.domains.telegram.rugmunchbot.handlers.account import (
+    cmd_account,
+    cmd_buystars,
+    cmd_pricing,
+    cmd_refer,
+    cmd_scamschool,
+    cmd_topup,
+)
+from app.domains.telegram.rugmunchbot.handlers.alerts import (
+    MONITOR_CHECK_INTERVAL,
+    check_alerts,
+    check_monitors,
+    cmd_alert,
+    cmd_alerts,
+)
+from app.domains.telegram.rugmunchbot.handlers.api_access import cmd_api
+from app.domains.telegram.rugmunchbot.handlers.ask import cmd_ask
+from app.domains.telegram.rugmunchbot.handlers.callback import handle_callback
+from app.domains.telegram.rugmunchbot.handlers.chat import cmd_chat
+from app.domains.telegram.rugmunchbot.handlers.chat_ai import register_chat_ai
+from app.domains.telegram.rugmunchbot.handlers.deepscan import cmd_deepscan
+from app.domains.telegram.rugmunchbot.handlers.defi import cmd_lpcheck, register_defi
+from app.domains.telegram.rugmunchbot.handlers.error import error_handler
+from app.domains.telegram.rugmunchbot.handlers.groups import (
+    cmd_banuser,
+    cmd_groupinfo,
+    cmd_mygroup,
+    cmd_voicechat,
+)
+from app.domains.telegram.rugmunchbot.handlers.holders import cmd_holders
+from app.domains.telegram.rugmunchbot.handlers.inline import handle_inline
+from app.domains.telegram.rugmunchbot.handlers.market import cmd_news, cmd_rugcheck, register_market
+from app.domains.telegram.rugmunchbot.handlers.osint import (
+    cmd_email,
+    cmd_face,
+    cmd_investigate,
+    cmd_osint,
+    cmd_osintall,
+    cmd_phone,
+    cmd_track,
+)
+from app.domains.telegram.rugmunchbot.handlers.owner import (
+    cmd_admin,
+    cmd_admin_ban,
+    cmd_admin_broadcast,
+    cmd_admin_credits,
+    cmd_admin_logs,
+    cmd_admin_set_tier,
+    cmd_admin_stats,
+    cmd_admin_toggle,
+    cmd_admin_toggle_chat,
+    cmd_admin_unban,
+    cmd_admin_user,
+    cmd_admin_users,
+)
+from app.domains.telegram.rugmunchbot.handlers.payments import precheckout, successful_payment
+from app.domains.telegram.rugmunchbot.handlers.prediction import register_prediction
+from app.domains.telegram.rugmunchbot.handlers.price import cmd_dex, cmd_price
+from app.domains.telegram.rugmunchbot.handlers.report import cmd_report
+from app.domains.telegram.rugmunchbot.handlers.research import cmd_research
+from app.domains.telegram.rugmunchbot.handlers.scanning import (
+    cmd_compare,
+    cmd_deployer,
+    cmd_faq,
+    cmd_help,
+    cmd_hype,
+    cmd_menu,
+    cmd_quick,
+    cmd_scan,
+    cmd_start,
+    cmd_ta,
+    cmd_wallet,
+    sentinel_scan,
+)
+from app.domains.telegram.rugmunchbot.handlers.sentiment import cmd_sentiment
+from app.domains.telegram.rugmunchbot.handlers.trace import cmd_trace, register_trace_commands
+from app.domains.telegram.rugmunchbot.handlers.watchlist import (
+    cmd_monitor,
+    cmd_monitors,
+    cmd_unmonitor,
+    cmd_unwatch,
+    cmd_watch,
+    cmd_watchlist,
+)
+from app.domains.telegram.rugmunchbot.handlers.webhook import cmd_webhook
+from app.domains.telegram.rugmunchbot.observability import (
+    record_error,
+    record_job,
+    set_scheduler_running,
+    start_server,
+    stop_server,
+)
+from app.domains.telegram.rugmunchbot.states import is_owner
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from telegram import BotCommand, Update
 from telegram.error import TelegramError
 from telegram.ext import (
@@ -36,116 +166,10 @@ from telegram.ext import (
 )
 from telegram.request import HTTPXRequest
 
-# NOTE(port): commands/ and handlers/ modules are scaffold stubs in the OSS
-# repo (extraction checklist, Stage 4). Every name imported below is preserved
-# verbatim from the live bot so the wiring is correct the moment those modules
-# are ported — do not rename.
-from rugmunchbot import db
-from rugmunchbot.admin_state import track_command
-from rugmunchbot.alert_worker import deliver_pending_alerts
-from rugmunchbot.broadcast_worker import deliver_pending_broadcasts
-from rugmunchbot.channels import register_channel_jobs
-from rugmunchbot.commands import (
-    cmd_chart,
-    cmd_events,
-    cmd_portfolio,
-    cmd_rugmap,
-    cmd_simulate,
-    cmd_smartmoney,
-)
-from rugmunchbot.commands.premium import (
-    cmd_cluster,
-    cmd_deathclock,
-    cmd_impersonation,
-    cmd_launches,
-    cmd_mev,
-)
-from rugmunchbot.commands.premium_extra import cmd_whale
-from rugmunchbot.commands.premium_v2 import (
-    cmd_honeypot,
-    cmd_laundry,
-    cmd_lphealth,
-)
-from rugmunchbot.config import (
-    ALERT_CHECK_INTERVAL,  # TODO(port): not yet in OSS config.py (stripped in the rewrite) — needs env ALERT_CHECK_INTERVAL [REVIEW]
-    BOT_DESCRIPTION,  # TODO(port): not yet in OSS config.py — needs env BOT_DESCRIPTION, neutral default (checklist §3) [REVIEW]
-    BOT_SHORT_DESCRIPTION,  # TODO(port): not yet in OSS config.py — needs env BOT_SHORT_DESCRIPTION, neutral default (checklist §3) [REVIEW]
-    BOT_TOKEN,
-    BOT_USERNAME,  # OSS scrub: env-driven handle replaces the hardcoded @RugMunchBot in daily_scam_tip
-    CHANNELS,
-    SCAM_SCHOOL_TOPICS,
-    WEBSITE_URL,
-    check_backend_health,  # TODO(port): not yet in OSS config.py — needs the /health ping helper (checklist §3) [REVIEW]
-)
-from rugmunchbot.handlers.account import (
-    cmd_account,
-    cmd_buystars,
-    cmd_pricing,
-    cmd_refer,
-    cmd_scamschool,
-    cmd_topup,
-)
-from rugmunchbot.handlers.alerts import check_alerts, cmd_alert, cmd_alerts
-from rugmunchbot.handlers.api_access import cmd_api
-from rugmunchbot.handlers.ask import cmd_ask
-from rugmunchbot.handlers.callback import handle_callback
-from rugmunchbot.handlers.chat import cmd_chat
-from rugmunchbot.handlers.chat_ai import register_chat_ai
-from rugmunchbot.handlers.defi import register_defi
-from rugmunchbot.handlers.error import error_handler
-from rugmunchbot.handlers.groups import (
-    cmd_banuser,
-    cmd_groupinfo,
-    cmd_mygroup,
-    cmd_voicechat,
-)
-from rugmunchbot.handlers.holders import cmd_holders
-from rugmunchbot.handlers.inline import handle_inline
-from rugmunchbot.handlers.investigate import cmd_investigate
-from rugmunchbot.handlers.market import cmd_news, cmd_rugcheck, register_market
-from rugmunchbot.handlers.owner import (
-    cmd_admin,
-    cmd_admin_ban,
-    cmd_admin_broadcast,
-    cmd_admin_logs,
-    cmd_admin_set_tier,
-    cmd_admin_stats,
-    cmd_admin_toggle,
-    cmd_admin_toggle_chat,
-    cmd_admin_unban,
-    cmd_admin_user,
-)
-from rugmunchbot.handlers.payments import precheckout, successful_payment
-from rugmunchbot.handlers.prediction import register_prediction
-from rugmunchbot.handlers.price import cmd_dex, cmd_price
-from rugmunchbot.handlers.report import cmd_report
-from rugmunchbot.handlers.research import cmd_research
-from rugmunchbot.handlers.scanning import (
-    advanced_scan,
-    cmd_compare,
-    cmd_deepscan,
-    cmd_deployer,
-    cmd_faq,
-    cmd_help,
-    cmd_hype,
-    cmd_quick,
-    cmd_scan,
-    cmd_start,
-    cmd_ta,
-    cmd_wallet,
-)
-from rugmunchbot.handlers.sentiment import cmd_sentiment
-from rugmunchbot.handlers.trace import cmd_trace, register_trace_commands
-from rugmunchbot.handlers.watchlist import (
-    cmd_unwatch,
-    cmd_watch,
-    cmd_watchlist,
-)
-from rugmunchbot.handlers.webhook import cmd_webhook
-from rugmunchbot.states import is_owner
-from rugmunchbot.support.logging import get_logger
-
 logger = get_logger("rmi_bot")
+
+# Strong refs to in-flight graceful-shutdown tasks (see install_sigterm_shutdown).
+_shutdown_tasks: set[asyncio.Task[Any]] = set()
 
 # ══════════════════════════════════════════════
 # COMMAND MENU (BotFather) — clean core set, v10
@@ -200,6 +224,27 @@ def _reg(app: Application[Any, Any, Any, Any, Any, Any], name: str, handler) -> 
     app.add_handler(CommandHandler(name, tracked))
 
 
+def _metrics_job(name: str, fn: Any) -> Any:
+    """Wrap a scheduled job with run/failure counters + error logging.
+
+    Additive + cheap: counts every invocation, and on an unexpected
+    exception increments the error counter, records the last error and
+    logs before re-raising so PTB's error handler still sees it.
+    """
+
+    @wraps(fn)
+    async def wrapped(*args: Any, **kwargs: Any) -> Any:
+        record_job(name)
+        try:
+            return await fn(*args, **kwargs)
+        except Exception as e:
+            record_error(kind=f"job:{name}", message=str(e))
+            logger.error("scheduled_job_failed name=%s err=%s", name, e, exc_info=True)
+            raise
+
+    return wrapped
+
+
 def install_maintenance_gate(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     """Globally disable the bot via /admin_toggle (maintenance mode).
 
@@ -209,7 +254,7 @@ def install_maintenance_gate(app: Application[Any, Any, Any, Any, Any, Any]) -> 
     the bot agree; fails open (bot enabled) when Redis is down.
     Owner updates always pass through.
     """
-    from rugmunchbot import admin_state
+    from app.domains.telegram.rugmunchbot import admin_state
 
     async def guarded(update: object) -> None:
         effective_user = getattr(update, "effective_user", None)
@@ -223,11 +268,10 @@ def install_maintenance_gate(app: Application[Any, Any, Any, Any, Any, Any]) -> 
                 callback_query = getattr(update, "callback_query", None)
                 if effective_message is not None:
                     try:
-                        site_line = f"\n\U0001f6e1\ufe0f {WEBSITE_URL}" if WEBSITE_URL else ""
                         await effective_message.reply_text(
                             "\U0001f527 <b>Rug Munch is under maintenance</b>\n\n"
-                            "We're upgrading the intelligence pipeline \u2014 check back soon!"
-                            f"{site_line}",
+                            "We're upgrading the intelligence pipeline \u2014 check back soon!\n"
+                            "\U0001f6e1\ufe0f rugmunch.io",
                             parse_mode="HTML",
                         )
                     except Exception:
@@ -285,7 +329,7 @@ def install_ban_gate(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     so they can still reach /admin_unban. Banned users receive a single
     "You are banned" notice and the update is dropped — no command executes.
     """
-    from rugmunchbot import admin_state
+    from app.domains.telegram.rugmunchbot import admin_state
 
     async def guarded(update: object) -> None:
         effective_user = getattr(update, "effective_user", None)
@@ -313,6 +357,15 @@ def install_ban_gate(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
 async def setup_bot_profile(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     """Set bot description, about text, and command list via BotFather API."""
     bot = app.bot
+    # Resolve the bot's own identity (get_me) so ``bot.username`` is populated
+    # for the free-text group gate (@mention matching in _is_bot_addressed).
+    # Fail-soft: if identity cannot be resolved, private DMs and /chat still
+    # work and un-@mentioned group chatter stays ignored.
+    try:
+        await bot.get_me()
+        logger.info("Bot identity resolved: @%s", bot.username)
+    except Exception as e:
+        logger.warning(f"Could not resolve bot identity (mention gate disabled): {e}")
     try:
         await bot.set_my_description(description=BOT_DESCRIPTION)
         logger.info("Bot description set")
@@ -339,16 +392,15 @@ async def setup_bot_profile(app: Application[Any, Any, Any, Any, Any, Any]) -> N
 async def daily_scam_tip(ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not CHANNELS.get("main"):
         return
-    topic_key = random.choice(list(SCAM_SCHOOL_TOPICS.keys()))  # noqa: S311 — non-crypto topic pick
+    topic_key = random.choice(list(SCAM_SCHOOL_TOPICS.keys()))
     topic = SCAM_SCHOOL_TOPICS[topic_key]
     sep_line = "\u2501" * 28
-    site_line = f'\U0001f310 <a href="{WEBSITE_URL}">{WEBSITE_URL}</a>' if WEBSITE_URL else ""
     text = (
         f"\U0001f6e1\ufe0f <b>Daily Scam Tip</b>\n{sep_line}\n\n"
         f"{topic['content']}\n\n"
         f"\U0001f4da Learn more: /scamschool\n"
-        f"\U0001f50d Scan tokens: @{BOT_USERNAME}\n"
-        f"{site_line}"
+        f"\U0001f50d Scan tokens: @RugMunchBot\n"
+        f'\U0001f310 <a href="{WEBSITE_URL}">rugmunch.io</a>'
     )
     try:
         await ctx.bot.send_message(
@@ -357,6 +409,67 @@ async def daily_scam_tip(ctx: ContextTypes.DEFAULT_TYPE) -> None:
     except TelegramError as e:
         # Channel perms / transient API error — log and let the next daily run retry.
         logger.error(f"Daily tip failed: {e}", exc_info=True)
+
+
+# ══════════════════════════════════════════════
+# GRACEFUL SHUTDOWN — systemd SIGTERM handling
+# ══════════════════════════════════════════════
+# PTB's Application.stop() (telegram.ext._application.Application.stop) waits
+# *indefinitely* for running jobs and in-flight tasks. The headless Telethon
+# MTProto client (app.domains.telegram.headless) is opened by the news / alpha /
+# scam-watch sweeps and is never closed by the bot process on its own — a sweep
+# awaiting an MTProto call on a wedged socket keeps stop(wait=True) blocked, the
+# loop never closes, and systemd kills the cgroup after TimeoutStopSec=10
+# (`Failed with result 'timeout'`; `Failed to kill control group ... Invalid
+# argument` when the stuck socket read can't even be SIGKILLed).
+#
+# We therefore replace PTB's default SIGTERM/SIGINT handlers (registered in
+# post_init, on the same loop, in the same signal slot) with one that first
+# closes the Telethon client (bounded), making in-flight sweeps fail fast, and
+# then drives PTB's own graceful stop via stop_running().
+# ══════════════════════════════════════════════
+
+
+async def close_headless_on_shutdown(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
+    """Close the singleton Telethon MTProto client (idempotent, bounded).
+
+    Runs before Application.stop() waits on jobs, so in-flight Telethon sweeps
+    fail fast instead of blocking shutdown indefinitely.
+    """
+    from app.domains.telegram.headless import shutdown_headless_client
+
+    try:
+        await shutdown_headless_client()
+    except Exception:
+        logger.warning("headless_client_shutdown_error", exc_info=True)
+
+
+async def _graceful_shutdown(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
+    """Close clients first, then hand control back to PTB's normal stop path."""
+    try:
+        await close_headless_on_shutdown(app)
+    finally:
+        app.stop_running()
+
+
+def install_sigterm_shutdown(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
+    """Replace PTB's default stop-signal handlers with shutdown-aware ones.
+
+    Must run on the app's event loop (post_init). add_signal_handler replaces
+    the handler PTB registered in run_polling() for the same signal.
+    """
+    loop = asyncio.get_running_loop()
+
+    def _on_signal() -> None:
+        logger.info("shutdown_signal_received — closing clients, stopping app")
+        # Keep a strong reference so the task is never GC'd mid-shutdown.
+        _shutdown_tasks.add(loop.create_task(_graceful_shutdown(app)))
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, _on_signal)
+        except (NotImplementedError, RuntimeError):
+            logger.debug("signal_handler_not_available sig=%s", sig, exc_info=True)
 
 
 def main() -> None:
@@ -370,20 +483,31 @@ def main() -> None:
     # PTB 21+ drops the `transport` kwarg in favor of `httpx_kwargs`.
     # S104: binding the outbound source to 0.0.0.0 (all IPv4) is intentional —
     # it forces IPv4 and avoids the broken IPv6 route.
-    transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0")  # noqa: S104  # nosec B104
-    request = HTTPXRequest(httpx_kwargs={"transport": transport})
+    transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0")  # noqa: S104  # nosec B104 - outbound source bind forces IPv4 to avoid broken IPv6 route (documented above)
+    # Bounded connection pool (4) + 20s read/write timeouts so the 4 concurrent
+    # update turns don't share a single connection or a tight 5s timeout.
+    request = HTTPXRequest(
+        connection_pool_size=4,
+        read_timeout=20,
+        write_timeout=20,
+        httpx_kwargs={"transport": transport},
+    )
 
-    app = Application.builder().token(BOT_TOKEN).request(request).build()
+    # Process updates concurrently (N=4): a slow update (e.g. /chat hitting
+    # the remote LLM) no longer blocks every other user's command. Bounded
+    # at 4 to protect the SQLite-backed db module from concurrency thrash.
+    app = Application.builder().token(BOT_TOKEN).request(request).concurrent_updates(4).build()
 
     # Core commands
     _reg(app, "start", cmd_start)
     _reg(app, "help", cmd_help)
+    _reg(app, "menu", cmd_menu)
     _reg(app, "faq", cmd_faq)
     _reg(app, "price", cmd_price)
     _reg(app, "dex", cmd_dex)
     _reg(app, "scan", cmd_scan)
     _reg(app, "deepscan", cmd_deepscan)
-    _reg(app, "advancedscan", advanced_scan)
+    _reg(app, "sentinelscan", sentinel_scan)
     _reg(app, "deployer", cmd_deployer)
     _reg(app, "hype", cmd_hype)
     _reg(app, "wallet", cmd_wallet)
@@ -406,6 +530,7 @@ def main() -> None:
     _reg(app, "research", cmd_research)
     _reg(app, "ask", cmd_ask)
     _reg(app, "chat", cmd_chat)
+    _reg(app, "dune", cmd_dune)  # curated on-chain intel (Dune queries)
 
     # Account / billing
     _reg(app, "account", cmd_account)
@@ -419,6 +544,11 @@ def main() -> None:
     _reg(app, "watchlist", cmd_watchlist)
     _reg(app, "watch", cmd_watch)
     _reg(app, "unwatch", cmd_unwatch)
+
+    # Monitor (Stars-paid premium)
+    _reg(app, "monitor", cmd_monitor)
+    _reg(app, "monitors", cmd_monitors)
+    _reg(app, "unmonitor", cmd_unmonitor)
 
     # Alerts
     _reg(app, "alerts", cmd_alerts)
@@ -436,16 +566,27 @@ def main() -> None:
     _reg(app, "mev", cmd_mev)
     _reg(app, "impersonation", cmd_impersonation)
     _reg(app, "deathclock", cmd_deathclock)
-    _reg(app, "launches", cmd_launches)
     _reg(app, "cluster", cmd_cluster)
     _reg(app, "whale", cmd_whale)
     _reg(app, "honeypot", cmd_honeypot)
-    _reg(app, "lphealth", cmd_lphealth)
+    _reg(app, "lphealth", cmd_lpcheck)  # alias — /lpcheck is canonical (same backend route)
     _reg(app, "laundry", cmd_laundry)
+
+    # OSINT & Forensics (self-hosted OSINT section)
+    _reg(app, "osint", cmd_osint)
+    _reg(app, "osintall", cmd_osintall)
+    _reg(app, "track", cmd_track)
+    _reg(app, "email", cmd_email)
+    _reg(app, "phone", cmd_phone)
+    _reg(app, "face", cmd_face)
+    # /investigate is the OSINT domain router; non-domain args fall through
+    # to the Pro-tier deep investigation (see handlers.osint.cmd_investigate).
 
     # Owner / admin panel (owner-only — hidden from BotFather list)
     _reg(app, "admin", cmd_admin)
     _reg(app, "admin_stats", cmd_admin_stats)
+    _reg(app, "credits", cmd_admin_credits)
+    _reg(app, "users", cmd_admin_users)
     _reg(app, "admin_set_tier", cmd_admin_set_tier)
     _reg(app, "admin_broadcast", cmd_admin_broadcast)
     _reg(app, "admin_toggle", cmd_admin_toggle)
@@ -500,24 +641,58 @@ def main() -> None:
     job_queue = app.job_queue
     if job_queue:
         # job_queue.run_daily(daily_scam_tip, dtime(hour=14, minute=0, tzinfo=UTC))  # disabled 2026-08-12
-        job_queue.run_repeating(check_alerts, interval=ALERT_CHECK_INTERVAL, first=10)
+        job_queue.run_repeating(
+            _metrics_job("check_alerts", check_alerts), interval=ALERT_CHECK_INTERVAL, first=10
+        )
+        # Stars-paid token monitors: re-scan for tax/ownership/mint/LP deltas
+        # and push meaningful changes as DMs (live LP/whale/price events flow
+        # through the webhook bridge independently).
+        job_queue.run_repeating(
+            _metrics_job("check_monitors", check_monitors),
+            interval=MONITOR_CHECK_INTERVAL,
+            first=120,
+        )
         # Admin-panel broadcasts (queued in Redis by the backend API)
-        job_queue.run_repeating(deliver_pending_broadcasts, interval=30, first=15)
+        job_queue.run_repeating(
+            _metrics_job("deliver_pending_broadcasts", deliver_pending_broadcasts),
+            interval=30,
+            first=15,
+        )
         # Intelligent webhook alerts (queued in Redis by the backend webhook
         # engine → telegram_bridge; whale/price/liquidity/launch push alerts)
-        job_queue.run_repeating(deliver_pending_alerts, interval=30, first=15)
+        job_queue.run_repeating(
+            _metrics_job("deliver_pending_alerts", deliver_pending_alerts), interval=30, first=15
+        )
         # Scheduled channel content: news / alerts / alpha digests (env-driven
         # cadence + per-channel switches; each job fails open).
         register_channel_jobs(app)
+        set_scheduler_running(True)
 
     # Startup
     async def startup(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
         await check_backend_health()
         await setup_bot_profile(app)
+        # Override PTB's default stop-signal handlers (must run on the loop).
+        install_sigterm_shutdown(app)
 
     app.post_init = startup
 
+    # Belt-and-suspenders: if the app stops via ANY path (signal, stop_running()
+    # from a handler, fatal error), close the Telethon client before the loop
+    # closes. post_stop runs after Application.stop() returns; it is a no-op
+    # when the signal path already closed the client. Also stops the
+    # observability HTTP server + flips the scheduler gauge.
+    async def _post_stop(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
+        set_scheduler_running(False)
+        stop_server()
+        await close_headless_on_shutdown(app)
+
+    app.post_stop = _post_stop
+
     logger.info("\U0001f6e1\ufe0f CryptoRugMunch Bot v6 starting...")
+    # Serve /healthz + /metrics for the systemd unit / load balancer (daemon
+    # thread; host/port via RUGMUNCHBOT_METRICS_HOST / RUGMUNCHBOT_METRICS_PORT).
+    start_server()
     app.run_polling(drop_pending_updates=True)
 
 

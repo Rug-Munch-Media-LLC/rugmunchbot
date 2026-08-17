@@ -22,9 +22,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from rugmunchbot.services.pricing import resolve
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools.registry import ToolResult
+from app.domains.telegram.rugmunchbot.services.pricing import resolve
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.tools.price")
 
@@ -47,7 +47,9 @@ def _extract_pair(p: dict[str, Any]) -> dict[str, Any] | None:
         "change_6h": (p.get("priceChange") or {}).get("h6"),
         "change_24h": (p.get("priceChange") or {}).get("h24"),
         "volume_24h": (p.get("volume") or {}).get("h24"),
-        "liquidity_usd": p.get("liquidity", {}).get("usd") if isinstance(p.get("liquidity"), dict) else None,
+        "liquidity_usd": p.get("liquidity", {}).get("usd")
+        if isinstance(p.get("liquidity"), dict)
+        else None,
         "market_cap": p.get("marketCap"),
         "fdv": p.get("fdv"),
         "pair_address": p.get("pairAddress"),

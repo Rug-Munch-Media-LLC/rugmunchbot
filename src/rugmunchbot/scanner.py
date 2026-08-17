@@ -14,7 +14,7 @@ allowed behavior drift).
 Keep this module as a pure re-export shim — do not add scan logic here.
 """
 
-from rugmunchbot.tools.scanner import (
+from app.domains.telegram.rugmunchbot.tools.scanner import (
     analyze_wallet,
     analyze_wallet_v2,
     fetch_deployer_fingerprint,
@@ -22,13 +22,11 @@ from rugmunchbot.tools.scanner import (
     scan_token,
     scan_token_v2,
     sentinel_scan,
-    sentinel_scan as advanced_scan,  # OSS rename: sentinel -> advanced scan (commit efac92c)
     v2_token_to_legacy,
     v2_wallet_to_legacy,
 )
 
 __all__ = [
-    "advanced_scan",
     "analyze_wallet",
     "analyze_wallet_v2",
     "fetch_deployer_fingerprint",

@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.domains.telegram import access_guard
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import OWNER_IDS, TIERS
+from app.domains.telegram.rugmunchbot.formatters import is_owner, thin_sep
+from app.domains.telegram.rugmunchbot.keyboards import admin_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
-
-from rugmunchbot import db
-from rugmunchbot.config import TIERS
-from rugmunchbot.formatters import is_owner, thin_sep
-from rugmunchbot.keyboards import admin_kb
-from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -27,26 +27,20 @@ logger = get_logger("rmi_bot")
 async def _deny_callback_attempt(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE, surface: str
 ) -> None:
-    """Log + audit a non-owner admin callback attempt (defense-in-depth).
-
-    The live bot also alerts the owner through a private owner-alert rate
-    limiter (kept in the private monorepo). OSS drops the alert; the attempt
-    is still recorded in the admin audit log.
-    """
+    """Log + alert a non-owner admin callback attempt (defense-in-depth)."""
     query = update.callback_query
     user = query.from_user if query else None
     chat = update.effective_chat
-    db.log_admin_action(
-        0,
-        "denied_admin_cb",
-        f"surface=cb:{surface} user={user.id if user else None} "
-        f"username={user.username if user else None} "
-        f"chat={chat.id if chat else None} type={chat.type if chat else None}",
-    )
-    logger.warning(
-        "denied_admin_callback",
+    await access_guard.deny_admin_attempt(
+        bot=ctx.bot,
+        owner_chat_id=next(iter(sorted(OWNER_IDS)), 0),
+        bot_name="rugmunchbot",
         surface=f"cb:{surface}",
         user_id=user.id if user else None,
+        username=user.username if user else None,
+        chat_id=chat.id if chat else None,
+        chat_type=chat.type if chat else None,
+        audit=db.log_admin_action,
     )
 
 
@@ -60,7 +54,7 @@ async def _dispatch_admin_cb(update: Update, ctx, data: str) -> None:
         await _deny_callback_attempt(update, ctx, query.data or "admin-cb")
         return
 
-    from rugmunchbot.handlers.owner import (
+    from app.domains.telegram.rugmunchbot.handlers.owner import (
         cb_broadcast_confirm,
         pending_broadcast,
     )
@@ -79,7 +73,7 @@ async def _dispatch_admin_cb(update: Update, ctx, data: str) -> None:
     elif data == "admin_user_prompt":
         await query.edit_message_text(
             "\U0001f465 <b>User Lookup</b>\n\nUse <code>/admin_user &lt;user_id&gt;</code>\n\n"
-            "Example: /admin_user <owner-id>",
+            "Example: /admin_user 123456789",
             parse_mode=ParseMode.HTML,
             reply_markup=admin_kb(),
         )
@@ -160,7 +154,7 @@ async def _dispatch_admin_cb(update: Update, ctx, data: str) -> None:
         )
         await cb_broadcast_confirm(owner_uid, chat_id, ctx.bot)
     elif data == "admin_cancel":
-        from rugmunchbot.handlers.owner import _pending_broadcast
+        from app.domains.telegram.rugmunchbot.handlers.owner import _pending_broadcast
 
         _pending_broadcast.pop(owner_uid, None)
         await query.edit_message_text(

@@ -28,9 +28,12 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools.budget import budget, maybe_log_summary, provider_for_url
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools.budget import (
+    budget,
+    maybe_log_summary,
+    provider_for_url,
+)
 
 logger = get_logger("rmi_bot.tools.client")
 
@@ -79,7 +82,9 @@ def get_shared_client(timeout: float = DEFAULT_TIMEOUT) -> httpx.AsyncClient:
             timeout=httpx.Timeout(timeout, connect=3.0, read=timeout, write=8.0),
             follow_redirects=True,
             headers={"User-Agent": "RugMunchBot/1.0"},
-            limits=httpx.Limits(max_connections=_MAX_CONNECTIONS, max_keepalive_connections=_MAX_KEEPALIVE),
+            limits=httpx.Limits(
+                max_connections=_MAX_CONNECTIONS, max_keepalive_connections=_MAX_KEEPALIVE
+            ),
         )
         _shared_clients[timeout] = client
     return client

@@ -20,17 +20,14 @@ import re
 import time
 from typing import TYPE_CHECKING, Any
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
-from telegram.error import TelegramError
-
-import rugmunchbot.handlers.chat_ai as chat_ai
-from rugmunchbot import anti_abuse, db
-from rugmunchbot.admin_state import track_ai_query, track_tokens
-from rugmunchbot.formatters import paywall_text
-from rugmunchbot.handlers.chat_ai._classify import _is_meaningful_question
-from rugmunchbot.handlers.chat_ai._format import _append_source_lines
-from rugmunchbot.handlers.chat_ai._helpers import (
+import app.domains.telegram.rugmunchbot.handlers.chat_ai as chat_ai
+from app.core.ai_guardrails import sanitize_output
+from app.domains.telegram.rugmunchbot import anti_abuse, db
+from app.domains.telegram.rugmunchbot.admin_state import track_ai_query, track_tokens
+from app.domains.telegram.rugmunchbot.db._base import run_db
+from app.domains.telegram.rugmunchbot.formatters import paywall_text
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import _is_meaningful_question
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._helpers import (
     _CHAT_DISABLED,
     _DEGENERATE_MESSAGE,
     _INJECTION_MESSAGES,
@@ -38,21 +35,30 @@ from rugmunchbot.handlers.chat_ai._helpers import (
     _REDIRECT_MESSAGE,
     _SLOW_DOWN,
 )
-from rugmunchbot.handlers.chat_ai._live_tools import _run_live_tools_bounded
-from rugmunchbot.handlers.chat_ai._local_ai import local_ai_response
-from rugmunchbot.handlers.chat_ai._quality import is_degenerate_answer, strip_think_blocks
-from rugmunchbot.handlers.chat_ai._trace import trace_answer
-from rugmunchbot.keyboards import back_kb, main_menu_kb, paywall_kb
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools import known_addresses, known_symbols
-from rugmunchbot.tools.guardrails import NO_LIVE_DATA_MESSAGE, fabrication_note, sanitize_answer
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._live_tools import _run_live_tools_bounded
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._local_ai import local_ai_response
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._quality import (
+    is_degenerate_answer,
+    strip_think_blocks,
+)
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._trace import trace_answer
+from app.domains.telegram.rugmunchbot.keyboards import back_kb, main_menu_kb, paywall_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools import known_addresses, known_symbols
+from app.domains.telegram.rugmunchbot.tools.guardrails import (
+    NO_LIVE_DATA_MESSAGE,
+    fabrication_note,
+    sanitize_answer,
+)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
+from telegram.error import TelegramError
 
 if TYPE_CHECKING:
     import asyncio
 
+    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
     from telegram import Message, Update
-
-    from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
 
@@ -265,7 +271,7 @@ async def _reply_local_intent(
         return False
     t0 = time.monotonic()
     logger.info("AI chat tier=2 (local intent) user=%s text=%.60s", user.id, text)
-    db.increment_usage(user.id, ai_msg=True)
+    await run_db(db.increment_usage, user.id, ai_msg=True)
     try:
         await track_ai_query()
         await track_tokens(len(local_response) // 4)
@@ -299,7 +305,7 @@ async def _reply_redirect(message: Message, user: Any, flood_receipt: str | None
         await chat_ai.refund_flood(user.id, flood_receipt)
     except Exception:
         logger.debug("refund_flood failed (user=%s)", user.id, exc_info=True)
-    db.increment_usage(user.id, ai_msg=True)
+    await run_db(db.increment_usage, user.id, ai_msg=True)
     try:
         await track_ai_query()
         await track_tokens(len(_REDIRECT_MESSAGE) // 4)
@@ -331,7 +337,7 @@ async def _run_entry_guards(
     Every branch sends the reply itself (the redirect also traces its
     answer), so the caller simply stops when this returns True.
     """
-    if db.get_bot_state("chat_enabled", "on") != "on":
+    if await run_db(db.get_bot_state, "chat_enabled", "on") != "on":
         await message.reply_text(
             _CHAT_DISABLED, parse_mode=ParseMode.HTML, reply_markup=main_menu_kb(user.id)
         )
@@ -345,7 +351,7 @@ async def _run_entry_guards(
         return True
 
     # Weekly AI-message quota per tier (free 15 / scout 75 / hunter 250 / pro 500).
-    allowed, _used, _limit = db.check_rate_limit(user.id, "ai_msg")
+    allowed, _used, _limit = await run_db(db.check_rate_limit, user.id, "ai_msg")
     if not allowed:
         await message.reply_text(
             paywall_text(user.id, "ai_msg"),
@@ -397,16 +403,16 @@ async def _post_guardrail(
     footer and the structured answer trace.
     """
     # ── THINK-STRIPPING (post-processing) ─────────────────────────────────
-    # Local models (qwen-analysis) emit visible <think>...</think>
-    # reasoning chains; the backend / local providers can all surface
+    # Some providers emit visible <think>...</think>
+    # reasoning chains; the backend / remote providers can all surface
     # them. Strip here — the single funnel every provider's answer flows
     # through — so the user, the stored chat history, and the fabrication
     # guardrail never see the chain. Handles complete + unterminated blocks
-    # (exactly like ai_router._strip_think_tags).
+    # (single shared implementation — see app.core.ai_guardrails.strip_think_tags).
     answer = strip_think_blocks(answer)
 
     # ── DEGENERATE-OUTPUT GUARD (post-processing) ─────────────────────────
-    # A local model can degenerate into a bare "-", punctuation-only output,
+    # A model can degenerate into a bare "-", punctuation-only output,
     # or a token-repetition loop ("ioneerioneerioneer..."). Never surface
     # that — replace it with the helpful fallback message. Runs BEFORE the
     # fabrication guardrail: garbage carries no symbols worth verifying.
@@ -418,11 +424,9 @@ async def _post_guardrail(
         )
         answer = _DEGENERATE_MESSAGE
 
-    # Fallback answers were grounded by the bridge blocks — append the real
-    # citation lines. Backend auto-RAG answers carry their own X-RAG-Context
-    # count; citing bridge sources there would be dishonest.
-    if provider == "local" and bridge_sources:
-        answer = _append_source_lines(answer, bridge_sources)
+    # (The old ``provider == "local"`` bridge-citation branch was removed —
+    # local models were decommissioned 2026-08-16 and no pipeline provider
+    # carries that value anymore.)
 
     # ── ZERO-FABRICATION GUARDRAIL (post-processing) ────────────────────
     # Strip/reject any token symbol or address the bot did NOT receive from
@@ -515,6 +519,18 @@ async def _post_guardrail(
         logger.warning("AI chat answer degenerated after guardrail (user=%s)", user_id)
         answer = _DEGENERATE_MESSAGE
         answer_is_degenerate = True
+
+    # ── OUTPUT SANITIZATION (final scrub) ────────────────────────────────
+    # The backend chat path already runs ``sanitize_output`` (chat router /
+    # ai_router) before any response leaves the API. The bot path never did —
+    # so RAG/bridge context could leak internal identifiers (hostnames like
+    # internal hostnames, gopass paths, repo paths, delimiter
+    # tokens) straight into Telegram. Run the SAME scrub here, on the FINAL
+    # answer, so the snappy/long remote path AND the tools fallback path are
+    # both covered (this funnel is the single exit every provider uses).
+    # Deliberately last: the guardrail can append citation/no-live-data lines
+    # above, and the degenerate replacement must happen before this scrub.
+    answer = sanitize_output(answer)
 
     return answer, live_results, stripped_syms, stripped_addrs, answer_is_degenerate
 

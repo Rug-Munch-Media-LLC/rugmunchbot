@@ -1,10 +1,15 @@
 """RugMunchBot — first-run onboarding + engagement hooks (additive).
 
 New-user flow: when a brand-new user sends /start, ``cmd_start`` detects the
-first run and shows a punchy welcome with a 2-3 button quick-start keyboard
-instead of the full menu card. Every quick-start button reuses an EXISTING
-callback surface (``run_scan`` / ``run_trending`` / ``menu_cat_help``), so no
-callback-handler changes are needed and no new scheduler is introduced.
+first run and shows a polished welcome — a 3-line "what the bot is" pitch,
+the 3 core actions with examples (``/scan <address>``, ``$SOL``,
+``/chat <question>``), and a quick-action keyboard whose last row is a
+"More" button that opens the full /menu capability atlas (``menu_full``).
+
+Every quick-start button reuses an EXISTING wired surface (``run_scan`` /
+``run_price`` / ``run_chat``) plus the single new ``menu_full`` callback
+branch (renders the existing ``MENU_TEXT`` atlas) — no new command handlers
+and no new scheduler.
 
 Returning users get the standard welcome card plus the daily hook
 (``daily_hook_kb`` — "what's hot right now" + market pulse) merged into the
@@ -21,10 +26,9 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from app.domains.telegram.rugmunchbot.handlers._help_text import project_links_section
+from app.domains.telegram.rugmunchbot.keyboards import quick_start_kb
 from telegram.constants import ParseMode
-
-from rugmunchbot.handlers._engagement import channels_menu_text
-from rugmunchbot.keyboards import quick_start_kb
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -35,12 +39,15 @@ if TYPE_CHECKING:
 #: A row is "first run" when created within this many seconds AND unused.
 FIRST_RUN_WINDOW_SECONDS: int = 60
 
-#: Quick-start actions shown to a brand-new user. Each callback is an EXISTING
-#: surface handled by ``handlers/callback`` — no new handler registration.
+#: Quick-start actions shown to a brand-new user. ``run_scan`` / ``run_price`` /
+#: ``run_chat`` are existing surfaces handled by ``handlers/callback``;
+#: ``menu_full`` is the "More" button that renders the existing ``/menu`` atlas
+#: (one additive callback branch in ``handlers/callback``).
 ONBOARDING_QUICK_START: tuple[tuple[str, str], ...] = (
-    ("\U0001f50d Scan a token", "run_scan"),
-    ("\U0001f525 What's trending", "run_trending"),
-    ("\U0001f4ac What can you do?", "menu_cat_help"),
+    ("\U0001f50d Scan", "run_scan"),
+    ("\U0001f4b0 Price", "run_price"),
+    ("\U0001f4ac Ask AI", "run_chat"),
+    ("\U0001f4d6 More", "menu_full"),
 )
 
 #: Daily hook actions merged into the returning-user menu. Existing callbacks:
@@ -79,21 +86,28 @@ def is_first_run(user_row: Mapping[str, object]) -> bool:
 
 
 def welcome_message(name: str = "") -> str:
-    """Punchy first-run welcome: greeting, value pitch, try-me one-liner.
+    """Polished first-run welcome: 3-line "what the bot is" + 3 core actions.
 
-    HTML-safe for Telegram: only balanced ``<b>`` / ``<i>`` tags, no raw
-    markdown, no ALL-CAPS, no emoji spam. The required try-me line is kept
-    to exactly one line so it is scannable in a chat.
+    Line 1-3 explain what the bot IS (Rug Munch Intelligence Analyst — scan
+    any token for rug/honeypot/bundle risk, AI-written verdicts, prices,
+    charts, news, wallet intel). Then the three core actions with concrete
+    examples. HTML-safe for Telegram: only balanced ``<b>`` / ``<code>``
+    tags, no raw markdown, no ALL-CAPS, no emoji spam. The quick-action
+    keyboard (``quick_start_kb``) carries the tappable actions + the
+    "More" button that opens /menu.
     """
     greeting = f"Hey {name} \U0001f44b" if name else "Hey \U0001f44b"
     return (
-        f"{greeting} <b>welcome to Rug Munch</b> \u2014 the crypto "
-        f"scam-detection copilot.\n\n"
-        f"Paste any token address and I'll tell you if it's safe to buy. "
-        f"Ask questions in plain English \u2014 no commands needed.\n\n"
-        f"<i>Try me: paste any token address or ask \u201cis $BONK safe?\u201d</i>\n\n"
-        f"{channels_menu_text()}\n\n"
-        f"Quick start:"
+        f"{greeting} \u2014 I'm the <b>Rug Munch Intelligence Analyst</b>, "
+        f'crypto intelligence at <a href="https://rugmunch.io">rugmunch.io</a>.\n\n'
+        f"Scan any token for rug, honeypot &amp; bundle risk.\n"
+        f"Get AI-written verdicts, prices, charts, news and wallet intel.\n\n"
+        f"<b>Try these</b>\n"
+        f"\U0001f50d <code>/scan &lt;address&gt;</code> \u2014 audit any token before you buy\n"
+        f"\U0001f4b0 <code>$SOL</code> \u2014 instant price check\n"
+        f"\U0001f4ac <code>/chat &lt;question&gt;</code> \u2014 ask me anything\n\n"
+        f"{project_links_section()}\n\n"
+        f"Tap an action below \U0001f447"
     )
 
 

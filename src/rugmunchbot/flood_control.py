@@ -41,9 +41,9 @@ import time
 import uuid
 from typing import Any
 
-from rugmunchbot import db
-from rugmunchbot.states import is_owner
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.states import is_owner
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
 

@@ -1,6 +1,6 @@
 """story_fetch tool — pull ANY story from ANY site into the chat loop.
 
-Layered fetch (see ``rugmunchbot.integrations.story_ingest`` for the shared chain):
+Layered fetch (see ``app.rag.story_ingest`` for the shared chain):
 
   crawl4ai (configured primary) → FlareSolverr (Cloudflare) → pryscraper
   → plain httpx (proxy rotator egress + stdlib HTML→text)
@@ -15,7 +15,7 @@ Bounded + non-blocking: the registry wraps the handler in a timeout
 internal timeout, so a dead crawler or a slow site never blocks the loop.
 
 Optional RAG side-effect: pass ``ingest=true`` to also push the story
-through ``rugmunchbot.integrations.story_ingest.ingest_url`` (chunk + embed with source
+through ``app.rag.story_ingest.ingest_url`` (chunk + embed with source
 attribution). The ingest is fail-open — a RAG outage never drops the story
 that was already fetched.
 """
@@ -25,8 +25,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools.registry import ToolResult
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.tools.story_fetch")
 
@@ -58,7 +58,7 @@ async def story_fetch(*, url: str = "", ingest: bool = False, **ctx: Any) -> Too
         return ToolResult(tool="story_fetch", ok=False, error="url required")
 
     try:
-        from rugmunchbot.integrations.story_ingest import fetch_story
+        from app.rag.story_ingest import fetch_story
     except Exception as e:  # pragma: no cover - import must never raise out
         logger.error("story_fetch_import_failed", error=str(e)[:200])
         return ToolResult(
@@ -93,7 +93,7 @@ async def story_fetch(*, url: str = "", ingest: bool = False, **ctx: Any) -> Too
     # Optional RAG side-effect — fail-open, never blocks the story return.
     if ingest:
         try:
-            from rugmunchbot.integrations.story_ingest import ingest_url
+            from app.rag.story_ingest import ingest_url
 
             result = await asyncio.wait_for(ingest_url(url), timeout=STORY_INGEST_TIMEOUT)
             data["ingest"] = result if isinstance(result, dict) else {"status": "unknown"}

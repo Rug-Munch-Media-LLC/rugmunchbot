@@ -16,21 +16,25 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 import httpx
-from telegram.constants import ParseMode
-
-from rugmunchbot import db
-from rugmunchbot.config import (
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
     backend_headers,
 )
-from rugmunchbot.formatters import (
+from app.domains.telegram.rugmunchbot.formatters import (
     footer_links,
     is_owner,
     sep,
 )
-from rugmunchbot.keyboards import back_kb, paywall_kb
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools.registry import backend_json_post
+from app.domains.telegram.rugmunchbot.handlers._messages import (
+    ACTION_TRY_AGAIN,
+    failure_card,
+    usage_hint,
+)
+from app.domains.telegram.rugmunchbot.keyboards import back_kb, paywall_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -102,7 +106,7 @@ def _assert_safe_target(url: str) -> None:
     try:
         infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
-        raise ValueError(f"Could not resolve host: {hostname}") from None
+        raise ValueError(f"Could not resolve host: {hostname}")
 
     for info in infos:
         addr = ipaddress.ip_address(info[4][0])
@@ -165,7 +169,8 @@ async def cmd_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             "• Whale movements\n"
             "• New token deployments\n"
             "• Liquidity events\n\n"
-            "👑 <b>Pro tier required</b>\n\n"
+            "🛰️ <b>Monitor (250★/30d)</b> — live LP/whale + tax/ownership/mint alerts\n"
+            "🔬 <b>Deep Scan (250★)</b> — full forensics on demand\n\n"
             "Upgrade now to unlock custom webhooks!",
             parse_mode=ParseMode.HTML,
             reply_markup=paywall_kb(),
@@ -275,8 +280,8 @@ async def _add_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id: 
     """Register a new webhook URL."""
     if len(ctx.args or []) < 2:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "❌ Usage: /webhook add <code>url</code> [event_type]\n\n"
-            "Example: /webhook add https://mybot.com/hook price_change",
+            "🔗 <b>Add Webhook</b>\n\n"
+            + usage_hint("webhook add", "url [event_type]", "https://mybot.com/hook price_change"),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -288,7 +293,11 @@ async def _add_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id: 
     ok, err = _validate_webhook_url(url)
     if not ok:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            f"❌ {err}",
+            failure_card(
+                "Invalid Webhook URL",
+                err,
+                "Example: /webhook add https://mybot.com/hook price_change",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -296,7 +305,11 @@ async def _add_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id: 
         _assert_safe_target(url)
     except ValueError as e:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            f"❌ {e}",
+            failure_card(
+                "Unsafe Webhook URL",
+                str(e),
+                "Example: /webhook add https://mybot.com/hook price_change",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -304,9 +317,11 @@ async def _add_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id: 
     # Validate event type
     if event_type and event_type not in WEBHOOK_EVENTS:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            f"❌ Invalid event type: <code>{event_type}</code>\n\n"
-            f"Available: {', '.join(WEBHOOK_EVENTS.keys())}\n"
-            f"See /webhook events for details.",
+            failure_card(
+                "Invalid Event Type",
+                f"<code>{event_type}</code> is not supported.\nAvailable: {', '.join(WEBHOOK_EVENTS.keys())}",
+                "See /webhook events for details.",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -320,16 +335,18 @@ async def _add_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id: 
     if count >= 10:
         conn.close()
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "❌ Maximum 10 active webhooks. Remove one first:\n  /webhook remove <code>id</code>",
+            failure_card(
+                "Webhook Limit Reached",
+                "Maximum 10 active webhooks.",
+                "Remove one with /webhook remove <code>id</code>, then add again.",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
 
     # Register webhook
     try:
-        # Register with backend (POST /api/v1/scanner/webhooks) via the shared
-        # backend client (RMI_BACKEND_URL + shared-secret header). None means
-        # the backend was unreachable / rejected the registration.
+        # Register with backend (POST /api/v1/scanner/webhooks)
         event_types = (
             [BACKEND_EVENT_MAP[event_type]]
             if event_type in BACKEND_EVENT_MAP
@@ -341,12 +358,16 @@ async def _add_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id: 
             "filters": None,
         }
 
-        result = await backend_json_post(
-            "/api/v1/scanner/webhooks", json=webhook_data, timeout=10.0
+        client = get_shared_client(10)
+        resp = await client.post(
+            f"{BACKEND_URL}/api/v1/scanner/webhooks",
+            json=webhook_data,
+            headers=backend_headers(),
+            timeout=10,
         )
         backend_id = None
-        if result is not None:
-            backend_id = (result.get("subscription") or {}).get("id")
+        if resp.status_code in (200, 201):
+            backend_id = resp.json().get("subscription", {}).get("id")
 
         # Store locally
         conn.execute(
@@ -357,18 +378,6 @@ async def _add_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id: 
         conn.commit()
         wh_id = conn.lastrowid  # type: ignore[attr-defined]  # PTB None-able fields
         conn.close()
-
-        if result is None:
-            logger.warning("webhook backend registration failed — stored locally")
-            await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                f"✅ <b>Webhook Saved Locally</b>\n\n"
-                f"URL: <code>{url[:80]}</code>\n"
-                f"Event: {event_type or 'all'}\n\n"
-                f"⚠️ Backend registration delayed — webhook will activate shortly.\n"
-                f"Use /webhook list to check status.",
-                parse_mode=ParseMode.HTML,
-            )
-            return
 
         event_label = WEBHOOK_EVENTS.get(event_type, "All events") if event_type else "All events"
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
@@ -382,12 +391,26 @@ async def _add_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id: 
             parse_mode=ParseMode.HTML,
         )
 
-    except Exception as e:
+    except httpx.HTTPError as e:
         conn.close()
+        logger.warning(f"webhook backend registration failed: {e}")
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+            f"✅ <b>Webhook Saved Locally</b>\n\n"
+            f"URL: <code>{url[:80]}</code>\n"
+            f"Event: {event_type or 'all'}\n\n"
+            f"⚠️ Backend registration delayed — webhook will activate shortly.\n"
+            f"Use /webhook list to check status.",
+            parse_mode=ParseMode.HTML,
+        )
+    except (ValueError, KeyError, TypeError) as e:
         logger.debug("webhook_add_error", exc_info=True)
         logger.error(f"webhook add error: {e}")
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "❌ Failed to register webhook. Please try again.",
+            failure_card(
+                "Webhook Failed",
+                "Could not register the webhook.",
+                ACTION_TRY_AGAIN,
+            ),
             parse_mode=ParseMode.HTML,
         )
 
@@ -396,7 +419,8 @@ async def _remove_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_i
     """Remove a webhook by ID."""
     if len(ctx.args or []) < 2 or not (ctx.args or [])[1].isdigit():
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "❌ Usage: /webhook remove <code>id</code>\nFind IDs with: /webhook list",
+            "🔗 <b>Remove Webhook</b>\n\n"
+            + usage_hint("webhook remove", "id", "1", extra="Find IDs with: /webhook list"),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -421,14 +445,14 @@ async def _remove_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_i
     backend_id = row["backend_id"]
     if backend_id:
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                await client.delete(
-                    f"{BACKEND_URL}/api/v1/scanner/webhooks/{backend_id}",
-                    headers=backend_headers(),
-                    timeout=5,
-                )
-        except (httpx.HTTPError, ConnectionError, TimeoutError):
-            pass
+            client = get_shared_client(5)
+            await client.delete(
+                f"{BACKEND_URL}/api/v1/scanner/webhooks/{backend_id}",
+                headers=backend_headers(),
+                timeout=5,
+            )
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
+            logger.warning("webhook backend fetch failed: %s", e)
 
     conn.execute("DELETE FROM webhooks WHERE id = ?", (wh_id,))
     conn.commit()
@@ -492,20 +516,20 @@ async def _test_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id:
 
     try:
         start = time.monotonic()
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                url,
-                json={
-                    "event": "test",
-                    "source": "rugmunchbot",
-                    "data": {
-                        "message": "This is a test webhook from RugMunch Intelligence.",
-                        "timestamp": time.time(),
-                    },
+        client = get_shared_client(10)
+        resp = await client.post(
+            url,
+            json={
+                "event": "test",
+                "source": "rugmunchbot",
+                "data": {
+                    "message": "This is a test webhook from RugMunch Intelligence.",
+                    "timestamp": time.time(),
                 },
-                headers={"User-Agent": "RugMunchBot/1.0 Webhook Test"},
-                timeout=10,
-            )
+            },
+            headers={"User-Agent": "RugMunchBot/1.0 Webhook Test"},
+            timeout=10,
+        )
         elapsed_ms = (time.monotonic() - start) * 1000
 
         # Never echo response body content — only safe metadata.
@@ -544,16 +568,16 @@ async def _test_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id:
         conn.commit()
         conn.close()
 
-    except httpx.HTTPError as e:
+    except httpx.HTTPError:
         await msg.edit_text(
             f"❌ <b>Test Failed</b>\n\n"
             f"URL: <code>{url[:80]}</code>\n\n"
             f"Could not reach your endpoint.\n"
-            f"Error: {str(e)[:150]}",
+            f"Please try again in a moment.",
             parse_mode=ParseMode.HTML,
         )
-    except (ConnectionError, TimeoutError, OSError) as e:
+    except (ConnectionError, TimeoutError, OSError):
         await msg.edit_text(
-            f"❌ <b>Connection Failed</b>\n\nURL: <code>{url[:80]}</code>\n\nError: {str(e)[:150]}",
+            f"❌ <b>Connection Failed</b>\n\nURL: <code>{url[:80]}</code>\n\nPlease try again in a moment.",
             parse_mode=ParseMode.HTML,
         )

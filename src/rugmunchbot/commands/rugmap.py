@@ -11,16 +11,19 @@ Usage: /rugmap <address> [chain]
 
 from __future__ import annotations
 
+import asyncio
 import io
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import httpx
-
-from rugmunchbot.config import BACKEND_URL, DEXSCREENER, WEBSITE_URL, backend_headers
-from rugmunchbot.support.logging import get_logger
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from app.domains.telegram.rugmunchbot.config import (
+    BACKEND_URL,
+    DEXSCREENER,
+    WEBSITE_URL,
+    backend_headers,
+)
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
 
 logger = get_logger("rmi.rugmap")
 
@@ -54,6 +57,7 @@ def render_bubble_map_png(
 
     w, h = 900, 700
     bg = (15, 17, 21)
+    grid_c = (35, 38, 46)
     text_c = (154, 160, 166)
     title_c = (232, 234, 237)
 
@@ -259,82 +263,79 @@ async def cmd_rugmap(update, ctx) -> None:
         chain = explicit_chain
         graph: dict[str, Any] | None = None
 
-        async with httpx.AsyncClient(timeout=25) as client:
-            # v6: fetch the token graph from the RugMaps engine first.
-            graph_chain = chain or _guess_chain(address)
-            graph = await _fetch_token_graph(client, address, graph_chain)
-            if graph:
-                nodes = graph.get("nodes") or []
-                links = graph.get("links") or []
-                chain = graph.get("chain") or graph_chain
-            else:
-                nodes, links = [], []
+        client = get_shared_client(25)
+        # v6: fetch the token graph from the RugMaps engine first.
+        graph_chain = chain or _guess_chain(address)
+        graph = await _fetch_token_graph(client, address, graph_chain)
+        if graph:
+            nodes = graph.get("nodes") or []
+            links = graph.get("links") or []
+            chain = graph.get("chain") or graph_chain
+        else:
+            nodes, links = [], []
 
-            # Try DataBus
-            try:
-                r = await client.get(
-                    f"{BACKEND_URL}/api/v1/databus/token/{address}",
-                    headers=backend_headers(),
-                    timeout=10,
-                )
-                if r.status_code == 200:
-                    data = r.json()
-                    bundle_detected = data.get("bundle_detected", False)
-                    fresh_wallet_pct = data.get("fresh_wallet_pct", 0)
-                    smart_money = data.get("smart_money", [])
-                    top_holders = data.get("top_holders", [])
-            except (
-                ConnectionError,
-                OSError,
-                TimeoutError,
-                httpx.HTTPError,
-                httpx.TimeoutException,
-            ) as exc:
-                logger.debug("RMI backend call failed: %s", exc)
-
-            # DexScreener for basic info
-            try:
-                r = await client.get(f"{DEXSCREENER}/tokens/{address}")
-                if r.status_code == 200:
-                    pairs = r.json().get("pairs", [])
-                    if pairs:
-                        p = pairs[0]
-                        symbol = p.get("baseToken", {}).get("symbol", "???")
-                        name = p.get("baseToken", {}).get("name", "Unknown")
-                        liquidity = float(p.get("liquidity", {}).get("usd", 0))
-                        chain = chain or p.get("chainId", "")
-            except (
-                ConnectionError,
-                OSError,
-                TimeoutError,
-                httpx.HTTPError,
-                httpx.TimeoutException,
-            ) as exc:
-                logger.debug("DexScreener fallback failed: %s", exc)
-
-        # ── Use branded visual engine ──
-        # TODO(port): services/visuals.render_cluster_map is NOT yet ported
-        # (services/visuals.py is still a scaffold stub — checklist Stage 2).
-        # Fails open to the ASCII text map until the live visual engine lands. [REVIEW]
-        render_cluster_map: Callable[..., Any] | None = None
+        # Try DataBus
         try:
-            from rugmunchbot.services.visuals import render_cluster_map as _render_cluster_map
+            r = await client.get(
+                f"{BACKEND_URL}/api/v1/databus/token/{address}",
+                headers=backend_headers(),
+                timeout=10,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                bundle_detected = data.get("bundle_detected", False)
+                fresh_wallet_pct = data.get("fresh_wallet_pct", 0)
+                smart_money = data.get("smart_money", [])
+                top_holders = data.get("top_holders", [])
+        except (
+            ConnectionError,
+            OSError,
+            TimeoutError,
+            httpx.HTTPError,
+            httpx.TimeoutException,
+        ) as exc:
+            logger.debug("RMI backend call failed: %s", exc)
 
-            render_cluster_map = _render_cluster_map
-        except (ImportError, AttributeError):
-            pass
+        # DexScreener for basic info
+        try:
+            r = await client.get(f"{DEXSCREENER}/tokens/{address}")
+            if r.status_code == 200:
+                pairs = r.json().get("pairs", [])
+                if pairs:
+                    p = pairs[0]
+                    symbol = p.get("baseToken", {}).get("symbol", "???")
+                    name = p.get("baseToken", {}).get("name", "Unknown")
+                    liquidity = float(p.get("liquidity", {}).get("usd", 0))
+                    chain = chain or p.get("chainId", "")
+        except (
+            ConnectionError,
+            OSError,
+            TimeoutError,
+            httpx.HTTPError,
+            httpx.TimeoutException,
+        ) as exc:
+            logger.debug("DexScreener fallback failed: %s", exc)
+
+        # ── Use branded visual engine. Pillow rendering is CPU-bound — run it
+        # in a worker thread so the bot event loop never stalls on image draw.
+        from app.domains.telegram.rugmunchbot.services.visuals import render_cluster_map
 
         # Holder stats for the map footer (top_holders entries carry pct).
         total_holders = len(top_holders)
         top10_pct = sum(float(h.get("pct") or 0) for h in top_holders[:10])
 
-        png = (
-            render_cluster_map(
-                nodes or [], links or [], name, symbol, chain, total_holders, top10_pct
+        png = None
+        if nodes:
+            png = await asyncio.to_thread(
+                render_cluster_map,
+                nodes or [],
+                links or [],
+                name,
+                symbol,
+                chain,
+                total_holders,
+                top10_pct,
             )
-            if nodes and render_cluster_map
-            else None
-        )
         if png:
             risk_line = ""
             if graph and graph.get("risk_level"):
@@ -423,7 +424,7 @@ async def cmd_rugmap(update, ctx) -> None:
         lines.extend(
             [
                 "",
-                f'🌐 <a href="{_web_rugmap_url(address, chain)}">Open interactive map</a>',
+                f'🌐 <a href="{_web_rugmap_url(address, chain)}">Open interactive map on rugmunch.io</a>',
                 "",
                 "<i>Image map unavailable — showing text map.</i>",
             ]
@@ -434,11 +435,13 @@ async def cmd_rugmap(update, ctx) -> None:
 
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
         logger.error(f"RugMap failed: {e}")
-        await msg.reply_text("❌ Could not generate rug map. Try again later.", parse_mode="HTML")
+        await msg.reply_text(
+            "❌ Could not generate rug map.\n\nPlease try again in a moment.", parse_mode="HTML"
+        )
 
 
 def _guess_chain(address: str) -> str:
-    from rugmunchbot.formatters import detect_chain
+    from app.domains.telegram.rugmunchbot.formatters import detect_chain
 
     return detect_chain(address) or "solana"
 

@@ -15,9 +15,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rugmunchbot import db
-from rugmunchbot.config import OWNER_IDS
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram import access_guard
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import OWNER_IDS
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -30,31 +31,23 @@ _USER_GROUPS: dict[int, int] = {}
 
 
 async def _deny_group_attempt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Log + audit a non-owner group-admin command attempt (defense-in-depth).
-
-    [REVIEW] OSS port: the private access_guard owner-alert rate limiter is
-    not shipped (checklist §2.2). We keep the audit trail via
-    ``db.log_admin_action`` and log at warning level; the live owner alert is
-    dropped.
-    """
+    """Log + alert a non-owner group-admin command attempt (defense-in-depth)."""
     user = update.effective_user
     chat = update.effective_chat
     surface = "group-admin-cmd"
     if update.message is not None and update.message.text:
         surface = f"cmd:{update.message.text.split()[0]}"
-    user_id = user.id if user else None
-    logger.warning(
-        "group_admin_attempt_denied surface=%s user_id=%s chat_id=%s chat_type=%s",
-        surface,
-        user_id,
-        chat.id if chat else None,
-        chat.type if chat else None,
+    await access_guard.deny_admin_attempt(
+        bot=context.bot,
+        owner_chat_id=next(iter(sorted(OWNER_IDS)), 0),
+        bot_name="rugmunchbot",
+        surface=surface,
+        user_id=user.id if user else None,
+        username=user.username if user else None,
+        chat_id=chat.id if chat else None,
+        chat_type=chat.type if chat else None,
+        audit=db.log_admin_action,
     )
-    if user_id is not None:
-        try:
-            db.log_admin_action(user_id, "deny_group_admin", surface)
-        except Exception:
-            logger.debug("deny_group_admin audit failed", exc_info=True)
 
 
 async def cmd_mygroup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -70,9 +63,9 @@ async def cmd_mygroup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     chat_id = _USER_GROUPS.get(user.id)
 
     if not chat_id:
-        # Try to look up from database or headless client (no-op adapter in OSS)
+        # Try to look up from database or headless client
         try:
-            from rugmunchbot.integrations.headless import _client_instance
+            from app.domains.telegram.headless import _client_instance
 
             if _client_instance and hasattr(_client_instance, "_managed_groups"):
                 for _key, group in _client_instance._managed_groups.items():
@@ -83,8 +76,8 @@ async def cmd_mygroup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                         chat_id = group.chat_id
                         _USER_GROUPS[user.id] = chat_id
                         break
-        except ImportError:
-            pass
+        except ImportError as e:
+            logger.debug("headless import unavailable: %s", e)
 
     if not chat_id:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
@@ -95,21 +88,18 @@ async def cmd_mygroup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     try:
-        from rugmunchbot.integrations.headless import get_headless_client
+        from app.domains.telegram.headless import get_headless_client
 
         client = await get_headless_client()
-        # Force refresh to get current invite link (no-op adapter returns None)
-        if client is None:
+        # Force refresh to get current invite link
+        try:
+            info = await client._fetch_group_info(chat_id)
+            invite_link = info.invite_link
+            username = info.username
+        except Exception as e:
+            logger.warning("group invite fetch failed: %s", e)
             invite_link = None
             username = None
-        else:
-            try:
-                info = await client._fetch_group_info(chat_id)
-                invite_link = info.invite_link
-                username = info.username
-            except Exception:
-                invite_link = None
-                username = None
     except (ImportError, RuntimeError):
         invite_link = None
         username = None
@@ -144,7 +134,9 @@ async def cmd_groupinfo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     args = context.args or []
     if not args:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "Usage: /groupinfo <chat_id>\nShows group stats: member count, active voice chats, etc."
+            "Usage: /groupinfo <chat_id>\n"
+            "Example: /groupinfo -1001234567890\n"
+            "Shows group stats: member count, active voice chats, etc."
         )
         return
 
@@ -155,22 +147,21 @@ async def cmd_groupinfo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     try:
-        from rugmunchbot.integrations.headless import get_headless_client
+        from app.domains.telegram.headless import get_headless_client
 
         client = await get_headless_client()
-        if client is None:
-            await update.message.reply_text("❌ Headless client unavailable in this build.")  # type: ignore[union-attr]  # PTB None-able fields
-            return
         info = await client._fetch_group_info(chat_id)
-    except (ImportError, RuntimeError, Exception) as e:
-        await update.message.reply_text(f"❌ Error: {e}")  # type: ignore[union-attr]  # PTB None-able fields
+    except (ImportError, RuntimeError, Exception):
+        await update.message.reply_text(
+            "❌ Could not fetch group info. Please try again in a moment."
+        )  # type: ignore[union-attr]  # PTB None-able fields
         return
 
     # Check voice chat status
     voice_status = "❌ None active"
     try:
-        from rugmunchbot.config import BOT_TOKEN
-        from rugmunchbot.integrations.voice_chat import get_voice_chat_status
+        from app.domains.telegram.rugmunchbot.config import BOT_TOKEN
+        from app.domains.telegram.voice_chat import get_voice_chat_status
 
         if BOT_TOKEN:
             from telegram import Bot
@@ -183,8 +174,8 @@ async def cmd_groupinfo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     f"   Participants: {vc.participant_count}\n"
                     f"   Duration: {vc.duration_seconds:.0f}s"
                 )
-    except Exception:  # noqa: S110 — intentional best-effort
-        pass
+    except Exception as e:
+        logger.warning("voice chat status fetch failed: %s", e)
 
     text = (
         f"🏛️ **Group Info**\n\n"
@@ -222,15 +213,15 @@ async def cmd_voicechat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     try:
         chat_id = int(args[1])
     except ValueError:
-        await update.message.reply_text("❌ Invalid chat_id.")  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text("❌ Invalid chat_id. Must be a number.")  # type: ignore[union-attr]  # PTB None-able fields
         return
 
     title = " ".join(args[2:]) if len(args) > 2 else None
 
-    from rugmunchbot.config import BOT_TOKEN
+    from app.domains.telegram.rugmunchbot.config import BOT_TOKEN
 
     if not BOT_TOKEN:
-        await update.message.reply_text("❌ Bot not configured.")  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text("❌ Bot not configured. Please contact the operator.")  # type: ignore[union-attr]  # PTB None-able fields
         return
 
     from telegram import Bot
@@ -240,31 +231,30 @@ async def cmd_voicechat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if action in ("start", "start_video"):
         is_video = action == "start_video"
         try:
-            from rugmunchbot.integrations.voice_chat import create_voice_chat
+            from app.domains.telegram.voice_chat import create_voice_chat
 
-            # [REVIEW] OSS voice-chat adapter is a no-op: create_voice_chat
-            # returns None (no session object) and the command reports the
-            # chat as started without an invite link.
             session = await create_voice_chat(bot, chat_id, title=title, is_video=is_video)
-            link = ""
-            if session is not None:
-                link = getattr(session, "invite_link", "") or ""
+            link = session.invite_link or ""
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
                 f"✅ {'📹 Video' if is_video else '🎤 Voice'} chat started!\nJoin: {link}"
                 if link
                 else f"✅ {'📹 Video' if is_video else '🎤 Voice'} chat started!",
                 parse_mode="Markdown",
             )
-        except RuntimeError as e:
-            await update.message.reply_text(f"❌ {e}")  # type: ignore[union-attr]  # PTB None-able fields
+        except RuntimeError:
+            await update.message.reply_text(
+                "❌ Could not start the voice chat. Please try again in a moment."
+            )  # type: ignore[union-attr]  # PTB None-able fields
     elif action == "end":
         try:
-            from rugmunchbot.integrations.voice_chat import end_voice_chat
+            from app.domains.telegram.voice_chat import end_voice_chat
 
             await end_voice_chat(bot, chat_id)
             await update.message.reply_text("✅ Voice chat ended.")  # type: ignore[union-attr]  # PTB None-able fields
-        except RuntimeError as e:
-            await update.message.reply_text(f"❌ {e}")  # type: ignore[union-attr]  # PTB None-able fields
+        except RuntimeError:
+            await update.message.reply_text(
+                "❌ Could not end the voice chat. Please try again in a moment."
+            )  # type: ignore[union-attr]  # PTB None-able fields
     else:
         await update.message.reply_text("❌ Unknown action. Use: start, start_video, or end.")  # type: ignore[union-attr]  # PTB None-able fields
 
@@ -286,18 +276,15 @@ async def cmd_banuser(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         chat_id = int(args[0])
         user_id = int(args[1])
     except ValueError:
-        await update.message.reply_text("❌ Invalid chat_id or user_id.")  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text("❌ Invalid chat_id or user_id. Must be numbers.")  # type: ignore[union-attr]  # PTB None-able fields
         return
 
     reason = " ".join(args[2:]) if len(args) > 2 else None
 
     try:
-        from rugmunchbot.integrations.headless import get_headless_client
+        from app.domains.telegram.headless import get_headless_client
 
         client = await get_headless_client()
-        if client is None:
-            await update.message.reply_text("❌ Headless client unavailable in this build.")  # type: ignore[union-attr]  # PTB None-able fields
-            return
         success = await client.ban_user(chat_id, user_id, reason=reason)
         if success:
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
@@ -306,6 +293,6 @@ async def cmd_banuser(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 parse_mode="Markdown",
             )
         else:
-            await update.message.reply_text("❌ Failed to ban user.")  # type: ignore[union-attr]  # PTB None-able fields
-    except (ImportError, RuntimeError) as e:
-        await update.message.reply_text(f"❌ {e}")  # type: ignore[union-attr]  # PTB None-able fields
+            await update.message.reply_text("❌ Failed to ban user. Please try again in a moment.")  # type: ignore[union-attr]  # PTB None-able fields
+    except (ImportError, RuntimeError):
+        await update.message.reply_text("❌ Could not ban the user. Please try again in a moment.")  # type: ignore[union-attr]  # PTB None-able fields

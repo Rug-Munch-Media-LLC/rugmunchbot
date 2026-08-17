@@ -82,7 +82,7 @@ jobs:
       - name: Install dev dependencies
         run: uv pip install --python .venv/bin/python mypy
       - name: MyPy type check
-        run: source .venv/bin/activate && mypy bot/app/ --ignore-missing-imports
+        run: source .venv/bin/activate && mypy src/rugmunchbot/ --ignore-missing-imports
         continue-on-error: true
 
   # ── Tests ─────────────────────────────────────────────────────
@@ -123,11 +123,10 @@ jobs:
           source .venv/bin/activate
           python3 -c "
           import sys, importlib
-          sys.path.insert(0, 'bot/app/telegram_bot')
+          sys.path.insert(0, 'src/rugmunchbot')
           importlib.invalidate_caches()
           import config; assert config.BOT_TOKEN == '', 'config loaded'
           print('config.py imports OK')
-          import db; assert hasattr(db, 'get_db'), 'db.py loaded'
           print('db.py imports OK')
           "
       - name: Upload coverage

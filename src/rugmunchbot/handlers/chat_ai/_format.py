@@ -10,13 +10,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.domains.telegram.rugmunchbot.config import fmt_chain, fmt_number, fmt_pct
+from app.domains.telegram.rugmunchbot.formatters import detect_chain
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from rugmunchbot.config import fmt_chain, fmt_number, fmt_pct
-from rugmunchbot.formatters import detect_chain
-
 if TYPE_CHECKING:
-    from rugmunchbot.tools.registry import ToolResult
+    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
 
 
 def _render_bridge_actions(
@@ -43,38 +42,6 @@ def _render_bridge_actions(
             rows.append([InlineKeyboardButton(label, callback_data=f"scan_{target}_{chain}")])
         # exploit / other action types have no dedicated bot surface yet — skip.
     return InlineKeyboardMarkup(rows) if rows else None
-
-
-def _append_source_lines(
-    answer: str,
-    sources: list[dict[str, str]] | None,
-    limit: int = 3,
-) -> str:
-    """Append up to ``limit`` compact citation lines from the bridge sources.
-
-    Only ``web`` and ``rag`` sources carry a query worth citing; scanner /
-    market metadata lines are skipped (the answer already attributes them).
-    No URLs are fabricated — bridge sources carry type+query metadata, and
-    the grounding rules already make the model cite outlet/headline inline.
-    Plain text only: ``_send_answer`` HTML-escapes every chunk.
-    """
-    if not sources:
-        return answer
-    lines: list[str] = []
-    for s in sources:
-        if len(lines) >= limit:
-            break
-        if not isinstance(s, dict):
-            continue
-        stype = str(s.get("type") or "")
-        query = str(s.get("query") or "").strip()
-        if stype == "web" and query:
-            lines.append(f"\U0001f310 Web: {query[:90]}")
-        elif stype == "rag" and query:
-            lines.append(f"\U0001f4da RAG: {query[:90]}")
-    if not lines:
-        return answer
-    return f"{answer}\n\n\u2014\n" + "\n".join(lines)
 
 
 def _format_tool_answer(results: dict[str, ToolResult]) -> str | None:
@@ -110,9 +77,20 @@ def _format_tool_answer(results: dict[str, ToolResult]) -> str | None:
                 f"{fmt_chain(p.get('chain', ''))}\n`{addr}`"
             )
             if p.get("price_usd") is not None:
-                lines.append(f"\U0001f4b0 {fmt_number(p['price_usd'])} | 24h: {fmt_pct(p.get('change_24h'))}")
+                lines.append(
+                    f"\U0001f4b0 {fmt_number(p['price_usd'])} | 24h: {fmt_pct(p.get('change_24h'))}"
+                )
             if p.get("market_cap"):
                 lines.append(f"\U0001f4c8 MCap: {fmt_number(p.get('market_cap'))}")
+            extra = []
+            if p.get("liquidity_usd") is not None:
+                extra.append(f"Liq {fmt_number(p['liquidity_usd'])}")
+            if p.get("volume_24h") is not None:
+                extra.append(f"Vol {fmt_number(p['volume_24h'])}")
+            if p.get("fdv"):
+                extra.append(f"FDV {fmt_number(p['fdv'])}")
+            if extra:
+                lines.append("\U0001f4a7 " + " | ".join(extra))
             lines.append("")
     trending = results.get("trending")
     if trending is not None and trending.ok and isinstance(trending.data, dict):
@@ -125,8 +103,39 @@ def _format_tool_answer(results: dict[str, ToolResult]) -> str | None:
             for t in tokens[:8]:
                 addr = t.get("address", "")
                 sym = t.get("symbol", "?")
-                chg = f" | {fmt_pct(t.get('change_24h'))}" if t.get("change_24h") is not None else ""
+                chg = (
+                    f" | {fmt_pct(t.get('change_24h'))}" if t.get("change_24h") is not None else ""
+                )
                 lines.append(f"\u2022 ${sym} {fmt_chain(t.get('chain', ''))}{chg} — `{addr}`")
+            lines.append("")
+    trend_ranked = results.get("trend_by_chain")
+    if trend_ranked is not None and trend_ranked.ok and isinstance(trend_ranked.data, dict):
+        tokens = trend_ranked.data.get("tokens") or []
+        if tokens:
+            has_live = True
+            rank_mode = trend_ranked.data.get("rank_mode") or "trend"
+            if rank_mode == "risk":
+                lines.append("**\U0001f6a8 Riskiest / Sketchiest**")
+                for t in tokens[:8]:
+                    addr = t.get("address", "")
+                    sym = t.get("symbol", "?")
+                    flags = t.get("risk_flags") or []
+                    flag_str = f" — {', '.join(flags)}" if flags else ""
+                    liq = t.get("liquidity_usd")
+                    liq_str = f" | Liq {fmt_number(liq)}" if liq is not None else ""
+                    lines.append(
+                        f"\u2022 ${sym} {fmt_chain(t.get('chain', ''))}{liq_str}{flag_str} — `{addr}`"
+                    )
+            else:
+                lines.append("**\U0001f525 Trending (scored)**")
+                for t in tokens[:8]:
+                    addr = t.get("address", "")
+                    sym = t.get("symbol", "?")
+                    score = t.get("score")
+                    score_str = f" | score {fmt_number(score)}" if score is not None else ""
+                    lines.append(
+                        f"\u2022 ${sym} {fmt_chain(t.get('chain', ''))}{score_str} — `{addr}`"
+                    )
             lines.append("")
     security = results.get("security_scan")
     if security is not None and security.ok and isinstance(security.data, dict):
@@ -154,4 +163,4 @@ def _format_tool_answer(results: dict[str, ToolResult]) -> str | None:
     return "\n".join(lines)
 
 
-__all__ = ["_append_source_lines", "_format_tool_answer", "_render_bridge_actions"]
+__all__ = ["_format_tool_answer", "_render_bridge_actions"]

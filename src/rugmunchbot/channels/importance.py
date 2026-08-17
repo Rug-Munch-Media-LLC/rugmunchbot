@@ -2,7 +2,7 @@
 
 Scores the normalized ``NewsArticle`` objects produced by the TG news sweep
 (``channels/telegram_news.py``) with the existing Infinity cross-encoder
-(``BAAI/bge-reranker-v2-m3`` via ``rugmunchbot.integrations.rerank.rerank_results`` — the
+(``BAAI/bge-reranker-v2-m3`` via ``app.rag.rerank.rerank_results`` — the
 same reranker the RAG pipeline uses, never a second client). Every article is
 scored against a small set of **importance queries**; the composite
 importance is the **max** relevance across queries.
@@ -43,14 +43,15 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
-    from rugmunchbot.integrations.news_ingest.models import NewsArticle
+    from app.domains.news_ingest.models import NewsArticle
 
 logger = get_logger("rmi_bot.channels.importance")
 
@@ -205,7 +206,7 @@ def _heuristic_importance(article: NewsArticle) -> float:
 
     score = 0.1 + 0.2 * min(strong, 4) + 0.05 * min(weak, 4)
     try:
-        from rugmunchbot.integrations.news_ratings import rate_article
+        from app.domains.news.ratings import rate_article
 
         rating = rate_article(
             title=article.title, content=article.body, source=article.source_channel
@@ -228,13 +229,32 @@ def _heuristic_scored(articles: list[NewsArticle]) -> list[ScoredArticle]:
     ]
 
 
+# ── Reranker circuit breaker ────────────────────────────────────────────
+
+#: Consecutive all-failed ticks (empty score maps) that trip the breaker.
+RERANKER_FAILURE_THRESHOLD: int = 3
+#: Cooldown seconds while tripped: rerank is skipped and the heuristic
+#: fallback is used directly (keeps the news tick fast during an outage).
+RERANKER_COOLDOWN_SECONDS: float = 600.0
+
+#: Process-local breaker state. Two scalar counters — nothing accumulates,
+#: no locks (single event loop per process). Reset to 0.0/0 on success.
+_consecutive_reranker_failures: int = 0
+_reranker_cooldown_until: float = 0.0  # time.monotonic() deadline; 0.0 = open
+
+
+def _reranker_tripped() -> bool:
+    """True while the reranker circuit breaker is in its cooldown window."""
+    return time.monotonic() < _reranker_cooldown_until
+
+
 # ── Scoring ─────────────────────────────────────────────────────────────
 
 
 async def _rerank_query(query: str, texts: list[str]) -> dict[int, float]:
     """Score all texts against one query via Infinity. Fail-open → {}."""
     try:
-        from rugmunchbot.integrations.rerank import rerank_results
+        from app.rag.rerank import rerank_results
 
         results = await rerank_results(query, texts, top_n=len(texts))
     except Exception as exc:  # any failure degrades to an empty score map
@@ -254,6 +274,8 @@ async def score_importance(
     When Infinity is unreachable or no query returns anything, every article
     is scored by the deterministic heuristic and ``fallback=True``.
     """
+    global _consecutive_reranker_failures, _reranker_cooldown_until
+
     if not articles:
         return []
 
@@ -268,15 +290,35 @@ async def score_importance(
     texts = [_article_text(a) for a in batch]
     queries = _build_queries(focus_keywords)
 
+    # Breaker tripped: skip rerank entirely, go straight to the heuristic so
+    # the tick never waits on a known-slow reranker.
+    if _reranker_tripped():
+        logger.debug("importance:reranker_breaker_skip fallback=heuristic")
+        return _heuristic_scored(batch)
+
     per_query: list[dict[int, float]] = await asyncio.gather(
         *(_rerank_query(q, texts) for q in queries)
     )
 
     if not any(per_query):
+        _consecutive_reranker_failures += 1
         logger.warning(
-            "importance:reranker_unavailable fallback=heuristic queries=%s", len(queries)
+            "importance:reranker_unavailable fallback=heuristic queries=%s consecutive_failures=%s",
+            len(queries),
+            _consecutive_reranker_failures,
         )
+        if _consecutive_reranker_failures >= RERANKER_FAILURE_THRESHOLD:
+            _reranker_cooldown_until = time.monotonic() + RERANKER_COOLDOWN_SECONDS
+            logger.warning(
+                "importance:reranker_breaker_tripped cooldown_seconds=%s fallback=heuristic",
+                RERANKER_COOLDOWN_SECONDS,
+            )
         return _heuristic_scored(batch)
+
+    if _consecutive_reranker_failures:
+        _consecutive_reranker_failures = 0
+        _reranker_cooldown_until = 0.0
+        logger.warning("importance:reranker_breaker_reset")
 
     scored: list[ScoredArticle] = []
     for idx, article in enumerate(batch):

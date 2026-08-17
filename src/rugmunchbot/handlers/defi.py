@@ -4,13 +4,13 @@ RugMunchBot -- DeFi market depth handlers.
 
 Commands:
   /yield [stable]         Top yield opportunities (DefiLlama yields API, 5-min cache)
-  /lpcheck <address> [chain]  Liquidity pool health check (operator-supplied backend route)
+  /lpcheck <address> [chain]  Liquidity pool health check (backend lp-health route)
   /defi                   DeFi overview: global TVL, top chains, top protocols
 
 Data sources:
   * /yield  + /defi  -> DefiLlama public APIs (no auth): yields.llama.fi/pools,
                         api.llama.fi/v2/chains, api.llama.fi/protocols
-  * /lpcheck          -> backend /api/v1/lp-health/check/{lp_address} (operator-supplied RMI_BACKEND_URL)
+  * /lpcheck          -> backend /api/v1/lp-health/check/{lp_address} (DataBus-backed)
 
 The bot caches DefiLlama payloads in memory for 5 minutes (the backend does not
 expose yield data over a free bot-facing route, so we call DefiLlama directly).
@@ -24,23 +24,31 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
-from telegram.ext import CommandHandler
-
-from rugmunchbot.config import (
+from app.domains.telegram.rugmunchbot.config import (
+    BACKEND_URL,
+    backend_headers,
     fmt_chain,
     fmt_number,
     fmt_pct,
 )
-from rugmunchbot.formatters import (
+from app.domains.telegram.rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     sep,
     thin_sep,
 )
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools.registry import backend_json_get
+from app.domains.telegram.rugmunchbot.handlers._messages import (
+    ACTION_CHECK_ADDRESS,
+    ACTION_TRY_AGAIN,
+    failure_card,
+    usage_hint,
+)
+from app.domains.telegram.rugmunchbot.keyboards import back_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client, http_get_any
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+from telegram.ext import CommandHandler
 
 if TYPE_CHECKING:
     from telegram.ext import Application, ContextTypes
@@ -83,19 +91,13 @@ async def _fetch_json(
         cached = _cache_get(cache_key)
         if cached is not None:
             return cached
-    try:
-        async with httpx.AsyncClient(timeout=timeout_secs) as client:
-            r = await client.get(url, headers={"Accept": "application/json"})
-            if r.status_code != 200:
-                logger.debug("DefiLlama %s status %s", url, r.status_code)
-                return None
-            payload = r.json()
-            if cache_key:
-                _cache_set(cache_key, payload)
-            return payload
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.debug("DefiLlama %s failed: %s", url, exc)
+    payload = await http_get_any(url, headers={"Accept": "application/json"}, timeout=timeout_secs)
+    if payload is None:
+        logger.debug("DefiLlama %s failed", url)
         return None
+    if cache_key:
+        _cache_set(cache_key, payload)
+    return payload
 
 
 # ── /yield: top yield opportunities ────────────────────────────────────
@@ -173,7 +175,7 @@ async def cmd_yield(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     pools = _yield_candidates(payload.get("data") or [], stable_only=stable_only)
     if not pools:
         await msg.edit_text(
-            "\u26a0\ufe0f <b>No Qualified Yields</b>\n\nNo pools cleared the risk filters right now.\nTry again later.",
+            "\u26a0\ufe0f <b>No Qualified Yields</b>\n\nNo pools cleared the risk filters right now.\nPlease try again in a moment.",
             parse_mode=ParseMode.HTML,
         )
         return
@@ -251,11 +253,13 @@ async def cmd_lpcheck(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not ctx.args:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "\U0001f6e1\ufe0f <b>LP Health Check</b>\n\n"
-            "Usage: /lpcheck <code>address</code> [chain]\n\n"
-            "Examples:\n"
-            "  /lpcheck <code>0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852</code>\n"
-            "  /lpcheck <code>So11111111111111111111111111111111111111112</code> solana\n\n"
-            "\U0001f4a1 <i>Checks lock %, holder concentration and 24h liquidity change.</i>",
+            + usage_hint(
+                "lpcheck",
+                "address [chain]",
+                "0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852",
+                examples=("So11111111111111111111111111111111111111112 solana",),
+                extra="\U0001f4a1 <i>Checks lock %, holder concentration and 24h liquidity change.</i>",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -267,27 +271,49 @@ async def cmd_lpcheck(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         parse_mode=ParseMode.HTML,
     )
 
-    # [REVIEW] live distinguished backend-non-200 from network-error messages;
-    # backend_json_get returns None for both, so a single unavailable message
-    # is rendered (operator-supplied RMI_BACKEND_URL).
-    health = await backend_json_get(
-        f"/api/v1/lp-health/check/{address}", params={"chain": chain}, timeout=12
-    )
-    if health is None:
+    try:
+        client = get_shared_client(12)
+        r = await client.get(
+            f"{BACKEND_URL}/api/v1/lp-health/check/{address}",
+            params={"chain": chain},
+            headers=backend_headers(),
+        )
+        if r.status_code != 200:
+            await msg.edit_text(
+                failure_card(
+                    "LP Check Unavailable",
+                    "The backend could not verify this pool right now.",
+                    ACTION_TRY_AGAIN,
+                ),
+                parse_mode=ParseMode.HTML,
+                reply_markup=back_kb(),
+            )
+            return
+        health = r.json()
+    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
+        logger.debug("lp-health %s failed: %s", address, exc)
         await msg.edit_text(
-            "\u26a0\ufe0f <b>LP Check Unavailable</b>\n\n"
-            "The backend could not verify this pool right now.\nPlease try again in a moment.",
+            failure_card(
+                "LP Check Unavailable",
+                "The backend is not reachable right now.",
+                ACTION_TRY_AGAIN,
+            ),
             parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
         )
         return
 
     if not isinstance(health, dict) or health.get("error"):
         detail = health.get("error") if isinstance(health, dict) else ""
         await msg.edit_text(
-            f"\u26a0\ufe0f <b>LP Not Found</b>\n\n"
-            f"No pool data for <code>{address}</code> on {chain.capitalize()}."
-            + (f"\n<i>{detail}</i>" if detail else ""),
+            failure_card(
+                "LP Not Found",
+                f"No pool data for <code>{address}</code> on {chain.capitalize()}."
+                + (f"\n<i>{detail}</i>" if detail else ""),
+                ACTION_CHECK_ADDRESS,
+            ),
             parse_mode=ParseMode.HTML,
+            reply_markup=back_kb(),
         )
         return
 
@@ -350,9 +376,9 @@ def _rank_protocols(protocols: list[dict[str, Any]], limit: int = 8) -> list[dic
 
 async def cmd_defi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /defi — DeFi overview from DefiLlama."""
-    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text(
         "\U0001f3e6 <b>Fetching DeFi overview...</b>", parse_mode=ParseMode.HTML
-    )
+    )  # type: ignore[union-attr]  # PTB None-able fields
 
     chains, protocols = await asyncio.gather(
         _fetch_json(CHAINS_URL, cache_key="defi_chains"),

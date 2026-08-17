@@ -8,19 +8,20 @@ Pro tier. Combines full scanner data + wallet forensics + holder analysis
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from telegram.constants import ParseMode
-
-from rugmunchbot import db
-from rugmunchbot.config import (
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import (
+    BACKEND_URL,
     WEBSITE_URL,
+    backend_headers,
     fmt_number,
     fmt_pct,
     risk_bar,
 )
-from rugmunchbot.formatters import (
+from app.domains.telegram.rugmunchbot.formatters import (
     detect_chain,
     footer_links,
     is_owner,
@@ -28,28 +29,17 @@ from rugmunchbot.formatters import (
     sep,
     thin_sep,
 )
-from rugmunchbot.keyboards import back_kb, investigate_kb, paywall_kb
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools.registry import backend_json_get
-
-# TODO(port): the scan engines (scan_token / scan_token_v2 / v2_token_to_legacy)
-# are Stage-3 ports (checklist §5 — scanner.py is the HARD BLOCKER until the
-# ScanProvider protocol in plugins/scanner.py ships real engines). The OSS
-# stub scanner.py has no scan functions, so a top-level import would hard-fail
-# the module. These fallbacks raise at call time until the engines land. [REVIEW]
-try:  # pragma: no cover — exercised once scanner.py is ported
-    from rugmunchbot.scanner import scan_token, scan_token_v2, v2_token_to_legacy
-except ImportError:  # pragma: no cover — scanner.py stub until Stage 3
-
-    async def scan_token(address: str, chain: str | None = None) -> dict[str, Any]:
-        raise NotImplementedError("scan engines not ported yet (Stage 3) — see plugins/scanner.py")
-
-    async def scan_token_v2(address: str, chain: str | None = None) -> dict[str, Any] | None:
-        raise NotImplementedError("scan engines not ported yet (Stage 3) — see plugins/scanner.py")
-
-    def v2_token_to_legacy(data: dict[str, Any]) -> dict[str, Any]:
-        raise NotImplementedError("scan engines not ported yet (Stage 3) — see plugins/scanner.py")
-
+from app.domains.telegram.rugmunchbot.handlers._messages import (
+    ACTION_TRY_AGAIN,
+    failure_card,
+    usage_hint,
+)
+from app.domains.telegram.rugmunchbot.keyboards import back_kb, investigate_kb, paywall_kb
+from app.domains.telegram.rugmunchbot.scanner import scan_token, scan_token_v2, v2_token_to_legacy
+from app.domains.telegram.rugmunchbot.states import check_spam
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -68,13 +58,13 @@ _VERDICT_EMOJIS = {
 
 def _determine_verdict(scan_result: dict[str, Any], wallet_data: dict[str, Any]) -> tuple[str, str]:
     """Determine overall investigation verdict."""
-    risk = scan_result.get("risk_score", 0)
-    threats = len(scan_result.get("threats", []))
-    wallet_flags = len(wallet_data.get("flags", []))
-    bundle = scan_result.get("bundle_detected", False)
-    fresh = scan_result.get("fresh_wallet_pct", 0) > 50
-    honeypot = scan_result.get("honeypot", False)
-    low_liq = scan_result.get("liquidity", 0) < 1000 and scan_result.get("mcap", 0) > 10000
+    risk = scan_result.get("risk_score") or 0
+    threats = len(scan_result.get("threats") or [])
+    wallet_flags = len((wallet_data or {}).get("flags") or [])
+    bundle = bool(scan_result.get("bundle_detected"))
+    fresh = (scan_result.get("fresh_wallet_pct") or 0) > 50
+    honeypot = bool(scan_result.get("honeypot"))
+    low_liq = (scan_result.get("liquidity") or 0) < 1000 and (scan_result.get("mcap") or 0) > 10000
 
     score = risk
     if honeypot:
@@ -102,6 +92,58 @@ def _determine_verdict(scan_result: dict[str, Any], wallet_data: dict[str, Any])
         return "SAFE", "Clean — no significant risks detected"
 
 
+async def _run_scan(address: str, chain: str) -> dict[str, Any]:
+    """Security scan — v2 explainable first, legacy fallback."""
+    scan_v2 = await scan_token_v2(address, chain)
+    if scan_v2 is not None:
+        scan_result = v2_token_to_legacy(scan_v2)
+        if chain:
+            scan_result["chain"] = chain
+        return scan_result
+    return await scan_token(address, chain)
+
+
+async def _fetch_wallet_tokens(client: httpx.AsyncClient, address: str) -> dict[str, Any]:
+    """Fetch wallet token holdings from the backend (best-effort)."""
+    try:
+        wallet_resp = await client.get(
+            f"{BACKEND_URL}/api/v1/databus/wallet/{address}/tokens",
+            headers=backend_headers(),
+            timeout=10,
+        )
+        if wallet_resp.status_code == 200:
+            return wallet_resp.json()
+    except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
+        logger.warning("investigate backend fetch failed: %s", e)
+    return {}
+
+
+async def _fetch_cross_chain(client: httpx.AsyncClient, address: str, chain: str) -> list[Any]:
+    """Fetch cross-chain profile from the backend (best-effort)."""
+    try:
+        cc_resp = await client.get(
+            f"{BACKEND_URL}/api/v1/cross-chain/{address}",
+            params={"chain": chain},
+            headers=backend_headers(),
+            timeout=10,
+        )
+        if cc_resp.status_code == 200:
+            profile = cc_resp.json()
+            primary = profile.get("primary_chain", chain)
+            return [
+                {
+                    "source_chain": primary,
+                    "dest_chain": m.get("chain", ""),
+                    "address": m.get("address", ""),
+                    "confidence": m.get("confidence", 0),
+                }
+                for m in profile.get("addresses", [])
+            ]
+    except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
+        logger.warning("investigate history fetch failed: %s", e)
+    return []
+
+
 async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Deep investigation: Full token + wallet + holder + trace analysis.
 
@@ -113,18 +155,28 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return
     db.get_or_create_user(user.id, user.username, user.first_name)
 
+    # Per-user spam cooldown (3s) — mirror /scan: silent drop for rapid fire.
+    if check_spam(user.id):
+        return
+
     if not ctx.args:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "🕵️ <b>Deep Investigation</b>\n\n"
-            "Usage: /investigate <code>address</code>\n\n"
-            "Runs a comprehensive investigation combining:\n"
-            "  • Full security scan (honeypot, rug, bundle)\n"
-            "  • Wallet forensics (dev wallet, funding)\n"
-            "  • Holder concentration analysis\n"
-            "  • Cross-chain fund tracing\n"
-            "  • Smart money detection\n"
-            "  • AI-powered risk assessment\n\n"
-            "👑 <b>Pro tier</b> required",
+            + usage_hint(
+                "investigate",
+                "address",
+                "0x6982508145454Ce325dDbE47a25d4ec3d2311933",
+                extra=(
+                    "Runs a comprehensive investigation combining:\n"
+                    "  • Full security scan (honeypot, rug, bundle)\n"
+                    "  • Wallet forensics (dev wallet, funding)\n"
+                    "  • Holder concentration analysis\n"
+                    "  • Cross-chain fund tracing\n"
+                    "  • Smart money detection\n"
+                    "  • AI-powered risk assessment\n\n"
+                    "🛰️ <b>Monitor (250★/30d)</b> — live LP/whale + tax/ownership/mint alerts · 🔬 <b>Deep Scan (250★)</b> — full forensics"
+                ),
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -134,8 +186,8 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "🕵️ <b>Deep Investigation</b>\n\n"
             "This feature requires <b>Pro tier</b>.\n\n"
-            # [REVIEW] USD tier price scrubbed (private billing — checklist §6 #17).
-            "👑 <b>Pro tier</b> — Unlimited investigations + priority\n\n"
+            "🛰️ <b>Monitor (250★/30d)</b> — live LP/whale + tax/ownership/mint alerts\n"
+            "🔬 <b>Deep Scan (250★)</b> — full forensics on demand\n\n"
             "Upgrade now to unlock full investigative power!",
             parse_mode=ParseMode.HTML,
             reply_markup=paywall_kb(),
@@ -165,46 +217,37 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     try:
         # Phase 1-4: Run all analysis in parallel
-        # Security scan — v2 explainable first, legacy fallback
-        scan_v2 = await scan_token_v2(address, chain)
-        if scan_v2 is not None:
-            scan_result = v2_token_to_legacy(scan_v2)
-            if chain:
-                scan_result["chain"] = chain
-        else:
-            scan_result = await scan_token(address, chain)
+        client = get_shared_client(45)
+        # Scan + wallet + cross-chain run concurrently (previously
+        # sequential — up to ~75s worst case). Dev-wallet forensics wait
+        # on the scan result (dev_wallet comes from the scan).
+        scan_result, wallet_data, cross_chain = await asyncio.gather(
+            _run_scan(address, chain),
+            _fetch_wallet_tokens(client, address),
+            _fetch_cross_chain(client, address, chain),
+            return_exceptions=True,
+        )
+        if isinstance(scan_result, BaseException):
+            raise scan_result
+        if not isinstance(wallet_data, dict):
+            wallet_data = {}
+        if not isinstance(cross_chain, list):
+            cross_chain = []
 
-        # Wallet data (operator-supplied RMI_BACKEND_URL; backend_json_get
-        # returns None on failure — live try/except becomes a simple guard).
-        wallet_data: dict[str, Any] = {}
-        wd = await backend_json_get(f"/api/v1/databus/wallet/{address}/tokens", timeout=10)
-        if wd:
-            wallet_data = wd
-
-        # Dev wallet forensics (if available)
+        # Dev wallet forensics (if available) — waits on the scan result
         dev_data: dict[str, Any] = {}
         dev_wallet = scan_result.get("dev_wallet")
         if dev_wallet:
-            dd = await backend_json_get(f"/api/v1/databus/wallet/{dev_wallet}/tokens", timeout=10)
-            if dd:
-                dev_data = dd
-
-        # Cross-chain data
-        cross_chain: list[Any] = []
-        profile = await backend_json_get(
-            f"/api/v1/cross-chain/{address}", params={"chain": chain}, timeout=10
-        )
-        if profile:
-            primary = profile.get("primary_chain", chain)
-            cross_chain = [
-                {
-                    "source_chain": primary,
-                    "dest_chain": m.get("chain", ""),
-                    "address": m.get("address", ""),
-                    "confidence": m.get("confidence", 0),
-                }
-                for m in profile.get("addresses", [])
-            ]
+            try:
+                dev_resp = await client.get(
+                    f"{BACKEND_URL}/api/v1/databus/wallet/{dev_wallet}/tokens",
+                    headers=backend_headers(),
+                    timeout=10,
+                )
+                if dev_resp.status_code == 200:
+                    dev_data = dev_resp.json()
+            except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
+                logger.warning("investigate token fetch failed: %s", e)
 
         # Build investigation report
         verdict, verdict_desc = _determine_verdict(scan_result, wallet_data)
@@ -268,7 +311,7 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
                 f"Risk: <b>{scan_result.get('risk_level', 'unknown').upper()}</b>"
             )
             if scan_result.get("breakdown"):
-                from rugmunchbot.formatters import format_scoring_breakdown
+                from app.domains.telegram.rugmunchbot.formatters import format_scoring_breakdown
 
                 lines.append(format_scoring_breakdown(scan_result["breakdown"]))
         lines.append("")
@@ -439,8 +482,7 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
                     f"📊 MCap: {fmt_number(scan_result['mcap'])} | Liq: {fmt_number(scan_result['liquidity'])}",
                     "",
                     "📋 <b>Full investigation too long for Telegram.</b>",
-                    # [REVIEW] anchor text neutralized; href uses BOT_WEBSITE_URL env.
-                    f"🌐 <a href='{WEBSITE_URL}/markets/token/{address}'>View full report</a>",
+                    f"🌐 <a href='{WEBSITE_URL}/markets/token/{address}'>View full report on RugMunch.io</a>",
                 ]
             )
             summary_lines.append(footer_links())
@@ -462,9 +504,11 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         logger.debug("cmd_investigate_error", exc_info=True)
         logger.error(f"Investigation error: {e}")
         await msg.edit_text(
-            f"❌ <b>Investigation Failed</b>\n\n"
-            f"Could not complete investigation for <code>{address}</code>.\n"
-            f"Error: {str(e)[:200]}",
+            failure_card(
+                "Investigation Failed",
+                f"Could not complete investigation for <code>{address}</code>.",
+                ACTION_TRY_AGAIN,
+            ),
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )

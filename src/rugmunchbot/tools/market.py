@@ -1,4 +1,4 @@
-"""market_overview tool + shared price fallback helpers.
+"""market_overview tool — one-call market picture (global + BTC/ETH/SOL + F&G).
 
 ``market_overview`` returns a one-call market picture:
   * global market cap / 24h volume / BTC-ETH dominance (CoinGecko /global),
@@ -7,9 +7,10 @@
   * top movers (CoinGecko trending) and top chains by TVL (DefiLlama).
 
 The price fallback helpers (``coingecko_quote`` / ``coinpaprika_quote`` /
-``coincap_quote``) are the last layers of the ``price_lookup`` fallback chain
-(backend → DexScreener → Birdeye → CoinGecko → CoinPaprika/CoinCap) — see
-``tools/price.py`` which imports them.
+``coincap_quote`` / ``symbol_quote_fallback``) moved to the shared pricing
+service (``app/domains/telegram/rugmunchbot/services/pricing.py``) — they are
+re-exported here as thin shims for import compatibility (nothing else should
+grow its own fallback chain; call ``services.pricing.get_price`` instead).
 
 All numbers come from live sources probed 2026-08-14 (see module notes).
 """
@@ -18,141 +19,22 @@ from __future__ import annotations
 
 from typing import Any
 
-from rugmunchbot.config import COINGECKO, COINGECKO_API_KEY
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools._client import http_get_any, http_get_json
-from rugmunchbot.tools.registry import ToolResult, backend_json_get
+from app.domains.telegram.rugmunchbot.config import COINGECKO
+from app.domains.telegram.rugmunchbot.services.pricing import (
+    _coingecko_headers,
+    coincap_quote,
+    coingecko_quote,
+    coinpaprika_quote,
+    symbol_quote_fallback,
+)
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import http_get_any, http_get_json
+from app.domains.telegram.rugmunchbot.tools.registry import ToolResult, backend_json_get
 
 logger = get_logger("rmi_bot.tools.market")
 
-COINPAPRIKA = "https://api.coinpaprika.com/v1"
-COINCAP = "https://api.coincap.io/v2"
 DEFILLAMA = "https://api.llama.fi/v2"
 FEAR_GREED = "https://api.alternative.me/fng"
-
-
-def _coingecko_headers() -> dict[str, str]:
-    """CoinGecko demo-key header when the gopass/env key is present."""
-    key = COINGECKO_API_KEY
-    return {"x-cg-demo-api-key": key} if key else {}
-
-
-# ── Price fallback helpers (last layers of the price_lookup chain) ─────────
-
-
-async def coingecko_quote(symbol: str) -> dict[str, Any] | None:
-    """CoinGecko price quote for a $SYMBOL (search → coin detail)."""
-    sym = (symbol or "").strip().upper()
-    if not sym:
-        return None
-    search = await http_get_json(
-        f"{COINGECKO}/search", params={"query": sym}, headers=_coingecko_headers(), timeout=6.0
-    )
-    coins = search.get("coins") if search else None
-    if not isinstance(coins, list):
-        return None
-    match = next(
-        (c for c in coins if isinstance(c, dict) and (c.get("symbol") or "").upper() == sym), None
-    )
-    if not match:
-        return None
-    coin_id = match.get("id")
-    if not coin_id:
-        return None
-    detail = await http_get_json(
-        f"{COINGECKO}/coins/{coin_id}",
-        params={"localization": "false", "tickers": "false", "market_data": "true"},
-        headers=_coingecko_headers(),
-        timeout=6.0,
-    )
-    if not detail:
-        return None
-    raw_md = detail.get("market_data")
-    md = raw_md if isinstance(raw_md, dict) else {}
-    return {
-        "symbol": sym,
-        "name": detail.get("name") or match.get("name"),
-        "price_usd": (md.get("current_price") or {}).get("usd"),
-        "change_24h": md.get("price_change_percentage_24h"),
-        "volume_24h": (md.get("total_volume") or {}).get("usd"),
-        "market_cap": (md.get("market_cap") or {}).get("usd"),
-        "source": "coingecko",
-    }
-
-
-async def coinpaprika_quote(symbol: str) -> dict[str, Any] | None:
-    """CoinPaprika price quote for a $SYMBOL (search → ticker)."""
-    sym = (symbol or "").strip().upper()
-    if not sym:
-        return None
-    search = await http_get_json(
-        f"{COINPAPRIKA}/search", params={"q": sym, "c": "currencies"}, timeout=6.0
-    )
-    items = search if isinstance(search, list) else (search or {}).get("currencies")
-    if not isinstance(items, list):
-        return None
-    match = next(
-        (c for c in items if isinstance(c, dict) and (c.get("symbol") or "").upper() == sym), None
-    )
-    coin_id = (match or {}).get("id")
-    if not coin_id:
-        return None
-    ticker = await http_get_json(f"{COINPAPRIKA}/tickers/{coin_id}", timeout=6.0)
-    if not ticker:
-        return None
-    usd = ticker.get("quotes", {}).get("USD") if isinstance(ticker.get("quotes"), dict) else {}
-    return {
-        "symbol": sym,
-        "name": ticker.get("name"),
-        "price_usd": usd.get("price"),
-        "change_24h": usd.get("percent_change_24h"),
-        "volume_24h": usd.get("volume_24h"),
-        "market_cap": usd.get("market_cap"),
-        "source": "coinpaprika",
-    }
-
-
-async def coincap_quote(symbol: str) -> dict[str, Any] | None:
-    """CoinCap price quote for a $SYMBOL (assets search)."""
-    sym = (symbol or "").strip().upper()
-    if not sym:
-        return None
-    body = await http_get_json(f"{COINCAP}/assets", params={"search": sym.lower()}, timeout=6.0)
-    assets = body.get("data") if body else None
-    if not isinstance(assets, list):
-        return None
-    match = next(
-        (a for a in assets if isinstance(a, dict) and (a.get("symbol") or "").upper() == sym), None
-    )
-    if not match:
-        return None
-    price = match.get("priceUsd")
-    try:
-        price = float(price) if price is not None else None
-    except (TypeError, ValueError):
-        price = None
-    return {
-        "symbol": sym,
-        "name": match.get("name"),
-        "price_usd": price,
-        "change_24h": match.get("changePercent24Hr"),
-        "volume_24h": match.get("volumeUsd24Hr"),
-        "market_cap": match.get("marketCapUsd"),
-        "source": "coincap",
-    }
-
-
-async def symbol_quote_fallback(symbol: str) -> dict[str, Any] | None:
-    """Rotate through CoinGecko → CoinPaprika → CoinCap until one returns data."""
-    for fetcher in (coingecko_quote, coinpaprika_quote, coincap_quote):
-        try:
-            quote = await fetcher(symbol)
-        except (TimeoutError, OSError) as exc:
-            logger.debug("symbol fallback %s failed: %s", fetcher.__name__, exc)
-            quote = None
-        if quote and quote.get("price_usd") is not None:
-            return quote
-    return None
 
 
 # ── Market overview sources ────────────────────────────────────────────────
@@ -165,7 +47,7 @@ async def _backend_prices() -> dict[str, Any] | None:
     )
     if not body or not isinstance(body.get("prices"), dict):
         return None
-    return body["prices"]  # type: ignore[no-any-return]  # httpx/sqlite JSON Any access (ported verbatim)
+    return body["prices"]
 
 
 async def _backend_fear_greed() -> dict[str, Any] | None:
@@ -313,3 +195,17 @@ async def market_overview(*, chain: str = "", limit: int = 10) -> ToolResult:
         addresses=[],
         source="; ".join(sources),
     )
+
+
+# Re-exported shims — the price fallback helpers now live in the shared
+# pricing service (``services/pricing.py``). These names stay importable from
+# ``tools.market`` for compatibility with older imports (e.g.
+# ``market_condition`` imports ``_coingecko_headers`` here).
+__all__ = [
+    "_coingecko_headers",
+    "coincap_quote",
+    "coingecko_quote",
+    "coinpaprika_quote",
+    "market_overview",
+    "symbol_quote_fallback",
+]

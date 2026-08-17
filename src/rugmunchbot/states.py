@@ -10,10 +10,10 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from app.domains.telegram.rugmunchbot.config import OWNER_IDS
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
 from cachetools import TTLCache
-
-from rugmunchbot.config import OWNER_IDS
-from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
 
@@ -33,30 +33,30 @@ async def get_sol_price() -> float:
     if now - _sol_price_ts < 300:  # cache for 5 minutes
         return _sol_price
     try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get(
-                "https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112"
+        client = get_shared_client(5)
+        r = await client.get(
+            "https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112"
+        )
+        if r.status_code == 200:
+            data = r.json()
+            price_str = (
+                data.get("data", {})
+                .get("So11111111111111111111111111111111111111112", {})
+                .get("price")
             )
-            if r.status_code == 200:
-                data = r.json()
-                price_str = (
-                    data.get("data", {})
-                    .get("So11111111111111111111111111111111111111112", {})
-                    .get("price")
-                )
-                if price_str:
-                    _sol_price = float(price_str)
-                    _sol_price_ts = now
-                    return _sol_price
-            # Jupiter unreachable/blocked from some hosts — CoinGecko fallback
-            r = await client.get(
-                "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
-            )
-            if r.status_code == 200:
-                price = r.json().get("solana", {}).get("usd")
-                if price:
-                    _sol_price = float(price)
-                    _sol_price_ts = now
+            if price_str:
+                _sol_price = float(price_str)
+                _sol_price_ts = now
+                return _sol_price
+        # Jupiter unreachable/blocked from some hosts — CoinGecko fallback
+        r = await client.get(
+            "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
+        )
+        if r.status_code == 200:
+            price = r.json().get("solana", {}).get("usd")
+            if price:
+                _sol_price = float(price)
+                _sol_price_ts = now
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
         logger.warning(f"Failed to fetch SOL price: {e}")
     return _sol_price
@@ -121,3 +121,9 @@ def check_alert_rate_limit(user_id: int) -> bool:
 
 # ── Pending deep scan payments (token → details) ──
 _pending_deep_scans: dict[str, dict[str, Any]] = {}
+
+# ── Pending monitor payments (token → details) ──
+# Mirrors ``_pending_deep_scans``: the callback/command stores the pending
+# monitor under a random token and sends a Stars invoice with payload
+# ``mon_{token}``; ``successful_payment`` pops it on confirmation.
+_pending_monitors: dict[str, dict[str, Any]] = {}

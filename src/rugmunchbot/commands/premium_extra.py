@@ -1,21 +1,15 @@
 """
 Additional Premium Commands — Whale Alerts, Fund Tracing.
 All free during beta.
-
-OSS note: billing/tiers are PRIVATE in the live bot. This command is a
-config-gated feature flag checked through the operator's BillingProvider
-(plugins/billing.py) — see ``_premium_gate``.
 """
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
-import httpx
-
-from rugmunchbot.config import BACKEND_URL, backend_headers
-from rugmunchbot.plugins.billing import get_billing_provider
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import http_get_json, http_post_json
 
 logger = get_logger("rmi.premium_extra")
 
@@ -23,31 +17,29 @@ logger = get_logger("rmi.premium_extra")
 async def _backend_get(
     path: str, params: dict[str, Any] | None = None, timeout: float = 15.0
 ) -> dict[str, Any] | None:
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.get(
-                f"{BACKEND_URL}{path}", headers=backend_headers(), params=params or {}
-            )
-            if r.status_code == 200:
-                return cast("dict[str, Any]", r.json())
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.debug("backend GET %s failed: %s", path, exc)
-    return None
+    body = await http_get_json(
+        f"{BACKEND_URL}{path}",
+        headers=backend_headers(),
+        params=params or {},
+        timeout=timeout,
+    )
+    if body is None:
+        logger.debug("backend GET %s failed", path)
+    return body
 
 
 async def _backend_post(
     path: str, json: dict[str, Any] | None = None, timeout: float = 20.0
 ) -> dict[str, Any] | None:
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.post(
-                f"{BACKEND_URL}{path}", headers=backend_headers(), json=json or {}
-            )
-            if r.status_code == 200:
-                return cast("dict[str, Any]", r.json())
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.debug("backend POST %s failed: %s", path, exc)
-    return None
+    body = await http_post_json(
+        f"{BACKEND_URL}{path}",
+        headers=backend_headers(),
+        json=json or {},
+        timeout=timeout,
+    )
+    if body is None:
+        logger.debug("backend POST %s failed", path)
+    return body
 
 
 def _fmt_usd(v: float | None) -> str:
@@ -58,37 +50,6 @@ def _fmt_usd(v: float | None) -> str:
     if v >= 1_000:
         return f"${v / 1_000:.1f}K"
     return f"${v:,.2f}"
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PREMIUM GATE — OSS feature flag (billing stays PRIVATE)
-# ═══════════════════════════════════════════════════════════════════════════
-# Same seam as commands/premium.py: the OSS build ships a single ``free`` tier
-# with env quotas (BOT_FREE_SCANS_PER_WEEK / BOT_FREE_AI_MSGS_PER_WEEK) and
-# delegates enforcement to the operator's BillingProvider. Default no-op
-# allows everything.
-
-
-async def _premium_gate(msg: Any) -> bool:
-    """Gate a premium command behind the operator's BillingProvider.
-
-    Returns True when the user may proceed. Entitlement + quota are delegated
-    to plugins/billing.BillingProvider (check_entitlement / consume_quota) —
-    the OSS default no-op allows all.
-    """
-    provider = get_billing_provider()
-    uid = msg.from_user.id if msg.from_user else 0
-    if not await provider.check_entitlement(uid, "premium"):
-        await msg.reply_text(
-            "💎 <b>Premium Feature</b>\n\n"
-            "This command is gated by the operator's billing provider.\n"
-            "Self-hosted deployments control access via the BillingProvider "
-            "plugin (see docs/); the default allows everything.",
-            parse_mode="HTML",
-        )
-        return False
-    await provider.consume_quota(uid, "premium")
-    return True
 
 
 async def cmd_whale(update, ctx) -> None:
@@ -111,9 +72,6 @@ async def cmd_whale(update, ctx) -> None:
             "<i>Free during beta — never miss a whale move.</i>",
             parse_mode="HTML",
         )
-        return
-
-    if not await _premium_gate(msg):
         return
 
     if args[0] == "list":

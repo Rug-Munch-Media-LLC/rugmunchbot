@@ -7,12 +7,13 @@ Supports comma-separated multi-address scanning.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import httpx
-
-from rugmunchbot.config import BACKEND_URL, backend_headers
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
 
 logger = get_logger("rmi.portfolio")
 
@@ -110,112 +111,119 @@ async def cmd_portfolio(update, ctx) -> None:
 
     await msg.chat.send_action("typing")
 
-    from rugmunchbot.formatters import (
+    from app.domains.telegram.rugmunchbot.formatters import (
         is_evm,
         is_sol,
     )
 
-    async with httpx.AsyncClient(timeout=25) as client:
-        for addr_idx, address in enumerate(addresses):
-            try:
-                # Detect chain and fetch portfolio
-                if is_sol(address):
-                    portfolio = await _fetch_solana_portfolio(client, address)
-                elif is_evm(address):
-                    portfolio = await _fetch_evm_portfolio(client, address)
-                else:
-                    await msg.reply_text(
-                        f"❌ Unrecognized address format: <code>{address}</code>",
-                        parse_mode="HTML",
-                    )
-                    continue
+    client = get_shared_client(25)
 
-                top_tokens = portfolio.get("top_tokens", [])
-                balance = portfolio.get("balance_usd", 0)
-                tx_count = portfolio.get("tx_count", 0)
+    # Fetch every address concurrently (was a sequential per-address loop
+    # — up to 3 x 10s worst case). Unrecognized formats yield None.
+    async def _fetch_portfolio(address: str) -> dict[str, Any] | None:
+        if is_sol(address):
+            return await _fetch_solana_portfolio(client, address)
+        if is_evm(address):
+            return await _fetch_evm_portfolio(client, address)
+        return None
 
-                # Build display lines
-                label = f"👛 <b>Portfolio #{addr_idx + 1}:</b> <code>{address}</code>"
+    # Re-arm typing — the parallel fetch takes as long as the slowest
+    # address, so the indicator would otherwise expire mid-wait.
+    await msg.chat.send_action("typing")
+    portfolios = await asyncio.gather(*(_fetch_portfolio(a) for a in addresses))
 
-                lines = [label, ""]
+    for addr_idx, (address, portfolio) in enumerate(zip(addresses, portfolios, strict=True), 1):
+        if portfolio is None:
+            await msg.reply_text(
+                f"❌ Unrecognized address format: <code>{address}</code>",
+                parse_mode="HTML",
+            )
+            continue
+        try:
+            top_tokens = portfolio.get("top_tokens", [])
+            balance = portfolio.get("balance_usd", 0)
+            tx_count = portfolio.get("tx_count", 0)
 
-                # Summary row
-                summary_parts = []
-                summary_parts.append(f"💰 <b>Value:</b> {_format_usd(balance)}")
-                summary_parts.append(
-                    f"📝 <b>TX:</b> {tx_count:,}" if tx_count else "📝 <b>TX:</b> N/A"
-                )
-                lines.append(" | ".join(summary_parts))
+            # Build display lines
+            label = f"👛 <b>Portfolio #{addr_idx}:</b> <code>{address}</code>"
 
-                # Token holdings table
-                if top_tokens:
-                    lines.extend(["", "🪙 <b>Holdings</b>"])
+            lines = [label, ""]
 
-                    # Calculate total value for percentages
-                    total_value = sum(float(t.get("value_usd", 0)) for t in top_tokens)
-                    if total_value == 0:
-                        total_value = balance
+            # Summary row
+            summary_parts = []
+            summary_parts.append(f"💰 <b>Value:</b> {_format_usd(balance)}")
+            summary_parts.append(f"📝 <b>TX:</b> {tx_count:,}" if tx_count else "📝 <b>TX:</b> N/A")
+            lines.append(" | ".join(summary_parts))
 
-                    # Header row
-                    lines.append("  <code>#  Symbol         Balance    Value       %</code>")
+            # Token holdings table
+            if top_tokens:
+                lines.extend(["", "🪙 <b>Holdings</b>"])
 
-                    for i, t in enumerate(top_tokens[:8], 1):
-                        sym = (t.get("symbol") or "???")[:10]
-                        bal = t.get("balance", t.get("balance_raw", ""))
-                        val = float(t.get("value_usd", 0))
-                        val_str = _format_usd(val)
+                # Calculate total value for percentages
+                total_value = sum(float(t.get("value_usd", 0)) for t in top_tokens)
+                if total_value == 0:
+                    total_value = balance
+
+                # Header row
+                lines.append("  <code>#  Symbol         Balance    Value       %</code>")
+
+                for i, t in enumerate(top_tokens[:8], 1):
+                    sym = (t.get("symbol") or "???")[:10]
+                    bal = t.get("balance", t.get("balance_raw", ""))
+                    val = float(t.get("value_usd", 0))
+                    val_str = _format_usd(val)
+                    pct = (val / total_value * 100) if total_value > 0 else 0
+
+                    # Format balance
+                    if isinstance(bal, (int, float)) and bal > 0:
+                        if bal >= 1000:
+                            bal_str = f"{bal:,.2f}"
+                        elif bal >= 1:
+                            bal_str = f"{bal:.4f}"
+                        elif bal >= 0.001:
+                            bal_str = f"{bal:.6f}"
+                        else:
+                            bal_str = f"{bal:.8f}"
+                        bal_str = bal_str[:12]
+                    else:
+                        bal_str = "—"
+                        val_str = _format_usd(val or 0)
                         pct = (val / total_value * 100) if total_value > 0 else 0
 
-                        # Format balance
-                        if isinstance(bal, (int, float)) and bal > 0:
-                            if bal >= 1000:
-                                bal_str = f"{bal:,.2f}"
-                            elif bal >= 1:
-                                bal_str = f"{bal:.4f}"
-                            elif bal >= 0.001:
-                                bal_str = f"{bal:.6f}"
-                            else:
-                                bal_str = f"{bal:.8f}"
-                            bal_str = bal_str[:12]
-                        else:
-                            bal_str = "—"
-                            val_str = _format_usd(val or 0)
-                            pct = (val / total_value * 100) if total_value > 0 else 0
+                    pct_str = f"{pct:.1f}%"
+                    lines.append(
+                        f"  <code>{i:<2} {sym:<14} {bal_str:<12} {val_str:<10} {pct_str}</code>"
+                    )
 
-                        pct_str = f"{pct:.1f}%"
-                        lines.append(
-                            f"  <code>{i:<2} {sym:<14} {bal_str:<12} {val_str:<10} {pct_str}</code>"
-                        )
+                lines.append(f"\n  <b>Total:</b> {_format_usd(total_value)}")
 
-                    lines.append(f"\n  <b>Total:</b> {_format_usd(total_value)}")
+            if not top_tokens:
+                lines.append("\n  No token holdings data available.")
 
-                if not top_tokens:
-                    lines.append("\n  No token holdings data available.")
+            lines.append("")
 
-                lines.append("")
+            text = "\n".join(lines)
+            if len(text) > 4000:
+                text = text[:4000] + "\n\n<i>...truncated</i>"
 
-                text = "\n".join(lines)
-                if len(text) > 4000:
-                    text = text[:4000] + "\n\n<i>...truncated</i>"
+            await msg.reply_text(
+                text,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
 
-                await msg.reply_text(
-                    text,
-                    parse_mode="HTML",
-                    disable_web_page_preview=True,
-                )
-
-            except (
-                ConnectionError,
-                OSError,
-                TimeoutError,
-                httpx.HTTPError,
-                httpx.TimeoutException,
-            ) as e:
-                logger.error("Portfolio failed for %s: %s", address, e)
-                await msg.reply_text(
-                    f"❌ Could not scan <code>{address}</code>. Make sure the address is valid.",
-                    parse_mode="HTML",
-                )
+        except (
+            ConnectionError,
+            OSError,
+            TimeoutError,
+            httpx.HTTPError,
+            httpx.TimeoutException,
+        ) as e:
+            logger.error("Portfolio failed for %s: %s", address, e)
+            await msg.reply_text(
+                f"❌ Could not scan <code>{address}</code>. Make sure the address is valid.",
+                parse_mode="HTML",
+            )
 
 
 __all__ = ["cmd_portfolio"]

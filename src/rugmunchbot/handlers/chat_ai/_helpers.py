@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import re
 
-from rugmunchbot.formatters import footer_links
-from rugmunchbot.handlers.chat_ai._classify import (
+from app.domains.telegram.rugmunchbot.formatters import footer_links
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import (
     MAX_ADDRESS_HINTS,
     _extract_addresses,
     _is_capability_question,
@@ -24,29 +24,27 @@ from rugmunchbot.handlers.chat_ai._classify import (
     _is_meaningful_question,
     _is_self_improvement_question,
 )
-from rugmunchbot.handlers.chat_ai._local_ai import (
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._local_ai import (
     _INTENT_RULES,
     _SELF_DESCRIPTION_ANSWER,
     _SELF_IMPROVEMENT_ANSWER,
     local_ai_response,
 )
-from rugmunchbot.handlers.chat_ai._markup import (
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._markup import (
     CHUNK_MAX_CHARS,
     MAX_ANSWER_CHARS,
     _beautify_answer,
     _cap_answer,
-    _chunk_text,
     _format_scan_summary,
     _is_section_header,
     _markdown_bold_to_html,
     _markdown_to_html,
     _normalize_llm_markup,
     _raw_html_emphasis_to_markdown,
-    _split_oversized,
     _tables_to_lists,
     _unescape_llm_entities,
 )
-from rugmunchbot.handlers.chat_ai._quality import (
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._quality import (
     _grounding_sources_count,
     is_degenerate_answer,
     strip_think_blocks,
@@ -63,7 +61,9 @@ _INJECTION_MESSAGES: dict[str, str] = {
     "secret-extraction": ("I don't reveal system prompts, API keys or internal configuration."),
     "role-switch": ("I'm Rug Munch's assistant — I don't switch to developer/uncensored modes."),
     "echo-poisoning": ("I don't echo raw prompts or messages — ask me a normal question instead."),
-    "wallet-secret-harvest": ("Never share your seed phrase or private keys with anyone — including bots."),
+    "wallet-secret-harvest": (
+        "Never share your seed phrase or private keys with anyone — including bots."
+    ),
     "wallet-drain-social": (
         "Be careful! Legitimate airdrops never ask you to connect your wallet or approve transactions to claim."
     ),
@@ -126,9 +126,7 @@ _CHAT_DISABLED = (
     "and /price still work \u2014 just send a contract address!"
 )
 
-_THINKING_GENERAL = (
-    "\U0001f916 <b>On it...</b>\n\n\U0001f4ac <i>{question}</i>\n\n\U0001f50d Checking our intelligence database..."
-)
+_THINKING_GENERAL = "\U0001f916 <b>On it...</b>\n\n\U0001f4ac <i>{question}</i>\n\n\U0001f50d Checking our intelligence database..."
 
 _THINKING_ADDRESS = (
     "\U0001f916 <b>On it...</b>\n\n\U0001f4ac <i>{question}</i>\n\n"
@@ -157,11 +155,15 @@ _THINKING_SCAM = (
 
 # "Investigate-style" intents get the research-collections placeholder instead
 # of the generic DB-search one (matches the /investigate deep-dive framing).
-_INVESTIGATE_INTENT_RE = re.compile(r"\b(investigat\w*|deep dive|forensic|trace this|dig into)\b", re.IGNORECASE)
+_INVESTIGATE_INTENT_RE = re.compile(
+    r"\b(investigat\w*|deep dive|forensic|trace this|dig into)\b", re.IGNORECASE
+)
 
 
 # Price/market queries get a market-data message.
-_PRICE_INTENT_RE = re.compile(r"\b(price|cost|worth|value|market cap|mcap|how much|trading at)\b", re.IGNORECASE)
+_PRICE_INTENT_RE = re.compile(
+    r"\b(price|cost|worth|value|market cap|mcap|how much|trading at)\b", re.IGNORECASE
+)
 
 # News queries get a news-feed message.
 _NEWS_INTENT_RE = re.compile(
@@ -169,7 +171,9 @@ _NEWS_INTENT_RE = re.compile(
 )
 
 # Scam/security queries get a threat-intel message.
-_SCAM_INTENT_RE = re.compile(r"\b(scam|rug|honeypot|exploit|hack|ponzi|fraud|safe|trust)\b", re.IGNORECASE)
+_SCAM_INTENT_RE = re.compile(
+    r"\b(scam|rug|honeypot|exploit|hack|ponzi|fraud|safe|trust)\b", re.IGNORECASE
+)
 
 
 def _thinking_template(text: str, has_address: bool) -> str:
@@ -193,9 +197,7 @@ def _thinking_template(text: str, has_address: bool) -> str:
     return _THINKING_GENERAL
 
 
-_STILL_DIGGING = (
-    "\U0001f916 <b>Still digging...</b>\n\n\u23f3 Cross-referencing exploit databases + checking live news..."
-)
+_STILL_DIGGING = "\U0001f916 <b>Still digging...</b>\n\n\u23f3 Cross-referencing exploit databases + checking live news..."
 
 
 __all__ = [
@@ -225,7 +227,6 @@ __all__ = [
     "_THINKING_SCAM",
     "_beautify_answer",
     "_cap_answer",
-    "_chunk_text",
     "_extract_addresses",
     "_format_scan_summary",
     "_grounding_sources_count",
@@ -239,7 +240,6 @@ __all__ = [
     "_markdown_to_html",
     "_normalize_llm_markup",
     "_raw_html_emphasis_to_markdown",
-    "_split_oversized",
     "_tables_to_lists",
     "_thinking_template",
     "_unescape_llm_entities",

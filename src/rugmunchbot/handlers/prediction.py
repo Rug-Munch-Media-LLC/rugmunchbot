@@ -2,8 +2,9 @@
 """
 RugMunchBot -- Prediction market command handlers.
 
-Commands: /polymarket, /election, /odds — backed by the operator-supplied
-backend prediction-market router (/api/v1/prediction-markets/*).
+Commands: /polymarket, /election, /odds — backed by the backend
+prediction-market router (app/routers/prediction_market_router.py,
+/api/v1/prediction-markets/*).
 
 Sources: Polymarket, Kalshi, Limitless, Manifold (real-money + play-money
 prediction markets). The backend caches every endpoint (30s-1h TTL) — the
@@ -20,14 +21,13 @@ from datetime import UTC, datetime
 from html import escape
 from typing import TYPE_CHECKING, Any
 
+import httpx
+from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers, fmt_number
+from app.domains.telegram.rugmunchbot.formatters import footer_links, sep
+from app.domains.telegram.rugmunchbot.keyboards import back_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from telegram.constants import ParseMode
 from telegram.ext import CommandHandler
-
-from rugmunchbot.config import fmt_number
-from rugmunchbot.formatters import footer_links, sep
-from rugmunchbot.keyboards import back_kb
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools.registry import backend_json_get
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -138,9 +138,21 @@ async def _fetch_prediction(
     Returns the parsed JSON body or None on any failure (network, non-200,
     malformed body). Callers render a graceful unavailable state on None.
     """
-    # [REVIEW] routed through backend_json_get (operator-supplied
-    # RMI_BACKEND_URL + RMI_API_KEY header) instead of raw httpx.
-    return await backend_json_get(path, params=params, timeout=timeout_secs)
+    try:
+        async with httpx.AsyncClient(timeout=timeout_secs) as client:
+            r = await client.get(
+                f"{BACKEND_URL}{path}",
+                params=params,
+                headers=backend_headers(),
+            )
+            if r.status_code != 200:
+                logger.debug("prediction %s status %s", path, r.status_code)
+                return None
+            body = r.json()
+            return body if isinstance(body, dict) else None
+    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
+        logger.debug("prediction %s fetch failed: %s", path, exc)
+        return None
 
 
 async def cmd_polymarket(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -151,9 +163,9 @@ async def cmd_polymarket(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     category = ctx.args[0].lower() if ctx.args else "all"
     if category not in POLYMARKET_CATEGORIES:
         category = "all"
-    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text(
         "\U0001f52e <b>Fetching prediction markets...</b>", parse_mode=ParseMode.HTML
-    )
+    )  # type: ignore[union-attr]  # PTB None-able fields
     data = await _fetch_prediction(
         "/api/v1/prediction-markets/trending", params={"limit": MARKET_LIMIT, "category": category}
     )

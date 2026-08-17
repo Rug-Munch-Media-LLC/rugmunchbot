@@ -33,6 +33,9 @@ MAX_PART_CHARS = 4000
 _FENCE_RE = re.compile(r"`{3,}.*?`{3,}", re.DOTALL)
 # A markdown link [text](url) or a bare URL.
 _LINK_RE = re.compile(r"\[[^\]]*\]\([^)]*\)|https?://[^\s)\]<>]+")
+# A complete HTML anchor <a href="...">label</a> (raw HTML a model emitted;
+# the pipeline does not convert <a> tags, so they must stay atomic too).
+_ANCHOR_RE = re.compile(r"<a\b[^>]*>.*?</a>", re.DOTALL)
 # A balanced **bold** / ***bold*** span (must mirror _helpers._BOLD_RE).
 _BOLD_SPAN_RE = re.compile(r"\*{2,3}[^*\n]+?\*{2,3}")
 
@@ -165,7 +168,7 @@ def _split_code(segment: str, max_chars: int) -> list[str]:
 def _cut_index(text: str, limit: int) -> int:
     """Safe cut index for a prose segment: the last sentence boundary before
     ``limit`` (else the last word boundary, else exactly ``limit``) — never
-    inside a markdown link / bare URL."""
+    inside a markdown link / bare URL / HTML anchor."""
     best = -1
     for sep_ in (". ", "? ", "! "):
         idx = text.rfind(sep_, 0, limit)
@@ -175,12 +178,19 @@ def _cut_index(text: str, limit: int) -> int:
     if cut < limit // 2:
         cut = limit
     # Never split a link: back up to the link's start when the cut lands
-    # inside one (only when the backed-up piece is still substantial).
-    for m in _LINK_RE.finditer(text):
-        if m.start() < cut < m.end():
-            if m.start() >= limit // 2:
-                cut = m.start()
-            break
+    # inside one (only when the backed-up piece is still substantial);
+    # otherwise move the cut FORWARD past the link when it still fits in the
+    # window — a whole link beats a tiny part OR a mid-URL break. A link that
+    # spans the whole window keeps the cut (unavoidable; the renderer shows
+    # the literal remainder).
+    for regex in (_LINK_RE, _ANCHOR_RE):
+        for m in regex.finditer(text):
+            if m.start() < cut < m.end():
+                if m.start() >= limit // 2:
+                    cut = m.start()
+                elif m.end() <= limit:
+                    cut = m.end()
+                break
     # Never split a **bold** span: a cut landing inside one would leave a
     # dangling opener/closer at a part edge. Back up to the span's opening
     # so the whole span leads the next part (balanced). A span that starts

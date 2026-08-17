@@ -33,9 +33,9 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools._client import http_get_any
-from rugmunchbot.tools.registry import ToolResult, backend_json_get
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import http_get_any
+from app.domains.telegram.rugmunchbot.tools.registry import ToolResult, backend_json_get
 
 logger = get_logger("rmi_bot.tools.prediction_markets")
 
@@ -78,8 +78,8 @@ def _resolution_status(closed: bool | None, end_date: str | None) -> str:
             end = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
             if (end - datetime.now(UTC)).total_seconds() <= 86400:
                 return "closing_soon"
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as e:
+            logger.debug("prediction market parse failed: %s", e)
     return "open"
 
 

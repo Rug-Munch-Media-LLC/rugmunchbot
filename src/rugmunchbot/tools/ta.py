@@ -14,8 +14,14 @@ RugCharts engine):
      reachable the tool returns the REAL snapshot with
      ``indicators_available=false`` instead of fabricating RSI/EMA/MACD.
 
+The payload always carries a ``market`` block (price, 1h/6h/24h change,
+volume-24h, liquidity, market cap, FDV — real DexScreener values, plus
+candle-window change/high/low and distance from the window high/low when
+candles exist) so the chat LLM can answer TA/market asks with concrete
+numbers, not a one-liner.
+
 The indicator math is REUSED from
-``rugmunchbot.ta_indicators`` (``analyze_candles``:
+``app.domains.telegram.rugmunchbot.ta_indicators`` (``analyze_candles``:
 RSI-14, EMA-9/21, MACD 12/26/9, support/resistance, trend, volume) — pure
 Python, no TA-Lib dependency. The verdict is a transparent rule-of-thumb
 score over those real indicator values. Every number in the payload comes
@@ -27,12 +33,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from rugmunchbot.config import DEXSCREENER
-from rugmunchbot.data_resolver import resolve_with_fallback
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.ta_indicators import analyze_candles
-from rugmunchbot.tools._client import http_get_json
-from rugmunchbot.tools.registry import ToolResult, backend_json_get
+from app.domains.telegram.rugmunchbot.config import DEXSCREENER
+from app.domains.telegram.rugmunchbot.data_resolver import resolve_with_fallback
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.ta_indicators import analyze_candles
+from app.domains.telegram.rugmunchbot.tools._client import http_get_json
+from app.domains.telegram.rugmunchbot.tools.registry import ToolResult, backend_json_get
 
 logger = get_logger("rmi_bot.tools.ta")
 
@@ -198,7 +204,49 @@ def _pair_snapshot(pair: dict[str, Any], address: str, symbol: str) -> dict[str,
         "change_24h": _to_float(price_change.get("h24")),
         "volume_24h": _to_float(volume.get("h24")),
         "liquidity_usd": _to_float(liquidity.get("usd")),
+        "market_cap": _to_float(pair.get("marketCap")),
+        "fdv": _to_float(pair.get("fdv")),
     }
+
+
+def _market_context(snapshot: dict[str, Any], analysis: dict[str, Any] | None) -> dict[str, Any]:
+    """Flat live-market read merged from the real DexScreener pair snapshot
+    and (when candles were available) the candle analysis.
+
+    Only real source values are included — ``None`` fields are omitted so the
+    LLM never sees fabricated numbers. ``distance_from_window_*`` is measured
+    against the candle WINDOW high/low, deliberately NOT an all-time high: no
+    live ATH feed exists for arbitrary DEX pairs, and the key stays honest so
+    the model phrases it as "recent range" rather than "ATH".
+    """
+    ctx: dict[str, Any] = {}
+    for key, value in (
+        ("price_usd", snapshot.get("price_usd")),
+        ("change_1h", snapshot.get("change_1h")),
+        ("change_6h", snapshot.get("change_6h")),
+        ("change_24h", snapshot.get("change_24h")),
+        ("volume_24h", snapshot.get("volume_24h")),
+        ("liquidity_usd", snapshot.get("liquidity_usd")),
+        ("market_cap", snapshot.get("market_cap")),
+        ("fdv", snapshot.get("fdv")),
+    ):
+        if value is not None:
+            ctx[key] = value
+    if analysis is not None:
+        if analysis.get("change_pct") is not None:
+            ctx["change_window_pct"] = analysis.get("change_pct")
+        if analysis.get("high") is not None:
+            ctx["window_high"] = analysis.get("high")
+        if analysis.get("low") is not None:
+            ctx["window_low"] = analysis.get("low")
+        price = analysis.get("price")
+        high = analysis.get("high")
+        low = analysis.get("low")
+        if price is not None and high and high > 0:
+            ctx["distance_from_window_high_pct"] = (high - price) / high * 100
+        if price is not None and low and low > 0:
+            ctx["distance_from_window_low_pct"] = (price - low) / low * 100
+    return ctx
 
 
 # ── OHLCV candles: own data first, GeckoTerminal direct fallback ───────────
@@ -334,6 +382,53 @@ def _verdict(analysis: dict[str, Any]) -> dict[str, Any]:
     return {"bias": bias, "score": round(score, 1), "reasons": reasons, "one_liner": one_liner}
 
 
+def _prediction_read(analysis: dict[str, Any], verdict: dict[str, Any]) -> dict[str, Any]:
+    """Honest short-horizon leaning read from the real indicator digest.
+
+    Combines the rule-of-thumb ``verdict`` bias with momentum direction and
+    the pump-risk screen. The read is explicitly labelled heuristic and
+    never a guarantee: the LLM is expected to present it as "leaning" with
+    reasons, not as a forecast. Confidence is data-availability driven
+    (candle count + how many signals agree).
+    """
+    bias = verdict.get("bias", "neutral")
+    momentum = analysis.get("momentum") or "N/A"
+    pump = analysis.get("pump_risk") or {}
+
+    drivers: list[str] = list(verdict.get("reasons") or [])
+    if momentum not in ("N/A",):
+        drivers.append(f"momentum {momentum}")
+    if pump.get("level") and pump["level"] != "LOW":
+        drivers.append(f"pump-risk {pump['level']}")
+
+    # Direction disagreement knocks the lean toward neutral; extreme
+    # pump-risk stays flagged even when the bias is bullish.
+    lean = bias
+    if (bias == "bullish" and momentum in ("FALLING", "FADING")) or (
+        bias == "bearish" and momentum in ("RISING", "ACCELERATING")
+    ):
+        lean = "neutral"
+    if pump.get("level") == "HIGH" and lean == "bullish":
+        lean = "neutral"
+
+    n = analysis.get("candles") or 0
+    if n < 30:
+        confidence = "low"
+    elif n < 60 or lean == "neutral" or pump.get("level") == "HIGH":
+        confidence = "medium"
+    else:
+        confidence = "high"
+
+    return {
+        "leaning": lean,
+        "confidence": confidence,
+        "horizon": "next 12-24h (1h candles)",
+        "key_drivers": drivers[:6],
+        "pump_risk": {"level": pump.get("level", "LOW"), "score": pump.get("score", 0)},
+        "note": "heuristic read from live indicators — not financial advice, not a guarantee",
+    }
+
+
 def _summary_text(analysis: dict[str, Any]) -> str:
     """Compact one-line metric digest (chat-friendly; the LLM renders it)."""
     rsi_value = analysis.get("rsi")
@@ -361,7 +456,19 @@ def _summary_text(analysis: dict[str, Any]) -> str:
         else "S/R n/a"
     )
 
-    return f"{rsi_part} · {ema_part} · {macd_part} · {sr_part} · trend {analysis.get('trend') or 'NEUTRAL'}"
+    vol_part = (
+        f"vol {analysis.get('volatility_pct'):.1f}%"
+        if analysis.get("volatility_pct") is not None
+        else "vol n/a"
+    )
+    mom_part = f"mom {analysis.get('momentum') or 'n/a'}"
+    pump = analysis.get("pump_risk") or {}
+    pump_part = f"pump-risk {pump.get('level', 'n/a')}"
+
+    return (
+        f"{rsi_part} · {ema_part} · {macd_part} · {sr_part} · "
+        f"trend {analysis.get('trend') or 'NEUTRAL'} · {vol_part} · {mom_part} · {pump_part}"
+    )
 
 
 # ── Tool handler ───────────────────────────────────────────────────────────
@@ -425,6 +532,20 @@ async def technical_analysis(*, address: str = "", symbol: str = "", chain: str 
             "macd_label": analysis.get("macd_label"),
             "support": analysis.get("support"),
             "resistance": analysis.get("resistance"),
+            "sma_20": analysis.get("sma_20"),
+            "bollinger_upper": analysis.get("bollinger_upper"),
+            "bollinger_middle": analysis.get("bollinger_middle"),
+            "bollinger_lower": analysis.get("bollinger_lower"),
+            "bollinger_percent_b": analysis.get("bollinger_percent_b"),
+            "bollinger_bandwidth": analysis.get("bollinger_bandwidth"),
+            "atr_14": analysis.get("atr_14"),
+            "atr_pct": analysis.get("atr_pct"),
+            "volatility_pct": analysis.get("volatility_pct"),
+            "roc_3h": analysis.get("roc_3h"),
+            "roc_12h": analysis.get("roc_12h"),
+            "roc_24h": analysis.get("roc_24h"),
+            "momentum": analysis.get("momentum"),
+            "pump_risk": analysis.get("pump_risk"),
             "trend": analysis.get("trend"),
             "volume_ratio": analysis.get("volume_ratio"),
             "volume_trend": analysis.get("volume_trend"),
@@ -441,7 +562,9 @@ async def technical_analysis(*, address: str = "", symbol: str = "", chain: str 
                 "timeframe": "1h",
                 "indicators_available": True,
                 "indicators": indicators,
+                "market": _market_context(snapshot, analysis),
                 "verdict": verdict,
+                "prediction": _prediction_read(analysis, verdict),
                 "summary_text": _summary_text(analysis),
                 "updated_at": datetime.now(UTC).isoformat(),
             },
@@ -474,6 +597,7 @@ async def technical_analysis(*, address: str = "", symbol: str = "", chain: str 
             "indicators_available": False,
             "indicators": None,
             "snapshot": snapshot,
+            "market": _market_context(snapshot, None),
             "verdict": {
                 "bias": "insufficient_data",
                 "score": 0.0,
@@ -482,6 +606,13 @@ async def technical_analysis(*, address: str = "", symbol: str = "", chain: str 
                     "DexScreener exposes no OHLCV history"
                 ],
                 "one_liner": one_liner,
+            },
+            "prediction": {
+                "leaning": "insufficient_data",
+                "confidence": "low",
+                "horizon": "next 12-24h (1h candles)",
+                "key_drivers": ["no OHLCV candle history to base a read on"],
+                "note": "heuristic read from live indicators — not financial advice, not a guarantee",
             },
             "summary_text": f"No OHLCV candle history available right now — live snapshot: {momentum_text}",
             "updated_at": datetime.now(UTC).isoformat(),

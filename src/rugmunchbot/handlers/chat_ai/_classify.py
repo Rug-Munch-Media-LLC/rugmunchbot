@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 
-from rugmunchbot.tools.classify import (
+from app.domains.telegram.rugmunchbot.tools.classify import (
     MAX_ADDRESS_HINTS,
     _extract_addresses,
 )
@@ -116,24 +116,36 @@ def _is_self_improvement_question(text: str) -> bool:
     return bool(_SELF_IMPROVEMENT_RE.search(text))
 
 
+# Tightened (2026-08-15): risk-rank LIST asks ("riskiest/sketchiest", "red
+# flags"), market reads ("should i buy", "what's the risk") and generic
+# "how do i..." questions NO LONGER count as deep — they are answered fast
+# from tool data by the 4B. Deep only for genuine analysis / forensics /
+# contract asks (explain, why, trace, audit, honeypot, deployer, tokenomics)
+# or long multi-part questions.
+_DEEP_QUESTION_RE = re.compile(
+    r"\b(analyze|analysis|explain|why|how does|compare|investigate|research|"
+    r"report|break down|walk me through|what happens if|how to|step by step|"
+    r"deep dive|tokenomics|audit|vulnerabilit|trace|forensic|contract|"
+    r"deployer|honeypot)\b",
+    re.IGNORECASE,
+)
+
+
 def _is_deep_question(text: str) -> bool:
     """Detect analysis/report requests that deserve a longer, deeper answer.
 
     Short queries get a snappy 1-2s answer; deep ones get up to 1200 tokens
-    and a structured-analysis system prompt.
+    and a structured-analysis system prompt. Deliberately NOT triggered by
+    risk-rank list asks ("riskiest/sketchiest", "red flags"), market reads
+    ("should i buy", "what's the risk") or generic "how do i..." questions —
+    those are grounded by live tool data and answered fast. Deep only for
+    genuine analysis / forensics / contract asks or long multi-part
+    questions.
     """
     low = text.lower()
     if len(low.split()) > 40:  # long multi-part question → deep
         return True
-    return bool(
-        re.search(
-            r"\b(analyze|analysis|explain|explain how|why|how does|how do|compare|"
-            r"risk|risks|detail|detailed|technical|report|investigate|research|"
-            r"break down|walk me through|what happens if|is it safe|should i|"
-            r"how to|step by step|deep dive|tokenomics|audit|vulnerabilit)\b",
-            low,
-        )
-    )
+    return bool(_DEEP_QUESTION_RE.search(low))
 
 
 __all__ = [

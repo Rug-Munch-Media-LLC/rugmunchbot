@@ -1,25 +1,13 @@
-"""RugMunchBot — self-hostable Telegram crypto intelligence bot.
+"""
+RugMunchBot subsystem - modular architecture.
 
-OSS package root. Public API is the portable product surface:
-
-    rugmunchbot.formatters   — scan-report / wallet-report / news renderers
-    rugmunchbot.keyboards    — inline-keyboard builders
-    rugmunchbot.states       — spam protection, rate limits, SOL price cache
-    rugmunchbot.tools        — tool registry + ``run_for_message`` intent router
-    rugmunchbot.config       — env-only configuration
-
-``bot.py`` (entry point), ``scanner.py`` (scan engines) and the command
-handlers are ported in later stages — see
-``docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md`` for the migration plan.
+Re-exports key symbols for backward compatibility.
 """
 
-from __future__ import annotations
-
-__version__ = "0.1.0"
-
-# Re-export the portable public surface (mirrors the live package's
-# backwards-compat re-exports for the modules that are already ported).
-from rugmunchbot.formatters import (
+# Re-export from new modules for backward compatibility
+# Re-export main entry point
+from app.domains.telegram.rugmunchbot.bot import main
+from app.domains.telegram.rugmunchbot.formatters import (
     EVM_RE,
     SOL_RE,
     TOKEN_RE,
@@ -28,6 +16,7 @@ from rugmunchbot.formatters import (
     format_scan_report,
     format_wallet_report,
     is_evm,
+    is_owner,
     is_sol,
     paywall_text,
     sep,
@@ -36,31 +25,27 @@ from rugmunchbot.formatters import (
     thin_sep,
     web_scan_button,
 )
-from rugmunchbot.keyboards import (
+from app.domains.telegram.rugmunchbot.keyboards import (
     back_kb,
+    buy_stars_kb,
     main_menu_kb,
     paywall_kb,
     pricing_kb,
+    scamschool_kb,
     scan_result_kb,
-    token_buttons,
+    social_kb,
+    topup_kb,
 )
-from rugmunchbot.states import check_spam, get_sol_price, is_owner
-from rugmunchbot.tools import (
-    known_addresses,
-    known_symbols,
-    registry,
-    run_for_message,
-)
+from app.domains.telegram.rugmunchbot.scanner import analyze_wallet, scan_token
+from app.domains.telegram.rugmunchbot.states import check_spam, get_sol_price, is_owner
 
 __all__ = [
-    # formatters
     "EVM_RE",
     "SOL_RE",
     "TOKEN_RE",
-    "__version__",
-    # keyboards
+    "analyze_wallet",
     "back_kb",
-    # states
+    "buy_stars_kb",
     "check_spam",
     "detect_chain",
     "footer_links",
@@ -70,20 +55,19 @@ __all__ = [
     "is_evm",
     "is_owner",
     "is_sol",
-    # tools
-    "known_addresses",
-    "known_symbols",
+    "main",
     "main_menu_kb",
     "paywall_kb",
     "paywall_text",
     "pricing_kb",
-    "registry",
-    "run_for_message",
+    "scamschool_kb",
     "scan_result_kb",
+    "scan_token",
     "sep",
     "short_addr",
+    "social_kb",
     "social_proof_text",
     "thin_sep",
-    "token_buttons",
+    "topup_kb",
     "web_scan_button",
 ]

@@ -20,7 +20,7 @@ all logic lives in sibling modules:
   * ``_format.py`` / ``_parts.py`` / ``_trace.py`` — formatting / chunking / tracing.
 
 Every public name and signature is unchanged — ``from
-rugmunchbot.handlers.chat_ai import chat_ai_response``
+app.domains.telegram.rugmunchbot.handlers.chat_ai import chat_ai_response``
 and the ``chat_ai._llm`` test imports keep working exactly as before.
 Imports not listed in ``__all__`` are re-exported (redundant aliases) because
 the pipeline tests patch them on this package at runtime — e.g.
@@ -37,7 +37,7 @@ Pipeline order (free text, ``ai_chat_handler``):
      /scan -> ``$TOKEN`` price card
   7. ``chat_ai_response`` (shared AI core): chat_enabled gate -> injection ->
      weekly quota -> flood -> gibberish (tier-2/3) -> backend RAG chat
-     (tier-1) -> local llama.cpp fallback
+     (tier-1) -> remote LLM fallback
 
 Import-time side effects preserved: ``SCAN_ENDPOINT`` is still built from
 ``BACKEND_URL`` at import time (in ``_routing.py``, imported eagerly here)
@@ -48,22 +48,22 @@ and ``cmd_scan`` stays lazily imported from ``handlers/scanning.py`` inside
 from __future__ import annotations
 
 import httpx as httpx
-
-from rugmunchbot import anti_abuse as anti_abuse
-from rugmunchbot.flood_control import check_flood as check_flood, refund_flood as refund_flood
-from rugmunchbot.formatters import is_evm as is_evm, is_sol as is_sol, thin_sep
-from rugmunchbot.handlers.chat_ai._format import (
-    _append_source_lines as _append_source_lines,
+from app.domains.telegram.rugmunchbot import anti_abuse as anti_abuse
+from app.domains.telegram.rugmunchbot.flood_control import (
+    check_flood as check_flood,
+    refund_flood as refund_flood,
+)
+from app.domains.telegram.rugmunchbot.formatters import is_evm as is_evm, is_sol as is_sol, thin_sep
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._format import (
     _format_tool_answer as _format_tool_answer,
     _render_bridge_actions as _render_bridge_actions,
 )
-from rugmunchbot.handlers.chat_ai._helpers import (
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._helpers import (
     CHUNK_MAX_CHARS,
     MAX_ADDRESS_HINTS,
     MAX_ANSWER_CHARS,
     _beautify_answer as _beautify_answer,
     _cap_answer as _cap_answer,
-    _chunk_text,
     _extract_addresses as _extract_addresses,
     _format_scan_summary as _format_scan_summary,
     _grounding_sources_count as _grounding_sources_count,
@@ -75,27 +75,26 @@ from rugmunchbot.handlers.chat_ai._helpers import (
     _markdown_bold_to_html as _markdown_bold_to_html,
     _markdown_to_html as _markdown_to_html,
     _normalize_llm_markup as _normalize_llm_markup,
-    _split_oversized,
     _tables_to_lists as _tables_to_lists,
     is_degenerate_answer,
     local_ai_response,
     strip_think_blocks,
 )
-from rugmunchbot.handlers.chat_ai._live_tools import (
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._live_tools import (
     LIVE_TOOLS_WAIT as LIVE_TOOLS_WAIT,
     TOOL_ANSWER_EXTRA_WAIT as TOOL_ANSWER_EXTRA_WAIT,
     _run_live_tools as _run_live_tools,
     _run_live_tools_bounded as _run_live_tools_bounded,
     _run_rag_lookup as _run_rag_lookup,
 )
-from rugmunchbot.handlers.chat_ai._llm import (
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._llm import (
     CHAT_ENDPOINT,  # re-exported (public __all__ / tests)
     CHAT_TIMEOUT,  # re-exported (public __all__)
     _call_backend_chat as _call_backend_chat,  # re-exported (tests import from package)
-    _call_local_llm as _call_local_llm,
+    _call_remote_llm as _call_remote_llm,  # monkeypatch seam (tests patch on package)
 )
-from rugmunchbot.handlers.chat_ai._parts import send_in_parts, split_in_parts
-from rugmunchbot.handlers.chat_ai._routing import (
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._parts import send_in_parts, split_in_parts
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._routing import (
     BRIDGE_CONTEXT_ENDPOINT as BRIDGE_CONTEXT_ENDPOINT,
     BRIDGE_TIMEOUT as BRIDGE_TIMEOUT,
     MAX_MESSAGE_CHARS as MAX_MESSAGE_CHARS,
@@ -108,9 +107,11 @@ from rugmunchbot.handlers.chat_ai._routing import (
     chat_ai_response,
     register_chat_ai,
 )
-from rugmunchbot.handlers.chat_ai._trace import trace_answer as trace_answer
-from rugmunchbot.states import check_spam as check_spam
-from rugmunchbot.tools.guardrails import NO_LIVE_DATA_MESSAGE as NO_LIVE_DATA_MESSAGE
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._trace import trace_answer as trace_answer
+from app.domains.telegram.rugmunchbot.states import check_spam as check_spam
+from app.domains.telegram.rugmunchbot.tools.guardrails import (
+    NO_LIVE_DATA_MESSAGE as NO_LIVE_DATA_MESSAGE,
+)
 
 __all__ = [
     "CHAT_ENDPOINT",
@@ -120,9 +121,7 @@ __all__ = [
     "MAX_ANSWER_CHARS",
     "SCAN_ENDPOINT",
     "SCAN_TIMEOUT",
-    "_chunk_text",
     "_is_section_header",
-    "_split_oversized",
     "ai_chat_handler",
     "chat_ai_response",
     "is_degenerate_answer",

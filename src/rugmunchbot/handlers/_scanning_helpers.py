@@ -4,17 +4,14 @@ Extracted from ``handlers/scanning.py``: DexScreener pair normalization,
 completed-scan merge logic, TA card rendering (``format_ta_card`` + emoji
 helpers), and the deployer risk-bucket emoji map. No network I/O — only
 ``config`` / ``formatters`` formatting helpers.
-
-Ported from the private monorepo (rmi-backend rugmunchbot) — import-rewritten
-to ``rugmunchbot.*`` per docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md §2.3.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from rugmunchbot.config import fmt_chain, fmt_number, fmt_pct
-from rugmunchbot.formatters import footer_links, sep, thin_sep
+from app.domains.telegram.rugmunchbot.config import fmt_chain, fmt_number, fmt_pct
+from app.domains.telegram.rugmunchbot.formatters import footer_links, sep, thin_sep
 
 
 def _ds_pairs(data: Any) -> list[dict[str, Any]]:

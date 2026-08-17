@@ -9,25 +9,29 @@ Hunter+ tier feature.
 
 from __future__ import annotations
 
+import html
 import re
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
-
-from rugmunchbot import db
-from rugmunchbot.config import WEBSITE_URL
-from rugmunchbot.formatters import (
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import (
+    BACKEND_URL,
+    WEBSITE_URL,
+    backend_headers,
+)
+from app.domains.telegram.rugmunchbot.formatters import (
     is_owner,
     paywall_text,
     sep,
     short_addr,
     thin_sep,
 )
-from rugmunchbot.keyboards import paywall_kb
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools.registry import backend_json_post
+from app.domains.telegram.rugmunchbot.keyboards import paywall_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -61,21 +65,17 @@ _TOPIC_SUGGESTIONS = {
 async def _query_rag(
     query: str, collections: list[str] | None = None, top_k: int = 5
 ) -> list[dict[str, Any]]:
-    """Query the RAG system across multiple collections.
-
-    [REVIEW] OSS port: the private backend call (httpx to BACKEND_URL +
-    shared-secret header) is routed through ``tools.registry.backend_json_post``
-    (RMI_BACKEND_URL env). The operator supplies the RAG endpoint
-    (``/api/v1/rag/v2/search``) or the helper returns None per collection.
-    """
+    """Query the RAG system across multiple collections."""
     if collections is None:
         collections = _RESEARCH_COLLECTIONS
 
     all_hits = []
+    client = get_shared_client(30)
     for collection in collections:
         try:
-            data = await backend_json_post(
-                "/api/v1/rag/v2/search",
+            r = await client.post(
+                f"{BACKEND_URL}/api/v1/rag/v2/search",
+                headers=backend_headers(),
                 json={
                     "query": query,
                     "collection": collection,
@@ -83,9 +83,9 @@ async def _query_rag(
                     "min_similarity": 0.0,
                     "filters": {},
                 },
-                timeout=30.0,
             )
-            if data is not None:
+            if r.status_code == 200:
+                data = r.json()
                 hits = data.get("hits", [])
                 for h in hits:
                     # Keep the backend's truthful resolved-collection
@@ -117,7 +117,7 @@ def _format_research_result(query: str, hits: list[dict[str, Any]]) -> str:
     lines = [
         "\U0001f50d <b>RAG Research Results</b>",
         s,
-        f"<b>Query:</b> <i>{query[:100]}</i>",
+        f"<b>Query:</b> <i>{html.escape(query[:100])}</i>",
         f"<b>Sources:</b> {len(hits)} relevant documents found",
         s,
     ]
@@ -141,9 +141,9 @@ def _format_research_result(query: str, hits: list[dict[str, Any]]) -> str:
         title = metadata.get("title", "") or metadata.get("name", "") or collection
         if source:
             if source.startswith("http"):
-                source_str = f"\n  📎 <a href='{source}'>{title[:60]}</a>"
+                source_str = f"\n  📎 <a href='{html.escape(source, quote=True)}'>{html.escape(title[:60])}</a>"
             else:
-                source_str = f"\n  📎 <i>{source[:100]}</i>"
+                source_str = f"\n  📎 <i>{html.escape(source[:100])}</i>"
         else:
             source_str = ""
 
@@ -151,7 +151,7 @@ def _format_research_result(query: str, hits: list[dict[str, Any]]) -> str:
             [
                 f"<b>{i}. {col_emoji} [{collection}]</b> (relevance: {score:.0%}){source_str}",
                 d,
-                content,
+                html.escape(content),
                 "",
             ]
         )
@@ -217,8 +217,9 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "\U0001f50d <b>RAG Research</b>\n\n"
             "This feature requires <b>Hunter tier</b> or higher.\n\n"
-            "\U0001f3af <b>Hunter</b> \u2014 RAG research + wallet forensics\n"
-            "\U0001f451 <b>Pro</b> \u2014 Unlimited research + investigations",
+            "\U0001f3af <b>Hunter tier</b> — 400 scans/wk + RAG research\n"
+            "\U0001f6f0\ufe0f <b>Monitor (250\u2605/30d)</b> — live LP/whale + "
+            "tax/ownership/mint alerts · 🔬 <b>Deep Scan (250\u2605)</b> — full forensics",
             parse_mode=ParseMode.HTML,
             reply_markup=paywall_kb(),
         )
@@ -243,7 +244,7 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         f"\U0001f50d <b>Researching...</b>\n\n"
-        f"\U0001f4ac <i>{query[:100]}</i>\n\n"
+        f"\U0001f4ac <i>{html.escape(query[:100])}</i>\n\n"
         f"\U0001f50d Querying RAG collections: "
         f"{', '.join(_RESEARCH_COLLECTIONS)}...\n"
         f"\u23f3 This may take 15-30 seconds",
@@ -261,7 +262,7 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not hits:
             await msg.edit_text(
                 f"\U0001f50d <b>No Results Found</b>\n\n"
-                f"No relevant documents found for: <i>{query[:100]}</i>\n\n"
+                f"No relevant documents found for: <i>{html.escape(query[:100])}</i>\n\n"
                 f"<b>Tips:</b>\n"
                 f"\u2022 Try different keywords\n"
                 f"\u2022 Be more specific\n"
@@ -340,8 +341,7 @@ async def cmd_research(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         logger.error(f"Research error: {e}")
         await msg.edit_text(
             f"\u274c <b>Research Failed</b>\n\n"
-            f"Could not complete research for: <i>{query[:100]}</i>\n"
-            f"Error: {str(e)[:200]}\n\n"
+            f"Could not complete research for: <i>{html.escape(query[:100])}</i>\n\n"
             f"Please try again or use simpler terms.",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(

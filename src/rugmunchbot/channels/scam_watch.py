@@ -3,13 +3,13 @@
 Sweeps Telegram channels that shill rugpull tokens (scam-token shill
 channels, pump-and-dump groups, "alpha" groups shilling rugs, fake-airdrop /
 seed-phrase-scam channels) through the same headless Telethon reader the news
-channel uses (``rugmunchbot.integrations.news_ingest``), normalizes messages as
+channel uses (``app.domains.news_ingest``), normalizes messages as
 ``category="scam_shill"`` items, extracts token addresses/tickers (reusing
 ``extract_entities`` and the canonical EVM/Solana regexes in
-``rugmunchbot.support.shared_utils``), and feeds them into the scanner:
+``app.core.shared_utils``), and feeds them into the scanner:
 
 1. **Submit-for-scan** — every newly-seen token address is submitted
-   (best-effort, in-process) to ``rugmunchbot.integrations.scanner_service.scan_token``
+   (best-effort, in-process) to ``app.domains.scanner.service.scan_token``
    (free tier — the same service ``POST /api/v1/scanner/scan`` triggers),
    bounded per run by ``RMI_SCAM_WATCH_SCAN_LIMIT``.
 2. **Scanner queue** — the same addresses are pushed (JSON) to the Redis
@@ -31,9 +31,11 @@ Source taxonomy (``ScamSourceType``)
 Sources
 -------
 1. Explicit env list ``RMI_SCAM_CHANNELS`` (comma- or pipe-separated
-   @handles; no secrets). Default empty — [REVIEW]: the owner should seed
-   their vetted list here. No handles are hardcoded because unverified
-   real handles could mislabel innocent channels.
+   @handles; no secrets). Defaults to the vetted scam/shill handles already
+   flagged in the followed-channels registry (``kind=scammer_caller`` /
+   ``category=shill_promotions`` — CertiKAlert, PeckShieldAlert, ScamSniffer,
+   SlowMist, zachxbt, cryptobanter) so the sweep never starts empty even if
+   the registry file is missing. Set the env var to override.
 2. The followed-channels registry ``app/databus/tg_channels.json`` —
    entries with ``kind=scammer_caller`` / ``kind=scammer_group`` and
    ``category=shill_promotions`` are picked up automatically (this is the
@@ -41,7 +43,7 @@ Sources
    Legit scam-*watcher* categories (``scam_alerts`` / ``phishing_alerts``
    — e.g. SlowMist, ScamSniffer, zachxbt) are NOT swept by default; set
    ``RMI_SCAM_WATCH_INCLUDE_WATCHERS=true`` to include them.
-3. Auto-discovery — ``rugmunchbot.integrations.news_ingest.discovery``
+3. Auto-discovery — ``app.domains.news_ingest.discovery``
    (``discover_followed_channels``) enumerates the dialogs the headless
    user session follows; channels whose title/username matches shill
    heuristics ("pump", "shill", "call", "alpha", "moon", "100x", ...) are
@@ -70,14 +72,14 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from rugmunchbot.integrations.news_ingest.ingest import dedupe_articles, read_channel_messages
-from rugmunchbot.integrations.news_ingest.normalize import channel_message_to_article
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.support.redis import get_redis_async
-from rugmunchbot.support.shared_utils import is_evm_address, is_solana_address
+from app.core.redis import get_redis_async
+from app.core.shared_utils import is_evm_address, is_solana_address
+from app.domains.news_ingest.ingest import dedupe_articles, read_channel_messages
+from app.domains.news_ingest.normalize import channel_message_to_article
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
-    from rugmunchbot.integrations.news_ingest.models import ChannelMessage, NewsArticle
+    from app.domains.news_ingest.models import ChannelMessage, NewsArticle
 
 logger = get_logger("rmi_bot.channels.scam_watch")
 
@@ -186,9 +188,18 @@ SCAM_WATCH_SCAN_LIMIT = _env_int("RMI_SCAM_WATCH_SCAN_LIMIT", 5)
 SCAM_WATCH_QUEUE_LIMIT = _env_int("RMI_SCAM_WATCH_QUEUE_LIMIT", 50)
 SCAM_WATCH_ENQUEUE = _env_bool("RMI_SCAM_WATCH_ENQUEUE", True)
 SCAM_WATCH_INCLUDE_WATCHERS = _env_bool("RMI_SCAM_WATCH_INCLUDE_WATCHERS", False)
-#: Explicit @handles to watch (comma/pipe separated). Empty by default —
-#: [REVIEW] the owner should seed their vetted list via env.
-SCAM_CHANNELS = _env_list("RMI_SCAM_CHANNELS", [])
+#: Explicit @handles to watch (comma/pipe separated). Defaults to the vetted
+#: scam/shill handles already flagged in the followed-channels registry
+#: (``kind=scammer_caller`` / ``category=shill_promotions``); env overrides.
+_DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
+    "CertiKAlert",
+    "PeckShieldAlert",
+    "ScamSniffer",
+    "SlowMist",
+    "zachxbt",
+    "cryptobanter",
+)
+SCAM_CHANNELS = _env_list("RMI_SCAM_CHANNELS", list(_DEFAULT_SCAM_CHANNELS))
 #: Extra handles/titles to exclude from dialog auto-discovery.
 SCAM_WATCH_EXCLUDE = _env_list("RMI_SCAM_WATCH_EXCLUDE", [])
 
@@ -199,7 +210,7 @@ SCAM_WATCH_EXCLUDE = _env_list("RMI_SCAM_WATCH_EXCLUDE", [])
 async def _build_headless_client() -> Any:
     """Return the singleton headless Telethon client, or ``None`` (never raises)."""
     try:
-        from rugmunchbot.integrations.headless import get_headless_client
+        from app.domains.telegram.headless import get_headless_client
 
         client = await get_headless_client()
         if getattr(client, "is_connected", False):
@@ -245,7 +256,7 @@ def _registry_scam_sources(include_watchers: bool | None = None) -> list[dict[st
     ``include_watchers=True``. Fail-open → ``[]``.
     """
     try:
-        from rugmunchbot.integrations.tg_channel_registry import load_tg_channels
+        from app.databus.tg_channel_registry import load_tg_channels
     except ImportError:
         return []
     include_watchers = SCAM_WATCH_INCLUDE_WATCHERS if include_watchers is None else include_watchers
@@ -308,7 +319,7 @@ async def discover_scam_channels(
 ) -> list[dict[str, Any]]:
     """Auto-discover scam/shill channels from the followed dialogs list.
 
-    Reuses ``rugmunchbot.integrations.news_ingest.discovery.discover_followed_channels``
+    Reuses ``app.domains.news_ingest.discovery.discover_followed_channels``
     (the canonical followed-channels mechanism — same headless client the
     news sweep reads through) and flags dialogs whose title/username matches
     shill keyword heuristics. Fail-open → ``[]``; bounded by
@@ -318,7 +329,7 @@ async def discover_scam_channels(
     if cap <= 0:
         return []
     try:
-        from rugmunchbot.integrations.news_ingest.discovery import discover_followed_channels
+        from app.domains.news_ingest.discovery import discover_followed_channels
     except ImportError:
         return []
     try:
@@ -446,8 +457,8 @@ async def sweep_scam_channels(
 def classify_entity(entity: str) -> str:
     """Classify a news_ingest entity as ``ticker`` / ``evm`` / ``solana`` / ``""``.
 
-    Reuses ``rugmunchbot.support.shared_utils`` EVM/Solana regexes — the same shapes
-    ``rugmunchbot.integrations.dedup`` and the bot formatters use.
+    Reuses ``app.core.shared_utils`` EVM/Solana regexes — the same shapes
+    ``app.rag.dedup`` and the bot formatters use.
     """
     if not entity:
         return ""
@@ -547,12 +558,12 @@ async def _mark_seen(address: str) -> bool:
 async def submit_for_scan(address: str, chain: str = "ethereum") -> bool:
     """Best-effort in-process scanner submission (free tier). Never raises.
 
-    Calls ``rugmunchbot.integrations.scanner_service.scan_token`` — the same service the
+    Calls ``app.domains.scanner.service.scan_token`` — the same service the
     ``POST /api/v1/scanner/scan`` endpoint triggers. Fail-open: any import /
     runtime error logs and returns ``False``.
     """
     try:
-        from rugmunchbot.integrations.scanner_service import scan_token
+        from app.domains.scanner.service import scan_token
 
         result = await scan_token(token_address=address, chain=chain, tiers=["free"])
         flags = list(getattr(result, "risk_flags", []) or [])

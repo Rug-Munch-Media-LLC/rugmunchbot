@@ -14,8 +14,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from rugmunchbot.formatters import footer_links
-from rugmunchbot.handlers.chat_ai._classify import _SELF_IMPROVEMENT_RE
+from app.domains.telegram.rugmunchbot.formatters import footer_links
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._classify import _SELF_IMPROVEMENT_RE
 
 _SELF_IMPROVEMENT_ANSWER = (
     "\U0001f6e0\ufe0f <b>What would genuinely help me</b>\n\n"
@@ -205,7 +205,9 @@ _INTENT_RULES: list[tuple[re.Pattern[str], str]] = [
         ),
     ),
     (
-        re.compile(r"\b(compare|vs |versus|better than|which (is|one)|difference)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(compare|vs |versus|better than|which (is|one)|difference)\b", re.IGNORECASE
+        ),
         (
             "\u2696\ufe0f <b>Token Comparison</b>\n\n"
             "Use <code>/compare &lt;addr1&gt; &lt;addr2&gt;</code> to pit two tokens "

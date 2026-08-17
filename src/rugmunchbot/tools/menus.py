@@ -7,13 +7,13 @@ Data-driven capability list: extend it by appending a tuple, no new code.
 The ``callback`` values reuse the bot's EXISTING callback surfaces so every
 button works with zero callback-handler changes:
   * ``run_*`` buttons are handled by ``handlers/callback._dispatch_run_cmd``
-    (live inline data for trending/market; usage cards for scan/price/ta/
-    smartmoney/polymarket),
+    (live inline data for trending/news/market/whales; usage cards for
+    scan/price/chart/ta/polymarket/smartmoney),
   * ``menu_cat_chat`` shows the /chat welcome card (Ask knowledge),
   * ``menu_main`` returns to the main menu.
 
-Capabilities: Scan · Trending by chain · Price · Technical analysis ·
-Prediction markets · Market condition · News · Alpha & whales ·
+Capabilities: Scan · Trending by chain · Price · Chart · TA (incl. chart
+patterns) · Prediction markets · Market Condition · News · Alpha & whales ·
 Smart money · Ask knowledge.
 """
 
@@ -35,8 +35,10 @@ class Capability:
 
 # Single source of truth for the capability menu. Append to extend — the
 # keyboard builder and the help card render from this tuple automatically.
-# v11 (2026-08-14): reflects the newest live surfaces — Technical Analysis
-# (TA), Prediction markets, Market Condition, News and Alpha/Whales. Every
+# v12 (2026-08-14): reflects the newest live surfaces — Chart (chart image)
+# and chart-pattern signals folded into the TA entry (the technical_analysis
+# tool is the chart-patterns surface; there is no standalone patterns
+# callback). Ordering = most-used first (Scan → markets → intel). Every
 # callback below is handled by the EXISTING dispatchers (``run_*`` inline
 # data or usage cards; ``menu_cat_chat`` for Ask knowledge).
 CAPABILITIES: tuple[Capability, ...] = (
@@ -45,7 +47,8 @@ CAPABILITIES: tuple[Capability, ...] = (
         "\U0001f525 Trending by chain", "Trending tokens, filterable per chain", "run_trending"
     ),
     Capability("\U0001f4b0 Price", "Live price for $SYMBOL or an address", "run_price"),
-    Capability("\U0001f4ca TA", "Technical analysis & signals", "run_ta"),
+    Capability("\U0001f4c8 Chart", "Chart image with indicators & trend analysis", "run_chart"),
+    Capability("\U0001f4ca TA", "Technical analysis, chart patterns & signals", "run_ta"),
     Capability(
         "\U0001f52e Prediction markets", "Polymarket odds & election markets", "run_polymarket"
     ),

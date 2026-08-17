@@ -10,14 +10,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from app.domains.telegram.rugmunchbot.config import (
+    BACKEND_URL,
+    COINGECKO,
+    backend_headers,
+    fmt_number,
+)
+from app.domains.telegram.rugmunchbot.data_resolver import resolve_fear_greed, resolve_market_global
+from app.domains.telegram.rugmunchbot.formatters import footer_links, sep, thin_sep
+from app.domains.telegram.rugmunchbot.keyboards import back_kb, token_buttons
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import http_get_json
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
-
-from rugmunchbot.config import BACKEND_URL, COINGECKO, backend_headers, fmt_number
-from rugmunchbot.data_resolver import resolve_fear_greed, resolve_market_global
-from rugmunchbot.formatters import footer_links, sep, thin_sep
-from rugmunchbot.keyboards import back_kb, token_buttons
-from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -32,9 +37,7 @@ async def _inline_trending(update: Update, ctx) -> None:
     await query.edit_message_text(
         "\U0001f525 <b>Fetching trending...</b>", parse_mode=ParseMode.HTML
     )
-    # TODO(port): handlers/market.py is not ported yet (Stage 4) — import
-    # will fail until render_trending ships. [REVIEW]
-    from rugmunchbot.handlers.market import render_trending
+    from app.domains.telegram.rugmunchbot.handlers.market import render_trending
 
     text, kb = await render_trending("solana", limit=8, window="24h")
     if text is None or kb is None:
@@ -59,9 +62,7 @@ async def _inline_market_data(update: Update, ctx, kind: str) -> None:
     wiring as the /market, /movers, /launches and /whales commands) so menu
     buttons show live data instead of usage cards.
     """
-    # TODO(port): handlers/market.py is not ported yet (Stage 4) — imports
-    # will fail until the market helpers ship. [REVIEW]
-    from rugmunchbot.handlers.market import (
+    from app.domains.telegram.rugmunchbot.handlers.market import (
         _change_emoji,
         _fetch_market_intel,
         _fmt_usd,
@@ -126,7 +127,7 @@ async def _inline_market_overview(fetch, fmt_usd) -> str | None:
     if not overview:
         return None
 
-    from rugmunchbot.config import fmt_pct
+    from app.domains.telegram.rugmunchbot.config import fmt_pct
 
     lines = ["\U0001f4ca <b>Market Overview</b>", sep()]
     if overview.get("total_market_cap") is not None:
@@ -180,7 +181,7 @@ async def _inline_market_overview(fetch, fmt_usd) -> str | None:
 
 async def _inline_movers_text(fetch, fmt_usd, change_emoji) -> str | None:
     """Render the /movers report as text for inline callbacks."""
-    from rugmunchbot.config import fmt_pct
+    from app.domains.telegram.rugmunchbot.config import fmt_pct
 
     data = await fetch("/api/v1/market/movers", params={"limit": 20})
     items = (data or {}).get("items") or []
@@ -229,7 +230,7 @@ async def _inline_launches_text(
 
     Returns ``(text, token_items)`` so callers can attach per-token buttons.
     """
-    from rugmunchbot.config import fmt_chain, fmt_pct
+    from app.domains.telegram.rugmunchbot.config import fmt_chain, fmt_pct
 
     data = await fetch("/api/v1/market/launches", params={"limit": 8})
     items = (data or {}).get("items") or []
@@ -261,7 +262,7 @@ async def _inline_whales_text(fetch, fmt_usd) -> tuple[str | None, list[dict[str
 
     Returns ``(text, token_items)`` so callers can attach per-token buttons.
     """
-    from rugmunchbot.config import fmt_chain
+    from app.domains.telegram.rugmunchbot.config import fmt_chain
 
     data = await fetch("/api/v1/market/whales", params={"limit": 5})
     items = (data or {}).get("items") or []
@@ -295,20 +296,17 @@ async def _inline_news(update: Update, ctx) -> None:
     await query.edit_message_text("\U0001f4f0 <b>Fetching news...</b>", parse_mode=ParseMode.HTML)
     articles: list[dict[str, Any]] = []
     source_label = "Backend"
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                f"{BACKEND_URL}/api/v1/news/trending?window_hours=168&limit=5",
-                headers=backend_headers(),
-            )
-            if r.status_code == 200:
-                articles = r.json().get("items", [])
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
-        logger.warning("inline news backend failed: %s", e)
+    body = await http_get_json(
+        f"{BACKEND_URL}/api/v1/news/trending?window_hours=168&limit=5",
+        headers=backend_headers(),
+        timeout=10,
+    )
+    if body:
+        articles = body.get("items", [])
+    else:
+        logger.warning("inline news backend failed")
     if not articles:
-        # TODO(port): handlers/market.py is not ported yet (Stage 4) —
-        # fallback will fail until _fetch_cg_trending_news ships. [REVIEW]
-        from rugmunchbot.handlers.market import _fetch_cg_trending_news
+        from app.domains.telegram.rugmunchbot.handlers.market import _fetch_cg_trending_news
 
         cg_items = await _fetch_cg_trending_news()
         if cg_items:
@@ -357,15 +355,14 @@ async def _inline_sentiment(update: Update, ctx) -> None:
         # DATA_SOURCE is logged by the resolver for reliance tracking.
 
         async def _external_fng() -> dict[str, Any] | None:
-            async with httpx.AsyncClient(timeout=12) as client:
-                fg = await client.get("https://api.alternative.me/fng/?limit=1")
-                if fg.status_code == 200:
-                    fg_data = fg.json().get("data", [{}])[0]
-                    return {
-                        "value": int(fg_data.get("value", 50)),
-                        "classification": fg_data.get("value_classification", "Neutral"),
-                    }
-            return None
+            fg = await http_get_json("https://api.alternative.me/fng/?limit=1", timeout=12)
+            if fg is None:
+                return None
+            fg_data = fg.get("data", [{}])[0]
+            return {
+                "value": int(fg_data.get("value", 50)),
+                "classification": fg_data.get("value_classification", "Neutral"),
+            }
 
         fng = await resolve_fear_greed(_external_fng)
         if fng and fng.get("value"):
@@ -374,15 +371,14 @@ async def _inline_sentiment(update: Update, ctx) -> None:
             )
 
         async def _external_global() -> dict[str, Any] | None:
-            async with httpx.AsyncClient(timeout=12) as client:
-                r = await client.get(f"{COINGECKO}/global")
-                if r.status_code == 200:
-                    data = r.json().get("data", {})
-                    return {
-                        "total_market_cap": data.get("total_market_cap", {}).get("usd"),
-                        "btc_dominance": data.get("market_cap_percentage", {}).get("btc"),
-                    }
-            return None
+            body = await http_get_json(f"{COINGECKO}/global", timeout=12)
+            if body is None:
+                return None
+            data = body.get("data", {})
+            return {
+                "total_market_cap": data.get("total_market_cap", {}).get("usd"),
+                "btc_dominance": data.get("market_cap_percentage", {}).get("btc"),
+            }
 
         global_data = await resolve_market_global(_external_global)
         if global_data:
@@ -408,7 +404,7 @@ async def _inline_sentiment(update: Update, ctx) -> None:
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
         logger.warning(f"inline sentiment failed: {e}")
         await query.edit_message_text(
-            "\u274c Sentiment unavailable. Please try again later.",
+            "\u274c Sentiment unavailable. Please try again in a moment.",
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )

@@ -4,18 +4,16 @@
 Show recent news events for a token and how the price moved around each one.
 
 Backed by the news-event-to-price correlation engine
-(``app.domains.scanner.engines.event_correlation`` — private; OSS ships an
-optional adapter seam, see TODO below).
+(``app.domains.scanner.engines.event_correlation``).
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from app.domains.telegram.rugmunchbot.formatters import footer_links, sep
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from telegram.constants import ParseMode
-
-from rugmunchbot.formatters import footer_links, sep
-from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -99,16 +97,7 @@ async def cmd_events(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
     try:
-        # TODO(port): optional event-correlation adapter. The live bot imports
-        # the PRIVATE scanner engine
-        # (app.domains.scanner.engines.event_correlation.correlate_news_with_price)
-        # and fails open when it is unavailable (checklist §2.2 — optional
-        # adapter, fail-open). OSS ships no engine; once an adapter exists at
-        # rugmunchbot.integrations.event_correlation this import succeeds and
-        # the command lights up. Until then it fails open with no events. [REVIEW]
-        from rugmunchbot.integrations.event_correlation import (
-            correlate_news_with_price,  # type: ignore[import-not-found]
-        )
+        from app.domains.scanner.engines.event_correlation import correlate_news_with_price
 
         result = await correlate_news_with_price(token, chain, lookback_hours=24)
         events = result.get("events") or []

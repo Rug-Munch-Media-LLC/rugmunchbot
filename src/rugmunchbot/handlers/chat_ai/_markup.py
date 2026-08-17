@@ -15,18 +15,19 @@ import re
 from html import escape as _html_escape, unescape as _html_unescape
 from typing import Any
 
-from rugmunchbot.formatters import thin_sep
-from rugmunchbot.handlers.chat_ai._parts import _is_fence_line
+from app.domains.telegram.rugmunchbot.formatters import thin_sep
+from app.domains.telegram.rugmunchbot.handlers.chat_ai._parts import _is_fence_line
 
 # Telegram hard limit is 4096; leave headroom for escape expansion.
 CHUNK_MAX_CHARS = 3800
 
 # Answer length cap applied in ``_send_answer`` BEFORE ``split_in_parts``:
-# a simple query must never turn into a 1000-word wall spread over multiple
-# messages. 3200 chars ≈ 450-530 words — room for a thorough deep analysis,
-# nowhere near a wall. Capped answers are trimmed at a paragraph/sentence
-# boundary and end with an ellipsis so truncation is honest.
-MAX_ANSWER_CHARS = 3200
+# a simple query must never turn into a 1000-word wall. 4600 chars ≈ 650-750
+# words — room for a thorough deep analysis; answers that exceed Telegram's
+# 4096 message limit are split across parts by ``split_in_parts``. Capped
+# answers are trimmed at a paragraph/sentence boundary and end with an
+# ellipsis so truncation is honest.
+MAX_ANSWER_CHARS = 4600
 
 # ══════════════════════════════════════════════
 # v10 RESPONSE BEAUTIFIER (see _beautify_answer / _markdown_bold_to_html)
@@ -66,6 +67,10 @@ _BOLD_RE = re.compile(r"\*{2,3}([^*\n]+?)\*{2,3}")
 # balanced pair — unmatched markers pass through as literal text.
 # ══════════════════════════════════════════════
 _INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
+# Markdown link [text](url) / bare URL / raw HTML anchor <a href="...">…</a>
+# — a cap or chunk cut must never split one of these (mirrors _parts.py).
+_LINK_RE = re.compile(r"\[[^\]]*\]\([^)]*\)|https?://[^\s)\]<>]+")
+_ANCHOR_RE = re.compile(r"<a\b[^>]*>.*?</a>", re.DOTALL)
 # Single-asterisk italic; the inner span must start/end on a non-space char
 # so arithmetic like ``x * 2 * y`` and stray ``* item`` bullets never match.
 _ITALIC_RE = re.compile(r"\*([^*\s][^*\n]*?[^*\s])\*")
@@ -186,7 +191,7 @@ def _last_sentence_boundary(text: str, limit: int) -> int:
     """Index just past the last sentence-ending punctuation before ``limit``.
 
     Returns -1 when no sentence boundary exists inside the window. Used by
-    :func:`_split_oversized` so hard splits land at sentence ends instead of
+    :func:`_beautify_answer` so answer caps land at sentence ends instead of
     mid-sentence ("split at natural section boundaries, not mid-sentence").
     """
     best = -1
@@ -197,61 +202,6 @@ def _last_sentence_boundary(text: str, limit: int) -> int:
     if best > limit:
         return limit  # boundary punctuation ends exactly at the window edge
     return best
-
-
-def _split_oversized(paragraph: str, max_len: int) -> list[str]:
-    """Hard-split a single oversized paragraph — prefer sentence boundaries.
-
-    Falls back to the last word boundary, then an exact cut, so a cut never
-    lands mid-word. Sentence-boundary preference keeps chunks readable.
-    """
-    if len(paragraph) <= max_len:
-        return [paragraph]
-    parts: list[str] = []
-    remaining = paragraph
-    while len(remaining) > max_len:
-        cut = _last_sentence_boundary(remaining, max_len)
-        if cut < max_len // 2:
-            cut = remaining.rfind(" ", 0, max_len)  # no sentence end — word boundary
-        if cut < max_len // 2:
-            cut = max_len  # no good boundary — cut exactly
-        parts.append(remaining[:cut].strip())
-        remaining = remaining[cut:].strip()
-    if remaining:
-        parts.append(remaining)
-    return parts
-
-
-def _chunk_text(text: str, max_len: int = CHUNK_MAX_CHARS) -> list[str]:
-    """Split ``text`` into Telegram-sized chunks on paragraph boundaries.
-
-    Operates on the RAW (pre-escape) text: paragraphs are the safest split
-    points and no chunk ever cuts through an HTML entity that escaping would
-    later introduce (e.g. ``&lt;``). New emoji section headers (v10) always
-    start a fresh chunk when the current one is non-empty, so headers never
-    dangle at the tail of a previous section.
-    """
-    if not text:
-        return []
-    if len(text) <= max_len:
-        return [text]
-
-    chunks: list[str] = []
-    current = ""
-    for paragraph in text.split("\n\n"):
-        for piece in _split_oversized(paragraph, max_len):
-            if current and _is_section_header(piece):
-                # v10: prefer section boundaries — a new emoji header leads a
-                # new chunk so it is never glued to the previous section.
-                chunks.append(current)
-                current = ""
-            elif current and len(current) + len(piece) + 2 > max_len:
-                chunks.append(current)
-                current = ""
-            current = f"{current}\n\n{piece}" if current else piece
-    if current:
-        chunks.append(current)
-    return chunks
 
 
 # ══════════════════════════════════════════════
@@ -583,6 +533,18 @@ def _cap_answer(text: str, max_chars: int = MAX_ANSWER_CHARS) -> str:
             if m.start() >= max_chars // 2:
                 cut = m.start()
             break
+    # Never cut inside a markdown link / bare URL / HTML anchor: back up to
+    # its start when the backed-up piece is still substantial, else advance
+    # past it when it still fits in the window (a whole link beats a broken
+    # one — the ellipsis then follows the link instead of splitting it).
+    for regex in (_LINK_RE, _ANCHOR_RE):
+        for m in regex.finditer(text):
+            if m.start() < cut < m.end():
+                if m.start() >= max_chars // 2:
+                    cut = m.start()
+                elif m.end() <= max_chars:
+                    cut = m.end()
+                break
     clipped = text[:cut].rstrip()
     # Never end mid-tag (<br, <b, <i...): back up to before the dangling '<'.
     lt = clipped.rfind("<")
@@ -719,13 +681,11 @@ __all__ = [
     "MAX_ANSWER_CHARS",
     "_beautify_answer",
     "_cap_answer",
-    "_chunk_text",
     "_format_scan_summary",
     "_is_section_header",
     "_markdown_bold_to_html",
     "_markdown_to_html",
     "_normalize_llm_markup",
-    "_split_oversized",
     "_tables_to_lists",
     "_unescape_llm_entities",
 ]

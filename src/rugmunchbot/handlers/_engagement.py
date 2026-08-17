@@ -15,19 +15,23 @@ This module is deliberately free of Telegram / DB / network dependencies so
 any handler (or the chat_ai pipeline) can use it without import cycles.
 
 [REVIEW] Integration point for chat answers: the AI chat pipeline renders its
-final answer in ``handlers/chat_ai/__init__.py::_send_answer``. The clean
-additive hook is to append ``append_footer_cta(html[-1], seed=user_id)`` to
-the last chunk there. This module only ships the helper — wiring it into
-chat_ai is left to that pipeline's owner to avoid a parallel-batch conflict.
+final answer in ``handlers/chat_ai/_delivery.py::_send_answer`` (the package
+``__init__`` is a re-export shim; the module path moved during the 2026-08-16
+split). The clean additive hook is to append ``append_footer_cta(html[-1],
+seed=user_id)`` to the last chunk there. This module only ships the helper —
+wiring it into chat_ai is left to that pipeline's owner to avoid a
+parallel-batch conflict. NOT yet wired: the answer already carries a
+grounding footer ("⚡ Grounded in N sources … | Rug Munch Bot"), and a
+second footer line on every AI answer risks reading as spam — revisit only
+with a one-line CTA that replaces, never stacks, the grounding footer.
 """
 
 from __future__ import annotations
 
-import os
 import zlib
 from datetime import date
 
-from rugmunchbot.config import CHANNELS, TELEGRAM_CHANNEL
+from app.core.channels_registry import CHANNEL_ROLES
 
 #: (emoji, short phrase, command) — one line each, curated, HTML-safe.
 FOOTER_CTA_POOL: tuple[tuple[str, str, str], ...] = (
@@ -80,19 +84,13 @@ def append_footer_cta(text: str, seed: str | int = "") -> str:
 
 
 # ══════════════════════════════════════════════
-# "📢 Our Channels" shill (env-driven handles)
+# "📢 Our Channels" shill (public handles only)
 # ══════════════════════════════════════════════
-#: User-facing one-liners for the channel shill, keyed by channel role.
-#: Membership comes from ``config.CHANNELS`` (env ``BOT_CHANNELS``) so the
-#: shill renders the operator's own channels — never private registry data.
+#: User-facing one-liners for the channel shill, keyed by registry role.
+#: Handles + membership come from ``channels_registry.CHANNEL_ROLES`` (the
+#: canonical source) so the shill can never drift from the real channels —
+#: and it renders PUBLIC HANDLES only: no numeric chat ids, no gopass paths.
 #: Deliberately kept as one short line per channel (compact, not a wall).
-#:
-#: TODO(port): the live module renders from the PRIVATE channel registry
-#: ``app.core.channels_registry.CHANNEL_ROLES`` (secret-store paths + public
-#: handles + numeric fallback chat ids — never ships, checklist §3/§6). OSS
-#: renders the env-driven ``BOT_CHANNELS`` map instead, mirroring the ported
-#: ``handlers/_help_text.py::_channel_url`` resolution order (alerts handle →
-#: alpha handle env → ``t.me/c/<id>`` deep link). [REVIEW]
 CHANNEL_PITCHES: dict[str, str] = {
     "news": "Crypto news 24/7 \u2014 headlines &amp; digests",
     "alerts": "Security \u2014 rug alerts &amp; exploits",
@@ -103,44 +101,23 @@ CHANNEL_PITCHES: dict[str, str] = {
 }
 
 
-def _channel_url(key: str, chat_id: object) -> str | None:
-    """Resolve one ``config.CHANNELS`` entry to a Telegram link.
-
-    Mirrors the ported ``handlers/_help_text.py::_channel_url``: ``alerts``
-    uses the ``BOT_TELEGRAM_CHANNEL`` env handle; ``alpha`` uses the
-    ``BOT_TELEGRAM_ALPHA`` env handle when the operator sets one; remaining
-    channels fall back to the ``https://t.me/c/<id>`` deep link derived from
-    their numeric chat id (the ``-100`` supergroup prefix is stripped).
-    Returns ``None`` when no link can be resolved — unresolvable channels
-    are simply omitted from the rendered block.
-    """
-    if key == "alerts" and TELEGRAM_CHANNEL:
-        return TELEGRAM_CHANNEL
-    if key == "alpha":
-        alpha_handle = os.getenv("BOT_TELEGRAM_ALPHA", "").strip()
-        if alpha_handle:
-            return alpha_handle
-    numeric = str(chat_id or "").strip()
-    if numeric.startswith("-100") and numeric[4:].isdigit():
-        return f"https://t.me/c/{numeric[4:]}"
-    return None
-
-
 def channels_menu_text() -> str:
     """Compact "📢 Our Channels" block for /start, /help and onboarding.
 
-    Renders every ``config.CHANNELS`` role that resolves to a link as one
-    line: ``• <a href="...">Label</a> — one-line pitch``. Pure + deterministic
-    (no network, no DB, no Telegram API) and HTML-safe for ``ParseMode.HTML``:
-    balanced anchors, no raw ``<``/``>``, and no hardcoded chat ids.
+    Renders every registry channel with a public handle as one line:
+    ``• <a href="https://t.me/<handle>">@handle</a> — one-line pitch``.
+    Pure + deterministic (no network, no DB, no Telegram API) and HTML-safe
+    for ``ParseMode.HTML``: balanced anchors, no raw ``<``/``>``, and the
+    ``@`` in the anchor text is a literal handle — never a chat id.
     """
     lines = ["\U0001f4e2 <b>Our Channels</b>", "\u2500" * 24]
-    for role, chat_id in CHANNELS.items():
-        link = _channel_url(role, chat_id)
-        if not link:
+    for definition in CHANNEL_ROLES.values():
+        handle = definition.public_handle
+        if not handle:
             continue
-        pitch = CHANNEL_PITCHES.get(role) or ""
-        lines.append(f'\u2022 <a href="{link}">{role.capitalize()}</a> \u2014 {pitch}')
+        link = f"https://t.me/{handle.lstrip('@')}"
+        pitch = CHANNEL_PITCHES.get(definition.role) or definition.description or ""
+        lines.append(f'\u2022 <a href="{link}">{handle}</a> \u2014 {pitch}')
     return "\n".join(lines)
 
 

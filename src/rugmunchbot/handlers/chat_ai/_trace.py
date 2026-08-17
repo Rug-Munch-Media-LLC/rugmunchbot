@@ -6,7 +6,7 @@ fabrication: the question, detected intent, tools called, data sources hit,
 fabricated tokens (must be 0), end-to-end latency, LLM used, provider, RAG
 grounding count and the number of Telegram parts sent.
 
-The logger (``rugmunchbot.support.logging.get_logger``)
+The logger (``app.domains.telegram.rugmunchbot.support.logging.get_logger``)
 renders JSON lines in production (structlog ``JSONRenderer``) — no external
 tracer required. Every field is a JSON-serializable scalar/list, so the line
 can be grepped/parsed directly:
@@ -18,7 +18,7 @@ can be grepped/parsed directly:
 
 from __future__ import annotations
 
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.chat_ai")
 

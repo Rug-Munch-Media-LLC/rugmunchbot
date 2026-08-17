@@ -7,12 +7,11 @@ Self-hostable Telegram bot for crypto intelligence: token scanning, wallet
 forensics, market data, and AI-powered risk analysis. Free tier included —
 premium/billing is an operator opt-in.
 
-> **Status: extraction in progress.** This repo is the public home of the
-> RugMunchBot codebase. The live production bot currently runs from a private
-> monorepo; the extraction plan and checklist live in
-> [`docs/RUGMUNCHBOT-EXTRACTION.md`](docs/RUGMUNCHBOT-EXTRACTION.md) and
-> [`docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md`](docs/RUGMUNCHBOT-EXTRACTION-CHECKLIST.md).
-> The `src/` tree is a **scaffold** — see [MIGRATION.md](MIGRATION.md).
+> **Status: extraction in progress — Phase 0 complete.** The live production bot
+> runs from the private monorepo (`rmi-backend/app/domains/telegram/rugmunchbot`).
+> `src/rugmunchbot` is a **verified one-way snapshot** of the live code —
+> never edit it directly; run `bash scripts/sync-from-live.sh` (see
+> [`docs/RUGMUNCHBOT-EXTRACTION.md`](docs/RUGMUNCHBOT-EXTRACTION.md)).
 
 ## Features
 
@@ -103,9 +102,8 @@ bot.
 make test
 ```
 
-> Note: the repo's existing `tests/` currently exercise a **stale, deprecated**
-> codebase tree and are scheduled for replacement (extraction Stage 4). The
-> live bot's test suite (~49 files) is being ported.
+> Note: the stale `tests/` (exercising the removed deprecated `bot/` tree) were
+> removed in Phase 0. The live bot's test suite (~49 files) ports in a later phase.
 
 ## Contributing
 

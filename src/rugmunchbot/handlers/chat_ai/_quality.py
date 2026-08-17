@@ -14,7 +14,14 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from rugmunchbot.tools.registry import ToolResult
+    from app.domains.telegram.rugmunchbot.tools.registry import ToolResult
+
+# Single shared implementation — see ``app.core.ai_guardrails.strip_think_tags``.
+# The strip logic used to be duplicated across ``ai_router``, ``chat_ai/_quality``
+# and ``chat_ai/_llm``; alias here so every caller resolves to the ONE helper
+# and the regexes cannot drift. Handles complete + unterminated (``max_tokens``-
+# truncated) blocks; idempotent; safe on plain text.
+from app.core.ai_guardrails import strip_think_tags as strip_think_blocks
 
 # ══════════════════════════════════════════════
 # GROUNDING FOOTER — DISTINCT INTELLIGENCE SOURCES
@@ -100,20 +107,6 @@ def _grounding_sources_count(
 # stored/sent so the user and the chat history never see a reasoning chain
 # or a degenerate token-repetition loop.
 # ══════════════════════════════════════════════
-
-
-def strip_think_blocks(text: str) -> str:
-    """Strip ``<think>...</think>`` reasoning blocks from an LLM answer.
-
-    Local models (qwen-analysis) emit visible reasoning chains and the
-    backend / local providers can all surface them. Handles BOTH
-    complete blocks and unterminated blocks truncated by ``max_tokens`` —
-    exactly like ``ai_router._strip_think_tags`` (an unclosed ``<think>``
-    drops everything from it onward). Idempotent; safe on plain text.
-    """
-    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    cleaned = re.sub(r"<think>.*", "", cleaned, flags=re.DOTALL)
-    return cleaned.strip()
 
 
 _DEGENERATE_REPETITION_RE = re.compile(r"^(.{2,40}?)\1{2,}$", re.DOTALL)

@@ -23,8 +23,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools._cache import TTLCache
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._cache import TTLCache
 
 logger = get_logger("rmi_bot.tools")
 
@@ -34,6 +34,27 @@ ToolHandler = Callable[..., Awaitable["ToolResult"]]
 DEFAULT_TOOL_TIMEOUT = 6.0
 DEFAULT_TOOL_TTL = 60.0
 MAX_RETRIES = 1
+
+# Failures (``ok=False``) are cached for a SHORT window so a transient
+# timeout / rate-limit does not poison the full TTL: a 30s backend blip would
+# otherwise make ``scanner_intel`` report "no live data" for the full 300s
+# policy TTL and ``price_lookup`` for 60s. 5-10s negative window (caching
+# audit); 8s chosen as a middle ground between retry frequency and
+# source-hammering.
+NEGATIVE_TTL = 8.0
+
+
+def _negative_namespace(name: str) -> str:
+    """Cache namespace for transient failures.
+
+    Deliberately NOT a key in ``budget.TTL_POLICY``: stable-data overrides
+    live there, and ``effective_ttl`` would promote a short negative TTL back
+    up to the tool's full policy TTL (e.g. ``scanner_intel`` 300s) — the very
+    poisoning the negative cache exists to prevent. The ``:neg`` suffix keeps
+    this namespace out of the policy so failures really expire after
+    ``NEGATIVE_TTL`` seconds.
+    """
+    return f"{name}:neg"
 
 
 @dataclass
@@ -64,10 +85,12 @@ class ToolResult:
 
     @property
     def symbol_set(self) -> set[str]:
+        """Uppercased, de-duplicated set of symbols seen by the tool."""
         return {s.upper() for s in self.symbols if s}
 
     @property
     def address_set(self) -> set[str]:
+        """De-duplicated set of addresses seen by the tool."""
         return {a for a in self.addresses if a}
 
     def summary(self, limit: int = 400) -> str:
@@ -119,6 +142,7 @@ class ToolRegistry:
 
     @property
     def names(self) -> list[str]:
+        """Sorted names of all registered tools."""
         return sorted(self._handlers)
 
     def cache_key(self, name: str, kwargs: dict[str, Any]) -> str:
@@ -141,20 +165,30 @@ class ToolRegistry:
         key = self.cache_key(name, kwargs)
         if ttl > 0:
             cached = self._cache.get(name, key)
+            if cached is None:
+                # A failure cached by an earlier run lives in the negative
+                # namespace (short TTL) — serve it so we don't re-hammer the
+                # down source, but only for the short negative window.
+                cached = self._cache.get(_negative_namespace(name), key)
             if cached is not None:
                 cached.cached = True
                 return cached
 
         result = await self._run_with_retry(name, handler, timeout, **kwargs)
         if ttl > 0:
-            self._cache.set(name, key, result, ttl)
+            if result.ok:
+                self._cache.set(name, key, result, ttl)
+            else:
+                # Negative cache: a transient failure must NOT occupy the full
+                # tool TTL. Store it under the ``:neg`` namespace with a short
+                # TTL so the next call retries the live source after ~8s.
+                self._cache.set(_negative_namespace(name), key, result, NEGATIVE_TTL)
         return result
 
     async def _run_with_retry(
         self, name: str, handler: ToolHandler, timeout: float, **kwargs: Any
     ) -> ToolResult:
         last: ToolResult | None = None
-        start = time.perf_counter()
         for attempt in range(MAX_RETRIES + 1):
             start = time.perf_counter()
             try:
@@ -248,6 +282,7 @@ class ToolRegistry:
         return {k: v for k, v in merged.items() if k in sig.parameters}
 
     def clear_cache(self, namespace: str | None = None) -> None:
+        """Evict cached tool results, optionally scoped to ``namespace``."""
         self._cache.clear(namespace)
 
 
@@ -256,8 +291,8 @@ async def backend_json_get(
     path: str, *, params: dict[str, Any] | None = None, timeout: float = 6.0
 ) -> dict[str, Any] | None:
     """GET a backend (own-data) endpoint with the shared-secret header."""
-    from rugmunchbot.config import BACKEND_URL, backend_headers
-    from rugmunchbot.tools._client import http_get_json
+    from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
+    from app.domains.telegram.rugmunchbot.tools._client import http_get_json
 
     return await http_get_json(
         f"{BACKEND_URL}{path}",
@@ -267,80 +302,16 @@ async def backend_json_get(
     )
 
 
-async def _backend_request(
-    method: str,
-    path: str,
-    *,
-    json: dict[str, Any] | None = None,
-    timeout: float = 8.0,
-    accept_status: tuple[int, ...] = (200,),
-) -> dict[str, Any] | None:
-    """Budget-gated httpx request to a backend (own-data) endpoint.
-
-    Shared implementation for POST/DELETE variants that need a success set
-    beyond ``tools/_client``'s 200-only contract (e.g. 201-created webhook
-    subscriptions). ``accept_status`` lists the HTTP status codes treated
-    as success; any other status — plus network errors and budget misses —
-    returns ``None`` (never raises), matching ``backend_json_get/post``.
-    """
-    import httpx
-
-    from rugmunchbot.config import BACKEND_URL, backend_headers
-    from rugmunchbot.tools.budget import budget, maybe_log_summary, provider_for_url
-
-    url = f"{BACKEND_URL}{path}"
-    bucket = provider_for_url(url, "backend")
-    if not budget.acquire(bucket):
-        logger.debug("tool_api_budget skip provider=%s url=%.100s", bucket, url)
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.request(method, url, json=json, headers=backend_headers())
-            if r.status_code not in accept_status:
-                return None
-            body = r.json()
-            return body if isinstance(body, dict) else None
-    except (httpx.HTTPError, ConnectionError, OSError, TimeoutError, ValueError):
-        return None
-    finally:
-        maybe_log_summary()
-
-
 async def backend_json_post(
-    path: str,
-    *,
-    json: dict[str, Any] | None = None,
-    timeout: float = 8.0,
-    accept_status: tuple[int, ...] = (200,),
+    path: str, *, json: dict[str, Any] | None = None, timeout: float = 8.0
 ) -> dict[str, Any] | None:
-    """POST a backend (own-data) endpoint with the shared-secret header.
+    """POST a backend (own-data) endpoint with the shared-secret header."""
+    from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
+    from app.domains.telegram.rugmunchbot.tools._client import http_post_json
 
-    ``accept_status`` extends the success set beyond the default HTTP 200 —
-    e.g. ``(200, 201)`` so a webhook subscription that answers 201-created
-    counts as success. Additive: the default path is unchanged (delegates
-    to ``tools/_client.http_post_json``).
-    """
-    if accept_status == (200,):
-        from rugmunchbot.config import BACKEND_URL, backend_headers
-        from rugmunchbot.tools._client import http_post_json
-
-        return await http_post_json(
-            f"{BACKEND_URL}{path}",
-            json=json,
-            headers=backend_headers(),
-            timeout=timeout,
-        )
-    return await _backend_request(
-        "POST", path, json=json, timeout=timeout, accept_status=accept_status
+    return await http_post_json(
+        f"{BACKEND_URL}{path}",
+        json=json,
+        headers=backend_headers(),
+        timeout=timeout,
     )
-
-
-async def backend_json_delete(path: str, *, timeout: float = 8.0) -> dict[str, Any] | None:
-    """DELETE a backend (own-data) endpoint with the shared-secret header.
-
-    Budget-gated like :func:`backend_json_get` / :func:`backend_json_post`
-    (bucket: ``backend``). Returns the parsed JSON object for an HTTP 200
-    response, else ``None`` (network / HTTP non-200 / budget miss) — never
-    raises.
-    """
-    return await _backend_request("DELETE", path, timeout=timeout)

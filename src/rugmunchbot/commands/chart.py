@@ -11,12 +11,12 @@ Usage: /chart <address> [chain]
 
 from __future__ import annotations
 
+import asyncio
 import io
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import httpx
-
-from rugmunchbot.config import (
+from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
     COINGECKO,
     DEXSCREENER,
@@ -25,10 +25,8 @@ from rugmunchbot.config import (
     fmt_number,
     fmt_pct,
 )
-from rugmunchbot.support.logging import get_logger
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
 
 logger = get_logger("rmi.chart")
 
@@ -367,165 +365,148 @@ async def cmd_chart(update, ctx) -> None:
     timeframe = args[2] if len(args) > 2 else "1d"
     await msg.chat.send_action("upload_photo")
 
-    async with httpx.AsyncClient(timeout=25) as client:
-        # ── Fetch DexScreener data ──
-        try:
-            r = await client.get(f"{DEXSCREENER}/tokens/{address}")
-            if r.status_code != 200:
-                await msg.reply_text(
-                    "❌ Could not fetch token data.",
-                    parse_mode="HTML",
-                )
-                return
-
-            data = r.json()
-            pairs = data.get("pairs", [])
-            if not pairs:
-                await msg.reply_text(
-                    "❌ No trading pairs found for this token.",
-                    parse_mode="HTML",
-                )
-                return
-        except (
-            ConnectionError,
-            OSError,
-            TimeoutError,
-            httpx.HTTPError,
-            httpx.TimeoutException,
-        ) as e:
-            logger.error("DexScreener fetch failed: %s", e)
+    client = get_shared_client(25)
+    # ── Fetch DexScreener data ──
+    try:
+        r = await client.get(f"{DEXSCREENER}/tokens/{address}")
+        if r.status_code != 200:
             await msg.reply_text(
-                "❌ Error fetching token data. Try again later.",
+                "❌ Could not fetch token data.",
                 parse_mode="HTML",
             )
             return
 
-        p = pairs[0]
-        symbol = p.get("baseToken", {}).get("symbol", "???")
-        name = p.get("baseToken", {}).get("name", "Unknown")
-        price = float(p.get("priceUsd", 0))
-        change_1h = float(p.get("priceChange", {}).get("h1", 0))
-        change_6h = p.get("priceChange", {}).get("h6")  # may be None
-        change_6h = float(change_6h) if change_6h is not None else None
-        change_24h = float(p.get("priceChange", {}).get("h24", 0))
-        change_7d = float(p.get("priceChange", {}).get("d7", 0))
-        vol_24h = float(p.get("volume", {}).get("h24", 0))
-        mcap = float(p.get("marketCap") or p.get("fdv") or 0)
-        chain = explicit_chain or p.get("chainId", "")
-        pair_address = p.get("pairAddress", "")
-
-        # ── Fetch OHLCV for requested timeframe ──
-        candles = await _fetch_rugcharts_ohlcv(client, chain, pair_address, timeframe)
-        # Fallback to 1h if requested timeframe unavailable
-        if not candles and timeframe != "1h":
-            candles = await _fetch_rugcharts_ohlcv(client, chain, pair_address, "1h")
-        # Use branded visual engine
-        # TODO(port): services/visuals.render_candlestick_chart is NOT yet
-        # ported (services/visuals.py is still a scaffold stub — checklist
-        # Stage 2). Fails open to the text sparkline until the live visual
-        # engine lands. [REVIEW]
-        render_candlestick_chart: Callable[..., Any] | None = None
-        try:
-            from rugmunchbot.services.visuals import (
-                render_candlestick_chart as _render_candlestick_chart,
+        data = r.json()
+        pairs = data.get("pairs", [])
+        if not pairs:
+            await msg.reply_text(
+                "❌ No trading pairs found for this token.",
+                parse_mode="HTML",
             )
-
-            render_candlestick_chart = _render_candlestick_chart
-        except (ImportError, AttributeError):
-            pass
-
-        png = (
-            render_candlestick_chart(candles, name, symbol, chain, timeframe)
-            if candles and render_candlestick_chart
-            else None
-        )
-        if png:
-            caption = (
-                f"📊 <b>{name}</b> ({symbol})\n<code>{address}</code>\n\n💰 Price: <b>${price:.10f}</b>".rstrip(
-                    "0"
-                ).rstrip(".")
-                + (
-                    f"\n📈 MCap: {fmt_number(mcap)} | 📊 24h Vol: {fmt_number(vol_24h)}\n"
-                    f"🟢 1h: {fmt_pct(change_1h)} | 24h: {fmt_pct(change_24h)} | 7d: {fmt_pct(change_7d)}"
-                )
-                + f'\n📉 <a href="{_web_chart_url(chain, pair_address)}">Open chart</a>'
-            )
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-
-            kb = InlineKeyboardMarkup(
-                [
-                    [
-                        InlineKeyboardButton("1H", callback_data=f"chart_{address}_{chain}_1h"),
-                        InlineKeyboardButton("4H", callback_data=f"chart_{address}_{chain}_4h"),
-                        InlineKeyboardButton("1D", callback_data=f"chart_{address}_{chain}_1d"),
-                        InlineKeyboardButton("1W", callback_data=f"chart_{address}_{chain}_1w"),
-                    ],
-                    [
-                        InlineKeyboardButton("🗺️ RugMap", callback_data=f"rugmap_{address}_{chain}"),
-                        InlineKeyboardButton(
-                            "🔍 Deep Scan", callback_data=f"deep_{address}_{chain}"
-                        ),
-                    ],
-                    [InlineKeyboardButton("🏠 Menu", callback_data="menu_main")],
-                ]
-            )
-            try:
-                await msg.reply_photo(
-                    photo=io.BytesIO(png),
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_markup=kb,
-                )
-                return
-            except Exception as e:
-                logger.warning("chart photo send failed, falling back to text: %s", e)
-
-        # ── Fallback: sparkline text + web link ──
-        sparkline = ""
-        cg_prices = await _fetch_cg_price_history(client, name, symbol)
-        if cg_prices:
-            sparkline = _sparkline(cg_prices, width=8)
-        else:
-            sparkline = _pseudo_sparkline(price, change_1h, change_6h, change_24h, change_7d)
-
-        def _arrow(val: float) -> str:
-            if val > 0:
-                return "🟢"
-            if val < 0:
-                return "🔴"
-            return "⚪"
-
-        dex_url = _web_chart_url(chain, pair_address)
-
-        lines = [
-            f"📊 <b>{name}</b> ({symbol})",
-            f"<code>{address}</code>",
-            "",
-            sparkline,
-            "",
-            f"💰 <b>Price:</b> ${price:.10f}".rstrip("0").rstrip("."),
-            f"📈 <b>Market Cap:</b> {fmt_number(mcap)}",
-            f"📊 <b>24h Volume:</b> {fmt_number(vol_24h)}",
-            "",
-            "<b>Price Change</b>",
-            f"  {_arrow(change_1h)} 1h:  <b>{fmt_pct(change_1h)}</b>",
-            f"  {_arrow(change_24h)} 24h: <b>{fmt_pct(change_24h)}</b>",
-            f"  {_arrow(change_7d)} 7d:  <b>{fmt_pct(change_7d)}</b>",
-            "",
-            f'📉 <a href="{dex_url}">View chart</a>',
-            "",
-            "<i>Chart rendering unavailable — showing text sparkline.</i>",
-        ]
-
-        text = "\n".join(lines)
-        if len(text) > 4000:
-            text = text[:4000] + "\n\n<i>...truncated</i>"
-
+            return
+    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
+        logger.error("DexScreener fetch failed: %s", e)
         await msg.reply_text(
-            text,
+            "❌ Could not fetch token data.\n\nPlease try again in a moment.",
             parse_mode="HTML",
-            disable_web_page_preview=True,
         )
+        return
+
+    p = pairs[0]
+    symbol = p.get("baseToken", {}).get("symbol", "???")
+    name = p.get("baseToken", {}).get("name", "Unknown")
+    price = float(p.get("priceUsd", 0))
+    change_1h = float(p.get("priceChange", {}).get("h1", 0))
+    change_6h = p.get("priceChange", {}).get("h6")  # may be None
+    change_6h = float(change_6h) if change_6h is not None else None
+    change_24h = float(p.get("priceChange", {}).get("h24", 0))
+    change_7d = float(p.get("priceChange", {}).get("d7", 0))
+    vol_24h = float(p.get("volume", {}).get("h24", 0))
+    mcap = float(p.get("marketCap") or p.get("fdv") or 0)
+    chain = explicit_chain or p.get("chainId", "")
+    pair_address = p.get("pairAddress", "")
+
+    # ── Fetch OHLCV for requested timeframe ──
+    candles = await _fetch_rugcharts_ohlcv(client, chain, pair_address, timeframe)
+    # Fallback to 1h if requested timeframe unavailable
+    if not candles and timeframe != "1h":
+        candles = await _fetch_rugcharts_ohlcv(client, chain, pair_address, "1h")
+    # Use branded visual engine. Pillow rendering is CPU-bound — run it in
+    # a worker thread so the bot event loop never stalls on image draw.
+    from app.domains.telegram.rugmunchbot.services.visuals import render_candlestick_chart
+
+    png = None
+    if candles:
+        png = await asyncio.to_thread(
+            render_candlestick_chart, candles, name, symbol, chain, timeframe
+        )
+    if png:
+        caption = (
+            f"📊 <b>{name}</b> ({symbol})\n<code>{address}</code>\n\n💰 Price: <b>${price:.10f}</b>".rstrip(
+                "0"
+            ).rstrip(".")
+            + (
+                f"\n📈 MCap: {fmt_number(mcap)} | 📊 24h Vol: {fmt_number(vol_24h)}\n"
+                f"🟢 1h: {fmt_pct(change_1h)} | 24h: {fmt_pct(change_24h)} | 7d: {fmt_pct(change_7d)}"
+            )
+            + f'\n📉 <a href="{_web_chart_url(chain, pair_address)}">Open chart</a>'
+        )
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+        kb = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton("1H", callback_data=f"chart_{address}_{chain}_1h"),
+                    InlineKeyboardButton("4H", callback_data=f"chart_{address}_{chain}_4h"),
+                    InlineKeyboardButton("1D", callback_data=f"chart_{address}_{chain}_1d"),
+                    InlineKeyboardButton("1W", callback_data=f"chart_{address}_{chain}_1w"),
+                ],
+                [
+                    InlineKeyboardButton("🗺️ RugMap", callback_data=f"rugmap_{address}_{chain}"),
+                    InlineKeyboardButton(
+                        "\U0001f52c Deep Scan (250\u2605)", callback_data=f"deep_{address}_{chain}"
+                    ),
+                ],
+                [InlineKeyboardButton("🏠 Menu", callback_data="menu_main")],
+            ]
+        )
+        try:
+            await msg.reply_photo(
+                photo=io.BytesIO(png),
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+            return
+        except Exception as e:
+            logger.warning("chart photo send failed, falling back to text: %s", e)
+
+    # ── Fallback: sparkline text + web link ──
+    sparkline = ""
+    cg_prices = await _fetch_cg_price_history(client, name, symbol)
+    if cg_prices:
+        sparkline = _sparkline(cg_prices, width=8)
+    else:
+        sparkline = _pseudo_sparkline(price, change_1h, change_6h, change_24h, change_7d)
+
+    def _arrow(val: float) -> str:
+        if val > 0:
+            return "🟢"
+        if val < 0:
+            return "🔴"
+        return "⚪"
+
+    dex_url = _web_chart_url(chain, pair_address)
+
+    lines = [
+        f"📊 <b>{name}</b> ({symbol})",
+        f"<code>{address}</code>",
+        "",
+        sparkline,
+        "",
+        f"💰 <b>Price:</b> ${price:.10f}".rstrip("0").rstrip("."),
+        f"📈 <b>Market Cap:</b> {fmt_number(mcap)}",
+        f"📊 <b>24h Volume:</b> {fmt_number(vol_24h)}",
+        "",
+        "<b>Price Change</b>",
+        f"  {_arrow(change_1h)} 1h:  <b>{fmt_pct(change_1h)}</b>",
+        f"  {_arrow(change_24h)} 24h: <b>{fmt_pct(change_24h)}</b>",
+        f"  {_arrow(change_7d)} 7d:  <b>{fmt_pct(change_7d)}</b>",
+        "",
+        f'📉 <a href="{dex_url}">View chart</a>',
+        "",
+        "<i>Chart rendering unavailable — showing text sparkline.</i>",
+    ]
+
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n<i>...truncated</i>"
+
+    await msg.reply_text(
+        text,
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
 
 
 __all__ = ["cmd_chart", "render_chart_png"]

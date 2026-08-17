@@ -1,21 +1,16 @@
 """
-Premium V2 Commands — Honeypot Map, LP Health, Token Laundry.
-All free during beta.
-
-OSS note: billing/tiers are PRIVATE in the live bot. These commands are
-config-gated feature flags checked through the operator's BillingProvider
-(plugins/billing.py) — see ``_premium_gate``.
+Premium V2 Commands — Honeypot Map, Token Laundry.
+All free during beta. (LP health lives in handlers/defi.py — /lpcheck is
+canonical; /lphealth is aliased to it in bot.py.)
 """
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
-import httpx
-
-from rugmunchbot.config import BACKEND_URL, backend_headers
-from rugmunchbot.plugins.billing import get_billing_provider
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import http_get_json, http_post_json
 
 logger = get_logger("rmi.premium_v2")
 
@@ -23,31 +18,29 @@ logger = get_logger("rmi.premium_v2")
 async def _backend_get(
     path: str, params: dict[str, Any] | None = None, timeout: float = 15.0
 ) -> dict[str, Any] | None:
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.get(
-                f"{BACKEND_URL}{path}", headers=backend_headers(), params=params or {}
-            )
-            if r.status_code == 200:
-                return cast("dict[str, Any]", r.json())
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.debug("backend GET %s failed: %s", path, exc)
-    return None
+    body = await http_get_json(
+        f"{BACKEND_URL}{path}",
+        headers=backend_headers(),
+        params=params or {},
+        timeout=timeout,
+    )
+    if body is None:
+        logger.debug("backend GET %s failed", path)
+    return body
 
 
 async def _backend_post(
     path: str, json: dict[str, Any] | None = None, timeout: float = 20.0
 ) -> dict[str, Any] | None:
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.post(
-                f"{BACKEND_URL}{path}", headers=backend_headers(), json=json or {}
-            )
-            if r.status_code == 200:
-                return cast("dict[str, Any]", r.json())
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.debug("backend POST %s failed: %s", path, exc)
-    return None
+    body = await http_post_json(
+        f"{BACKEND_URL}{path}",
+        headers=backend_headers(),
+        json=json or {},
+        timeout=timeout,
+    )
+    if body is None:
+        logger.debug("backend POST %s failed", path)
+    return body
 
 
 def _fmt_usd(v: float | None) -> str:
@@ -58,37 +51,6 @@ def _fmt_usd(v: float | None) -> str:
     if v >= 1_000:
         return f"${v / 1_000:.1f}K"
     return f"${v:,.2f}"
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PREMIUM GATE — OSS feature flag (billing stays PRIVATE)
-# ═══════════════════════════════════════════════════════════════════════════
-# Same seam as commands/premium.py: the OSS build ships a single ``free`` tier
-# with env quotas (BOT_FREE_SCANS_PER_WEEK / BOT_FREE_AI_MSGS_PER_WEEK) and
-# delegates enforcement to the operator's BillingProvider. Default no-op
-# allows everything.
-
-
-async def _premium_gate(msg: Any) -> bool:
-    """Gate a premium command behind the operator's BillingProvider.
-
-    Returns True when the user may proceed. Entitlement + quota are delegated
-    to plugins/billing.BillingProvider (check_entitlement / consume_quota) —
-    the OSS default no-op allows all.
-    """
-    provider = get_billing_provider()
-    uid = msg.from_user.id if msg.from_user else 0
-    if not await provider.check_entitlement(uid, "premium"):
-        await msg.reply_text(
-            "💎 <b>Premium Feature</b>\n\n"
-            "This command is gated by the operator's billing provider.\n"
-            "Self-hosted deployments control access via the BillingProvider "
-            "plugin (see docs/); the default allows everything.",
-            parse_mode="HTML",
-        )
-        return False
-    await provider.consume_quota(uid, "premium")
-    return True
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -116,9 +78,6 @@ async def cmd_honeypot(update, ctx) -> None:
         )
         return
 
-    if not await _premium_gate(msg):
-        return
-
     address = args[0]
     chain = args[1] if len(args) > 1 else "ethereum"
 
@@ -126,7 +85,9 @@ async def cmd_honeypot(update, ctx) -> None:
     data = await _backend_get(f"/api/v1/honeypot-map/check/{address}", params={"chain": chain})
 
     if not data:
-        await msg.reply_text("❌ Honeypot check unavailable.", parse_mode="HTML")
+        await msg.reply_text(
+            "❌ Honeypot check unavailable.\n\nPlease try again in a moment.", parse_mode="HTML"
+        )
         return
 
     is_hp = data.get("is_honeypot", False)
@@ -160,69 +121,6 @@ async def cmd_honeypot(update, ctx) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# /lphealth — LIQUIDITY POOL HEALTH
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-async def cmd_lphealth(update, ctx) -> None:
-    """Handle /lphealth — check liquidity pool health."""
-    msg = update.message
-    args = ctx.args
-
-    if not args:
-        await msg.reply_text(
-            "💧 <b>LP Health Check</b>\n\n"
-            "Usage: <code>/lphealth &lt;token_address&gt; [chain]</code>\n\n"
-            "Checks liquidity pool health:\n"
-            "• LP lock status & duration\n"
-            "• Liquidity concentration\n"
-            "• Pool age & stability\n"
-            "• Rug pull risk from LP\n\n"
-            "Example: <code>/lphealth 0x...</code>\n"
-            "<i>Free during beta — check if LP is safe.</i>",
-            parse_mode="HTML",
-        )
-        return
-
-    if not await _premium_gate(msg):
-        return
-
-    address = args[0]
-    chain = args[1] if len(args) > 1 else "ethereum"
-
-    await msg.chat.send_action("typing")
-    data = await _backend_get(f"/api/v1/lp-health/check/{address}", params={"chain": chain})
-
-    if not data:
-        await msg.reply_text("❌ LP health check unavailable.", parse_mode="HTML")
-        return
-
-    health = data.get("health_score", 0)
-    emoji = "🟢" if health >= 70 else "🟡" if health >= 40 else "🔴"
-
-    lines = [
-        "💧 <b>LP Health</b>",
-        f"<code>{address}</code> ({chain.title()})",
-        "",
-        f"{emoji} <b>Health Score:</b> {health}/100",
-    ]
-
-    if data.get("lp_locked") is not None:
-        lines.append(f"🔒 LP Locked: {'Yes' if data['lp_locked'] else 'No'}")
-    if data.get("lock_duration"):
-        lines.append(f"⏱️ Lock Duration: {data['lock_duration']}")
-    if data.get("liquidity_usd"):
-        lines.append(f"💵 Liquidity: {_fmt_usd(data['liquidity_usd'])}")
-    if data.get("pool_age_days"):
-        lines.append(f"📅 Pool Age: {data['pool_age_days']:.0f} days")
-    if data.get("concentration_risk"):
-        lines.append(f"⚠️ Concentration Risk: {data['concentration_risk']}")
-
-    lines.append("\n<i>Higher score = safer LP. <40 = high rug risk.</i>")
-    await msg.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
 # /laundry — TOKEN LAUNDERING DETECTION
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -247,16 +145,15 @@ async def cmd_laundry(update, ctx) -> None:
         )
         return
 
-    if not await _premium_gate(msg):
-        return
-
     address = args[0]
 
     await msg.chat.send_action("typing")
     data = await _backend_post("/api/v1/laundry-matcher/scan", json={"address": address})
 
     if not data:
-        await msg.reply_text("❌ Laundry scan unavailable.", parse_mode="HTML")
+        await msg.reply_text(
+            "❌ Laundry scan unavailable.\n\nPlease try again in a moment.", parse_mode="HTML"
+        )
         return
 
     risk = data.get("risk_score", 0)

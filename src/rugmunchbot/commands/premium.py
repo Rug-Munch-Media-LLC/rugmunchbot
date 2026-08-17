@@ -8,21 +8,15 @@ Commands:
   /deathclock    — Token longevity prediction (rug/abandonment countdown)
   /launches      — New token launch feed with auto-risk flags
   /cluster       — Wallet clustering & funding path detection
-
-OSS note: billing/tiers are PRIVATE in the live bot (Stars/USD pricing).
-Here every premium command is a config-gated feature flag checked through
-the operator's BillingProvider (plugins/billing.py) — see ``_premium_gate``.
 """
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
-import httpx
-
-from rugmunchbot.config import BACKEND_URL, backend_headers
-from rugmunchbot.plugins.billing import get_billing_provider
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.config import BACKEND_URL, backend_headers
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import http_get_json, http_post_json
 
 logger = get_logger("rmi.premium")
 
@@ -35,36 +29,30 @@ async def _backend_get(
     path: str, params: dict[str, Any] | None = None, timeout: float = 15.0
 ) -> dict[str, Any] | None:
     """GET to RMI backend, return parsed JSON or None on any failure."""
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.get(
-                f"{BACKEND_URL}{path}",
-                headers=backend_headers(),
-                params=params or {},
-            )
-            if r.status_code == 200:
-                return cast("dict[str, Any]", r.json())
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.debug("backend GET %s failed: %s", path, exc)
-    return None
+    body = await http_get_json(
+        f"{BACKEND_URL}{path}",
+        headers=backend_headers(),
+        params=params or {},
+        timeout=timeout,
+    )
+    if body is None:
+        logger.debug("backend GET %s failed", path)
+    return body
 
 
 async def _backend_post(
     path: str, json: dict[str, Any] | None = None, timeout: float = 20.0
 ) -> dict[str, Any] | None:
     """POST to RMI backend, return parsed JSON or None on any failure."""
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.post(
-                f"{BACKEND_URL}{path}",
-                headers=backend_headers(),
-                json=json or {},
-            )
-            if r.status_code == 200:
-                return cast("dict[str, Any]", r.json())
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.debug("backend POST %s failed: %s", path, exc)
-    return None
+    body = await http_post_json(
+        f"{BACKEND_URL}{path}",
+        headers=backend_headers(),
+        json=json or {},
+        timeout=timeout,
+    )
+    if body is None:
+        logger.debug("backend POST %s failed", path)
+    return body
 
 
 def _fmt_pct(v: float | None, digits: int = 1) -> str:
@@ -81,40 +69,6 @@ def _fmt_usd(v: float | None) -> str:
     if v >= 1_000:
         return f"${v / 1_000:.1f}K"
     return f"${v:,.2f}"
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PREMIUM GATE — OSS feature flag (billing stays PRIVATE)
-# ═══════════════════════════════════════════════════════════════════════════
-# The live bot gates these commands behind Stars/USD tiers (config.TIERS /
-# TOP_UP_PACKS — revenue logic, never shipped). OSS ships a single ``free``
-# tier with env quotas (BOT_FREE_SCANS_PER_WEEK / BOT_FREE_AI_MSGS_PER_WEEK,
-# see config.FREE_SCANS_PER_WEEK / FREE_AI_MSGS_PER_WEEK). Access is decided
-# by the operator's BillingProvider (plugins/billing.py); the default
-# NoopBillingProvider grants everything, so premium commands work out of the
-# box for self-hosters until they opt into enforcement.
-
-
-async def _premium_gate(msg: Any) -> bool:
-    """Gate a premium command behind the operator's BillingProvider.
-
-    Returns True when the user may proceed. Entitlement + quota are delegated
-    to plugins/billing.BillingProvider (check_entitlement / consume_quota) —
-    the OSS default no-op allows all.
-    """
-    provider = get_billing_provider()
-    uid = msg.from_user.id if msg.from_user else 0
-    if not await provider.check_entitlement(uid, "premium"):
-        await msg.reply_text(
-            "💎 <b>Premium Feature</b>\n\n"
-            "This command is gated by the operator's billing provider.\n"
-            "Self-hosted deployments control access via the BillingProvider "
-            "plugin (see docs/); the default allows everything.",
-            parse_mode="HTML",
-        )
-        return False
-    await provider.consume_quota(uid, "premium")
-    return True
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -140,9 +94,6 @@ async def cmd_mev(update, ctx) -> None:
             "<i>Free during beta — protects your trades from MEV bots.</i>",
             parse_mode="HTML",
         )
-        return
-
-    if not await _premium_gate(msg):
         return
 
     address = args[0]
@@ -224,9 +175,6 @@ async def cmd_impersonation(update, ctx) -> None:
             "<i>Free during beta — spot fake tokens before you buy.</i>",
             parse_mode="HTML",
         )
-        return
-
-    if not await _premium_gate(msg):
         return
 
     address = args[0]
@@ -321,9 +269,6 @@ async def cmd_deathclock(update, ctx) -> None:
         )
         return
 
-    if not await _premium_gate(msg):
-        return
-
     chain = args[0]
     address = args[1] if len(args) > 1 else args[0]
 
@@ -404,16 +349,13 @@ async def cmd_launches(update, ctx) -> None:
     if chain:
         params["chain"] = chain
 
-    if not await _premium_gate(msg):
-        return
-
     await msg.chat.send_action("typing")
 
     data = await _backend_get("/api/v1/launches/feed", params=params)
 
     if not data:
         await msg.reply_text(
-            "❌ Launch feed unavailable right now.\nTry again in a moment.",
+            "❌ Launch feed unavailable right now.\nPlease try again in a moment.",
             parse_mode="HTML",
         )
         return
@@ -484,9 +426,6 @@ async def cmd_cluster(update, ctx) -> None:
             "<i>Free during beta — uncover hidden wallet connections.</i>",
             parse_mode="HTML",
         )
-        return
-
-    if not await _premium_gate(msg):
         return
 
     address = args[0]

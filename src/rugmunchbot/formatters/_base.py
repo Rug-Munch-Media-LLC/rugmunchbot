@@ -12,31 +12,37 @@ import os
 import re
 from typing import Any
 
-from telegram import InlineKeyboardButton
-
-from rugmunchbot import db
-from rugmunchbot.config import (
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import (
     CHAIN_IDS,
     DEX_REF_LINKS,
     TELEGRAM_CHANNEL,
     TIERS,
     WEB_APP_URL,
-    WEBSITE_URL,
 )
+from telegram import InlineKeyboardButton
 
 # ── FREE PUBLIC BETA (2026-08) ──────────────────────────────────────────
 # rugmunchbot is in FREE PUBLIC BETA: every premium feature is unlocked for
 # everyone while we test. Billing surfaces stay functional (they are the
 # future revenue path) but beta status must be prominent. Remove this block
 # and the free-tier quota bump in config.py when beta ends.
+# The optional Stars deep-scan pack is the ONE paid surface during beta —
+# copy must state that so "everything is free" never contradicts the
+# 250★ Deep Scan buttons.
 BETA_BANNER = (
     "\U0001f680 <b>FREE PUBLIC BETA</b> \u2014 all premium features "
     "unlocked while we test.\n"
     "\U0001f4c5 <b>Premium plans coming soon</b> \u2014 beta users get "
-    "launch discounts."
+    "launch discounts.\n"
+    "\u2b50 Optional: \U0001f52c <b>Deep Scan</b> buttons run on Telegram "
+    "Stars (250\u2605); everything else is free."
 )
 BETA_STATUS_LINE = "\U0001f680 <b>FREE PUBLIC BETA</b> \u2014 all features unlocked \U0001f389"
-BETA_PAYMENTS_LINE = "\U0001f680 <b>In beta</b> \u2014 everything\u2019s free right now, but payments live for early supporters."
+BETA_PAYMENTS_LINE = (
+    "\U0001f680 <b>In beta</b> \u2014 every feature is free; optional "
+    "Telegram Stars purchases (deep scans, top-ups) are live for early supporters."
+)
 
 # --- Address detection helpers ---
 TOKEN_RE = re.compile(r"\$([A-Za-z]{2,10})\b")
@@ -45,13 +51,13 @@ SOL_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 
 
 def is_evm(addr: str) -> bool:
-    from rugmunchbot.support.shared_utils import is_evm_address
+    from app.core.shared_utils import is_evm_address
 
     return is_evm_address(addr)
 
 
 def is_sol(addr: str) -> bool:
-    from rugmunchbot.support.shared_utils import is_solana_address
+    from app.core.shared_utils import is_solana_address
 
     return is_solana_address(addr)
 
@@ -109,9 +115,10 @@ def _ref_code(platform: str) -> str:
 
 def footer_links(address: str = "", chain: str = "") -> str:
     """Bot footer with links. When a token is provided, includes
-    GMGN → DexScreener → DexTools trade links (GMGN carries the owner's
-    ref code) plus RugCharts + RugMaps deep links so users can jump to
-    visual analysis. HTML-safe for Telegram (only ``<a>`` tags)."""
+    GMGN → DexScreener → DexTools → RugCharts → RugMaps as a clean SINGLE
+    tappable-text line (GMGN carries the owner's ref code) so the report
+    ends with one links footer instead of a button stack. HTML-safe for
+    Telegram (only ``<a>`` tags)."""
     if address:
         trade = (
             f'<a href="{gmgn_url(address, chain)}">GMGN</a>'
@@ -119,11 +126,11 @@ def footer_links(address: str = "", chain: str = "") -> str:
             f' | <a href="{dextools_url(address, chain)}">DexTools</a>'
         )
         charts = (
-            f'\U0001f4c8 <a href="{WEBSITE_URL}/rugcharts?token={address}&chain={chain}">RugCharts</a>'
-            f' | \U0001f5fa\ufe0f <a href="{WEBSITE_URL}/rugmaps?token={address}&chain={chain}">RugMaps</a>'
+            f'\U0001f4c8 <a href="https://rugmunch.io/rugcharts?token={address}&chain={chain}">RugCharts</a>'
+            f' | \U0001f5fa\ufe0f <a href="https://rugmunch.io/rugmaps?token={address}&chain={chain}">RugMaps</a>'
         )
         return (
-            f"\n{sep()}\n{trade}\n{charts}\n"
+            f"\n{sep()}\n{trade} | {charts}\n"
             f'\U0001f50d Rug Munch Bot | <a href="{TELEGRAM_CHANNEL}">/help</a> | @RugMunchBot'
         )
     return f'\n{sep()}\n\U0001f50d Rug Munch Bot | <a href="{TELEGRAM_CHANNEL}">/help</a> | @RugMunchBot'
@@ -398,9 +405,9 @@ def faq_text() -> str:
         "<b>Rug Munch Media LLC</b>, a Wyoming-based company. We build "
         "on-chain intelligence tools that protect retail investors.\n\n"
         "\U0001f3af <b>How accurate are the scans?</b>\n"
-        "Our Advanced engine runs 9 forensics modules over 17 indexed chains "
+        "Our AEGIS engine runs 9 forensics modules over 17 indexed chains "
         "(359M+ on-chain rows) with 200+ tools. No tool is 100% \u2014 "
-        "always DYOR, and pair a scan with the charts.\n\n"
+        "always DYOR, and pair a scan with the charts on rugmunch.io.\n\n"
         "\u26a0\ufe0f <b>See a scam?</b>\n"
         "Report it with /report <code>address</code> \u2014 it keeps "
         "everyone safer.\n\n"
@@ -422,7 +429,7 @@ def welcome_card_text() -> str:
         f"<i>The scam-detection copilot for crypto</i>\n\n"
         f"{social_proof_text()}\n\n"
         f"<b>What I can do</b>\n"
-        f"\U0001f50d <b>Scan</b> \u2014 instant token audits &amp; Advanced forensics\n"
+        f"\U0001f50d <b>Scan</b> \u2014 instant token audits &amp; AEGIS forensics\n"
         f"\U0001f45b <b>Wallet</b> \u2014 forensics, portfolio &amp; funding analysis\n"
         f"\U0001f575\ufe0f <b>Trace</b> \u2014 cross-chain wallet tracing (Arkham-style)\n"
         f"\U0001f4b0 <b>Price</b> \u2014 live prices, charts &amp; market snapshots\n"
@@ -462,10 +469,11 @@ def paywall_text(user_id: int, action: str = "scan") -> str:
         f"\U0001f381 <b>Bonus Balance:</b> {bonus} extra\n"
         f"{beta_note}"
         f"\n<b>Unlock more power:</b>\n\n"
-        f"\U0001f50d <b>Scout tier</b> - higher weekly scan quota + bundle detection\n"
-        f"\U0001f3af <b>Hunter tier</b> - wallet forensics + higher AI quota\n"
-        f"\U0001f451 <b>Pro tier</b> - smart money alerts + priority analysis\n\n"
-        f"Quotas are set by your instance operator \u2014 ask how to unlock more."
+        f"\U0001f6f0\ufe0f <b>Monitor (250\u2605/30d)</b> \u2014 live LP/whale + tax/ownership/mint change alerts\n"
+        f"\U0001f52c <b>Deep Scan (250\u2605)</b> \u2014 full forensics on demand\n"
+        f"\U0001f4b0 <b>Core /scan + chat stay free.</b>\n\n"
+        f"Or buy one-time top-ups - <b>never expire!</b>\n"
+        f"\U0001f50b 10 scans = \u2b5075 | 50 scans = \u2b50300 | 100 scans = \u2b50500"
     )
 
 

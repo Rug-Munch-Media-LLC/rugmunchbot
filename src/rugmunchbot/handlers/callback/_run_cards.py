@@ -26,9 +26,9 @@ _RUN_CARDS: dict[str, str] = {
         "AI risk verdict.\n\n"
         "\u23f3 Slower than /scan (up to ~2 min) but far more detailed."
     ),
-    "advancedscan": (
-        "\U0001f6e1\ufe0f <b>Advanced Deep Scan</b>\n\n"
-        "Usage: <code>/advancedscan &lt;address&gt; [chain]</code>\n\n"
+    "sentinelscan": (
+        "\U0001f6e1\ufe0f <b>AEGIS Deep Scan</b>\n\n"
+        "Usage: <code>/sentinelscan &lt;address&gt; [chain]</code>\n\n"
         "Runs the full 9-module forensic pipeline: holder HHI, LP lock, "
         "dev reputation, contract authority, proxy, bundle, wash trading "
         "and honeypot analysis.\n\n"
@@ -131,7 +131,8 @@ _RUN_CARDS: dict[str, str] = {
         "\U0001f4d6 <b>Help & About</b>\n\n"
         "Use <code>/help</code> for the full command reference, or browse "
         "the categories from the main menu.\n\n"
-        "Community: \U0001f4e2 Alerts channel \u00b7 \U0001f4ac Chat group"
+        "Community: \U0001f4e2 Alerts channel \u00b7 \U0001f4ac Chat group \u00b7 "
+        "\U0001f310 rugmunch.io"
     ),
     "quick": (
         "\U0001fa99 <b>Quick Price Check</b>\n\n"

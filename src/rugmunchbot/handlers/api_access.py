@@ -11,20 +11,20 @@ from __future__ import annotations
 import secrets
 from typing import TYPE_CHECKING
 
-from telegram.constants import ParseMode
-
-from rugmunchbot import db
-from rugmunchbot.config import (
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import (
     BACKEND_URL,
     WEBSITE_URL,
 )
-from rugmunchbot.formatters import (
+from app.domains.telegram.rugmunchbot.formatters import (
     footer_links,
     is_owner,
     sep,
 )
-from rugmunchbot.keyboards import api_kb, paywall_kb
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.handlers._messages import failure_card
+from app.domains.telegram.rugmunchbot.keyboards import api_kb, paywall_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -55,7 +55,7 @@ async def cmd_api(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             "  • Price & market data\n"
             "  • Wallet forensics\n"
             "  • Holder analysis\n\n"
-            "👑 <b>Pro tier required</b>\n\n"
+            "🛰️ <b>Monitor (250★/30d)</b> — live LP/whale + tax/ownership/mint alerts · 🔬 <b>Deep Scan (250★)</b> — full forensics\n\n"
             "Upgrade now to unlock API access!",
             parse_mode=ParseMode.HTML,
             reply_markup=paywall_kb(),
@@ -74,7 +74,11 @@ async def cmd_api(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await _revoke_token(update, user.id, token_id)
         except (ValueError, TypeError):
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                "❌ Invalid token ID. Usage: /api revoke <code>id</code>",
+                failure_card(
+                    "Invalid Token ID",
+                    "The API token ID must be a number.",
+                    "Usage: /api revoke <code>id</code> — find IDs with /api list",
+                ),
                 parse_mode=ParseMode.HTML,
             )
     else:
@@ -127,7 +131,11 @@ async def _create_token(update: Update, user_id: int) -> None:
     if count >= 3:
         conn.close()
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "❌ Maximum 3 active API tokens. Revoke one first:\n  /api revoke <code>id</code>\n  /api list",
+            failure_card(
+                "Token Limit Reached",
+                "Maximum 3 active API tokens.",
+                "Revoke one with /api revoke <code>id</code>, or see /api list.",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return
@@ -219,7 +227,11 @@ async def _revoke_token(update: Update, user_id: int, token_id: int) -> None:
     if not row:
         conn.close()
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "❌ Token not found. Use /api list to see your tokens.",
+            failure_card(
+                "Token Not Found",
+                "No API token with that ID.",
+                "Use /api list to see your tokens.",
+            ),
             parse_mode=ParseMode.HTML,
         )
         return

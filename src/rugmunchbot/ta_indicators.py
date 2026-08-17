@@ -8,7 +8,7 @@ no Telegram imports — unit-testable in isolation.
 
 Candle schema (matching ``app/routers/rugcharts_helpers.py``):
     ``{"time": int, "open": float, "high": float, "low": float,
-      "close": float, "volume": float}``  (chronological, oldest -> newest)
+      "close": float, "volume": float}``  (chronological, oldest → newest)
 
 Indicators implemented:
     - RSI-14 (Wilder's smoothing)
@@ -20,6 +20,7 @@ Indicators implemented:
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 # ── Core series math ────────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ def rsi(closes: list[float], period: int = 14) -> float | None:
 def macd(closes: list[float]) -> dict[str, Any]:
     """MACD (12/26/9). Returns MACD line, signal line and histogram lists.
 
-    Histogram = MACD - signal. Positive histogram ⇒ MACD above signal
+    Histogram = MACD − signal. Positive histogram ⇒ MACD above signal
     (bullish momentum); negative ⇒ bearish.
     """
     ema12 = ema(closes, 12)
@@ -109,6 +110,181 @@ def macd(closes: list[float]) -> dict[str, Any]:
         for macd_v, sig in zip(line, signal, strict=False)
     ]
     return {"line": line, "signal": signal, "histogram": hist}
+
+
+# ── Volatility + momentum + pump-risk heuristics ────────────────────────────
+
+
+def stdev(values: list[float]) -> float:
+    """Population standard deviation (returns 0.0 for <2 samples)."""
+    n = len(values)
+    if n < 2:
+        return 0.0
+    mean = sum(values) / n
+    return (sum((v - mean) ** 2 for v in values) / n) ** 0.5
+
+
+def bollinger(closes: list[float], period: int = 20, num_std: float = 2.0) -> dict[str, Any]:
+    """Bollinger Bands — SMA(period) ± num_std·stdev, last-bar read.
+
+    Returns the current upper/middle/lower band, ``percent_b`` (where price
+    sits inside the band: 0 = lower, 1 = upper, >1 = above upper) and
+    ``bandwidth`` (band width vs mid, a volatility proxy). ``None`` fields
+    when the sample is too small.
+    """
+    if len(closes) < 2:
+        return {"upper": None, "middle": None, "lower": None, "percent_b": None, "bandwidth": None}
+    window = closes[-period:] if len(closes) >= period else closes
+    mid = sum(window) / len(window)
+    sd = stdev(window)
+    upper = mid + num_std * sd
+    lower = mid - num_std * sd
+    price = closes[-1]
+    percent_b = (price - lower) / (upper - lower) if upper > lower else 0.5
+    bandwidth = (upper - lower) / mid if mid else 0.0
+    return {
+        "upper": upper,
+        "middle": mid,
+        "lower": lower,
+        "percent_b": percent_b,
+        "bandwidth": bandwidth,
+    }
+
+
+def atr(candles: list[dict[str, Any]], period: int = 14) -> float | None:
+    """Average True Range (Wilder) — realized per-candle volatility.
+
+    Needs at least ``period + 1`` candles; returns ``None`` otherwise.
+    True Range = max(high-low, |high-prev_close|, |low-prev_close|),
+    seeded with a simple mean then Wilder-smoothed.
+    """
+    if len(candles) < period + 1:
+        return None
+    prev_close: float | None = None
+    trs: list[float] = []
+    for c in candles:
+        try:
+            high = float(c["high"])
+            low = float(c["low"])
+            close = float(c["close"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if prev_close is None:
+            prev_close = close
+            continue
+        trs.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
+        prev_close = close
+    if len(trs) < period:
+        return None
+    seed = sum(trs[:period]) / period
+    prev = seed
+    for tr in trs[period:]:
+        prev = (prev * (period - 1) + tr) / period
+    return prev
+
+
+def realized_volatility(closes: list[float], window: int = 24) -> float | None:
+    """Realized volatility — stdev of log returns over the last ``window``
+    closes, expressed as a percent. ``None`` when <2 returns exist."""
+    if len(closes) < 3:
+        return None
+    window = min(window, len(closes) - 1)
+    rets: list[float] = []
+    for i in range(len(closes) - window, len(closes)):
+        prev = closes[i - 1]
+        cur = closes[i]
+        if prev > 0 and cur > 0:
+            rets.append(math.log(cur / prev))
+    if len(rets) < 2:
+        return None
+    return stdev(rets) * 100.0
+
+
+def roc(closes: list[float], periods: int) -> float | None:
+    """Rate of change over ``periods`` candles (percent). None if short."""
+    if len(closes) < periods + 1:
+        return None
+    base = closes[-periods - 1]
+    if not base:
+        return None
+    return (closes[-1] / base - 1.0) * 100.0
+
+
+def momentum_label(roc_3h: float | None, roc_24h: float | None) -> str:
+    """Momentum read from short vs day ROC (1h candles): accelerating when
+    the 3h leg is sharply positive, fading when sharply negative, otherwise
+    trending/sideways by the 24h direction."""
+    if roc_3h is None or roc_24h is None:
+        return "N/A"
+    if roc_3h >= 2.0:
+        return "ACCELERATING"
+    if roc_3h <= -2.0:
+        return "FADING"
+    if roc_24h >= 1.0:
+        return "RISING"
+    if roc_24h <= -1.0:
+        return "FALLING"
+    return "SIDEWAYS"
+
+
+def pump_risk(analysis: dict[str, Any]) -> dict[str, Any]:
+    """Heuristic pump/dump-risk read from the real indicator digest.
+
+    Transparent point system over LIVE values (never invented): volume
+    spike vs trailing avg, 24h ROC speed, RSI extension, price hugging the
+    window high. Returns a LOW/MEDIUM/HIGH level with the reasons that
+    fired. This is a risk screen, not a guarantee — the tool labels it as
+    such so the LLM never presents it as certainty.
+    """
+    score = 0
+    reasons: list[str] = []
+
+    ratio = analysis.get("volume_ratio")
+    if ratio is not None:
+        if ratio >= 2.0:
+            score += 2
+            reasons.append(f"volume {ratio:.1f}x trailing average")
+        elif ratio >= 1.5:
+            score += 1
+            reasons.append(f"volume {ratio:.1f}x trailing average")
+
+    roc_24 = analysis.get("roc_24h")
+    if roc_24 is not None:
+        if roc_24 >= 30:
+            score += 2
+            reasons.append(f"+{roc_24:.0f}% in 24h")
+        elif roc_24 <= -20:
+            score += 2
+            reasons.append(f"{roc_24:.0f}% in 24h (dump)")
+        elif roc_24 >= 10:
+            score += 1
+            reasons.append(f"+{roc_24:.0f}% in 24h")
+        elif roc_24 <= -10:
+            score += 1
+            reasons.append(f"{roc_24:.0f}% in 24h")
+
+    rsi_val = analysis.get("rsi")
+    if rsi_val is not None and rsi_val >= 80:
+        score += 1
+        reasons.append(f"RSI {rsi_val:.0f} overbought")
+
+    # Extension only counts when price actually ran up — a token sitting
+    # flat near its recent high is not "extended".
+    price = analysis.get("price")
+    high = analysis.get("high")
+    if (
+        price
+        and high
+        and high > 0
+        and roc_24 is not None
+        and roc_24 >= 5.0
+        and (high - price) / high < 0.03
+    ):
+        score += 1
+        reasons.append("price near window high after a run")
+
+    level = "HIGH" if score >= 4 else "MEDIUM" if score >= 2 else "LOW"
+    return {"level": level, "score": score, "reasons": reasons}
 
 
 # ── Composite analysis ──────────────────────────────────────────────────────
@@ -203,7 +379,22 @@ def analyze_candles(candles: list[dict[str, Any]]) -> dict[str, Any] | None:
     resistance = max(highs[-window:])
     support = min(lows[-window:])
 
-    return {
+    # SMA-20 + Bollinger bands (volatility envelope).
+    sma20 = _last(sma(closes, 20))
+    bands = bollinger(closes)
+
+    # ATR (per-candle true-range volatility) + realized volatility (%).
+    atr_14 = atr(candles, 14)
+    atr_pct = (atr_14 / price * 100.0) if atr_14 is not None and price else None
+    vol = realized_volatility(closes)
+
+    # Momentum (rate of change over 3 / 12 / 24 1h candles).
+    roc_3h = roc(closes, 3)
+    roc_12h = roc(closes, 12)
+    roc_24h = roc(closes, 24)
+    mom = momentum_label(roc_3h, roc_24h)
+
+    digest = {
         "candles": len(candles),
         "price": price,
         "change_pct": change_pct,
@@ -223,7 +414,35 @@ def analyze_candles(candles: list[dict[str, Any]]) -> dict[str, Any] | None:
         "volume_trend": vol_trend,
         "support": support,
         "resistance": resistance,
+        "sma_20": sma20,
+        "bollinger_upper": bands.get("upper"),
+        "bollinger_middle": bands.get("middle"),
+        "bollinger_lower": bands.get("lower"),
+        "bollinger_percent_b": bands.get("percent_b"),
+        "bollinger_bandwidth": bands.get("bandwidth"),
+        "atr_14": atr_14,
+        "atr_pct": atr_pct,
+        "volatility_pct": vol,
+        "roc_3h": roc_3h,
+        "roc_12h": roc_12h,
+        "roc_24h": roc_24h,
+        "momentum": mom,
     }
+    digest["pump_risk"] = pump_risk(digest)
+    return digest
 
 
-__all__ = ["analyze_candles", "ema", "macd", "rsi", "sma"]
+__all__ = [
+    "analyze_candles",
+    "atr",
+    "bollinger",
+    "ema",
+    "macd",
+    "momentum_label",
+    "pump_risk",
+    "realized_volatility",
+    "roc",
+    "rsi",
+    "sma",
+    "stdev",
+]

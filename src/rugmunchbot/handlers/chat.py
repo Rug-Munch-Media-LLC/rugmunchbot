@@ -7,31 +7,32 @@ Usage:
   /chat <question>       -> full AI pipeline (backend RAG chat, news-aware)
   /chat reset            -> clear your conversation context
 
-The actual pipeline lives in handlers/chat_ai.py (chat_ai_response) and is
+The actual pipeline lives in handlers/chat_ai/ (chat_ai_response) and is
 shared with free-text messages and /ask, so /chat behaves identically to
 just typing a message.
+
+Group etiquette: since v12 the free-text pipeline (handlers/chat_ai/
+_routing.py::ai_chat_handler) only fires when the bot is explicitly
+addressed — private DMs always, and groups only on @mention or reply.
+/chat is an explicit command and always works, in any chat type.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.handlers.chat_ai import chat_ai_response
+from app.domains.telegram.rugmunchbot.keyboards import back_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
-
-from rugmunchbot import db
-from rugmunchbot.config import FREE_AI_MSGS_PER_WEEK
-from rugmunchbot.handlers.chat_ai import chat_ai_response
-from rugmunchbot.keyboards import back_kb
-from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
 
 logger = get_logger("rmi_bot.chat")
 
-# Free-tier quota line is env-driven (BOT_FREE_AI_MSGS_PER_WEEK). Paid-tier
-# quotas (Scout/Hunter/Pro) are private pricing — not shipped in OSS.
 CHAT_WELCOME = (
     "\U0001f916 <b>Rug Munch AI \u2014 Freestyle Chat</b>\n\n"
     "Ask me anything about <b>crypto</b> \u2014 tokens, wallets, security, "
@@ -46,10 +47,12 @@ CHAT_WELCOME = (
     "\u2022 /chat <code>how do honeypots work?</code>\n"
     "\u2022 /chat <code>write a Solidity ERC-20 with a tax</code>\n"
     "\u2022 /chat <code>is this wallet risky?</code> <i>+ paste address</i>\n\n"
-    "\U0001f4ac <b>Tip:</b> just type any message \u2014 no command needed. "
-    "I keep the last 5 messages for context (use <code>/chat reset</code> to clear).\n\n"
+    "\U0001f4ac <b>Tip:</b> I answer free text in private DMs and when you "
+    "@mention or reply to me in groups \u2014 in shared rooms I stay quiet "
+    "unless you call me. I keep the last 5 messages for context (use "
+    "<code>/chat reset</code> to clear).\n\n"
     "\U0001f6ab See a scam? <code>/report &lt;address&gt;</code> to flag it.\n\n"
-    f"\U0001f4f3 Free tier: {FREE_AI_MSGS_PER_WEEK} AI msgs/week"
+    "\U0001f4f3 Free tier: 15 AI msgs/week \u00b7 Scout: 75 \u00b7 Hunter: 250 \u00b7 Pro: 500"
 )
 
 

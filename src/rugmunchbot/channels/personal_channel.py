@@ -1,7 +1,8 @@
 """Personal channel (@cryptorugmuncher) — reranker-gated, operator-voice posts.
 
 The **personal channel** is the operator's own Telegram surface
-(operator's personal channel, registry role ``main``). It receives ONLY the "bigger
+(``t.me/cryptorugmuncher`` — registry role ``main``, gopass
+``rmi/telegram/CHANNEL_CRYPTO_RUGMUNCHER``). It receives ONLY the "bigger
 stories": the same Infinity ``BAAI/bge-reranker-v2-m3`` importance scoring the
 news channel uses (``channels/importance.py``), but gated by a **stricter
 threshold** — ``RMI_PERSONAL_CHANNEL_THRESHOLD`` (default 0.7) instead of the
@@ -22,7 +23,7 @@ Pipeline (per tick, fail-open at every step):
    :mod:`voice` below), deduped via the scheduler's in-memory ``_remember``
    set (prefix ``personal``).
 5. **Cross-post** — every posted story is pushed to the Ghost blog
-   via the Ghost **Admin API** client in this module.
+   (``blog.rugmunch.io``) via the Ghost **Admin API** client in this module.
 
 Voice
 -----
@@ -40,7 +41,7 @@ Ghost
 The cross-post client targets real Ghost **Admin API v5** endpoints
 (``POST {url}/ghost/api/admin/posts/``) authenticated with a JWT-signed Admin
 API key (``GHOST_ADMIN_API_KEY``, format ``<id>:<secret>``). Env vars:
-``GHOST_ADMIN_API_URL`` (operator-supplied) and
+``GHOST_ADMIN_API_URL`` (default ``https://blog.rugmunch.io``) and
 ``GHOST_ADMIN_API_KEY``. When the key is missing the cross-post logs and
 skips (fail-open) — the Telegram post still ships. There is an existing
 session-cookie Ghost client in ``app/content_platform.py``
@@ -55,11 +56,14 @@ Env knobs (all optional):
   (default 0.7; must be >= the news channel's 0.4 to be meaningfully
   stricter, but the code does not enforce that)
 * ``RMI_PERSONAL_CHANNEL_ID``                 — optional chat-id override;
-  falls back to the registry ``main`` role (env → fallback)
+  falls back to the registry ``main`` role (gopass → env → fallback)
 * ``RMI_PERSONAL_CHANNEL_POST_LIMIT``         — max stories per tick
   (default 3)
 * ``RMI_PERSONAL_CHANNEL_GHOST_ENABLED``      — cross-post to Ghost
   (default on; no-op without ``GHOST_ADMIN_API_KEY``)
+* ``RMI_GHOST_CROSSPOST_ENABLED``             — master cross-post switch for
+  the story router (default OFF; cross-post stays disabled until the operator
+  opts in AND provisions ``GHOST_ADMIN_API_KEY``)
 * ``GHOST_ADMIN_API_URL`` / ``GHOST_ADMIN_API_KEY`` — Ghost Admin API
 """
 
@@ -73,18 +77,18 @@ import os
 import time
 from typing import TYPE_CHECKING, Any
 
-from rugmunchbot.channels.importance import (
+from app.domains.telegram.rugmunchbot.channels.importance import (
     IMPORTANCE_THRESHOLD,
     ScoredArticle,
     score_importance,
 )
-from rugmunchbot.channels.telegram_news import sweep_telegram_news
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.channels.telegram_news import sweep_telegram_news
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
 
 if TYPE_CHECKING:
+    from app.domains.news_ingest.models import NewsArticle
     from telegram.ext import ContextTypes
-
-    from rugmunchbot.integrations.news_ingest.models import NewsArticle
 
 logger = get_logger("rmi_bot.channels.personal")
 
@@ -126,10 +130,16 @@ PERSONAL_CHANNEL_THRESHOLD: float = _env_float("RMI_PERSONAL_CHANNEL_THRESHOLD",
 PERSONAL_CHANNEL_POST_LIMIT: int = _env_int("RMI_PERSONAL_CHANNEL_POST_LIMIT", 3)
 PERSONAL_CHANNEL_GHOST_ENABLED: bool = _env_bool("RMI_PERSONAL_CHANNEL_GHOST_ENABLED", True)
 
+#: Master Ghost cross-post switch — intentionally default OFF. The story
+#: router's cross-post stays disabled until the operator opts in AND
+#: provisions ``GHOST_ADMIN_API_KEY`` (fail-open: the Telegram post still
+#: ships either way).
+GHOST_CROSSPOST_ENABLED: bool = _env_bool("RMI_GHOST_CROSSPOST_ENABLED", False)
+
 #: Ghost Admin API config. The URL defaults to the canonical blog; the key is
 #: the Admin API key (``<id>:<secret>``). See the module docstring for the
-#: fail-open contract and the TODO below.
-GHOST_ADMIN_API_URL: str = os.getenv("GHOST_ADMIN_API_URL", "")
+#: fail-open contract and the gopass TODO below.
+GHOST_ADMIN_API_URL: str = os.getenv("GHOST_ADMIN_API_URL", "https://blog.rugmunch.io")
 GHOST_ADMIN_API_KEY: str = os.getenv("GHOST_ADMIN_API_KEY", "")
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -221,6 +231,51 @@ def select_personal(scored: list[ScoredArticle], top_n: int | None = None) -> li
 #: only — never log the value). Content API key (GHOST_CONTENT_API_KEY) is
 #: read-only and cannot publish, hence the Admin key requirement.
 
+#: True once the missing-key skip has been logged (log-once per process).
+_ghost_no_key_logged: bool = False
+
+
+def _article_image_url(article: NewsArticle) -> str:
+    """Story hero image for the Ghost post (best-effort, never raises).
+
+    Prefers the ``image_url`` attribute the story pipeline is adding; falls
+    back to the sweep's ``media`` reference, then to the first inline image
+    URL extracted from the article text (``news_ingest.extract_image_url``).
+    """
+    if article is None:
+        return ""
+    for attr in ("image_url", "media"):
+        raw = getattr(article, attr, None)
+        if isinstance(raw, str) and raw.strip() and raw.strip().lower() not in ("none", "null"):
+            return raw.strip()
+    try:
+        from app.domains.news_ingest.ingest import extract_image_url
+
+        return extract_image_url(article)
+    except Exception:  # soft dependency — degrade silently
+        return ""
+
+
+def _article_canonical_url(article: NewsArticle) -> str:
+    """Canonical source URL for the Ghost post (best-effort, never raises).
+
+    Prefers the ``canonical_url`` attribute the story pipeline is adding;
+    falls back to the first non-``t.me`` URL extracted from the article text
+    (``news_ingest.extract_canonical_url``). Returns ``""`` when nothing is
+    usable (the caller falls back to ``article.source_url``).
+    """
+    if article is None:
+        return ""
+    raw = getattr(article, "canonical_url", None)
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    try:
+        from app.domains.news_ingest.ingest import extract_canonical_url
+
+        return extract_canonical_url(article)
+    except Exception:  # soft dependency — degrade silently
+        return ""
+
 
 def ghost_admin_jwt(api_key: str) -> str:
     """Sign a short-lived Ghost Admin API JWT from ``<id>:<secret>``.
@@ -309,9 +364,13 @@ async def ghost_publish_article(
     base_url = (url or GHOST_ADMIN_API_URL).rstrip("/")
     key = api_key or GHOST_ADMIN_API_KEY
     if not key:
-        logger.warning("personal:ghost_skipped_no_admin_key url=%s", base_url)
+        global _ghost_no_key_logged
+        if not _ghost_no_key_logged:
+            _ghost_no_key_logged = True
+            logger.info("personal:ghost_skipped_no_admin_key url=%s", base_url)
         return {
             "published": False,
+            "skipped": True,
             "error": "GHOST_ADMIN_API_KEY not set",
             "help": "secrets-store: ghost-admin-api-key",
         }
@@ -327,8 +386,12 @@ async def ghost_publish_article(
 
     all_tags = list(dict.fromkeys((tags or []) + ["news"]))
     excerpt = _lead(article)[:300] or article.title[:300]
-    # The canonical source link (article.source_url) already appears in the
-    # caption text — Ghost's create payload has no writable ``url`` field.
+    # Story hero image + canonical source link — both best-effort; Ghost's
+    # create payload has no writable ``url`` field, so the canonical source
+    # is passed via ``canonical_url`` (plus it already appears in the caption
+    # text rendered into ``lexical`` below).
+    feature_image = _article_image_url(article) or None
+    canonical_url = _article_canonical_url(article) or (article.source_url.strip() or None)
     payload = {
         "posts": [
             {
@@ -337,24 +400,24 @@ async def ghost_publish_article(
                 "custom_excerpt": excerpt,
                 "status": "published",
                 "visibility": "public",
+                "feature_image": feature_image,
+                "canonical_url": canonical_url,
                 "tags": [{"name": tag} for tag in all_tags],
             }
         ]
     }
     try:
-        import httpx
-
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                f"{base_url}/ghost/api/admin/posts/",
-                headers={
-                    "Authorization": f"Ghost {token}",
-                    "Content-Type": "application/json",
-                    "Ghost-Version": "5.0",
-                    "Accept-Version": "v5.0",
-                },
-                json=payload,
-            )
+        client = get_shared_client(8.0)
+        resp = await client.post(
+            f"{base_url}/ghost/api/admin/posts/",
+            headers={
+                "Authorization": f"Ghost {token}",
+                "Content-Type": "application/json",
+                "Ghost-Version": "5.0",
+                "Accept-Version": "v5.0",
+            },
+            json=payload,
+        )
         if resp.status_code in (200, 201):
             post = resp.json().get("posts", [{}])[0]
             logger.info("personal:ghost_published id=%s slug=%s", post.get("id"), post.get("slug"))
@@ -378,6 +441,41 @@ async def ghost_publish_article(
         return {"published": False, "error": str(exc)}
 
 
+async def publish_to_ghost(
+    article: NewsArticle,
+    caption: str | None = None,
+    *,
+    tags: list[str] | None = None,
+    url: str | None = None,
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Public cross-post entry point for the story router (fail-open, OFF by default).
+
+    The "main" routing branch (this module's ``post_personal_channel`` and any
+    future story ``router.py``) calls this with just the article. Behavior:
+
+    * **Gated** on ``RMI_GHOST_CROSSPOST_ENABLED`` (default ``0``) — the
+      cross-post stays OFF until the operator provisions
+      ``GHOST_ADMIN_API_KEY`` and opts in; while disabled it logs at INFO and
+      returns ``{"published": False, "skipped": ...}`` without touching the
+      network, so the Telegram post path is never blocked.
+    * **Fail-open** — missing key/URL, bad key format, network errors, and
+      Ghost HTTP errors all log and return (see
+      :func:`ghost_publish_article`).
+    * Builds an operator-voice caption when none is passed, then delegates to
+      :func:`ghost_publish_article` (title = the article's rewritten title,
+      body = caption rendered as Ghost lexical, plus ``feature_image`` and
+      ``canonical_url`` from the article).
+
+    Returns the same result-dict shape as :func:`ghost_publish_article`.
+    """
+    if not GHOST_CROSSPOST_ENABLED:
+        logger.info("personal:ghost_crosspost_disabled flag=RMI_GHOST_CROSSPOST_ENABLED")
+        return {"published": False, "skipped": "RMI_GHOST_CROSSPOST_ENABLED=0"}
+    body = (caption or "").strip() or build_caption(article)
+    return await ghost_publish_article(article, body, tags=tags, url=url, api_key=api_key)
+
+
 # ── Consumer ────────────────────────────────────────────────────────────────
 
 
@@ -393,7 +491,7 @@ def resolve_personal_chat_id() -> str | None:
     if dedicated:
         return dedicated
     try:
-        from rugmunchbot.config import _resolve_channel_id
+        from app.domains.telegram.rugmunchbot.config import _resolve_channel_id
 
         return _resolve_channel_id("main")
     except Exception:  # fail-open: config import must not crash the job
@@ -412,7 +510,7 @@ async def post_personal_channel(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """
     # Lazy import keeps the scheduler ↔ this module import graph acyclic
     # (scheduler.py imports this module at module scope for registration).
-    from rugmunchbot.channels.scheduler import (
+    from app.domains.telegram.rugmunchbot.channels.scheduler import (
         _dedupe_key,
         _remember,
         _safe_send,
@@ -472,7 +570,7 @@ async def post_personal_channel(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             scored_article.best_query,
         )
         if PERSONAL_CHANNEL_GHOST_ENABLED:
-            await ghost_publish_article(article, caption)
+            await publish_to_ghost(article, caption)
     if posted:
         logger.info("personal:tick_done posted=%s", posted)
     return posted
@@ -482,6 +580,7 @@ __all__ = [
     "CAPTION_TEMPLATES",
     "GHOST_ADMIN_API_KEY",
     "GHOST_ADMIN_API_URL",
+    "GHOST_CROSSPOST_ENABLED",
     "PERSONAL_CHANNEL_ENABLED",
     "PERSONAL_CHANNEL_GHOST_ENABLED",
     "PERSONAL_CHANNEL_INTERVAL_MINUTES",
@@ -491,6 +590,7 @@ __all__ = [
     "ghost_admin_jwt",
     "ghost_publish_article",
     "post_personal_channel",
+    "publish_to_ghost",
     "resolve_personal_chat_id",
     "select_personal",
 ]

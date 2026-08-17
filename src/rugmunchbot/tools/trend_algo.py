@@ -61,10 +61,10 @@ import math
 import os
 from typing import Any
 
-from rugmunchbot.config import DEXSCREENER
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools._client import http_get_any, http_get_json
-from rugmunchbot.tools.registry import ToolResult, backend_json_get
+from app.domains.telegram.rugmunchbot.config import DEXSCREENER
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import http_get_any, http_get_json
+from app.domains.telegram.rugmunchbot.tools.registry import ToolResult, backend_json_get
 
 logger = get_logger("rmi_bot.tools.trend_algo")
 
@@ -205,7 +205,9 @@ def _to_int(value: Any) -> int | None:
 
 async def _scanner_candidates() -> list[dict[str, Any]]:
     """OUR scanner activity: real risk scores + honeypot flags per token."""
-    body = await backend_json_get("/api/v1/scanner/recent", params={"limit": _SCANNER_RECENT_LIMIT}, timeout=8.0)
+    body = await backend_json_get(
+        "/api/v1/scanner/recent", params={"limit": _SCANNER_RECENT_LIMIT}, timeout=8.0
+    )
     if not isinstance(body, list):
         return []
     out: list[dict[str, Any]] = []
@@ -233,7 +235,9 @@ async def _scanner_candidates() -> list[dict[str, Any]]:
 
 async def _trending_candidates() -> list[dict[str, Any]]:
     """Our fused trending feed — real symbols/addresses/chain."""
-    body = await backend_json_get("/api/v1/market/trending", params={"limit": _TRENDING_LIMIT}, timeout=8.0)
+    body = await backend_json_get(
+        "/api/v1/market/trending", params={"limit": _TRENDING_LIMIT}, timeout=8.0
+    )
     items = body.get("items") if isinstance(body, dict) else None
     if not isinstance(items, list):
         return []
@@ -260,7 +264,9 @@ async def _trending_candidates() -> list[dict[str, Any]]:
 
 async def _launch_candidates() -> list[dict[str, Any]]:
     """ClickHouse deployer_events via our launch feed (own indexer data)."""
-    body = await backend_json_get("/api/v1/launches/recent", params={"limit": _LAUNCHES_LIMIT}, timeout=8.0)
+    body = await backend_json_get(
+        "/api/v1/launches/recent", params={"limit": _LAUNCHES_LIMIT}, timeout=8.0
+    )
     items = body.get("items") if isinstance(body, dict) else None
     if not isinstance(items, list):
         return []
@@ -301,7 +307,9 @@ async def _dex_profile_candidates() -> list[dict[str, Any]]:
         if not addr:
             continue
         chain = _normalize_chain(str(it.get("chainId") or ""))
-        out.append({"address": addr, "chain": chain, "symbol": "", "source": "dexscreener:token-profiles"})
+        out.append(
+            {"address": addr, "chain": chain, "symbol": "", "source": "dexscreener:token-profiles"}
+        )
     return out
 
 
@@ -331,7 +339,12 @@ async def _fetch_pair_metrics(address: str) -> dict[str, Any] | None:
         symbol = (bt.get("symbol") or "").strip()
         if not symbol:
             continue
-        vol = _to_float((p.get("volume") or {}).get("h24") if isinstance(p.get("volume"), dict) else None) or 0.0
+        vol = (
+            _to_float(
+                (p.get("volume") or {}).get("h24") if isinstance(p.get("volume"), dict) else None
+            )
+            or 0.0
+        )
         if vol > best_vol:
             best_vol = vol
             best = p
@@ -406,17 +419,27 @@ def _score_token(metrics: dict[str, Any], risk: dict[str, Any] | None) -> dict[s
     s_growth = 0.5 * _clamp01((buy_ratio - 0.40) / 0.60) + 0.5 * _exp_norm(total, _TRADES_REF)
     s_momentum = _exp_norm(abs(float(price_change_24h)), _MOMENTUM_REF_PCT)
     age_h = metrics.get("age_hours")
-    s_age = (1.0 - min(max(float(age_h), 0.0) / _AGE_DECAY_HOURS, 1.0)) if age_h is not None else 0.5
+    s_age = (
+        (1.0 - min(max(float(age_h), 0.0) / _AGE_DECAY_HOURS, 1.0)) if age_h is not None else 0.5
+    )
 
     if risk is not None and (risk.get("is_honeypot") or risk.get("is_rug_pull")):
         risk_penalty = 1.0
     elif risk is not None and risk.get("risk_score") is not None:
         risk_score = float(risk["risk_score"])
-        risk_penalty = _clamp01((risk_score - _RISK_FLOOR) / (100.0 - _RISK_FLOOR)) * _RISK_MAX_PENALTY
+        risk_penalty = (
+            _clamp01((risk_score - _RISK_FLOOR) / (100.0 - _RISK_FLOOR)) * _RISK_MAX_PENALTY
+        )
     else:
         risk_penalty = 0.0
 
-    raw = _W_VOL * s_vol + _W_LIQ * s_liq + _W_GROWTH * s_growth + _W_MOMENTUM * s_momentum + _W_AGE * s_age
+    raw = (
+        _W_VOL * s_vol
+        + _W_LIQ * s_liq
+        + _W_GROWTH * s_growth
+        + _W_MOMENTUM * s_momentum
+        + _W_AGE * s_age
+    )
     final = round(100.0 * raw * (1.0 - risk_penalty), 1)
 
     return {
@@ -432,22 +455,80 @@ def _score_token(metrics: dict[str, Any], risk: dict[str, Any] | None) -> dict[s
     }
 
 
+def _sketch_score(metrics: dict[str, Any], risk: dict[str, Any] | None) -> dict[str, Any]:
+    """Risk-first sketchiness score (rank="risk") — HIGHER = sketchier.
+
+    Unlike the trend ``score`` (momentum-weighted, flagged tokens EXCLUDED),
+    the sketch score ranks by how risky/sketchy a token looks:
+
+      * +100  — our scanner flagged honeypot / rug-pull (the sketchiest).
+      * +0-100 — our scanner's ``risk_score`` when present.
+      * +0-25  — low liquidity proxy (thin exit).
+      * +0-20  — violent |24h %| move (pump or dump).
+      * +0-15  — fresh launch (younger than the 72h age reference).
+
+    Unscanned tokens still get the liquidity/momentum/age proxies, so the
+    tool never returns an empty list just because our scanner has not seen
+    the tokens yet. Returns the score + a human-readable ``flags`` list the
+    LLM can cite as the "why" for each pick.
+    """
+    score = 0.0
+    flags: list[str] = []
+    flagged = bool(risk and (risk.get("is_honeypot") or risk.get("is_rug_pull")))
+    if risk is not None and flagged:
+        score += 100.0
+        if risk.get("is_honeypot"):
+            flags.append("honeypot")
+        if risk.get("is_rug_pull"):
+            flags.append("rug_pull")
+    if risk is not None and risk.get("risk_score") is not None:
+        r = float(risk["risk_score"])
+        score += r
+        if r >= 70.0:
+            flags.append(f"risk_score={r:.0f}/100")
+    if risk is None:
+        flags.append("unscanned")
+    liquidity = metrics.get("liquidity_usd") or 0.0
+    score += (1.0 - _exp_norm(float(liquidity), _LIQ_REF_USD)) * 25.0
+    if liquidity < 5_000.0:
+        flags.append("thin_liquidity")
+    price_change = abs(float(metrics.get("price_change_24h") or 0.0))
+    score += _exp_norm(price_change, _MOMENTUM_REF_PCT) * 20.0
+    if price_change >= 50.0:
+        flags.append("violent_moves")
+    age_h = metrics.get("age_hours")
+    if age_h is not None:
+        score += (1.0 - min(max(float(age_h), 0.0) / _AGE_DECAY_HOURS, 1.0)) * 15.0
+        if float(age_h) < _AGE_DECAY_HOURS:
+            flags.append("fresh_launch")
+    if not flags:
+        flags.append("sketchy_proxies")
+    return {"sketch_score": round(min(score, 200.0), 1), "flags": flags}
+
+
 # ── Tool handler ──────────────────────────────────────────────────────────
 
 
-async def trend_by_chain(*, chain: str = "all", limit: int = 10) -> ToolResult:
+async def trend_by_chain(*, chain: str = "all", limit: int = 10, rank: str = "trend") -> ToolResult:
     """Trending tokens per chain with OUR transparent scoring formula.
 
     Args:
         chain: canonical chain name ("solana", "ethereum", "base", "bsc",
             "arbitrum", ...) or "all" for a cross-chain ranked list.
         limit: max tokens to return.
+        rank: "trend" (default) — momentum/volume score, flagged
+            honeypot/rug-pull tokens EXCLUDED. "risk" — the riskiest /
+            sketchiest picks: our scanner's flagged honeypots/rug-pulls are
+            KEPT and ranked first (sketch_score), so a "riskiest of the day"
+            question answers with actual risk, not % change.
 
     Returns:
-        ToolResult with ``tokens`` (ranked, each with score_breakdown and
-        chain), ``scoring`` (the full formula) and real symbols/addresses.
+        ToolResult with ``tokens`` (ranked, each with score_breakdown /
+        sketch_score + risk_flags, and chain), ``scoring`` (the full
+        formula) and real symbols/addresses.
     """
     want = _normalize_chain(chain)
+    want_risk = rank == "risk"
     try:
         limit_i = max(1, min(int(limit), 50))
     except (TypeError, ValueError):
@@ -487,6 +568,7 @@ async def trend_by_chain(*, chain: str = "all", limit: int = 10) -> ToolResult:
     sem = asyncio.Semaphore(_METRIC_FETCH_CONCURRENCY)
 
     async def fetch_one(idx: int, cand: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+        """Fetch pair metrics for one candidate; returns (idx, metrics-or-None)."""
         async with sem:
             return idx, await _fetch_pair_metrics(cand["address"])
 
@@ -509,7 +591,9 @@ async def trend_by_chain(*, chain: str = "all", limit: int = 10) -> ToolResult:
         except Exception as exc:  # pragma: no cover — per-call failures already swallowed
             logger.debug("trend_by_chain metric task failed: %s", exc)
             continue
-    risk_by_key: dict[tuple[str, str], dict[str, Any]] = {(c["chain"], c["address"].lower()): c for c in scanner}
+    risk_by_key: dict[tuple[str, str], dict[str, Any]] = {
+        (c["chain"], c["address"].lower()): c for c in scanner
+    }
 
     tokens: list[dict[str, Any]] = []
     sources_used: set[str] = set()
@@ -522,38 +606,44 @@ async def trend_by_chain(*, chain: str = "all", limit: int = 10) -> ToolResult:
         sources_used.add(cand["source"])
         risk = risk_by_key.get((cand["chain"], cand["address"].lower()))
         breakdown = _score_token(metrics, risk)
-        if breakdown["risk_penalty"] >= 100.0:
-            continue  # our scanner flagged honeypot / rug-pull — exclude
-        tokens.append(
-            {
-                "rank": 0,  # set below after sort
-                "symbol": symbol,
-                "name": metrics.get("name") or "",
-                "address": cand["address"],
-                "chain": cand["chain"],
-                "price_usd": metrics.get("price_usd"),
-                "volume_24h": metrics.get("volume_24h"),
-                "liquidity_usd": metrics.get("liquidity_usd"),
-                "price_change_24h": metrics.get("price_change_24h"),
-                "buys_24h": metrics.get("buys_24h"),
-                "sells_24h": metrics.get("sells_24h"),
-                "buy_ratio_24h": round(
-                    (float(metrics.get("buys_24h") or 0))
-                    / max(float((metrics.get("buys_24h") or 0) + (metrics.get("sells_24h") or 0)), 1.0),
-                    3,
-                ),
-                "age_hours": metrics.get("age_hours"),
-                "holders": None,  # enriched concurrently below (top tokens only)
-                "risk_score": risk.get("risk_score") if risk else None,
-                "risk_source": "our_scanner" if risk else "unscanned",
-                "score": breakdown["score"],
-                "score_breakdown": breakdown,
-                "dex": metrics.get("dex_id"),
-                "url": metrics.get("url") or "",
-            }
-        )
+        if not want_risk and breakdown["risk_penalty"] >= 100.0:
+            continue  # trend mode: our scanner flagged honeypot / rug-pull — exclude
+        tok: dict[str, Any] = {
+            "rank": 0,  # set below after sort
+            "symbol": symbol,
+            "name": metrics.get("name") or "",
+            "address": cand["address"],
+            "chain": cand["chain"],
+            "price_usd": metrics.get("price_usd"),
+            "volume_24h": metrics.get("volume_24h"),
+            "liquidity_usd": metrics.get("liquidity_usd"),
+            "price_change_24h": metrics.get("price_change_24h"),
+            "buys_24h": metrics.get("buys_24h"),
+            "sells_24h": metrics.get("sells_24h"),
+            "buy_ratio_24h": round(
+                (float(metrics.get("buys_24h") or 0))
+                / max(float((metrics.get("buys_24h") or 0) + (metrics.get("sells_24h") or 0)), 1.0),
+                3,
+            ),
+            "age_hours": metrics.get("age_hours"),
+            "holders": None,  # enriched concurrently below (top tokens only)
+            "risk_score": risk.get("risk_score") if risk else None,
+            "risk_source": "our_scanner" if risk else "unscanned",
+            "score": breakdown["score"],
+            "score_breakdown": breakdown,
+            "dex": metrics.get("dex_id"),
+            "url": metrics.get("url") or "",
+        }
+        if want_risk:
+            sketch = _sketch_score(metrics, risk)
+            tok["sketch_score"] = sketch["sketch_score"]
+            tok["risk_flags"] = sketch["flags"]
+        tokens.append(tok)
 
-    tokens.sort(key=lambda t: float(t["score"]), reverse=True)
+    if want_risk:
+        tokens.sort(key=lambda t: float(t["sketch_score"]), reverse=True)
+    else:
+        tokens.sort(key=lambda t: float(t["score"]), reverse=True)
     tokens = tokens[:limit_i]
 
     # Optional holder enrichment (Birdeye) — concurrent, deadline-bounded,
@@ -563,6 +653,7 @@ async def trend_by_chain(*, chain: str = "all", limit: int = 10) -> ToolResult:
         holder_sem = asyncio.Semaphore(4)
 
         async def holder_one(tok: dict[str, Any]) -> None:
+            """Fetch Birdeye holder count for one Solana token (best-effort)."""
             async with holder_sem:
                 tok["holders"] = await _birdeye_holders(tok["address"], tok["chain"])
 
@@ -592,6 +683,7 @@ async def trend_by_chain(*, chain: str = "all", limit: int = 10) -> ToolResult:
             "chain": want,
             "limit": limit_i,
             "count": len(tokens),
+            "rank_mode": "risk" if want_risk else "trend",
             "tokens": tokens,
             "by_chain": by_chain,
             "scoring": _FORMULA,

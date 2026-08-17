@@ -1,12 +1,6 @@
 """
-RugMunchBot — branded chart & map generation (visuals engine).
-
-All outputs carry the bot's watermark. Pillow (PIL) is imported lazily inside
-each renderer so the package imports cleanly without it; matplotlib/mplfinance
-are intentionally NOT used at runtime (see checklist §7).
-
-Ported from the live production copy (services/visuals.py). Branding URL is
-env-driven (BOT_WEBSITE_URL) — see BRAND_URL below.
+RMI Visual Engine — branded chart & map generation.
+All outputs carry the Rug Munch Intelligence watermark.
 """
 
 from __future__ import annotations
@@ -14,28 +8,19 @@ from __future__ import annotations
 import io
 import math
 
-from rugmunchbot.config import WEBSITE_URL as _BOT_WEBSITE_URL
-from rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi.visuals")
 
 # ── Brand constants ──
-# Scrub: the live module hardcodes the private brand domain (checklist
-# §3/#15). OSS derives it from the BOT_WEBSITE_URL env (empty default) and
-# falls back to a neutral placeholder so unconfigured deployments render no
-# private branding. "Rug Munch Intelligence" is the OSS project identity
-# (checklist §8) and stays.
-_BRAND_HOST = (
-    _BOT_WEBSITE_URL.split("://", 1)[-1].split("/", 1)[0].rstrip("/") if _BOT_WEBSITE_URL else ""
-)
 BRAND_NAME = "Rug Munch Intelligence"
-BRAND_URL = _BRAND_HOST or "example.com"
+BRAND_URL = "rugmunch.io"
 BRAND_PRIMARY = (88, 166, 255)
 BRAND_ACCENT = (255, 193, 7)
 
 
 def _add_branding(draw, w, h, font, small_font, symbol=""):
-    """Add watermark + branding footer."""
+    """Add RMI watermark + branding footer."""
     brand_text = BRAND_NAME
     try:
         bbox = draw.textbbox((0, 0), brand_text, font=small_font)
@@ -110,7 +95,7 @@ def render_candlestick_chart(
     vol_top = price_bot + 15
     vol_bot = vol_top + vol_h
     rsi_top = vol_bot + 10
-    rsi_bot = rsi_top + rsi_h  # noqa: F841 — live-verbatim (reserved for RSI pane)
+    rsi_bot = rsi_top + rsi_h
 
     mn, mx = min(lows), max(highs)
     if mx == mn:
@@ -143,7 +128,7 @@ def render_candlestick_chart(
                     result.append(sum(data[i - period + 1 : i + 1]) / period)
             return result
 
-        for period, color, label in [(7, (255, 183, 77), "MA7"), (25, (100, 181, 246), "MA25")]:  # noqa: B007
+        for period, color, label in [(7, (255, 183, 77), "MA7"), (25, (100, 181, 246), "MA25")]:
             ma_data = ma(closes, min(period, n))
             for i in range(1, n):
                 if ma_data[i] is not None and ma_data[i - 1] is not None:
@@ -223,7 +208,7 @@ def render_cluster_map(nodes, links, name, symbol, chain="", total_holders=0, to
 
     w, h = 1000, 760
     bg = (13, 17, 23)
-    grid_c = (28, 33, 42)  # noqa: F841 — live-verbatim (reserved for grid)
+    grid_c = (28, 33, 42)
     text_c = (140, 148, 156)
     title_c = (232, 234, 237)
 

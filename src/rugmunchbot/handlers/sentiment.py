@@ -9,28 +9,30 @@ Scout+ tier feature.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
-
-from rugmunchbot import db
-from rugmunchbot.config import (
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import (
+    BACKEND_URL,
     COINGECKO,
+    backend_headers,
     fmt_number,
 )
-from rugmunchbot.data_resolver import backend_get_json, resolve_with_fallback
-from rugmunchbot.formatters import (
+from app.domains.telegram.rugmunchbot.data_resolver import backend_get_json, resolve_with_fallback
+from app.domains.telegram.rugmunchbot.formatters import (
     footer_links,
     is_owner,
     paywall_text,
     sep,
     thin_sep,
 )
-from rugmunchbot.keyboards import paywall_kb
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools.registry import backend_json_get
+from app.domains.telegram.rugmunchbot.keyboards import paywall_kb
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import get_shared_client
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -62,51 +64,77 @@ async def _fetch_market_overview() -> dict[str, Any]:
     }
 
     async def _external_overview() -> dict[str, Any]:
-        """Fallback: direct CoinGecko + alternative.me + Etherscan calls."""
+        """Fallback: direct CoinGecko + alternative.me + Etherscan calls.
+
+        The four external calls run concurrently (previously sequential —
+        up to ~40s worst case); each is best-effort and contributes
+        whichever fields it returns (first-success merge).
+        """
         out = dict(result)
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            client = get_shared_client(10)
+
+            async def _fetch_coingecko() -> dict[str, Any]:
                 # CoinGecko global data
                 r = await client.get(f"{COINGECKO}/global")
                 if r.status_code == 200:
                     data = r.json().get("data", {})
-                    out["btc_dominance"] = data.get("market_cap_percentage", {}).get("btc")
-                    out["total_mcap"] = data.get("total_market_cap", {}).get("usd")
-                    out["total_volume_24h"] = data.get("total_volume", {}).get("usd")
+                    return {
+                        "btc_dominance": data.get("market_cap_percentage", {}).get("btc"),
+                        "total_mcap": data.get("total_market_cap", {}).get("usd"),
+                        "total_volume_24h": data.get("total_volume", {}).get("usd"),
+                    }
+                return {}
 
+            async def _fetch_fear_greed() -> dict[str, Any]:
                 # Fear & Greed Index
-                try:
-                    fg = await client.get("https://api.alternative.me/fng/?limit=1")
-                    if fg.status_code == 200:
-                        fg_data = fg.json().get("data", [{}])[0]
-                        out["fear_greed"] = {
+                fg = await client.get("https://api.alternative.me/fng/?limit=1")
+                if fg.status_code == 200:
+                    fg_data = fg.json().get("data", [{}])[0]
+                    return {
+                        "fear_greed": {
                             "value": int(fg_data.get("value", 50)),
                             "classification": fg_data.get("value_classification", "Neutral"),
                         }
-                except Exception:  # noqa: S110 — intentional best-effort
-                    pass
+                    }
+                return {}
 
+            async def _fetch_gas() -> dict[str, Any]:
                 # ETH Gas (proxy for network activity)
-                try:
-                    gas = await client.get(
-                        "https://api.etherscan.io/v2/api?chainid=1&module=gastracker&action=gasoracle"
-                    )
-                    if gas.status_code == 200:
-                        gas_data = gas.json().get("result", {})
-                        out["eth_gas"] = gas_data.get("ProposeGasPrice")
-                except Exception:  # noqa: S110 — best-effort rate limiting
-                    pass
+                gas = await client.get(
+                    "https://api.etherscan.io/v2/api?chainid=1&module=gastracker&action=gasoracle"
+                )
+                if gas.status_code == 200:
+                    gas_data = gas.json().get("result", {})
+                    return {"eth_gas": gas_data.get("ProposeGasPrice")}
+                return {}
 
+            async def _fetch_own_sentiment() -> dict[str, Any]:
                 # Try own backend sentiment data (best-effort enrichment)
-                # [REVIEW] routed through backend_json_get (operator-supplied
-                # RMI_BACKEND_URL) instead of raw httpx + backend_headers.
-                try:
-                    own = await backend_json_get("/api/v1/market/sentiment", timeout=5)
-                    if own:
-                        out["sentiment"] = own.get("sentiment", out["sentiment"])
-                        out["btc_dominance_change"] = own.get("btc_dominance_change")
-                except Exception:  # noqa: S110 — intentional best-effort
-                    pass
+                own = await client.get(
+                    f"{BACKEND_URL}/api/v1/market/sentiment",
+                    headers=backend_headers(),
+                    timeout=5,
+                )
+                if own.status_code == 200:
+                    own_data = own.json()
+                    if isinstance(own_data, dict):
+                        return {
+                            "sentiment": own_data.get("sentiment", out["sentiment"]),
+                            "btc_dominance_change": own_data.get("btc_dominance_change"),
+                        }
+                return {}
+
+            # Parallel first-success merge: failures contribute nothing.
+            for partial in await asyncio.gather(
+                _fetch_coingecko(),
+                _fetch_fear_greed(),
+                _fetch_gas(),
+                _fetch_own_sentiment(),
+                return_exceptions=True,
+            ):
+                if isinstance(partial, dict):
+                    out.update(partial)
         except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning("Market overview external fetch failed: %s", e)
         return out
@@ -194,9 +222,9 @@ async def cmd_sentiment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "\U0001f4c8 <b>Market Sentiment</b>\n\n"
             "This feature requires <b>Scout tier</b> or higher.\n\n"
-            # [REVIEW] USD tier price scrubbed (private billing — checklist §6 #17).
-            # Operator pricing is operator-configured (BOT_* env / BillingProvider).
-            "\U0001f50d <b>Scout tier</b> — Unlock market intelligence",
+            "\U0001f6f0\ufe0f <b>Monitor (250\u2605/30d)</b> — live LP/whale + "
+            "tax/ownership/mint alerts · 🔬 <b>Deep Scan (250\u2605)</b> — full forensics\n"
+            "💵 Core /scan + chat stay free.",
             parse_mode=ParseMode.HTML,
             reply_markup=paywall_kb(),
         )
@@ -210,9 +238,9 @@ async def cmd_sentiment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
 
-    msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text(
         "\U0001f4c8 <b>Analyzing market sentiment...</b>", parse_mode=ParseMode.HTML
-    )
+    )  # type: ignore[union-attr]  # PTB None-able fields
 
     try:
         overview = await _fetch_market_overview()
@@ -274,8 +302,8 @@ async def cmd_sentiment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                     else "\U0001f7e2"
                 )
                 lines.append(f"{gas_emoji} ETH Gas: <b>{gas_val} Gwei</b>")
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                logger.debug("sentiment score parse failed: %s", e)
 
         lines.extend(
             [
@@ -325,7 +353,9 @@ async def cmd_sentiment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         logger.debug("cmd_sentiment_error", exc_info=True)
         logger.error(f"Sentiment error: {e}")
         await msg.edit_text(
-            f"\u274c <b>Sentiment Unavailable</b>\n\nCould not fetch market sentiment right now.\nError: {str(e)[:100]}",
+            "\u274c <b>Sentiment Unavailable</b>\n\n"
+            "Could not fetch market sentiment right now.\n"
+            "Please try again in a moment.",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]]

@@ -9,7 +9,7 @@ live success shapes could NOT be probed — see [REVIEW] notes below):
   * wallet tags tracker  GET /token/v1/wallet-tags-tracker (solana)
   * liquidity history    GET /defi/v3/liquidity/history/token (solana)
 
-Key resolution: env ``BIRDEYE_API_KEY`` (never hardcoded).
+Key resolution: env ``BIRDEYE_API_KEY`` → secrets manager (never hardcoded).
 If the key is missing/invalid OR Birdeye is rate-limited / quota-exhausted the
 tool falls back to our own backend routes so the bot never answers "no data"
 when the backend has the same signal through other providers.
@@ -24,12 +24,13 @@ those are stale and should be migrated to ``/defi/*`` / ``/smart-money/*``.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
-from rugmunchbot.config import BIRDEYE_API_KEY
-from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools._client import http_get_json
-from rugmunchbot.tools.registry import ToolResult, backend_json_get
+from app.domains.telegram.rugmunchbot.config import _get_token
+from app.domains.telegram.rugmunchbot.support.logging import get_logger
+from app.domains.telegram.rugmunchbot.tools._client import http_get_json
+from app.domains.telegram.rugmunchbot.tools.registry import ToolResult, backend_json_get
 
 logger = get_logger("rmi_bot.tools.birdeye")
 
@@ -74,18 +75,44 @@ def _chain_slug(chain: str) -> str:
 
 def _birdeye_key() -> str:
     """Resolve Birdeye API key: env var → secrets manager. Never hardcoded."""
-    return BIRDEYE_API_KEY
+    return _get_token("rmi/infra/birdeye_api_key", ["BIRDEYE_API_KEY"])
+
+
+def _birdeye_keys() -> list[str]:
+    """Ordered Birdeye keys for rotation (primary first).
+
+    Verified 2026-08-16: the primary key is compute-quota-exhausted on
+    Solana (HTTP 400) while ``BIRDEYE_API_KEY_ALT`` serves both Solana and
+    EVM. ``_birdeye_get`` tries each key and rotates on 400/401/403 so the
+    chat tools return live Birdeye data instead of silently falling back.
+    """
+    keys: list[str] = [_birdeye_key()]
+    alt = os.environ.get("BIRDEYE_API_KEY_ALT", "")
+    if alt and alt not in keys:
+        keys.append(alt)
+    return keys
 
 
 async def _birdeye_get(
     path: str, params: dict[str, Any], chain: str = "solana"
 ) -> dict[str, Any] | None:
-    """GET a Birdeye endpoint with the API-key + x-chain headers."""
-    key = _birdeye_key()
-    if not key:
-        return None
-    headers = {"X-API-KEY": key, "accept": "application/json", "x-chain": _chain_slug(chain)}
-    return await http_get_json(f"{BIRDEYE_BASE}{path}", params=params, headers=headers, timeout=8.0)
+    """GET a Birdeye endpoint with the API-key + x-chain headers.
+
+    ``http_get_json`` returns None on any non-200 (quota-exhausted 400 /
+    invalid-key 401 / rate-limit 429), so this tries each key in
+    ``_birdeye_keys()`` and returns the first non-None body. Bounded to the
+    two configured keys.
+    """
+    for key in _birdeye_keys():
+        if not key:
+            continue
+        headers = {"X-API-KEY": key, "accept": "application/json", "x-chain": _chain_slug(chain)}
+        body = await http_get_json(
+            f"{BIRDEYE_BASE}{path}", params=params, headers=headers, timeout=8.0
+        )
+        if body is not None:
+            return body
+    return None
 
 
 def _unpack_data(body: dict[str, Any] | None) -> Any:

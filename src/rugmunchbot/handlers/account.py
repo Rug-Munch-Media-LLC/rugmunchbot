@@ -8,19 +8,17 @@ Commands: account, pricing, topup, buystars, scamschool, refer
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
-
-from rugmunchbot import db
-from rugmunchbot.config import (
+from app.domains.telegram.rugmunchbot import db
+from app.domains.telegram.rugmunchbot.config import (
     BOT_USERNAME,
     SUPPORT_EMAIL,
     TIERS,
     WEBSITE_URL,
 )
-from rugmunchbot.formatters import (
+from app.domains.telegram.rugmunchbot.formatters import (
     BETA_BANNER,
     BETA_PAYMENTS_LINE,
     BETA_STATUS_LINE,
@@ -28,15 +26,21 @@ from rugmunchbot.formatters import (
     sep,
     thin_sep,
 )
-from rugmunchbot.keyboards import (
+from app.domains.telegram.rugmunchbot.keyboards import (
     buy_stars_kb,
     pricing_kb,
     scamschool_kb,
     topup_kb,
 )
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+
+if TYPE_CHECKING:
+    from telegram.ext import ContextTypes
 
 
-async def cmd_account(update: Update, ctx) -> None:
+async def cmd_account(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show the user's account dashboard: tier, weekly usage, balances."""
     user = update.effective_user
     if user is None:
         return
@@ -52,11 +56,14 @@ async def cmd_account(update: Update, ctx) -> None:
 
     nudge = ""
     if tier == "free":
-        # FREE PUBLIC BETA: no upgrade pressure — everything is unlocked
-        # while we test. Billing stays one tap away for the launch.
+        # FREE PUBLIC BETA: no upgrade pressure — every feature is unlocked
+        # while we test; the optional Stars deep-scan pack is the only paid
+        # surface. Billing stays one tap away for the launch.
         nudge = (
             f"\n{thin_sep()}\n"
             f"{BETA_STATUS_LINE}\n"
+            f"\u2b50 The \U0001f52c <b>Deep Scan</b> button costs "
+            f"250\u2605 (Telegram Stars); everything else is free.\n"
             f"\U0001f4c5 <b>Premium plans coming soon</b> \u2014 "
             f"beta users get launch discounts."
         )
@@ -84,42 +91,49 @@ async def cmd_account(update: Update, ctx) -> None:
                 InlineKeyboardButton("\u2b50 Plans & Pricing", callback_data="menu_pricing"),
                 InlineKeyboardButton("\U0001f50b Top Up", callback_data="menu_topup"),
             ],
-            [InlineKeyboardButton("\U0001f310 Website", url=WEBSITE_URL)],
+            [InlineKeyboardButton("\U0001f310 rugmunch.io", url=WEBSITE_URL)],
             [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
         ]
     )
-    await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+    await update.message.reply_text(
         text, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True
-    )
+    )  # type: ignore[union-attr]  # PTB None-able fields
 
 
-async def cmd_pricing(update: Update, ctx) -> None:
+async def cmd_pricing(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show the Stars-based premium pricing plans and current balance."""
     user = update.effective_user
     balance = 0
     if user:
         u = db.get_or_create_user(user.id, user.username, user.first_name)
         balance = u.get("stars_balance", 0)
     d = thin_sep()
-    text = f"\u2b50 <b>Subscription Plans</b>\n{sep()}\n\n"
+    text = f"\u2b50 <b>Premium \u2014 pay with Stars</b>\n{sep()}\n\n"
     text += f"{BETA_BANNER}\n\n"
     text += f"Your balance: \u2b50{balance:,}\n\n"
+    text += (
+        "\U0001f4b0 <b>Free (core)</b> \u2014 /scan, chat, trending, scam school\n"
+        f"{d}\n"
+        "\U0001f6f0\ufe0f <b>Monitor</b> \u2014 \u2b50250 / 30 days\n"
+        "  \u2022 Live LP, whale + deployer wallet moves\n"
+        "  \u2022 Tax / ownership / mint change alerts\n"
+        f"{d}\n"
+        "\U0001f52c <b>Deep Scan</b> \u2014 \u2b50250 / token\n"
+        "  \u2022 Full forensics: rugmap, clusters, dev history\n"
+        f"{d}\n"
+    )
     for key, t in TIERS.items():
         if key == "free":
-            text += f"{t['emoji']} <b>{t['name']}</b> - $0\n{d}\n"
-        else:
-            # [REVIEW] OSS ships a single free tier (checklist §3); price is
-            # shown only when the operator config defines one.
-            price = t.get("price_monthly")
-            price_line = f"<b>${price}/mo</b>" if price else "<b>Paid tier</b>"
-            text += f"{t['emoji']} <b>{t['name']}</b> - {price_line}\n{d}\n"
-        for f in t["features"]:
+            continue
+        text += f"{t['emoji']} <b>{t['name']}</b> \u2014 {t['price_stars']:,}\u2605 / 30 days\n"
+        for f in t["features"][:3]:
             text += f"  \u2022 {f}\n"
         text += "\n"
     text += (
         f"{sep()}\n"
-        f"\U0001f4b3 Pay with Telegram Stars\n"
-        f"\U0001f504 Weekly reset Monday 00:00 UTC\n\n"
-        f'\U0001f310 <a href="{WEBSITE_URL}/pricing">Compare plans on the website</a>\n'
+        f"\U0001f4b3 Pay with Telegram Stars (250\u2605 \u2248 $2.50)\n"
+        f"\U0001f504 Tier limits reset Monday 00:00 UTC\n\n"
+        f'\U0001f310 <a href="{WEBSITE_URL}/pricing">Compare plans on rugmunch.io</a>\n'
         f"\U0001f4e7 Enterprise: {SUPPORT_EMAIL}"
         f"{footer_links()}"
     )
@@ -128,7 +142,8 @@ async def cmd_pricing(update: Update, ctx) -> None:
     )
 
 
-async def cmd_topup(update: Update, ctx) -> None:
+async def cmd_topup(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show the bonus-usage top-up menu (buy extra scans / AI messages)."""
     user = update.effective_user
     balance = 0
     if user:
@@ -148,7 +163,7 @@ async def cmd_topup(update: Update, ctx) -> None:
     await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=topup_kb())  # type: ignore[union-attr]  # PTB None-able fields
 
 
-async def cmd_buystars(update: Update, ctx) -> None:
+async def cmd_buystars(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Buy Telegram Stars - purchase Stars to spend on scans, subs, etc."""
     user = update.effective_user
     if user is None:
@@ -165,7 +180,8 @@ async def cmd_buystars(update: Update, ctx) -> None:
     await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=buy_stars_kb())  # type: ignore[union-attr]  # PTB None-able fields
 
 
-async def cmd_scamschool(update: Update, ctx) -> None:
+async def cmd_scamschool(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show the scam-education topic menu."""
     text = (
         f"\U0001f4da <b>Scam School</b>\n{sep()}\n\n"
         f"Learn how to spot crypto scams <b>before</b> you get rugged.\n\n"
@@ -178,7 +194,8 @@ async def cmd_scamschool(update: Update, ctx) -> None:
     )
 
 
-async def cmd_refer(update: Update, ctx) -> None:
+async def cmd_refer(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show the referral link and earned-bonus stats."""
     user = update.effective_user
     if user is None:
         return
@@ -231,7 +248,7 @@ async def cmd_refer(update: Update, ctx) -> None:
                         url=f"https://t.me/share/url?url={link}&text={share_text}",
                     )
                 ],
-                [InlineKeyboardButton("\U0001f310 Website", url=WEBSITE_URL)],
+                [InlineKeyboardButton("\U0001f310 rugmunch.io", url=WEBSITE_URL)],
                 [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
             ]
         ),

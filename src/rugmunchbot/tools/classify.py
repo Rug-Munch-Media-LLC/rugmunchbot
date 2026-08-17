@@ -21,8 +21,8 @@ would create an import cycle.
 
 from __future__ import annotations
 
-from rugmunchbot.formatters._base import TOKEN_RE as SYMBOL_RE
-from rugmunchbot.tools.guardrails import EVM_RE, SOL_RE
+from app.domains.telegram.rugmunchbot.formatters._base import TOKEN_RE as SYMBOL_RE
+from app.domains.telegram.rugmunchbot.tools.guardrails import EVM_RE, SOL_RE
 
 # cap address-triggered scans per message
 MAX_ADDRESS_HINTS = 2
@@ -76,10 +76,12 @@ def _extract_addresses(text: str) -> list[str]:
 
 
 def has_symbol(text: str) -> bool:
+    """True when ``text`` contains a ``$SYMBOL``-style token reference."""
     return bool(SYMBOL_RE.search(text))
 
 
 def symbols_in(text: str) -> list[str]:
+    """Return the uppercased ``$SYMBOL`` references found in ``text``."""
     return [m.group(1).upper() for m in SYMBOL_RE.finditer(text)]
 
 
