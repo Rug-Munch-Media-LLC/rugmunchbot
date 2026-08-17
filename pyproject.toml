@@ -47,6 +47,7 @@ extend-exclude = [
     ".mypy_cache",
     ".ruff_cache",
     "bot",          # stale deprecated tree — removed in Stage 0
+    "src/rugmunchbot",  # byte-identical live snapshot — linted in rmi-backend, never auto-fixed here
     "tests",        # stale tests of the deprecated tree — replaced by ported live tests in Stage 5
 ]
 
