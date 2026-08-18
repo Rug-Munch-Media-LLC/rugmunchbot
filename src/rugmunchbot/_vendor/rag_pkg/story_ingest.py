@@ -37,8 +37,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import html as html_module
+import ipaddress
 import os
 import re
+import socket
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -85,8 +87,54 @@ class StoryFetch:
 # ── URL validation ─────────────────────────────────────────────────────────
 
 
+def _is_private_ip(ip: str) -> bool:
+    """True when an IP literal is private/loopback/link-local/reserved.
+
+    Covers RFC 1918, CGNAT (100.64/10), link-local (169.254/16), loopback,
+    documentation, multicast, and reserved ranges — plus IPv6 equivalents
+    (::1, fc00::/7, fe80::/10, v4-mapped). This is the SSRF guard: the bot
+    must never fetch internal infrastructure or cloud metadata endpoints.
+    """
+    try:
+        addr = ipaddress.ip_address(ip.split("%")[0])
+    except ValueError:
+        return False  # not an IP literal — caller resolves hostnames separately
+    if addr.is_private or addr.is_loopback or addr.is_link_local:
+        return True
+    if addr.is_multicast or addr.is_reserved or addr.is_unspecified:
+        return True
+    # CGNAT 100.64.0.0/10 — ipaddress marks it private on modern Pythons, but
+    # keep the explicit check for older stdlibs.
+    if isinstance(addr, ipaddress.IPv4Address) and (int(addr) & 0xFFC00000) == 0x64400000:
+        return True
+    # Documentation ranges (2001:db8::/32, 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24)
+    return addr.is_global is False and not (
+        addr.is_private or addr.is_loopback or addr.is_link_local
+    )
+
+
+def _host_is_private(host: str) -> bool:
+    """True when a URL host resolves to any private/loopback/link-local IP.
+
+    Literal IPs are checked directly; hostnames are resolved via
+    ``getaddrinfo`` and every returned address is checked. Unresolvable
+    hostnames are rejected (fail-closed — a fetch would fail anyway).
+    """
+    host = host.strip("[]").lower()
+    if not host:
+        return True
+    if _is_private_ip(host):
+        return True
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    except OSError:
+        return True  # unresolvable → fail closed
+    return any(_is_private_ip(info[4][0]) for info in infos)
+
+
 def _validate_url(url: str) -> str:
-    """Reject non-http(s) URLs, oversized URLs, and embedded credentials."""
+    """Reject non-http(s) URLs, oversized URLs, embedded credentials, and
+    SSRF targets (private/loopback/link-local/reserved hosts)."""
     if not url or len(url) > MAX_URL_LENGTH:
         raise StoryFetchError("invalid URL")
     try:
@@ -97,6 +145,8 @@ def _validate_url(url: str) -> str:
         raise StoryFetchError("unsupported URL — only http/https allowed")
     if "@" in parts.netloc:
         raise StoryFetchError("URLs with embedded credentials are not allowed")
+    if _host_is_private(parts.hostname or ""):
+        raise StoryFetchError("URLs pointing at private/internal hosts are not allowed")
     return url
 
 
@@ -107,8 +157,17 @@ _ATTR_NAME_RE = re.compile(r'name=["\']([^"\']+)["\']', re.I)
 _ATTR_PROPERTY_RE = re.compile(r'property=["\']([^"\']+)["\']', re.I)
 _ATTR_CONTENT_RE = re.compile(r'content=["\']([^"\']*)["\']', re.I)
 _TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
-_OG_TITLE_RE = re.compile(r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\'](.*?)["\']', re.I | re.S)
-_AUTHOR_KEYS = {"author", "article:author", "byl", "parsely-author", "dc.creator", "sailthru.author"}
+_OG_TITLE_RE = re.compile(
+    r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\'](.*?)["\']', re.I | re.S
+)
+_AUTHOR_KEYS = {
+    "author",
+    "article:author",
+    "byl",
+    "parsely-author",
+    "dc.creator",
+    "sailthru.author",
+}
 _DATE_KEYS = {
     "date",
     "dc.date",
@@ -212,7 +271,9 @@ async def _fetch_flaresolverr(url: str, rotator: Any) -> tuple[str, str, str, st
     if proxy:
         payload["proxy"] = proxy
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(FLARESOLVERR_TIMEOUT, connect=3.0)) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(FLARESOLVERR_TIMEOUT, connect=3.0)
+        ) as client:
             resp = await client.post(f"{FLARESOLVERR_URL}/v1", json=payload)
             if resp.status_code != 200:
                 if rotator:
@@ -308,7 +369,9 @@ async def _fetch_plain(url: str, rotator: Any) -> tuple[str, str, str, str] | No
             async with client:
                 resp = await _plain_get_once(client, url)
         except Exception:
-            log.debug("story_fetch_plain_transport_error url=%s proxy=%s", url, proxy, exc_info=True)
+            log.debug(
+                "story_fetch_plain_transport_error url=%s proxy=%s", url, proxy, exc_info=True
+            )
             resp = None
         if resp is None or resp.status_code in (403, 429):
             # Transport error or Cloudflare/rate-limit: rotate and retry.
