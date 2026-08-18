@@ -1,8 +1,13 @@
-# VENDORED 2026-08-17 from rmi-backend/app/content_platform.py (frozen copy; do not edit).
+# VENDORED 2026-08-18 from rmi-backend/app/content_platform.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
-Ghost Content Platform - @CryptoRugMunch Feed engine.
+Ghost Content Platform - @cryptorugmunch Feed engine.
+
+Headless Ghost CMS (blog.rugmunch.io) powering the rugmunch.io surfaces:
+  blog.rugmunch.io      — product announcements (Ghost's own theme)
+  feed.rugmunch.io      — @cryptorugmunch social feed (twitter-clone frontend)
+  newsletter.rugmunch.io — weekly newsletter (Ghost-published)
 
 Post types:
   micro      - Short posts (≤4000 chars, like X posts)
@@ -14,13 +19,22 @@ Post types:
   briefing   - Daily intelligence briefing (auto-generated)
   paid       - Premium gated content
 
-Auth: Session cookie from owner login. Cookie refreshed on 401.
+Auth (Admin API, write): HS256 JWT signed with the Admin API key
+  (``id:secret``, secret hex-decoded, ``kid=<id>``, ``aud=/admin/``,
+  ``exp<=5min``) — read from ``/srv/secrets/ghost_admin_key`` (canonical
+  Talos path), then ``GHOST_ADMIN_API_KEY`` env, then the legacy session
+  cookie file. Content API (read) uses ``GHOST_CONTENT_API_KEY`` env.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import json
 import os
+import re
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -32,11 +46,13 @@ logger = get_logger(__name__)
 
 GHOST_API = "https://blog.rugmunch.io"
 GHOST_CONTENT_KEY = os.getenv("GHOST_CONTENT_API_KEY", "")
+GHOST_ADMIN_KEY_FILE = "/srv/secrets/ghost_admin_key"
 GHOST_SESSION_COOKIE = "/home/dev/rmi/backend/.secrets/ghost_session_cookies"
+GHOST_SESSION_COOKIE_TALOS = "/srv/secrets/ghost_session_cookies"
 
 PROFILE = {
-    "name": "Rug Munch Intelligence",
-    "handle": "@CryptoRugMunch",
+    "name": "Crypto Rug Muncher",
+    "handle": "@cryptorugmunch",
     "avatar": "https://rugmunch.io/logo.png",
     "bio": "Crypto security platform. Real-time scam detection, cross-chain forensics, AI-powered investigation. Free. No signup. MCP-native.",
     "website": "https://rugmunch.io",
@@ -56,15 +72,241 @@ TYPE_LIMITS = {k: v["limit"] for k, v in POST_TYPES.items()}
 
 
 def _get_session_cookie() -> str | None:
-    """Read saved session cookie for Ghost admin auth."""
-    try:
-        with open(GHOST_SESSION_COOKIE) as f:
-            for line in f:
-                if "ghost-admin-api-session" in line:
-                    return line.strip()
-    except FileNotFoundError:
-        pass
+    """Read saved session cookie for Ghost admin auth (legacy fallback).
+
+    Tries the canonical Talos path first, then the legacy Hydra-era path.
+    """
+    for path in (GHOST_SESSION_COOKIE_TALOS, GHOST_SESSION_COOKIE):
+        try:
+            with open(path) as f:
+                for line in f:
+                    if "ghost-admin-api-session" in line:
+                        return line.strip()
+        except FileNotFoundError:
+            continue
     return None
+
+
+def _read_admin_key() -> str | None:
+    """Ghost Admin API key (``id:secret``) from file, then env."""
+    for path in (GHOST_ADMIN_KEY_FILE,):
+        try:
+            with open(path) as f:
+                value = f.read().strip()
+                if value:
+                    return value
+        except FileNotFoundError:
+            continue
+    return os.getenv("GHOST_ADMIN_API_KEY") or None
+
+
+def _ghost_admin_jwt(admin_key: str) -> str:
+    """Build a Ghost Admin API JWT from an ``id:secret`` key.
+
+    Ghost requires an HS256 JWT with ``kid=<api-key-id>``, ``aud=/admin/``
+    and ``exp`` ≤ 5 minutes; the secret is hex-decoded before signing.
+    """
+    kid, secret = admin_key.split(":", 1)
+
+    def _b64url(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+    header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT", "kid": kid}, separators=(",", ":")).encode())
+    now = int(time.time())
+    payload = _b64url(json.dumps({"iat": now, "exp": now + 300, "aud": "/admin/"}, separators=(",", ":")).encode())
+    try:
+        secret_bytes = bytes.fromhex(secret)
+    except ValueError:
+        secret_bytes = secret.encode()
+    signing_input = f"{header}.{payload}".encode()
+    signature = _b64url(hmac.new(secret_bytes, signing_input, hashlib.sha256).digest())
+    return f"{header}.{payload}.{signature}"
+
+
+def _get_admin_auth() -> tuple[str, str] | None:
+    """Admin auth header: (``"Bearer"``, JWT) preferred, cookie fallback."""
+    admin_key = _read_admin_key()
+    if admin_key:
+        try:
+            return "Bearer", _ghost_admin_jwt(admin_key)
+        except Exception as exc:  # malformed key — fall through to cookie
+            logger.warning("content_platform:admin_jwt_failed err=%s", str(exc)[:120])
+    session = _get_session_cookie()
+    if session:
+        return "Cookie", session
+    return None
+
+
+def _admin_headers(auth: tuple[str, str]) -> dict[str, str]:
+    """Request headers for an admin auth tuple (Bearer JWT or Cookie)."""
+    scheme, value = auth
+    if scheme == "Bearer":
+        return {
+            "Content-Type": "application/json",
+            "Origin": GHOST_API,
+            "Authorization": f"Ghost {value}",
+            "Accept-Version": "v5.0",
+        }
+    cookie_header = value.split("\t")
+    cookie = f"{cookie_header[5]}={cookie_header[6]}" if len(cookie_header) > 6 else value
+    return {
+        "Content-Type": "application/json",
+        "Origin": GHOST_API,
+        "Cookie": cookie,
+        "Accept-Version": "v5.0",
+    }
+
+
+# ── Lexical builder (markdown / Telegram-HTML → Ghost lexical) ──────────────
+
+_INLINE_RE = re.compile(
+    r"\[([^\]]+)\]\(([^)]+)\)"  # markdown link [text](url)
+    r"|<a\s+href=\"([^\"]+)\"[^>]*>(.*?)</a>"  # telegram link <a href="url">text</a>
+    r"|<b>(.*?)</b>"  # bold
+    r"|<i>(.*?)</i>"  # italic
+    r"|\*\*([^*]+)\*\*"  # markdown bold
+    r"|(?<!\*)\*([^*\n]+)\*(?!\*)"  # markdown italic
+)
+_BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_BULLET_RE = re.compile(r"^[-•*](?:\s*[-•*])*\s+")
+_HEADING_RE = re.compile(r"^(#{1,4})\s+(.+)$")
+
+
+def _text_node(text: str, fmt: int = 0) -> dict[str, Any]:
+    return {
+        "detail": 0,
+        "format": fmt,
+        "mode": "normal",
+        "style": "",
+        "text": text,
+        "type": "text",
+        "version": 1,
+    }
+
+
+def _link_node(text: str, url: str) -> dict[str, Any]:
+    return {
+        "type": "link",
+        "version": 1,
+        "rel": None,
+        "target": None,
+        "title": None,
+        "url": url,
+        "children": [_text_node(text)],
+    }
+
+
+def _inline_to_children(text: str) -> list[dict[str, Any]]:
+    """Parse inline bold/italic/links (markdown + Telegram HTML) into nodes."""
+    children: list[dict[str, Any]] = []
+    pos = 0
+    for m in _INLINE_RE.finditer(text):
+        if m.start() > pos:
+            children.append(_text_node(text[pos : m.start()]))
+        if m.group(1) is not None:  # [text](url)
+            children.append(_link_node(m.group(1), m.group(2)))
+        elif m.group(3) is not None:  # <a href="url">text</a>
+            children.append(_link_node(m.group(4), m.group(3)))
+        elif m.group(5) is not None:  # <b>text</b>
+            children.append(_text_node(m.group(5), fmt=2))
+        elif m.group(6) is not None:  # <i>text</i>
+            children.append(_text_node(m.group(6), fmt=1))
+        elif m.group(7) is not None:  # **text**
+            children.append(_text_node(m.group(7), fmt=2))
+        elif m.group(8) is not None:  # *text*
+            children.append(_text_node(m.group(8), fmt=1))
+        pos = m.end()
+    if pos < len(text):
+        children.append(_text_node(text[pos:]))
+    return children or [_text_node("")]
+
+
+def _markdown_to_lexical(content: str) -> dict[str, Any]:
+    """Convert markdown-ish / Telegram-HTML content to Ghost lexical JSON.
+
+    Handles ``#``/``##`` headings, ``-``/``•`` bullet lists, ``**bold**``,
+    ``*italic*``, ``[text](url)`` links and Telegram ``<b>/<i>/<a href>``
+    tags. Everything else renders as paragraphs.
+    """
+    content = _BR_RE.sub("\n", content)
+    children: list[dict[str, Any]] = []
+    for block in re.split(r"\n\s*\n", content):
+        block = block.strip()
+        if not block:
+            continue
+        lines = [ln for ln in block.split("\n") if ln.strip()]
+        if not lines:
+            continue
+        heading = _HEADING_RE.match(lines[0])
+        if heading:
+            children.append(
+                {
+                    "type": "heading",
+                    "version": 1,
+                    "children": _inline_to_children(heading.group(2)),
+                    "direction": "ltr",
+                    "format": "",
+                    "indent": 0,
+                    "tag": f"h{len(heading.group(1))}",
+                }
+            )
+            lines = lines[1:]
+            if not lines:
+                continue
+        if all(_BULLET_RE.match(ln) for ln in lines):
+            items = [
+                {
+                    "type": "listitem",
+                    "version": 1,
+                    "children": _inline_to_children(_BULLET_RE.sub("", ln)),
+                    "direction": "ltr",
+                    "format": "",
+                    "indent": 0,
+                    "mode": "normal",
+                    "style": "",
+                    "value": 1,
+                }
+                for ln in lines
+            ]
+            children.append(
+                {
+                    "type": "list",
+                    "version": 1,
+                    "listType": "bullet",
+                    "start": 1,
+                    "direction": "ltr",
+                    "format": "",
+                    "indent": 0,
+                    "mode": "normal",
+                    "style": "",
+                    "tag": "ul",
+                    "children": items,
+                }
+            )
+            continue
+        for ln in lines:
+            children.append(
+                {
+                    "type": "paragraph",
+                    "version": 1,
+                    "children": _inline_to_children(ln),
+                    "direction": "ltr",
+                    "format": "",
+                    "indent": 0,
+                    "textFormat": 0,
+                    "textStyle": "",
+                }
+            )
+    return {
+        "root": {
+            "children": children,
+            "direction": "ltr",
+            "format": "",
+            "indent": 0,
+            "type": "root",
+            "version": 1,
+        }
+    }
 
 
 async def create_post(
@@ -85,46 +327,8 @@ async def create_post(
     if not title:
         title = content[:120] + ("..." if len(content) > 120 else "")
 
-    # Convert to Ghost lexical format
-    paragraphs = content.split("\n\n")
-    children = []
-    for para in paragraphs:
-        para = para.strip()
-        if not para:
-            continue
-        children.append(
-            {
-                "children": [
-                    {
-                        "detail": 0,
-                        "format": 0,
-                        "mode": "normal",
-                        "style": "",
-                        "text": para.replace("\n", " "),
-                        "type": "text",
-                        "version": 1,
-                    }
-                ],
-                "direction": "ltr",
-                "format": "",
-                "indent": 0,
-                "type": "paragraph",
-                "version": 1,
-            }
-        )
-
-    lexical = json.dumps(
-        {
-            "root": {
-                "children": children,
-                "direction": "ltr",
-                "format": "",
-                "indent": 0,
-                "type": "root",
-                "version": 1,
-            }
-        }
-    )
+    # Convert to Ghost lexical format (headings/bold/italic/links/lists kept)
+    lexical = json.dumps(_markdown_to_lexical(content))
 
     payload = {
         "posts": [
@@ -139,17 +343,18 @@ async def create_post(
         ]
     }
 
-    session = _get_session_cookie()
-    if not session:
-        return {"error": "No Ghost session cookie", "help": "Login at /ghost first"}
+    auth = _get_admin_auth()
+    if not auth:
+        return {
+            "error": "No Ghost admin credentials",
+            "help": "Set /srv/secrets/ghost_admin_key or GHOST_ADMIN_API_KEY",
+        }
 
     try:
-        cookie_header = session.split("\t")
-        cookie = f"{cookie_header[5]}={cookie_header[6]}" if len(cookie_header) > 6 else session
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
                 f"{GHOST_API}/ghost/api/admin/posts/",
-                headers={"Content-Type": "application/json", "Origin": GHOST_API, "Cookie": cookie},
+                headers=_admin_headers(auth),
                 json=payload,
             )
             if resp.status_code in (200, 201):
@@ -165,8 +370,30 @@ async def create_post(
                     "feature_image": p.get("feature_image", PROFILE["avatar"]),
                     "excerpt": p.get("custom_excerpt") or content[:140],
                 }
-            elif resp.status_code == 401:
-                return {"error": "Session expired - re-login at /ghost"}
+            if resp.status_code == 401 and auth[0] == "Bearer":
+                # JWT rejected — retry once with the legacy session cookie.
+                session = _get_session_cookie()
+                if session:
+                    resp = await client.post(
+                        f"{GHOST_API}/ghost/api/admin/posts/",
+                        headers=_admin_headers(("Cookie", session)),
+                        json=payload,
+                    )
+                    if resp.status_code in (200, 201):
+                        p = resp.json()["posts"][0]
+                        return {
+                            "id": p["id"],
+                            "title": p["title"],
+                            "url": p.get("url", f"{GHOST_API}/{p.get('slug', '')}"),
+                            "status": p["status"],
+                            "created_at": p["created_at"],
+                            "type": post_type,
+                            "tags": [t["name"] for t in p.get("tags", [])],
+                            "feature_image": p.get("feature_image", PROFILE["avatar"]),
+                            "excerpt": p.get("custom_excerpt") or content[:140],
+                        }
+            if resp.status_code == 401:
+                return {"error": "Ghost admin auth rejected (JWT + cookie)"}
             return {"error": f"Ghost: HTTP {resp.status_code}", "detail": resp.text[:300]}
     except Exception as e:
         return {"error": str(e)}

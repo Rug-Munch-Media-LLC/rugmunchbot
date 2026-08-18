@@ -34,7 +34,7 @@ the post, it never crashes the JobQueue):
        shill. When the LLM returns empty the job logs and skips — never
        fabricates.
     3. **Clean** — :func:`cleanup_html` normalizes markdown-ish artifacts to
-       safe Telegram HTML and enforces the char budget (≤ 3500).
+       safe Telegram HTML and enforces the Telegram char budget (≤ 3900); the Ghost feed gets the full untrimmed editorial.
     4. **Post** — the report goes to ``_chat_id("main")`` (the registry
        ``main`` role → @cryptorugmuncher) via the scheduler's retrying
        ``_safe_send`` (ParseMode.HTML). When posting succeeds the same content
@@ -123,10 +123,12 @@ DAILY_MARKET_SUMMARY_ENABLED: bool = _env_bool_alias(
     "RMI_DAILY_MARKET_BRIEF_ENABLED", "RMI_DAILY_MARKET_SUMMARY_ENABLED", True
 )
 
-#: Report length budget (default 3500 chars per the spec; Telegram soft limit
-#: is 4096, so 3500 leaves headroom for the send layer).
+#: Report length budget (default 3900 chars — Telegram soft limit is 4096,
+#: so 3900 leaves headroom for the send layer). The Ghost feed version is
+#: NOT trimmed: the full editorial (up to the LLM's long-tier budget) is
+#: published to rugmunch.io, where the 50k briefing limit applies.
 DAILY_MARKET_SUMMARY_MAX_CHARS: int = _env_int_alias(
-    "RMI_DAILY_MARKET_BRIEF_MAX_CHARS", "RMI_DAILY_MARKET_SUMMARY_MAX_CHARS", 3500
+    "RMI_DAILY_MARKET_BRIEF_MAX_CHARS", "RMI_DAILY_MARKET_SUMMARY_MAX_CHARS", 3900
 )
 
 #: Publish the same content to the rugmunch.io feed (Ghost content platform)
@@ -151,7 +153,9 @@ DAILY_MARKET_SUMMARY_TZ: str = _env_str_alias(
 )
 
 #: ``HH:MM`` of day in ``DAILY_MARKET_SUMMARY_TZ`` (default 07:00 ET).
-DAILY_MARKET_SUMMARY_TIME: str = _env_str_alias("RMI_DAILY_MARKET_BRIEF_TIME", "RMI_DAILY_MARKET_SUMMARY_TIME", "07:00")
+DAILY_MARKET_SUMMARY_TIME: str = _env_str_alias(
+    "RMI_DAILY_MARKET_BRIEF_TIME", "RMI_DAILY_MARKET_SUMMARY_TIME", "07:00"
+)
 
 
 def summary_run_time() -> Any:
@@ -271,6 +275,31 @@ async def _fetch_major_prices() -> dict[str, Any]:
     return {}
 
 
+async def _fetch_global_metrics() -> dict[str, Any]:
+    """Global market metrics via CoinGecko ``/global`` (free, no key).
+
+    Total market cap, 24h volume and BTC dominance — the macro context the
+    brief needs to describe the tape. Fail-open → ``{}``.
+    """
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(f"{COINGECKO_API}/global")
+            if resp.status_code == 200:
+                data = resp.json().get("data") or {}
+                return {
+                    "total_mcap": data.get("total_market_cap", {}).get("usd"),
+                    "total_volume_24h": data.get("total_volume", {}).get("usd"),
+                    "btc_dominance": data.get("market_cap_percentage", {}).get("btc"),
+                    "eth_dominance": data.get("market_cap_percentage", {}).get("eth"),
+                    "mcap_change_24h": data.get("market_cap_change_percentage_24h_usd"),
+                }
+    except Exception as exc:  # fail-open — global metrics are optional
+        logger.debug("daily_market_summary:global_metrics_failed err=%s", str(exc)[:120])
+    return {}
+
+
 async def _fetch_market_condition() -> dict[str, Any]:
     """Market-condition verdict + fear/greed + breadth (existing tool).
 
@@ -315,7 +344,9 @@ async def _fetch_movers() -> dict[str, Any]:
     try:
         from rugmunchbot.tools.registry import backend_json_get
 
-        body = await backend_json_get("/api/v1/market/movers", params={"tf": "24h", "limit": 6}, timeout=6.0)
+        body = await backend_json_get(
+            "/api/v1/market/movers", params={"tf": "24h", "limit": 6}, timeout=6.0
+        )
         if isinstance(body, dict):
             return {
                 "gainers": [i for i in (body.get("top_gainers") or []) if isinstance(i, dict)][:6],
@@ -442,7 +473,9 @@ async def _kol_fetch_page(url: str, timeout: float = 4.0) -> str | None:
 
         return await asyncio.wait_for(_fetch_page(url, timeout), timeout=timeout + 1.0)
     except Exception as exc:  # fail-open by contract
-        logger.debug("daily_market_summary:kol_page_failed url=%s err=%s", url[:120], str(exc)[:120])
+        logger.debug(
+            "daily_market_summary:kol_page_failed url=%s err=%s", url[:120], str(exc)[:120]
+        )
     return None
 
 
@@ -508,17 +541,18 @@ async def gather_summary_data() -> dict[str, Any]:
     never gate the brief — a broken SearXNG contributes nothing. This
     function never raises — every block degrades to an empty value.
     """
-    prices, condition, trending, movers, news = await asyncio.gather(
+    prices, condition, trending, movers, news, global_metrics = await asyncio.gather(
         _fetch_major_prices(),
         _fetch_market_condition(),
         _fetch_trending(),
         _fetch_movers(),
         _fetch_news(),
+        _fetch_global_metrics(),
         return_exceptions=True,
     )
-    blocks = [prices, condition, trending, movers, news]
+    blocks = [prices, condition, trending, movers, news, global_metrics]
     cleaned = [b if not isinstance(b, BaseException) else {} for b in blocks]
-    sources = ["prices", "condition", "trending", "movers", "news"]
+    sources = ["prices", "condition", "trending", "movers", "news", "global_metrics"]
     active = [s for s, v in zip(sources, cleaned, strict=True) if v]
 
     narratives: list[Any] = []
@@ -543,6 +577,7 @@ async def gather_summary_data() -> dict[str, Any]:
         "trending": cleaned[2] if isinstance(cleaned[2], list) else [],
         "movers": cleaned[3] if isinstance(cleaned[3], dict) else {},
         "news": cleaned[4] if isinstance(cleaned[4], list) else [],
+        "global_metrics": cleaned[5] if isinstance(cleaned[5], dict) else {},
         "narratives": narratives,
         "kol_signals": kol_signals,
         "sources": active,
@@ -575,10 +610,14 @@ def _serialize_context(context: dict[str, Any]) -> str:
         signals = condition.get("signals") or {}
         fg = signals.get("fear_greed") or {}
         if isinstance(fg, dict) and fg.get("value") is not None:
-            parts.append(f"FEAR & GREED: {fg.get('value')}/100 ({fg.get('classification') or 'N/A'})")
+            parts.append(
+                f"FEAR & GREED: {fg.get('value')}/100 ({fg.get('classification') or 'N/A'})"
+            )
         verdict = condition.get("verdict")
         if verdict:
-            parts.append(f"MARKET VERDICT: {verdict} (confidence {condition.get('confidence') or 'low'})")
+            parts.append(
+                f"MARKET VERDICT: {verdict} (confidence {condition.get('confidence') or 'low'})"
+            )
         reasons = condition.get("reasons") or []
         if reasons:
             parts.append("VERDICT REASONS: " + " | ".join(str(r) for r in reasons[:4]))
@@ -586,6 +625,22 @@ def _serialize_context(context: dict[str, Any]) -> str:
         mcap_chg = signals.get("global_market_cap_change_24h")
         if mcap is not None or mcap_chg is not None:
             parts.append(f"GLOBAL MCAP: {_fmt_volume(mcap)} ({_fmt_pct(mcap_chg)})")
+
+    global_metrics = context.get("global_metrics") or {}
+    if global_metrics:
+        g_lines = []
+        if global_metrics.get("total_mcap") is not None:
+            g_lines.append(f"total mcap {_fmt_volume(global_metrics.get('total_mcap'))}")
+        if global_metrics.get("total_volume_24h") is not None:
+            g_lines.append(f"24h volume {_fmt_volume(global_metrics.get('total_volume_24h'))}")
+        if global_metrics.get("btc_dominance") is not None:
+            g_lines.append(f"BTC dominance {global_metrics.get('btc_dominance'):.1f}%")
+        if global_metrics.get("eth_dominance") is not None:
+            g_lines.append(f"ETH dominance {global_metrics.get('eth_dominance'):.1f}%")
+        if global_metrics.get("mcap_change_24h") is not None:
+            g_lines.append(f"mcap 24h {_fmt_pct(global_metrics.get('mcap_change_24h'))}")
+        if g_lines:
+            parts.append("GLOBAL METRICS: " + " · ".join(g_lines))
 
     movers = context.get("movers") or {}
     gainers = movers.get("gainers") or []
@@ -621,8 +676,9 @@ def _serialize_context(context: dict[str, Any]) -> str:
         n_lines = []
         for r in news[:6]:
             content = (r.get("content") or r.get("title") or "").strip()[:160]
+            url = str(r.get("canonical_url") or "").strip()
             if content:
-                n_lines.append(content)
+                n_lines.append(f"{content} [url={url}]" if url else content)
         parts.append("TOP NEWS (RAG news_v2): " + " || ".join(n_lines))
 
     narratives = context.get("narratives") or []
@@ -655,32 +711,34 @@ def _serialize_context(context: dict[str, Any]) -> str:
 #: System prompt — editorial voice + Telegram HTML + grounding. Explicitly
 #: forbids bot clichés. The section order is the brief spec: overview →
 #: narrative → movers → news → sentiment → X/KOL signals → what-to-watch.
-SYSTEM_PROMPT = """You are the Daily Market Brief writer for Rug Munch Intelligence (@CryptoRugMunch) — a sharp, specific crypto market analyst writing the morning intelligence brief for a degen + institutional audience.
+SYSTEM_PROMPT = """You are the Daily Market Brief writer for Crypto Rug Muncher (@cryptorugmunch) — a sharp, specific crypto market analyst writing the morning intelligence brief for a degen + institutional audience. The same editorial is published to Telegram AND the rugmunch.io web feed, so it must read like a real market newsletter, not a bot dump.
 
 VOICE (non-negotiable):
 - Sharp and specific: real numbers, real names, real percentages — all and ONLY from the provided data. Evidence-first, no filler.
 - Zero bot clichés: never say "stay safe out there", "NFA", "not financial advice", "to the moon", "dyor", "gm", "wagmi", "mooning", "wen lambo", "HODL". Never hype. Say what IS.
-- Conversational newsletter tone, not a robot. Short punchy sentences. Traders read this in 2 minutes.
+- Conversational newsletter tone, not a robot. Short punchy sentences. A trader reads the Telegram version in 2 minutes; the web version rewards a slower read.
 
-OUTPUT FORMAT — Telegram HTML, in this EXACT section order:
-<b>MARKET OVERVIEW</b>
-One line: BTC/ETH/SOL prices with 24h % from the data. Then 1-2 sentences on the tone (risk-on/off, breadth, global mcap) using ONLY the provided verdict/reasons.
-<b>🧭 NARRATIVE</b>
-1-2 sentences naming the day's dominant crypto narrative(s) (e.g. AI agents, RWA tokenization, memes, L2 wars, restaking) — synthesized ONLY from the NARRATIVE SIGNALS block. Name the theme + the token/sector carrying it, cite the signal source. If NARRATIVE SIGNALS is absent, OMIT this section entirely.
-<b>TRENDING MOVERS</b>
+OUTPUT FORMAT — sections in this EXACT order, each headed with "## SECTION NAME" (renders as bold on Telegram, a heading on the web):
+## MARKET OVERVIEW
+1-2 sentences: BTC/ETH/SOL prices with 24h % from the data, plus the tape tone (risk-on/off, breadth, global mcap, BTC dominance) using ONLY the provided verdict/reasons/global metrics.
+## 🧭 NARRATIVE
+2-3 sentences naming the day's dominant crypto narrative(s) (e.g. AI agents, RWA tokenization, memes, L2 wars, restaking) — synthesized ONLY from the NARRATIVE SIGNALS block. Name the theme + the token/sector carrying it, and link the signal source: <a href="URL">source</a>. If NARRATIVE SIGNALS is absent, OMIT this section entirely.
+## TRENDING MOVERS
 Bullet lines: • SYMBOL +X% — why it moved (use the news/reasons context when it explains a mover; otherwise say what the data shows: volume, mcap). Include 3-5 movers with their real numbers.
-<b>TOP NEWS</b>
-3-5 bullets: • headline (source) — pick the stories that actually move markets today.
-<b>SENTIMENT</b>
+## KEY EVENTS / MARKET DRIVERS
+2-3 bullets: • event — why it matters today (macro prints, ETF flows, unlocks, listings, protocol launches, hacks). Ground EVERY item in the provided news/narrative data and link it: <a href="URL">headline</a>. Never invent an event.
+## TOP NEWS
+3-5 bullets: • <a href="URL">headline</a> (source) — pick the stories that actually move markets today. EVERY bullet must carry its real URL from the data (the [url=...] markers). If a story has no URL, write the headline without a link.
+## SENTIMENT
 One line: Fear & Greed X/100 (classification) + the market verdict with 1 reason.
-<b>📣 X / KOL SIGNALS</b>
-2-4 bullet lines: • X is talking about $TOKEN because <real, specific reason> — (source link). Use ONLY the X/KOL SIGNALS block: real mentions with a real source URL per line. HONEST RULE: never invent a shill, a KOL name, or a tweet — if a signal has no usable source text, skip it. If X/KOL SIGNALS is absent, OMIT this section entirely.
-<b>WHAT TO WATCH TODAY</b>
+## 📣 X / KOL SIGNALS
+2-4 bullet lines: • X is talking about $TOKEN because <real, specific reason> — <a href="URL">source</a>. Use ONLY the X/KOL SIGNALS block: real mentions with a real source URL per line. HONEST RULE: never invent a shill, a KOL name, or a tweet — if a signal has no usable source text, skip it. If X/KOL SIGNALS is absent, OMIT this section entirely.
+## WHAT TO WATCH TODAY
 2-3 concrete, specific items (events, levels, tokens) grounded in the data — not generic advice.
 
 HARD RULES:
-- Telegram HTML only: <b> and <i> tags, line breaks. No markdown, no backticks, no ``` fences, no <h1>, no <p>, no HTML boilerplate.
-- ≤ 3500 characters total. Tight. No section may run long.
+- Format: "## SECTION" headers, "- " or "• " bullets, <a href="URL">text</a> links, <b>/<i> for emphasis. No markdown backticks, no ``` fences, no <h1>, no <p>, no HTML boilerplate.
+- Target length: 6000-7000 characters total. The Telegram version is trimmed automatically to 3900 — put the most important content FIRST, keep every section tight, and let the later sections (X/KOL signals, what-to-watch) carry the depth.
 - Cite-or-omit: if a number is not in the provided data, do NOT invent it. Empty sections render as "N/A".
 - No emoji spam: at most one emoji in the opening line (e.g. 📊). Section headers use exactly the tags above (🧭 NARRATIVE, 📣 X / KOL SIGNALS) — no other emojis."""
 
@@ -695,14 +753,17 @@ def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
     try:
         generated = context.get("generated_at")
         if generated:
-            date_str = datetime.fromisoformat(str(generated)).astimezone(UTC).strftime("%A, %B %d, %Y")
+            date_str = (
+                datetime.fromisoformat(str(generated)).astimezone(UTC).strftime("%A, %B %d, %Y")
+            )
     except (TypeError, ValueError):
         date_str = "—"
     user_prompt = (
         f"Write today's Daily Market Brief for {date_str}.\n\n"
         "Here is the ONLY data you may use (cite-or-omit):\n"
         f"{_serialize_context(context)}\n\n"
-        "Now write the report. Telegram HTML, sections in the exact order above, ≤3500 chars."
+        "Now write the report. '## SECTION' headers, sections in the exact order above, "
+        "6000-7000 chars, every news/narrative item linked with its real [url=...]."
     )
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -856,7 +917,9 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info("daily_market_summary:posted_main chars=%s", len(report))
 
     if DAILY_MARKET_SUMMARY_FEED_ENABLED:
-        await publish_to_feed(report)
+        # Ghost gets the FULL editorial (untrimmed — the 50k briefing limit
+        # applies there); Telegram readers got the 3900-char trim above.
+        await publish_to_feed(raw)
     return 1
 
 
