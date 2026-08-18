@@ -20,7 +20,8 @@ import re
 # Hosted GPU — seconds instead of the 70-90s CPU generation the old local
 # chain measured.
 REMOTE_SNAPPY_TIMEOUT = 20.0  # must stay fast, but room for a full 2000-token answer
-REMOTE_LONG_TIMEOUT = 35.0  # deep-analysis must fit within the long turn deadline
+REMOTE_LONG_TIMEOUT = 60.0  # deep-analysis needs the full outer deadline; free Nemotron
+# 3 Ultra can take 45-55s to generate 3000 tokens at 0.7 temperature
 
 # Question window for the current message in the remote prompt. The
 # question gets its own MAX_MESSAGE_CHARS window — context must never share

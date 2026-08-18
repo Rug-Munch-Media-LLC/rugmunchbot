@@ -102,11 +102,11 @@ async def _chat_once(
     }
     try:
         async with httpx.AsyncClient(
-            timeout=httpx.Timeout(20.0, connect=5.0, read=20.0, write=10.0)
+            timeout=httpx.Timeout(60.0, connect=5.0, read=60.0, write=10.0)
         ) as client:
             resp = await asyncio.wait_for(
                 client.post(base_url, headers=headers, json=payload),
-                timeout=20.0,
+                timeout=60.0,
             )
     except (httpx.HTTPError, OSError, ConnectionError, TimeoutError, ValueError):
         return ""
