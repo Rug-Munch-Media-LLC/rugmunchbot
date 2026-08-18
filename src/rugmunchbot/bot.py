@@ -186,6 +186,7 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         "Core",
         [
             ("scan", "Scan a token for scams & risks"),
+            ("deepscan", "Deep token scan — full forensic audit"),
             ("wallet", "Wallet forensics & analysis"),
             ("price", "Token price by address"),
             ("chart", "Chart & technical analysis"),
@@ -201,7 +202,9 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
 ]
 
 # Flatten section tuples into the BotFather command list (ordered by section).
-_BOT_COMMANDS: list[BotCommand] = [BotCommand(cmd, desc) for _section, cmds in _COMMAND_SECTIONS for cmd, desc in cmds]
+_BOT_COMMANDS: list[BotCommand] = [
+    BotCommand(cmd, desc) for _section, cmds in _COMMAND_SECTIONS for cmd, desc in cmds
+]
 
 
 def _reg(app: Application[Any, Any, Any, Any, Any, Any], name: str, handler) -> None:
@@ -380,7 +383,9 @@ async def setup_bot_profile(app: Application[Any, Any, Any, Any, Any, Any]) -> N
     try:
         commands = _BOT_COMMANDS
         await bot.set_my_commands(commands)
-        logger.info("Bot commands registered (%d across %d sections)", len(commands), len(_COMMAND_SECTIONS))
+        logger.info(
+            "Bot commands registered (%d across %d sections)", len(commands), len(_COMMAND_SECTIONS)
+        )
     except (ValueError, TypeError, KeyError, OSError) as e:
         logger.debug("unknown_error", exc_info=True)
         logger.warning(f"Could not set commands: {e}")
@@ -400,7 +405,9 @@ async def daily_scam_tip(ctx: ContextTypes.DEFAULT_TYPE) -> None:
         f'\U0001f310 <a href="{WEBSITE_URL}">rugmunch.io</a>'
     )
     try:
-        await ctx.bot.send_message(CHANNELS["main"], text, parse_mode="HTML", disable_web_page_preview=True)
+        await ctx.bot.send_message(
+            CHANNELS["main"], text, parse_mode="HTML", disable_web_page_preview=True
+        )
     except TelegramError as e:
         # Channel perms / transient API error — log and let the next daily run retry.
         logger.error(f"Daily tip failed: {e}", exc_info=True)
@@ -636,20 +643,28 @@ def main() -> None:
     job_queue = app.job_queue
     if job_queue:
         # job_queue.run_daily(daily_scam_tip, dtime(hour=14, minute=0, tzinfo=UTC))  # disabled 2026-08-12
-        job_queue.run_repeating(_metrics_job("check_alerts", check_alerts), interval=ALERT_CHECK_INTERVAL, first=10)
+        job_queue.run_repeating(
+            _metrics_job("check_alerts", check_alerts), interval=ALERT_CHECK_INTERVAL, first=10
+        )
         # Stars-paid token monitors: re-scan for tax/ownership/mint/LP deltas
         # and push meaningful changes as DMs (live LP/whale/price events flow
         # through the webhook bridge independently).
         job_queue.run_repeating(
-            _metrics_job("check_monitors", check_monitors), interval=MONITOR_CHECK_INTERVAL, first=120
+            _metrics_job("check_monitors", check_monitors),
+            interval=MONITOR_CHECK_INTERVAL,
+            first=120,
         )
         # Admin-panel broadcasts (queued in Redis by the backend API)
         job_queue.run_repeating(
-            _metrics_job("deliver_pending_broadcasts", deliver_pending_broadcasts), interval=30, first=15
+            _metrics_job("deliver_pending_broadcasts", deliver_pending_broadcasts),
+            interval=30,
+            first=15,
         )
         # Intelligent webhook alerts (queued in Redis by the backend webhook
         # engine → telegram_bridge; whale/price/liquidity/launch push alerts)
-        job_queue.run_repeating(_metrics_job("deliver_pending_alerts", deliver_pending_alerts), interval=30, first=15)
+        job_queue.run_repeating(
+            _metrics_job("deliver_pending_alerts", deliver_pending_alerts), interval=30, first=15
+        )
         # Scheduled channel content: news / alerts / alpha digests (env-driven
         # cadence + per-channel switches; each job fails open).
         register_channel_jobs(app)
