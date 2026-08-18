@@ -604,6 +604,7 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """Post the day's notable scans to @rmiscans, one compact card each.
+    High-importance scans (≥0.7) ALSO escalate solo to @cryptorugmuncher.
 
     Returns the number of cards posted (0..``SCAN_CHANNEL_TICK_LIMIT``). The
     day's most notable scanned tokens (launch-alert ≥70 rail + scan history,
@@ -614,9 +615,11 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     reasons (honeypot / bundle / LP removed / flagged deployer) + risk score
     + token + chain + scan link (rugmunch.io/scanner), each card topped with
     a bounded witty one-liner (``attach_scan_commentary``, fail-open to no
-    line). Fail-open: an empty pool (no scans today / backend down) posts
-    nothing, and a reranker outage keeps the channel flowing with the
-    heuristic fallback (full window) exactly like the alerts job.
+    line). Items scoring ≥0.7 ALSO post solo to @cryptorugmuncher so the
+    most notable token bangers reach the broader audience. Fail-open: an
+    empty pool (no scans today / backend down) posts nothing, and a reranker
+    outage keeps the channel flowing with the heuristic fallback (full
+    window) exactly like the alerts job.
     """
     started = time.perf_counter()
     chat_id = _chat_id("scans")
@@ -646,11 +649,13 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             reason="no_fresh",
         )
         return 0
-    _, keep, reranker_down = await _score_and_partition(fresh, category="news", source="scanner")
+    main_items, keep, reranker_down = await _score_and_partition(
+        fresh, category="news", source="scanner"
+    )
     # Post at most SCAN_CHANNEL_TICK_LIMIT cards per tick: the reranker gate
     # (skip <0.4) + per-token dedupe are the volume controls; the tick cap
-    # just spreads the day's notable scans across the day (~10/day at the
-    # default 90m cadence).
+    # just spreads the day's notable scans across the day (~15-20/day at the
+    # default 60m cadence).
     posted = 0
     for item in sorted(keep, key=lambda i: i.get("importance", 0.0), reverse=True)[
         :SCAN_CHANNEL_TICK_LIMIT
@@ -660,6 +665,17 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         ok = await _post_photo_aware(ctx.bot, chat_id, format_scan_card(item), _safe_send)
         if ok:
             posted += 1
+    # Escalate high-importance scans (≥0.7) to the main channel @cryptorugmuncher
+    # so the most notable token scans also reach the broader audience.
+    main_chat_id = _chat_id("main")
+    if main_chat_id and main_items:
+        for item in sorted(main_items, key=lambda i: i.get("importance", 0.0), reverse=True):
+            if not _remember("scansmain", _dedupe_key("scansmain", item)):
+                continue
+            item = await attach_scan_commentary(item)
+            ok = await _post_photo_aware(ctx.bot, main_chat_id, format_scan_card(item), _safe_send)
+            if ok:
+                posted += 1
     logger.info(
         "channels:tick",
         job="channel_scans",
