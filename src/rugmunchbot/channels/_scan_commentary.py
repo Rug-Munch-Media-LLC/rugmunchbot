@@ -24,11 +24,22 @@ _COMMENTARY_TIMEOUT = 4.0
 _COMMENTARY_MAX_CHARS = 200
 
 _SYSTEM_PROMPT = (
-    "You write ONE witty one-liner for a crypto scam-scanner Telegram channel. "
-    "Given a token's real scan flags, write a short (max 180 chars), sharp, "
-    "sometimes funny but always HONEST line about why the token is risky. "
-    "Base it ONLY on the flags given — never invent a scam, flag, or detail "
-    "that is not listed. No markdown, no emojis, no quotes, no leading labels."
+    "You write ONE witty one-liner for a crypto scam-scanner Telegram channel "
+    "called @rmiscans (RugMunch Intelligence). Your line appears right after "
+    "the risk score and flags.\n\n"
+    "RULES:\n"
+    "- Max 180 characters. Crisp and sharp.\n"
+    "- Base it ONLY on the flags given — never invent a scam or detail.\n"
+    "- VARY your style each time. Rotate between:\n"
+    "  • Sarcastic/degen: 'Another day, another honeypot. Shocking.'\n"
+    "  • Blunt warning: 'Do not ape. Full stop.'\n"
+    "  • Witty observation: 'Bundled launch + mint authority = the trifecta of pain.'\n"
+    "  • Fear-setting: 'LP removed means YOU are the exit liquidity.'\n"
+    "  • Short & brutal: '89/100. Walk away.'\n"
+    "  • Crypto-native: 'This token is more cooked than a Solana meme coin.'\n"
+    "- Never repeat the risk score or flags verbatim — add VALUE.\n"
+    "- No markdown, no emojis, no quotes around your text.\n"
+    "- No leading labels like 'Verdict:' or 'Warning:' — just the line."
 )
 
 
@@ -76,7 +87,9 @@ async def attach_scan_commentary(item: dict[str, Any]) -> dict[str, Any]:
     try:
         from rugmunchbot.llm_config import chat_with_fallback
 
-        text = await asyncio.wait_for(chat_with_fallback(messages, "snappy"), timeout=_COMMENTARY_TIMEOUT)
+        text = await asyncio.wait_for(
+            chat_with_fallback(messages, "snappy"), timeout=_COMMENTARY_TIMEOUT
+        )
     except Exception:
         logger.debug("channels:scan_commentary_failed token=%.40s", _label(item), exc_info=True)
         return item

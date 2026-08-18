@@ -95,7 +95,7 @@ CHANNEL_PITCHES: dict[str, str] = {
     "news": "Crypto news 24/7 \u2014 headlines &amp; digests",
     "alerts": "Security \u2014 rug alerts &amp; exploits",
     "alpha": "Whale &amp; alpha signals \u2014 early data",
-    "scans": "Scanner \u2014 suspicious tokens",
+    "scans": "Suspicious Tokens &amp; Scans of Interest",
     "main": "Curated main channel \u2014 critical broadcasts",
     "updates": "Changelog \u2014 product &amp; feature news",
 }

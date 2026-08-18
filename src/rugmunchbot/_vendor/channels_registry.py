@@ -107,7 +107,7 @@ CHANNEL_ROLES: dict[str, ChannelRole] = {
         env_var="RMI_SCANS_CHANNEL_ID",
         public_handle="@rmiscans",
         fallback="-1003937506770",
-        description="RMI Scanner — deep security reports on suspicious tokens (verdict + metrics + links)",
+        description="Suspicious Tokens & Scans of Interest — daily notable scam/rug tokens flagged by the scanner",
     ),
     "main": ChannelRole(
         role="main",

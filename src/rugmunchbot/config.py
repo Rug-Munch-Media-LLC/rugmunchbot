@@ -59,7 +59,9 @@ def _get_token(gopass_path: str, env_keys: list[str]) -> str:
     """Fetch token from gopass at runtime, falling back to env vars."""
     try:
         token = (
-            subprocess.check_output(["gopass", "show", gopass_path], stderr=subprocess.DEVNULL, timeout=5, shell=False)
+            subprocess.check_output(
+                ["gopass", "show", gopass_path], stderr=subprocess.DEVNULL, timeout=5, shell=False
+            )
             .decode()
             .strip()
         )
@@ -68,7 +70,9 @@ def _get_token(gopass_path: str, env_keys: list[str]) -> str:
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         from rugmunchbot.support.logging import get_logger
 
-        get_logger("rmi.config").debug("gopass token fetch failed, falling back to env: %s", e.__class__.__name__)
+        get_logger("rmi.config").debug(
+            "gopass token fetch failed, falling back to env: %s", e.__class__.__name__
+        )
     for key in env_keys:
         env_token = os.getenv(key)
         if env_token:
@@ -137,9 +141,7 @@ BOT_DESCRIPTION = (
     "📚 Free crypto scam education\n\n"
     "🌐 rugmunch.io"
 )
-BOT_SHORT_DESCRIPTION = (
-    "🛡️ AI crypto intelligence — scan tokens, trace wallets, detect rugs before you buy. Free in beta."
-)
+BOT_SHORT_DESCRIPTION = "🛡️ AI crypto intelligence — scan tokens, trace wallets, detect rugs before you buy. Free in beta."
 
 # ══════════════════════════════════════════════
 # API ENDPOINTS
@@ -240,7 +242,9 @@ async def check_backend_health() -> None:
             else:
                 from rugmunchbot.support.logging import get_logger
 
-                get_logger("rmi.config").warning("Backend at %s returned status %d", backend_url, r.status_code)
+                get_logger("rmi.config").warning(
+                    "Backend at %s returned status %d", backend_url, r.status_code
+                )
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
         from rugmunchbot.support.logging import get_logger
 
@@ -665,8 +669,12 @@ DEX_REF_LINKS: dict[str, DexRefLink] = {
 #     swap instruction so every executed swap pays the RugMunch referral fee.
 #   - Future Jupiter Ultra / swap-execution paths in THIS repo must reuse
 #     these constants instead of re-pasting the wallet strings.
-JUPITER_FEE_ACCOUNT = "8ouwE3sx6im8pDVwKRZ6n2QNjZwLmrBQ1XTiHhsXge39"  # Jupiter v6 Swap fee recipient
-JUPITER_ULTRA_ACCOUNT = "Dkrbs5cWeaVspAbCHUM4ds6kJdZeuJkgmaje9w9Urtfh"  # Jupiter Ultra fee recipient
+JUPITER_FEE_ACCOUNT = (
+    "8ouwE3sx6im8pDVwKRZ6n2QNjZwLmrBQ1XTiHhsXge39"  # Jupiter v6 Swap fee recipient
+)
+JUPITER_ULTRA_ACCOUNT = (
+    "Dkrbs5cWeaVspAbCHUM4ds6kJdZeuJkgmaje9w9Urtfh"  # Jupiter Ultra fee recipient
+)
 
 # Chain ID mapping for 1inch
 CHAIN_IDS = {
@@ -693,10 +701,14 @@ CHAIN_IDS = {
 # /help links and the poster working when neither gopass nor env is available
 # (they are public channel ids, not credentials).
 _CHANNEL_GOPASS_PATHS: dict[str, str] = {role: c.store_path for role, c in CHANNEL_ROLES.items()}
-_CHANNEL_ENV_KEYS: dict[str, list[str]] = {role: [c.env_var, *c.legacy_env_vars] for role, c in CHANNEL_ROLES.items()}
+_CHANNEL_ENV_KEYS: dict[str, list[str]] = {
+    role: [c.env_var, *c.legacy_env_vars] for role, c in CHANNEL_ROLES.items()
+}
 # Documented fallback chat ids — used ONLY when gopass + env are both unset.
 # Roles without a documented fallback (e.g. ``updates``) are not included.
-_CHANNEL_DEFAULTS: dict[str, str] = {role: c.fallback for role, c in CHANNEL_ROLES.items() if c.fallback is not None}
+_CHANNEL_DEFAULTS: dict[str, str] = {
+    role: c.fallback for role, c in CHANNEL_ROLES.items() if c.fallback is not None
+}
 
 _channel_cache: dict[str, str | None] = {}
 
@@ -832,7 +844,7 @@ def _resolve_scan_channel_enabled() -> bool:
 
 @lru_cache
 def _resolve_scan_channel_interval_minutes() -> int:
-    return _env_int("RMI_CHANNEL_SCANS_INTERVAL_MINUTES", 90)
+    return _env_int("RMI_CHANNEL_SCANS_INTERVAL_MINUTES", 60)
 
 
 @lru_cache
@@ -842,7 +854,7 @@ def _resolve_scan_channel_limit() -> int:
 
 @lru_cache
 def _resolve_scan_channel_tick_limit() -> int:
-    return _env_int("RMI_CHANNEL_SCANS_TICK_LIMIT", 2)
+    return _env_int("RMI_CHANNEL_SCANS_TICK_LIMIT", 3)
 
 
 # ══════════════════════════════════════════════

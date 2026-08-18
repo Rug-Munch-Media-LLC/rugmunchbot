@@ -25,14 +25,14 @@ Cadence (env-overridable, defaults):
             scanner risk digest is curated (alert type, condition met vs
             current, why-it-matters, scan/chart links), reranker-gated, and
             ≥0.7 items ALSO post solo to @cryptorugmuncher.
-* scans    → every 90m (``RMI_CHANNEL_SCANS_INTERVAL_MINUTES``) — the
-            @rmiscans "scans of note" job: the day's most notable scanned
+* scans    → every 60m (``RMI_CHANNEL_SCANS_INTERVAL_MINUTES``) — the
+            @rmiscans "scans of interest" job: the day's most notable scanned
             tokens (launch-alert ≥70 rail + scan history, deduped per
             token), reranker-gated (skip <0.4), each posted as its own
             compact card (real risk reasons + risk score + token + chain +
             scan link, plus a witty one-liner when the LLM is up)
-            — ~10/day across the cadence (per-tick cap
-            ``RMI_CHANNEL_SCANS_TICK_LIMIT``, default 2). Fail-open: no
+            — ~15–20/day across the cadence (per-tick cap
+            ``RMI_CHANNEL_SCANS_TICK_LIMIT``, default 3). Fail-open: no
             scans today → nothing posted.
 * tg_news  → every 20m (``RMI_CHANNEL_TG_NEWS_INTERVAL_MINUTES``; default
             tuned UP from 30m so stories post "often") — ingests public
@@ -560,10 +560,14 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             reason="no_fresh",
         )
         return 0
-    main_items, channel_items, reranker_down = await _score_and_partition(fresh, category="news", source="scanner")
+    main_items, channel_items, reranker_down = await _score_and_partition(
+        fresh, category="news", source="scanner"
+    )
     posted = 0
     if channel_items:
-        ok = await _post_photo_aware(ctx.bot, chat_id, format_alerts_post(channel_items), _safe_send)
+        ok = await _post_photo_aware(
+            ctx.bot, chat_id, format_alerts_post(channel_items), _safe_send
+        )
         if ok:
             posted += 1
     main_chat_id = _chat_id("main")
@@ -571,7 +575,9 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         for item in sorted(main_items, key=lambda i: i.get("importance", 0.0), reverse=True):
             if not _remember("alertsmain", _dedupe_key("alertsmain", item)):
                 continue
-            ok = await _post_photo_aware(ctx.bot, main_chat_id, format_main_escalation(item), _safe_send)
+            ok = await _post_photo_aware(
+                ctx.bot, main_chat_id, format_main_escalation(item), _safe_send
+            )
             if ok:
                 posted += 1
     if posted:
@@ -646,7 +652,9 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # just spreads the day's notable scans across the day (~10/day at the
     # default 90m cadence).
     posted = 0
-    for item in sorted(keep, key=lambda i: i.get("importance", 0.0), reverse=True)[:SCAN_CHANNEL_TICK_LIMIT]:
+    for item in sorted(keep, key=lambda i: i.get("importance", 0.0), reverse=True)[
+        :SCAN_CHANNEL_TICK_LIMIT
+    ]:
         # One bounded witty one-liner per card (fail-open to no line).
         item = await attach_scan_commentary(item)
         ok = await _post_photo_aware(ctx.bot, chat_id, format_scan_card(item), _safe_send)
@@ -700,9 +708,17 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         smart_limit=ALPHA_CHANNEL_LIMIT,
         launch_limit=ALPHA_CHANNEL_LIMIT,
     )
-    whale_fresh = [m for m in content["whale_moves"] if _remember("alpha:whale", _dedupe_key("whale", m))]
-    smart_fresh = [w for w in content["smart_money"] if _remember("alpha:smart", _dedupe_key("smart", w))]
-    launch_fresh = [item for item in content["launches"] if _remember("alpha:launch", _dedupe_key("launch", item))]
+    whale_fresh = [
+        m for m in content["whale_moves"] if _remember("alpha:whale", _dedupe_key("whale", m))
+    ]
+    smart_fresh = [
+        w for w in content["smart_money"] if _remember("alpha:smart", _dedupe_key("smart", w))
+    ]
+    launch_fresh = [
+        item
+        for item in content["launches"]
+        if _remember("alpha:launch", _dedupe_key("launch", item))
+    ]
     swept = len(content["whale_moves"]) + len(content["smart_money"]) + len(content["launches"])
     scored = len(whale_fresh) + len(smart_fresh) + len(launch_fresh)
     if not scored:
@@ -747,7 +763,9 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         for item in escalated:
             if not _remember("alphamain", _dedupe_key("alphamain", item)):
                 continue
-            ok = await _post_photo_aware(ctx.bot, main_chat_id, format_main_escalation(item), _safe_send)
+            ok = await _post_photo_aware(
+                ctx.bot, main_chat_id, format_main_escalation(item), _safe_send
+            )
             if ok:
                 posted += 1
     if posted:
