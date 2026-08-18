@@ -94,8 +94,8 @@ async def _build_fallback_answer(
 ) -> tuple[
     dict[str, Any] | None, list[dict[str, str]], list[dict[str, str]], ToolResult | None, bool
 ]:
-    """Backend-less answer path: gather the fail-open context fetches that
-    ground the remote LLM fallback chain.
+    """PRIMARY bot-local answer path: gather the fail-open context fetches
+    that ground the remote LLM chain.
 
     Returns ``(result, bridge_sources, bridge_actions, rag_result,
     has_market_context)``. The bridge/daily/scan context and the direct RAG
