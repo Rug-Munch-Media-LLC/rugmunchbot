@@ -29,6 +29,7 @@ from rugmunchbot.handlers.chat_ai._llm._constants import (
     REMOTE_LLM_CONTEXT_BUDGET,
     REMOTE_LONG_MAX_TOKENS,
     REMOTE_LONG_TIMEOUT,
+    REMOTE_SNAPPY_MAX_TOKENS,
     REMOTE_SNAPPY_TIMEOUT,
     REMOTE_UNAVAILABLE_MESSAGE,
 )
@@ -90,13 +91,15 @@ async def _call_remote_fast(
         return None
 
     timeout = REMOTE_SNAPPY_TIMEOUT if tier == "snappy" else REMOTE_LONG_TIMEOUT
-    # Tier output budget: snappy stays lean (config); long is floored at
-    # REMOTE_LONG_MAX_TOKENS so a detailed answer is never cut off by the
-    # old 1024-token cap. Config may raise it higher — never below the floor.
+    # Tier output budget: BOTH tiers are floored so a detailed answer is
+    # never cut off by a stale config cap — snappy at REMOTE_SNAPPY_MAX_TOKENS
+    # (2000), long at REMOTE_LONG_MAX_TOKENS (3000). Config may raise the
+    # floor higher, never below it. The multi-part delivery split
+    # (chat_ai/_parts.py) turns a full long answer into 2-4 Telegram posts.
     if tier == "long":
         max_tokens = max(int(cfg.get("max_tokens") or 512), REMOTE_LONG_MAX_TOKENS)
     else:
-        max_tokens = int(cfg.get("max_tokens") or 512)
+        max_tokens = max(int(cfg.get("max_tokens") or 512), REMOTE_SNAPPY_MAX_TOKENS)
     payload: dict[str, Any] = {
         "model": model,
         "messages": messages,
@@ -129,6 +132,7 @@ async def _call_remote_fast(
 
     answer = ""
     usage = 0
+    finish_reason = ""
     if r is not None:
         try:
             raw = r.json()
@@ -144,6 +148,7 @@ async def _call_remote_fast(
                 content = msg.get("content", "") if isinstance(msg, dict) else ""
                 if isinstance(content, str):
                     answer = content.strip()
+                finish_reason = str(choice.get("finish_reason") or "")
         # usage may be null / non-dict / non-numeric — fail open to 0 and
         # keep a valid answer (numeric strings still coerce via int()).
         raw_usage = raw.get("usage") if isinstance(raw, dict) else None
@@ -160,6 +165,18 @@ async def _call_remote_fast(
         # Plain-text citations: [title](url) → "title — url" so no
         # markdown link leaks through escape → _markdown_to_html.
         answer = _links_to_plain_text(answer)
+        if finish_reason == "length":
+            # Provider stopped at max_tokens — the multi-part delivery can
+            # still ship a partial answer, but this is the exact bug that
+            # used to cut week-ahead reads mid-sentence. Log it so a
+            # recurrence is visible (and the floors above stay ahead of it).
+            logger.info(
+                "remote LLM hit max_tokens (tier=%s, max_tokens=%s, chars=%d) — "
+                "answer may be truncated",
+                tier,
+                max_tokens,
+                len(answer),
+            )
 
     # Which attempt actually answered — feeds the model-usage tier breakdown
     # (direct free tier: snappy/long; paid :lowest fallback: "fallback").

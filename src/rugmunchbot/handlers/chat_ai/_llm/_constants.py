@@ -19,8 +19,8 @@ import re
 # Ultra 550B via OpenRouter for longer / reasoning analysis answers.
 # Hosted GPU — seconds instead of the 70-90s CPU generation the old local
 # chain measured.
-REMOTE_SNAPPY_TIMEOUT = 12.0  # remote must stay fast for short chat answers
-REMOTE_LONG_TIMEOUT = 28.0  # deep-analysis must fit within the long turn deadline
+REMOTE_SNAPPY_TIMEOUT = 20.0  # must stay fast, but room for a full 2000-token answer
+REMOTE_LONG_TIMEOUT = 35.0  # deep-analysis must fit within the long turn deadline
 
 # Question window for the current message in the remote prompt. The
 # question gets its own MAX_MESSAGE_CHARS window — context must never share
@@ -30,12 +30,20 @@ MAX_MESSAGE_CHARS = 2000
 # Output budget for the deep/long tier. Hosted GPU (no CPU budget): give the
 # long tier room to finish a thorough structured answer (direct answer →
 # mechanism → concrete figures → evidence → caveat → not-financial-advice
-# tail) instead of truncating at the 1024-token config cap. 2000 tokens ≈
-# 8000 chars ≈ 2-3 Telegram messages — the bot splits long answers into
+# tail) instead of truncating at the old 1024-token config cap. 3000 tokens
+# ≈ 12000 chars ≈ 3-4 Telegram messages — the bot splits long answers into
 # multiple posts (handlers/chat_ai/_parts.py), so a deep analysis is never
-# cut off mid-thought. The snappy tier stays lean (config 256) — short chat
-# answers, fast first token.
-REMOTE_LONG_MAX_TOKENS = 2000
+# cut off mid-thought.
+REMOTE_LONG_MAX_TOKENS = 3000
+
+# Output budget floor for the snappy tier. The snappy prompt explicitly
+# tells the model to write the COMPLETE answer when a question needs depth
+# ("long answers are automatically split into multiple Telegram messages"),
+# so the old 256-token config cap silently truncated week-ahead/market-read
+# answers mid-sentence ("BTC: Sitting at" cut-off). Floor snappy at 2000
+# tokens ≈ 8000 chars ≈ 2-3 Telegram messages — multi-part delivery then
+# actually fires for detailed asks.
+REMOTE_SNAPPY_MAX_TOKENS = 2000
 
 # Budget for the SEPARATELY-labeled retrieved-context block (RAG hits +
 # bridge + scan + live tool data) in the remote fallback prompt. The user

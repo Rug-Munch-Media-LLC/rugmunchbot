@@ -29,24 +29,26 @@ BRIDGE_TIMEOUT = 12.0  # web search can take a few seconds; never block chat on 
 TOKEN_CARD_DECIDE_WAIT = 1.0
 
 # ONE hard end-to-end deadline around the whole chat turn. The inner stages
-# each keep their own budgets (backend RAG 60s, local LLM 60s, tools ~8s+5s),
-# but stacked worst-case they could hang a turn ~121s. This outer bound
-# guarantees the user always gets SOME reply: asyncio.wait_for cancels the
-# turn past the deadline and the timeout handler swaps the placeholder for a
-# short graceful reply.
-CHAT_TURN_DEADLINE = 25.0
+# each keep their own budgets (tools ~8s+5s, remote LLM snappy 20s / long 35s),
+# but stacked worst-case they could hang a turn. This outer bound guarantees
+# the user always gets SOME reply: asyncio.wait_for cancels the turn past the
+# deadline and the timeout handler swaps the placeholder for a short graceful
+# reply. 30s = 20s snappy LLM generation (REMOTE_SNAPPY_TIMEOUT, raised with
+# REMOTE_SNAPPY_MAX_TOKENS so a full 2000-token answer completes) + the
+# concurrent context gather that overlaps the LLM call.
+CHAT_TURN_DEADLINE = 30.0
 
 # Long-tier (deep-analysis) turns get a SLIGHTLY higher end-to-end deadline
 # than snappy/backend turns. The deep fallback chain stacks a hard-capped
-# ~6s context gather (FALLBACK_CONTEXT_HARD_CAP) + a 28s long-model call
-# (REMOTE_LONG_TIMEOUT — raised with REMOTE_LONG_MAX_TOKENS so the 2000-token
-# deep-analysis budget can complete on hosted GPU) + a possible 10s paid
-# fallback (llm_config._chat_once) — ~44s worst case, which no longer fits
-# the snappy 25s window. Snappy/backend turns keep the fast CHAT_TURN_DEADLINE;
+# ~6s context gather (FALLBACK_CONTEXT_HARD_CAP) + a 35s long-model call
+# (REMOTE_LONG_TIMEOUT — raised with REMOTE_LONG_MAX_TOKENS so the 3000-token
+# deep-analysis budget can complete on hosted GPU) + a possible 20s paid
+# fallback (llm_config._chat_once) — ~55s worst case, which no longer fits
+# the snappy 30s window. Snappy/backend turns keep the fast CHAT_TURN_DEADLINE;
 # only questions that _route_tier() sends to the "long" provider get the
 # extra room. The typing indicator + interim "still digging" placeholder keep
 # the user engaged for the longer wait (see _keep_typing / _edit_placeholder_if_slow).
-CHAT_TURN_DEADLINE_LONG = 50.0
+CHAT_TURN_DEADLINE_LONG = 60.0
 
 # Short graceful reply when a turn exceeds the hard end-to-end deadline.
 TIMEOUT_REPLY = "\u23f3 Taking longer than expected \u2014 try again or narrow your question."

@@ -28,23 +28,32 @@ OPENROUTER_BACKUP_API_KEY = os.getenv("OPENROUTER_BACKUP_API_KEY", "")
 
 
 def get_snappy_config() -> dict[str, Any]:
-    """Config for fast short chat answers (Poolside Laguna S 2.1, FREE via OpenRouter)."""
+    """Config for fast chat answers (Poolside Laguna S 2.1, FREE via OpenRouter).
+
+    max_tokens 2000 (was 256) — the snappy prompt tells the model to write the
+    COMPLETE answer when a question needs depth; the old cap truncated
+    detailed answers mid-sentence. Multi-part delivery splits long answers.
+    """
     return {
         "model": "poolside/laguna-s-2.1:free",
         "base_url": f"{OPENROUTER_BASE}/chat/completions",
         "api_key": OPENROUTER_BACKUP_API_KEY,
-        "max_tokens": 256,
+        "max_tokens": 2000,
         "temperature": 0.4,
     }
 
 
 def get_long_config() -> dict[str, Any]:
-    """Config for longer/deep answers (NVIDIA Nemotron 3 Ultra 550B, FREE via OpenRouter)."""
+    """Config for longer/deep answers (NVIDIA Nemotron 3 Ultra 550B, FREE via OpenRouter).
+
+    max_tokens 3000 (was 1024) — deep analysis needs the budget to finish the
+    full structure (direct answer → mechanism → figures → caveat).
+    """
     return {
         "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
         "base_url": f"{OPENROUTER_BASE}/chat/completions",
         "api_key": OPENROUTER_BACKUP_API_KEY,
-        "max_tokens": 1024,
+        "max_tokens": 3000,
         "temperature": 0.7,
     }
 
@@ -59,7 +68,7 @@ def get_cheap_fallback_config() -> dict[str, Any]:
         "model": "qwen/qwen-2.5-7b-instruct:lowest",
         "base_url": f"{OPENROUTER_BASE}/chat/completions",
         "api_key": OPENROUTER_BACKUP_API_KEY,
-        "max_tokens": 512,
+        "max_tokens": 2000,
         "temperature": 0.5,
     }
 
@@ -93,11 +102,11 @@ async def _chat_once(
     }
     try:
         async with httpx.AsyncClient(
-            timeout=httpx.Timeout(10.0, connect=5.0, read=10.0, write=10.0)
+            timeout=httpx.Timeout(20.0, connect=5.0, read=20.0, write=10.0)
         ) as client:
             resp = await asyncio.wait_for(
                 client.post(base_url, headers=headers, json=payload),
-                timeout=10.0,
+                timeout=20.0,
             )
     except (httpx.HTTPError, OSError, ConnectionError, TimeoutError, ValueError):
         return ""
