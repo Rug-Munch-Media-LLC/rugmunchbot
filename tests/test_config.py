@@ -15,13 +15,19 @@ def test_bot_token_not_bound_at_import():
     assert hasattr(cfg, "BACKEND_URL")
 
 
-def test_backend_url_env_override():
+def test_backend_url_env_override(monkeypatch):
     # Need to set env var BEFORE importing the module
-    os.environ["RMI_BACKEND_URL"] = "http://test-backend:8000"
+    monkeypatch.setenv("RMI_BACKEND_URL", "http://test-backend:8000")
     # Force re-import to pick up the new env var
     import rugmunchbot.config as cfg
 
     importlib.reload(cfg)
+    # PEP 562 module __getattr__ memoizes into globals() — reload does NOT
+    # clear already-memoized attributes, so drop them to force re-resolution
+    # through the fresh env (this is what made the test order-dependent).
+    for name in ("BACKEND_URL", "BACKEND_HOST"):
+        if hasattr(cfg, name):
+            delattr(cfg, name)
     from rugmunchbot.config import BACKEND_URL
 
     assert BACKEND_URL == "http://test-backend:8000"

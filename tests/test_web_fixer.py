@@ -37,7 +37,7 @@ def test_fixer_idempotent():
                 temperature=0.5,
                 max_tokens=400,
             ),
-            timeout=30,
+            timeout=KNOWLEDGE_FALLBACK_TIMEOUT,
         )
     except Exception as exc:
         logger.warning("web_search knowledge fallback LLM unavailable: %s", str(exc)[:160])
@@ -59,7 +59,7 @@ def test_fixer_idempotent():
         # Second run should be idempotent
         result2 = _run_fixer(pathlib.Path(tmp) / "web.py")
         assert result2.returncode == 0
-        content = pathlib.Path(tmp / "web.py").read_text()
+        content = (pathlib.Path(tmp) / "web.py").read_text()
         assert "chat_with_fallback" in content
         assert "chat_completion" not in content
         assert "answer = await asyncio.wait_for" in content
