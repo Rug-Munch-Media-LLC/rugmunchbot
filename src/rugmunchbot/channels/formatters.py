@@ -196,18 +196,26 @@ def _story_line(item: dict[str, Any], index: int) -> list[str]:
 
 
 def format_news_post(items: list[dict[str, Any]]) -> NewsPost:
-    """News digest: rewritten headline + one-line takeaway, source-cited.
+    """News digest: rewritten headline + one-line takeaway, source-cited, with bot CTA.
 
     Returns a ``NewsPost`` (a ``str``) whose ``.image_url`` is the first
     story's usable http(s) image — the digest's photo when the scheduler
     routes it through ``send_news_photo``. Items are the post-dicts shaped
     by ``channels.telegram_news._digest._article_to_post_dict`` (which
-    already carries ``image_url``).
+    already carries ``image_url``). Every post carries a bot CTA so readers
+    discover @RugMunchBot.
     """
-    lines = ["📰 <b>RugMunch News</b>", "<i>The stories moving crypto right now.</i>", sep(), ""]
+    lines = [
+        "\U0001f4f0 <b>RugMunch News</b>",
+        "<i>The stories moving crypto right now \u2014 /chat any story with @RugMunchBot</i>",
+        sep(),
+        "",
+    ]
     for i, item in enumerate(items[:6], 1):
         lines.extend(_story_line(item, i))
-    lines.extend(["", f"🕐 {_now_stamp()}", footer_links()])
+    lines.extend(["", f"\U0001f550 {_now_stamp()}"])
+    lines.append(sep())
+    lines.append(_scan_channel_shill())
     image_url = ""
     for item in items[:6]:
         candidate = _pick_image_url(item.get("image_url"))
@@ -290,7 +298,7 @@ def format_feature_post(item: dict[str, Any]) -> NewsPost:
         lines.append(f'🔗 <i>Full story: <a href="{html.escape(url, quote=True)}">{source}</a></i>')
     else:
         lines.append(f"🔗 <i>Full story: {source}</i>")
-    lines.extend(["", f"🕐 {_now_stamp()}", footer_links()])
+    lines.extend(["", f"\U0001f550 {_now_stamp()}", footer_links()])
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = _pick_image_url(item.get("image_url"))
     return post
@@ -312,7 +320,12 @@ def format_hybrid_post(items: list[dict[str, Any]]) -> NewsPost:
     commentary = _esc(_takeaway(lead.get("commentary"), _COMMENTARY_HOOK_CHARS))
     source = _esc(lead.get("source") or "unknown")
     headline = title if not url else f'<a href="{html.escape(url, quote=True)}">{title}</a>'
-    lines = ["📰 <b>RugMunch News</b>", sep(), ""]
+    lines = [
+        "\U0001f4f0 <b>RugMunch News</b>",
+        "<i>The stories moving crypto right now \u2014 /chat any story with @RugMunchBot</i>",
+        sep(),
+        "",
+    ]
     lines.append(f"⭐ {headline}")
     if hook:
         lines.append("")
@@ -353,7 +366,12 @@ def format_themed_post(items: list[dict[str, Any]], theme: str = "") -> NewsPost
     headlines grouped under a theme header; carries the first usable image.
     """
     label = _esc(theme) if theme else "Top Stories"
-    lines = [f"🧵 <b>RugMunch News · {label} Roundup</b>", sep(), ""]
+    lines = [
+        f"\U0001f9f5 <b>RugMunch News \u00b7 {label} Roundup</b>",
+        "<i>The stories moving crypto right now \u2014 /chat any story with @RugMunchBot</i>",
+        sep(),
+        "",
+    ]
     for i, item in enumerate(items[:6], 1):
         lines.extend(_story_line(item, i))
     lines.extend(["", f"🕐 {_now_stamp()}", footer_links()])
@@ -542,24 +560,27 @@ def alert_verdict(item: dict[str, Any]) -> str:
 
 
 def format_alerts_post(alerts: list[dict[str, Any]]) -> NewsPost:
-    """Urgent risk digest: alert type, condition met vs current, why-it-matters.
+    """Urgent risk digest: alert type, condition met vs current, why-it-matters, bot CTA.
 
     Each flagged token renders: the alert type, the token, the condition that
     was met vs the current scanner state (``condition``), a one-line
     why-it-matters verdict (derived from known risk flags), and actionable
-    scan + chart links. Carries the first usable image on the returned
+    scan + chart links. Every post ends with a bot CTA so readers know to
+    /scan with @RugMunchBot. Carries the first usable image on the returned
     ``NewsPost`` so the scheduler can attach it as a photo (text-only when
     none — fail-open).
     """
     lines = [
-        "🚨 <b>Risk Alerts</b>",
-        "<i>High-risk tokens auto-flagged this window — do not buy unvetted.</i>",
+        "\U0001f6a8 <b>Risk Alerts</b>",
+        "<i>High-risk tokens auto-flagged this window \u2014 /scan with @RugMunchBot before buying.</i>",
         sep(),
         "",
     ]
     if not alerts:
         lines.append("✅ No new high-risk tokens detected in the last window. All clear.")
-        lines.extend(["", f"🕐 {_now_stamp()}", footer_links()])
+        lines.extend(["", f"\U0001f550 {_now_stamp()}"])
+        lines.append(sep())
+        lines.append(_scan_channel_shill())
         return NewsPost(_clip("\n".join(lines)))
     for item in alerts[:6]:
         symbol = _esc(item.get("symbol") or "???")
@@ -568,7 +589,7 @@ def format_alerts_post(alerts: list[dict[str, Any]]) -> NewsPost:
         chain = _esc(item.get("chain") or "")
         risk = _esc(item.get("risk_level") or "unknown")
         alert_type = _esc(item.get("alert_type") or "scanner")
-        lines.append(f"🛡️ <b>{alert_type.title()} Alert</b>")
+        lines.append(f"\U0001f6a8 <b>Alert \u2014 {alert_type.title()}</b>")
         lines.append(f"{_risk_emoji(risk)} <b>{name}</b> ({symbol})")
         if addr:
             lines.append(f"<code>{_esc(addr)}</code>")
@@ -580,24 +601,23 @@ def format_alerts_post(alerts: list[dict[str, Any]]) -> NewsPost:
                     condition = f"risk {float(score):.0f}/100 (flagged {risk})"
             if not condition:
                 condition = f"flagged {risk}"
-        lines.append(f"⚡ Condition met: {_esc(condition)}")
-        lines.append(f"💡 Why it matters: {_esc(alert_verdict(item))}")
+        lines.append(f"\u26a1 Condition: {_esc(condition)}")
+        lines.append(f"\U0001f4a1 {_esc(alert_verdict(item))}")
         flags = [f for f in item.get("risk_flags") or [] if f]
         if flags:
-            lines.append("   ⚠️ " + " · ".join(_esc(f) for f in flags[:5]))
+            lines.append("   \u26a0\ufe0f " + " \u00b7 ".join(_esc(f) for f in flags[:5]))
         if chain:
-            lines.append(f"⛓️ {chain}")
+            lines.append(f"\u26d3\ufe0f {chain}")
         links = _item_links(item, addr=addr, chain=str(item.get("chain") or ""))
         if addr:
-            scan_cmd = f"🔍 /scan <code>{_esc(addr)}</code>"
-            links = f"{links} · {scan_cmd}" if links else scan_cmd
+            scan_cmd = f"/scan <code>{_esc(addr)}</code>"
+            links = f"{links} \u00b7 {scan_cmd}" if links else scan_cmd
         if links:
+            lines.append("")
             lines.append(links)
         lines.append("")
-    lines.append(
-        "<i>Auto-flagged by the RugMunch scanner. Always /scan before buying anything on this list.</i>"
-    )
-    lines.extend(["", f"🕐 {_now_stamp()}", footer_links()])
+    lines.append(sep())
+    lines.append(_scan_channel_shill())
     post = NewsPost(_clip("\n".join(lines)))
     for item in alerts[:6]:
         candidate = _pick_image_url(item.get("image_url"))
@@ -677,18 +697,20 @@ def _scan_channel_shill() -> str:
 
 
 def format_scan_card(item: dict[str, Any]) -> NewsPost:
-    """Engaging @rmiscans card with cross-channel promo: risks + token + wit + links.
+    """Engaging @rmiscans card with full address + bot instructions + cross-channel promo.
 
     One token per card (the scans job posts each notable scan as its own
-    card, ~10/day). The header reads "Suspicious Tokens & Scans of Interest"
-    and every card carries a compact cross-channel shill block so readers
-    discover the full RugMunch ecosystem. The reasons line surfaces the ACTUAL
-    why a token is risky — honeypot / bundle / fake volume / LP removed /
-    flagged deployer (``_scan_reason_bits``) — instead of the generic
-    "high-risk verdict"; the optional ``commentary`` key renders the one-line
-    AI wit when present (fail-open to no line). Name/symbol render honestly:
-    no "Unknown (???)" when only one of them is known. The score line renders
-    the numeric risk (or falls back to the risk level when the score is absent),
+    card, ~15-20/day). The header reads "Suspicious Tokens & Scans of Interest"
+    and every card carries the FULL token address (never truncated), a clear
+    call-to-action to /scan with @RugMunchBot, chart/rugmap links, and a
+    compact cross-channel shill block so readers discover the full RugMunch
+    ecosystem. The reasons line surfaces the ACTUAL why a token is risky —
+    honeypot / bundle / fake volume / LP removed / flagged deployer
+    (``_scan_reason_bits``) — instead of the generic "high-risk verdict";
+    the optional ``commentary`` key renders the one-line AI wit when present
+    (fail-open to no line). Name/symbol render honestly: no "Unknown (???)"
+    when only one of them is known. The score line renders the numeric risk
+    (or falls back to the risk level when the score is absent),
     and the scan deep link always points at rugmunch.io/scanner. Carries the
     item's image when one exists (text-only otherwise — fail-open).
     """
@@ -716,14 +738,14 @@ def format_scan_card(item: dict[str, Any]) -> NewsPost:
         score_line = f"{_risk_emoji(risk)} <b>Verdict: {risk.upper()}</b>"
     lines = [
         "\U0001f52c <b>Suspicious Tokens &amp; Scans of Interest</b>",
-        "<i>High-risk tokens flagged by the RugMunch scanner \u2014 /scan any address with @RugMunchBot</i>",
+        "<i>Notable tokens flagged by the RugMunch scanner \u2014 always /scan before buying.</i>",
         sep(),
         "",
     ]
     lines.append(f"{_risk_emoji(risk)} <b>{label}</b>{f' \u00b7 {chain}' if chain else ''}")
+    # FULL address — never truncated so users can copy-paste to /scan
     if addr:
-        short = f"{addr[:8]}...{addr[-6:]}" if len(addr) > 16 else addr
-        lines.append(f"<code>{_esc(short)}</code>")
+        lines.append(f"<code>{_esc(addr)}</code>")
     lines.append("")
     lines.append(score_line)
     reasons = _scan_reason_bits(item)
@@ -731,10 +753,13 @@ def format_scan_card(item: dict[str, Any]) -> NewsPost:
         lines.append(f"\u26a0\ufe0f " + " \u00b7 ".join(_esc(r) for r in reasons))
     commentary = str(item.get("commentary") or "").strip()
     if commentary:
-        lines.append(f'\U0001f4ac "{_esc(commentary)}"')
+        lines.append(f"\U0001f4ac \u201c{_esc(commentary)}\u201d")
     links = _item_links(item, addr=addr, chain=str(item.get("chain") or ""))
     if links:
         lines.append("")
+        # Add bot scan command — this is the KEY hook to get users on @RugMunchBot
+        scan_cmd = f"/scan <code>{_esc(addr)}</code>"
+        lines.append(f"\U0001f916 <b>Scan with @RugMunchBot:</b> {scan_cmd}")
         lines.append(links)
     lines.extend(["", f"\U0001f550 {_now_stamp()}"])
     lines.append(sep())
@@ -785,41 +810,42 @@ def format_alpha_post(
     smart_money: list[dict[str, Any]],
     launches: list[dict[str, Any]],
 ) -> NewsPost:
-    """Alpha digest: whale moves + smart money wallets + new launches.
+    """Alpha digest: whale moves + smart money wallets + new launches, with bot CTA.
 
     High-signal voice: every item leads with the signal, adds the context
     that matters (whale-move body hook, wallet tags, launch age/liquidity),
     a one-line verdict, and actionable scan/chart/explorer links. Every
     section only renders when its live source returned data — an empty
-    section is omitted, never invented. Carries the first usable image on
-    the returned ``NewsPost`` so the scheduler can attach it as a photo.
+    section is omitted, never invented. Every post ends with a bot CTA so
+    readers know to /scan with @RugMunchBot. Carries the first usable image
+    on the returned ``NewsPost`` so the scheduler can attach it as a photo.
     """
     lines = [
-        "🐋 <b>Alpha Feed</b>",
-        "<i>High-signal, low noise — /scan before you ape.</i>",
+        "\U0001f40b <b>Alpha Feed</b>",
+        "<i>Whale moves, smart money, new launches \u2014 /scan with @RugMunchBot before you ape.</i>",
         sep(),
         "",
     ]
 
     if whale_moves:
-        lines.append("⚡ <b>Whale Moves</b>")
+        lines.append("\u26a1 <b>Whale Moves</b>")
         for move in whale_moves[:4]:
             title = _esc(move.get("title") or "Whale move")
             chain = _esc(move.get("chain") or "solana")
             addr = str(move.get("token_address") or "")
-            lines.append(f"• {title} ({chain})")
+            lines.append(f"\u2022 {title} ({chain})")
             body = _esc(_takeaway(move.get("body") or move.get("summary"), _ALPHA_TAKEAWAY_CHARS))
             if body:
-                lines.append(f"   💬 {body}")
+                lines.append(f"   \U0001f4ac {body}")
             if addr:
-                lines.append(f"   🔍 /scan <code>{_esc(addr)}</code>")
+                lines.append(f"   \U0001f916 /scan <code>{_esc(addr)}</code>")
             links = _item_links(move, addr=addr, chain=str(move.get("chain") or "solana"))
             if links:
                 lines.append(f"   {links}")
         lines.append("")
 
     if smart_money:
-        lines.append("🧠 <b>Smart Money Wallets</b>")
+        lines.append("\U0001f9e0 <b>Smart Money Wallets</b>")
         for w in smart_money[:5]:
             label = _esc(w.get("label") or _fmt_wallet_short(str(w.get("address") or "")))
             addr = str(w.get("address") or "")
@@ -827,17 +853,19 @@ def format_alpha_post(
             bits = [f"<code>{_esc(addr)}</code>"]
             if pnl:
                 bits.append(f"P&L {pnl}")
-            lines.append(f"• <b>{label}</b> — " + " · ".join(bits))
+            lines.append(f"\u2022 <b>{label}</b> \u2014 " + " \u00b7 ".join(bits))
             tags = [str(t) for t in (w.get("tags") or []) if str(t).strip()]
             if tags:
-                lines.append("   🏷 " + " · ".join(_esc(t) for t in tags[:4]))
+                lines.append("   \U0001f3f7 " + " \u00b7 ".join(_esc(t) for t in tags[:4]))
             explorer = _explorer_url(addr, str(w.get("chain") or "solana"))
             if explorer:
-                lines.append(f'   🧭 <a href="{html.escape(explorer, quote=True)}">Explorer</a>')
+                lines.append(
+                    f'   \U0001f9ed <a href="{html.escape(explorer, quote=True)}">Explorer</a>'
+                )
         lines.append("")
 
     if launches:
-        lines.append("🆕 <b>New Launches</b>")
+        lines.append("\U0001f195 <b>New Launches</b>")
         for launch in launches[:5]:
             symbol = _esc(launch.get("symbol") or "???")
             name = _esc(launch.get("name") or symbol)
@@ -845,31 +873,32 @@ def format_alpha_post(
             risk = _esc(launch.get("risk_level") or "unknown")
             addr = str(launch.get("address") or "")
             lines.append(
-                f"• {_risk_emoji(risk)} <b>{name}</b> ({symbol}){f' — {chain}' if chain else ''}"
+                f"\u2022 {_risk_emoji(risk)} <b>{name}</b> ({symbol}){f' \u2014 {chain}' if chain else ''}"
             )
-            lines.append(f"   💡 {_esc(_launch_verdict(launch))}")
+            lines.append(f"   \U0001f4a1 {_esc(_launch_verdict(launch))}")
             meta = []
             age = _fmt_age_hours(launch.get("age_hours"))
             if age:
                 meta.append(age)
             liq = _fmt_usd(launch.get("liquidity_usd") or launch.get("liquidity"))
             if liq:
-                meta.append(f"💧 {liq} liq")
+                meta.append(f"\U0001f4a7 {liq} liq")
             if meta:
-                lines.append("   " + " · ".join(meta))
+                lines.append("   " + " \u00b7 ".join(meta))
             if addr:
-                lines.append(f"   🔍 /scan <code>{_esc(addr)}</code>")
+                lines.append(f"   \U0001f916 /scan <code>{_esc(addr)}</code>")
             links = _item_links(launch, addr=addr, chain=str(launch.get("chain") or ""))
             if links:
                 lines.append(f"   {links}")
         lines.append("")
 
     if not whale_moves and not smart_money and not launches:
-        lines.append("No fresh alpha signals in this window — checking again soon.")
+        lines.append("No fresh alpha signals in this window \u2014 checking again soon.")
         lines.append("")
 
-    lines.append(f"🕐 {_now_stamp()}")
-    lines.append(footer_links())
+    lines.append(f"\U0001f550 {_now_stamp()}")
+    lines.append(sep())
+    lines.append(_scan_channel_shill())
     post = NewsPost(_clip("\n".join(lines)))
     for item in [*whale_moves[:4], *smart_money[:5], *launches[:5]]:
         candidate = _pick_image_url(item.get("image_url"))

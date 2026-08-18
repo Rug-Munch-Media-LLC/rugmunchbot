@@ -13,7 +13,7 @@ Cadence (env-overridable, defaults):
             when operators want the trending digest that fast. DEPRECATED
             2026-08-16: the legacy ``channel_news`` job is commented out —
             the routed tg_news path now owns the news channel (see below).
-* alpha    → every 2h  (``RMI_CHANNEL_ALPHA_INTERVAL_HOURS``) — whale moves
+* alpha    → every 60m (``RMI_CHANNEL_ALPHA_INTERVAL_HOURS``) — whale moves
             are collected on the same cadence so whale events surface in the
             digest within one interval (plus the existing event-driven rails).
             The digest is reranker-gated (only items ≥ the news floor post;

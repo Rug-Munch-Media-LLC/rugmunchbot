@@ -814,7 +814,7 @@ def _resolve_news_channel_interval_hours() -> float:
 
 @lru_cache
 def _resolve_alpha_channel_interval_hours() -> int:
-    return _env_int("RMI_CHANNEL_ALPHA_INTERVAL_HOURS", 2)
+    return _env_int("RMI_CHANNEL_ALPHA_INTERVAL_HOURS", 1)
 
 
 @lru_cache
