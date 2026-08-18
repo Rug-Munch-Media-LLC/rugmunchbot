@@ -63,20 +63,23 @@ async def _fetch_bridge_context(
 ) -> tuple[str, list[dict[str, str]], list[dict[str, str]]] | None:
     """Live context from the Chat RAG Bridge (port 8095, fail-open).
 
-    Returns ``(blocks, sources, actions)``:
-      * ``blocks`` — one compact block combining the bridge's upstream
-        context: SearXNG web search (live internet), RAG knowledge, market
-        digest, token scanner and exploit rundown.
-      * ``sources`` — the bridge's grounding citation metadata
-        (``[{"type": "web"|"rag"|"scanner"|"market", ...}]``) used to render
-        the real "Grounded in N intelligence sources" footer + source lines.
-      * ``actions`` — suggested inline-button actions (deep-dive on a token,
-        exploit rundown) built by the bridge's rundown block.
-
-    ``None`` on any failure so chat never blocks on it.
+    Quick health check first (1s) — skips entirely when the bridge is
+    down so chat never stalls on it. Returns ``(blocks, sources, actions)``
+    or ``None`` on any failure.
     """
+    # Quick health check — skip the bridge if it's not responding
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(BRIDGE_TIMEOUT, connect=3.0, read=BRIDGE_TIMEOUT)) as client:
+        async with httpx.AsyncClient(timeout=1.0) as client:
+            hr = await client.get(f"{BRIDGE_CONTEXT_ENDPOINT.rsplit('/', 1)[0]}/health")
+            if hr.status_code != 200:
+                return None
+    except (httpx.HTTPError, ConnectionError, OSError, TimeoutError):
+        return None
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(BRIDGE_TIMEOUT, connect=3.0, read=BRIDGE_TIMEOUT)
+        ) as client:
             r = await client.post(
                 BRIDGE_CONTEXT_ENDPOINT,
                 json={"message": message[:8000], "history": history},
@@ -98,7 +101,13 @@ async def _fetch_bridge_context(
         return None
     # Order matters: scanner (address-specific) > web (live) > rag > market.
     parts: list[str] = []
-    for key in ("scanner_context", "web_context", "rag_context", "market_context", "rundown_context"):
+    for key in (
+        "scanner_context",
+        "web_context",
+        "rag_context",
+        "market_context",
+        "rundown_context",
+    ):
         val = (blocks.get(key) or "").strip()
         if val:
             # Strip meta-instructions the bridge embeds for ITS OWN llama call

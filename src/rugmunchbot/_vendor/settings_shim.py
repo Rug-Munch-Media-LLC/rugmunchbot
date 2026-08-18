@@ -26,6 +26,7 @@ class _Settings:
     qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
     infinity_url: str = os.getenv("INFINITY_URL", "http://localhost:8001")
     bge_m3_url: str = os.getenv("BGE_M3_URL", "")
+    searxng_base_url: str = os.getenv("SEARXNG_BASE_URL", "http://localhost:8889")
     embedder_primary: str = os.getenv("EMBEDDER_PRIMARY", "infinity")
     embedder_primary_model: str = os.getenv("EMBEDDER_PRIMARY_MODEL", "BAAI/bge-m3")
     embedder_cache_ttl: int = int(os.getenv("EMBEDDER_CACHE_TTL", "86400"))

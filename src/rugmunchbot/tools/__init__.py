@@ -105,7 +105,7 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     # Direct RAG knowledge lookup (knowledge questions): bounded + fail-open.
     # Registered but NOT routed by tools/intent.py — chat_ai runs it explicitly
     # so the backend auto-RAG stays authoritative on tier-1.
-    registry_.register("rag_lookup", rag_lookup, timeout=8.0, ttl=300.0)
+    registry_.register("rag_lookup", rag_lookup, timeout=20.0, ttl=300.0)
 
     _register_trend_algo(registry_)
     _register_prediction_markets(registry_)
