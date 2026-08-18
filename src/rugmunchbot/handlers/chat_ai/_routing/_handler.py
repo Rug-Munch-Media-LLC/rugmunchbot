@@ -99,7 +99,7 @@ async def ai_chat_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     Merged from the old ``handlers.message.handle_message`` (owner admin
     console, bot kill-switch, known-scam block, bare-address auto-scan,
-    $TOKEN price card) and the backend RAG chat core (:func:`chat_ai_response`).
+    $TOKEN price card) and the bot-local AI chat core (:func:`chat_ai_response`).
     """
     user = update.effective_user
     message = update.message
@@ -119,7 +119,10 @@ async def ai_chat_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     # startup), falling back to the update's attached bot inside the helper.
     ctx_bot_username = getattr(getattr(ctx, "bot", None), "username", None)
     if not _is_bot_addressed(update, message, bot_username=ctx_bot_username):
-        logger.debug("free-text not addressed to bot — ignored (chat=%s)", getattr(update.effective_chat, "type", "?"))
+        logger.debug(
+            "free-text not addressed to bot — ignored (chat=%s)",
+            getattr(update.effective_chat, "type", "?"),
+        )
         return
 
     u = await run_db(db.get_or_create_user, user.id, user.username, user.first_name)
@@ -186,13 +189,18 @@ async def ai_chat_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
                     await token_lookup_task
             return
 
-        # Free text → shared AI core (quota + flood + backend RAG chat). The
+        # Free text → shared AI core (quota + flood + bot-local synthesis). The
         # core fails open on its own; anything escaping here is structural
         # routing (admin console / scan / $TOKEN lookup) — log it and cancel
         # the concurrent lookup so no late price card or dangling task
         # survives the failed turn (single-turn isolation for the service).
         await chat_ai_response(
-            update, ctx, text, user, token_lookup_task=token_lookup_task, token_card_flag=token_card_flag
+            update,
+            ctx,
+            text,
+            user,
+            token_lookup_task=token_lookup_task,
+            token_card_flag=token_card_flag,
         )
     except Exception:
         logger.exception("ai_chat_handler error (user=%s) text=%.60s", user.id, text)

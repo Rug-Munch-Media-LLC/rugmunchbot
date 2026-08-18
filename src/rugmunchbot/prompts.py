@@ -2,17 +2,13 @@
 """
 RugMunchBot — prompt / persona constants (v12).
 
-The bot persona is injected on every bot→backend synthesis call via
-``context_override.system_context`` (see ``handlers/chat_ai/_llm.py``,
-``_call_backend_chat``), so the character profile applies to free-text
+The bot persona is injected into the bot's OWN synthesis prompt via
+``context_override.system_context`` (see ``handlers/chat_ai/_llm/_clients.py``,
+``_call_remote_fast``), so the character profile applies to free-text
 chat, /chat, /ask and any handler that calls ``chat_ai_response()``. The
-backend appends this block to its own SYSTEM_PROMPT (app/routers/chat.py).
-
-The backend injects the current date/time with each request and may include
-SearXNG web results as "Web results (live)" context blocks. The bot chat
-ships PERSONA_CONTEXT via ``context_override.system_context`` on tier-1
-(``_call_backend_chat``) so the production model gets the persona on top of
-the backend's auto-RAG.
+bot builds its context itself — RAG lookup, live tools, optional bridge
+context, scanner summary — and the remote LLM gets the persona on top.
+The backend scanner is consumed as a data source only.
 
 Version history:
   v7 (removed bot-side ``ai_chat.py``) — "crypto generalist" block: no

@@ -45,19 +45,18 @@ async def _gather_fallback_context(
     bridge_ctx_task: asyncio.Task[Any],
     timeout: float = FALLBACK_CONTEXT_WAIT,
 ) -> tuple[Any, Any, Any]:
-    """Await the fallback context fetches (fail-open) for the remote fallback path.
+    """Await the context fetches (fail-open) for the bot-local synthesis path.
 
-    The backend tier-1 call runs CONCURRENTLY with these tasks and is awaited
-    FIRST; this helper is only invoked when the backend returned ``None`` and
-    the fallback path actually needs the bridge/daily/scan context. Exceptions
+    These tasks were fired CONCURRENTLY at the TOP of the turn; this helper
+    waits for them and the answer is built from whatever landed. Exceptions
     are swallowed per-task (``return_exceptions=True``) so a failing fetcher
-    degrades to ``None`` instead of killing the fallback LLM call.
+    degrades to ``None`` instead of killing the synthesis call.
 
     BOUNDED (``timeout``): the fetchers were started at the TOP of the turn,
-    concurrently with the backend — when the backend fails FAST (down in
-    <1s) the bridge can still have up to 12s of its own timeout left. A slow
-    context source must never stall the reply, so anything still in flight
-    past the budget is skipped (it is cancelled by the turn-level finally).
+    concurrently with the other context gathers — the bridge can still have
+    up to 12s of its own timeout left. A slow context source must never
+    stall the reply, so anything still in flight past the budget is skipped
+    (it is cancelled by the turn-level finally).
     """
     tasks: list[asyncio.Task[Any]] = [daily_ctx_task, bridge_ctx_task]
     if scan_ctx_task is not None:
@@ -92,7 +91,9 @@ async def _build_fallback_answer(
     live_tools_task: asyncio.Task[dict[str, ToolResult]],
     rag_task: asyncio.Task[ToolResult | None] | None,
     router_ctx_task: asyncio.Task[tuple[str, list[dict[str, str]]]] | None = None,
-) -> tuple[dict[str, Any] | None, list[dict[str, str]], list[dict[str, str]], ToolResult | None, bool]:
+) -> tuple[
+    dict[str, Any] | None, list[dict[str, str]], list[dict[str, str]], ToolResult | None, bool
+]:
     """Backend-less answer path: gather the fail-open context fetches that
     ground the remote LLM fallback chain.
 
@@ -272,7 +273,9 @@ async def _build_fallback_answer(
     if not result or result.get("provider") == "unavailable":
         try:
             if not live_tools_task.done():
-                fallback_live_results = await _run_live_tools_bounded(live_tools_task, TOOL_ANSWER_EXTRA_WAIT)
+                fallback_live_results = await _run_live_tools_bounded(
+                    live_tools_task, TOOL_ANSWER_EXTRA_WAIT
+                )
             tool_answer = _format_tool_answer(fallback_live_results)
         except Exception as exc:
             logger.warning("fallback tools-only answer failed (user=%s): %s", user.id, exc)

@@ -110,8 +110,8 @@ _SOURCE_TYPE_LABELS = {
     "web": "web search",
 }
 # Source types that are OUR OWN intel (ClickHouse-backed indexer data, the
-# scanner, the RAG knowledge base, the daily market digest, the backend tier-1
-# RAG) — everything else is an external provider (DexScreener, CoinGecko, …).
+# scanner, the RAG knowledge base, the daily market digest) — everything
+# else is an external provider (DexScreener, CoinGecko, …).
 # Labels are RMI-branded: raw internal keys (/api/v1/..., backend:/bridge:)
 # never reach the footer or the answer body.
 _OUR_SOURCE_TYPES = ("rag", "scanner", "market", "backend")

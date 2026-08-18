@@ -75,7 +75,7 @@ def _grounding_source_labels(
         de-duplicated by normalized domain (3 hits from coingecko.com render
         as ONE "coingecko.com"); bare sources de-duplicate by display name
         (two RAG hits both render as ONE "RMI knowledge base"). Our own
-        intel — RAG KB, scanner, market digest, backend tier-1 RAG — carries
+        intel — RAG KB, scanner, market digest — carries
         an RMI brand label so the community sees we have our own data;
         external providers (DexScreener, CoinGecko, web) stay plain.
       * ``count`` — the footer number, NEVER a raw hit count. Usually equals
@@ -179,8 +179,8 @@ def _grounding_source_labels(
     if has_market_context:
         _add("RMI market digest", True)
 
-    # Backend tier-1: the real X-RAG-Context count, one generic label. When it
-    # is the ONLY source the backend's own hit number is the count (it is the
+    # RAG-KB/backend-label source: the real RAG hit count, one generic label.
+    # When it is the ONLY source the RAG hit number is the count (it is the
     # only signal of how much grounding fed the answer) — with other named
     # sources the count is the distinct set (RAG KB counts once).
     if provider == "backend" and int(rag_count) > 0:

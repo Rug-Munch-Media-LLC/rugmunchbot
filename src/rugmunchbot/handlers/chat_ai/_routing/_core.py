@@ -1,11 +1,13 @@
 """Chat routing — the shared AI core (``chat_ai_response``).
 
 The whole merged turn pipeline: entry guards -> greeting/capability
-instant replies -> backend RAG chat (tier-1) -> bridge/daily/scan/live
-tools/rag/router context -> fallback orchestration -> post-guardrail ->
-persist -> deliver, bounded by ONE hard end-to-end deadline. Patchable
-seams (``chat_ai.check_spam``, ``chat_ai._call_backend_chat``,
-``chat_ai._run_live_tools``) resolve through the chat_ai package.
+instant replies -> bridge/daily/scan/live tools/rag/router context ->
+bot-local synthesis (RAG lookup + live tools + FREE remote LLM chain) ->
+post-guardrail -> persist -> deliver, bounded by ONE hard end-to-end
+deadline. The bot answers chat turns ITSELF — no backend chat dependency
+(the backend scanner is consumed as a data source only). Patchable seams
+(``chat_ai.check_spam``, ``chat_ai._run_live_tools``) resolve through the
+chat_ai package.
 """
 
 from __future__ import annotations
@@ -66,7 +68,6 @@ if TYPE_CHECKING:
     from telegram import Message, Update
     from telegram.ext import ContextTypes
 
-    from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
 
@@ -85,7 +86,8 @@ async def chat_ai_response(
     Shared by the free-text tail of :func:`ai_chat_handler`, /chat
     (handlers/chat.py) and /ask (handlers/ask.py). Enforces the weekly
     AI-message quota per tier, per-user flood limits, and answers through
-    the backend RAG chat (auto-RAG with news_v2).
+    the bot-local synthesis chain (RAG lookup + live tools + FREE remote
+    LLM) — the bot is fully standalone from the backend chat route.
 
     ``token_lookup_task`` is the concurrently-fired ``$TOKEN`` DexScreener
     lookup (from :func:`ai_chat_handler`): when the price card lands before
@@ -125,14 +127,12 @@ async def chat_ai_response(
     placeholder_task: asyncio.Task[Any] | None = None
     preliminary: Message | None = None
     # P1 (task-lifecycle leak fix): every task created below must be
-    # cancelled in the finally block — an early exception (backend RAG
+    # cancelled in the finally block — an early exception (context fetch
     # failure, guardrail crash, send failure) must never leak a dangling
-    # coroutine: the backend RAG call, the bridge/daily/scan context fetches,
-    # the live tools, the direct RAG lookup and the caller-owned $TOKEN card
-    # lookup (a late card firing on an exception path would be a stray
-    # message). typing_task / placeholder_task are created below and are
-    # cancelled too.
-    backend_task: asyncio.Task[Any] | None = None
+    # coroutine: the bridge/daily/scan context fetches, the live tools, the
+    # direct RAG lookup and the caller-owned $TOKEN card lookup (a late card
+    # firing on an exception path would be a stray message). typing_task /
+    # placeholder_task are created below and are cancelled too.
     daily_ctx_task: asyncio.Task[Any] | None = None
     scan_ctx_task: asyncio.Task[Any] | None = None
     bridge_ctx_task: asyncio.Task[Any] | None = None
@@ -140,26 +140,32 @@ async def chat_ai_response(
     rag_task: asyncio.Task[Any] | None = None
     router_ctx_task: asyncio.Task[Any] | None = None
 
-    # The whole turn (guards -> backend RAG -> local LLM fallback -> live
-    # tools -> guardrail -> send) runs as ONE nested coroutine so the caller
-    # below can bound it with a single asyncio.wait_for deadline. nonlocal
-    # keeps the task-lifecycle holders (created above) visible to the
-    # enclosing fail-open except/finally handlers.
+    # The whole turn (guards -> context fetch -> bot-local LLM synthesis ->
+    # live tools -> guardrail -> send) runs as ONE nested coroutine so the
+    # caller below can bound it with a single asyncio.wait_for deadline.
+    # nonlocal keeps the task-lifecycle holders (created above) visible to
+    # the enclosing fail-open except/finally handlers.
     async def _generate_response() -> None:
         """Run one full chat turn; returns after the answer is sent (or handled).
 
         Nested so :func:`chat_ai_response` can bound the entire turn with a
         single ``asyncio.wait_for(turn_deadline)`` — the inner stage
-        budgets (backend 60s, local LLM 60s, tools ~8s+5s) can stack to
-        ~121s without it. The deadline is tier-aware: snappy/backend turns
-        get ``CHAT_TURN_DEADLINE`` (25s), long-tier deep turns get
-        ``CHAT_TURN_DEADLINE_LONG`` (34s) so the hard-capped context gather
-        + 15s long-model call + possible paid fallback fit. Cancellation
+        budgets (context gather ~8s, remote LLM 28s, tools ~8s+5s) can stack
+        to ~50s without it. The deadline is tier-aware: snappy turns get
+        ``CHAT_TURN_DEADLINE`` (25s), long-tier deep turns get
+        ``CHAT_TURN_DEADLINE_LONG`` (50s) so the hard-capped context gather
+        + 28s long-model call + possible paid fallback fit. Cancellation
         propagates into the inner stages, so the outer deadline supersedes
         them.
         """
-        nonlocal typing_task, placeholder_task, preliminary, backend_task
-        nonlocal daily_ctx_task, scan_ctx_task, bridge_ctx_task, live_tools_task, rag_task, router_ctx_task
+        nonlocal typing_task, placeholder_task, preliminary
+        nonlocal \
+            daily_ctx_task, \
+            scan_ctx_task, \
+            bridge_ctx_task, \
+            live_tools_task, \
+            rag_task, \
+            router_ctx_task
         # Pre-LLM guards: chat_enabled toggle -> injection -> quota -> flood ->
         # gibberish (tier-3 redirect). True = message already handled.
         if await _run_entry_guards(update, message, user, text, pipeline_start=pipeline_start):
@@ -171,9 +177,9 @@ async def chat_ai_response(
         # Capability questions ("what can you do?") attach the capability menu so
         # the bot's surface is discoverable right from the first answer.
         capability_menu = capability_menu_kb() if _is_capability_question(text) else None
-        if (_is_greeting_or_thanks(text) or _is_capability_question(text)) and await _reply_local_intent(
-            message, text, user, menu_kb=capability_menu
-        ):
+        if (
+            _is_greeting_or_thanks(text) or _is_capability_question(text)
+        ) and await _reply_local_intent(message, text, user, menu_kb=capability_menu):
             await _cancel_token_lookup(token_lookup_task)
             return
 
@@ -200,87 +206,58 @@ async def chat_ai_response(
         assert preliminary is not None
 
         # Interim "still digging" note: fired ~5s after the placeholder so a slow
-        # backend query doesn't look stalled. Cancelled the moment the answer is
+        # context gather doesn't look stalled. Cancelled the moment the answer is
         # ready (below), so a fast response never gets clobbered by the edit.
         placeholder_task = asyncio.create_task(_edit_placeholder_if_slow(preliminary))
 
-        # CONCURRENT: fire the backend RAG chat (tier-1) AND the fallback context
-        # fetches at the same time. The backend RAGs itself (news_v2 auto-RAG +
-        # live web search) and does NOT need bridge context — only the local
-        # fallback path does. Awaiting the backend result FIRST means the common
-        # path never serializes on the ~12s bridge web search. The context tasks
-        # are only awaited when the backend returns None and the fallback path
-        # actually needs them (and are cancelled when the backend answers).
+        # CONCURRENT: fire ALL context fetches at once — bridge web search /
+        # daily digest / scanner context / live tools / direct RAG lookup /
+        # question router. The bot-local synthesis path awaits them (bounded,
+        # each fails open) and answers via the FREE remote LLM chain; the
+        # context tasks are consumed by _build_fallback_answer and cancelled
+        # by the turn-level finally if anything raises early.
         addresses = _extract_addresses(text)
         history = cast("list[dict[str, str]]", await run_db(db.get_chat_history, user.id))
 
-        backend_task = asyncio.create_task(chat_ai._call_backend_chat(text, user.id, history))
         daily_ctx_task = asyncio.create_task(get_daily_context())
-        scan_ctx_task = asyncio.create_task(_fetch_scan_context(addresses[0])) if addresses else None
+        scan_ctx_task = (
+            asyncio.create_task(_fetch_scan_context(addresses[0])) if addresses else None
+        )
         bridge_ctx_task = asyncio.create_task(_fetch_bridge_context(text, history))
-        # Bot-side live tools (REAL data): run concurrently with the backend so
-        # the fallback path is grounded in real numbers and the guardrail can
-        # verify the final answer. Bounded + fail-open — never blocks chat.
+        # Bot-side live tools (REAL data): run concurrently with the context
+        # fetches so the answer is grounded in real numbers and the guardrail
+        # can verify the final answer. Bounded + fail-open — never blocks chat.
         live_tools_task = asyncio.create_task(chat_ai._run_live_tools(text, history))
         # Direct RAG knowledge lookup (knowledge questions only): searches the
-        # intel DB BEFORE any web/LLM fallback. On the tier-1 path the backend
-        # RAGs itself, so this task is cancelled when the backend answers.
+        # intel DB BEFORE any web/LLM synthesis — the bot's own grounding
+        # layer (vendored rag_pkg against the same Qdrant + intel DB).
         rag_task = asyncio.create_task(_run_rag_lookup(text)) if should_rag_lookup(text) else None
         # Question-type router context (fail-open, bounded ~5s internally):
-        # fired CONCURRENTLY with the backend so a fallback turn never waits
-        # for it serially (the old path started it only after the backend
-        # returned None — up to 5s of pure serial latency). Cancelled when the
-        # backend answers (tier-1 RAGs itself and never needs it).
+        # fired CONCURRENTLY with the other fetches so a turn never waits for
+        # it serially (the old path started it only after the backend
+        # returned None — up to 5s of pure serial latency).
         router_ctx_task = asyncio.create_task(_routing_mod._gather_context(text))
 
-        # Tier-1: backend auto-RAG (POST /api/v1/chat, real X-RAG-Context count).
-        # The backend injects the current date/time and runs its own RAG
-        # (news_v2) + live web search, so it is already real-time aware.
-        result = await backend_task
-
-        # Bridge context/sources/actions only exist on the fallback path; the
-        # backend answer carries its own grounding and never needs them.
-        bridge_sources: list[dict[str, str]] = []
-        bridge_actions: list[dict[str, str]] = []
-        # Direct RAG lookup result — only set on the fallback path (backend path
-        # cancels rag_task and keeps this None so the backend's own grounding
-        # stays authoritative).
-        rag_result: ToolResult | None = None
-        # Whether the daily market/news digest or a bridge market block actually
-        # reached the fallback prompt (feeds the truthful grounding footer).
-        has_market_context = False
-
-        if result is None:
-            # Fallback path: gather the context fetches (fail-open) that ground
-            # the local LLM calls, then build the message-specific prompt.
-            (
-                result,
-                bridge_sources,
-                bridge_actions,
-                rag_result,
-                has_market_context,
-            ) = await _routing_mod._build_fallback_answer(
-                text,
-                user,
-                history,
-                daily_ctx_task=daily_ctx_task,
-                scan_ctx_task=scan_ctx_task,
-                bridge_ctx_task=bridge_ctx_task,
-                live_tools_task=live_tools_task,
-                rag_task=rag_task,
-                router_ctx_task=router_ctx_task,
-            )
-        else:
-            # Backend answered — the bridge/daily context fetches running in the
-            # background are no longer needed. Cancel them so no coroutine dangles.
-            # NOTE: live_tools_task is NOT cancelled — the guardrail below needs
-            # its results to verify the backend answer (bounded; self-terminates).
-            pending = [
-                t for t in (daily_ctx_task, scan_ctx_task, bridge_ctx_task, rag_task, router_ctx_task) if t is not None
-            ]
-            for t in pending:
-                t.cancel()
-            await asyncio.gather(*pending, return_exceptions=True)
+        # PRIMARY synthesis path (fully bot-local, no backend chat): gather
+        # the fail-open context fetches that ground the FREE remote LLM chain,
+        # then answer. Never raises; result is None only when every path failed.
+        (
+            result,
+            bridge_sources,
+            bridge_actions,
+            rag_result,
+            has_market_context,
+        ) = await _routing_mod._build_fallback_answer(
+            text,
+            user,
+            history,
+            daily_ctx_task=daily_ctx_task,
+            scan_ctx_task=scan_ctx_task,
+            bridge_ctx_task=bridge_ctx_task,
+            live_tools_task=live_tools_task,
+            rag_task=rag_task,
+            router_ctx_task=router_ctx_task,
+        )
 
         # The interim "still digging" edit task has served its purpose — cancel
         # it so it can never clobber the answer send. The typing indicator
@@ -323,7 +300,7 @@ async def chat_ai_response(
                     reply_markup=back_kb(),
                 )
             # Per-turn error visibility: the whole synthesis chain failed
-            # (backend + local + tools) — emit an explicit error trace so the
+            # (bot-local LLM + tools) — emit an explicit error trace so the
             # outage is greppable with latency, not just a placeholder edit.
             trace_answer(
                 question=text,
@@ -340,7 +317,13 @@ async def chat_ai_response(
         # ── POST-PROCESSING FUNNEL ────────────────────────────────────────────
         # think-strip -> degenerate guard -> bridge citations -> zero-fabrication
         # guardrail -> honest no-live-data note -> last-chance degenerate guard.
-        answer, live_results, stripped_syms, stripped_addrs, answer_is_degenerate = await _post_guardrail(
+        (
+            answer,
+            live_results,
+            stripped_syms,
+            stripped_addrs,
+            answer_is_degenerate,
+        ) = await _post_guardrail(
             answer,
             user_id=user.id,
             provider=str(result.get("provider") or ""),
@@ -388,18 +371,22 @@ async def chat_ai_response(
 
     try:
         # ONE hard end-to-end deadline around the whole turn: whatever stage
-        # is in flight (backend RAG / local LLM / tools / guardrail / send),
-        # the user gets a reply within the deadline. wait_for cancels the
-        # pipeline on timeout and the handler below replies gracefully —
+        # is in flight (context gather / bot-local LLM / tools / guardrail /
+        # send), the user gets a reply within the deadline. wait_for cancels
+        # the pipeline on timeout and the handler below replies gracefully —
         # this never surfaces to the PTB error handler as a crash.
         #
         # Tier-aware: deep-analysis questions (routed to the "long" provider
         # by _route_tier) get CHAT_TURN_DEADLINE_LONG so the hard-capped
-        # context gather + 15s long-model call + possible paid fallback fit;
-        # snappy/backend turns keep the fast CHAT_TURN_DEADLINE. The same
-        # deterministic _route_tier(text) the fallback chain uses, so the
+        # context gather + 28s long-model call + possible paid fallback fit;
+        # snappy turns keep the fast CHAT_TURN_DEADLINE. The same
+        # deterministic _route_tier(text) the synthesis chain uses, so the
         # deadline always matches the tier that actually answers.
-        turn_deadline = CHAT_TURN_DEADLINE_LONG if _routing_mod._route_tier(text) == "long" else CHAT_TURN_DEADLINE
+        turn_deadline = (
+            CHAT_TURN_DEADLINE_LONG
+            if _routing_mod._route_tier(text) == "long"
+            else CHAT_TURN_DEADLINE
+        )
         await asyncio.wait_for(_generate_response(), timeout=turn_deadline)
         return True
     except TimeoutError:
@@ -480,7 +467,6 @@ async def chat_ai_response(
             for t in (
                 typing_task,
                 placeholder_task,
-                backend_task,
                 daily_ctx_task,
                 scan_ctx_task,
                 bridge_ctx_task,

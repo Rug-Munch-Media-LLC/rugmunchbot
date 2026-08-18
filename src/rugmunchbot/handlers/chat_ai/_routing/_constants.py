@@ -7,17 +7,18 @@ import os
 from rugmunchbot.config import BACKEND_URL
 
 # ══════════════════════════════════════════════
-# ENDPOINTS & BUDGETS — BACKEND / BRIDGE
+# ENDPOINTS & BUDGETS — BACKEND SCANNER / BRIDGE
 # ══════════════════════════════════════════════
-# Backend RAG chat (tier-1): CHAT_ENDPOINT / CHAT_TIMEOUT live in _llm.py
-# next to _call_backend_chat and are re-exported by chat_ai/__init__.py.
+# RugMunchScan is its OWN product (backend-owned): the bot CONSUMES the
+# quick-scan endpoint for chat context, it does not re-implement the
+# scanner. Best-effort; never block chat on it.
 SCAN_ENDPOINT = f"{BACKEND_URL}/api/v1/bot/scan"
 SCAN_TIMEOUT = 6.0  # quick scan context is best-effort; never block chat on it
-MAX_MESSAGE_CHARS = 2000  # backend ChatRequest.message limit
+MAX_MESSAGE_CHARS = 2000  # question window for the remote LLM prompt
 
-# Chat RAG Bridge — RugBrain/RugMunchScan context + SearXNG web search.
-# One call returns live web search, RAG knowledge, market digest, scanner
-# context and exploit rundown blocks (fail-open upstream).
+# Chat RAG Bridge — optional local context layer (SearXNG web search +
+# market digest + exploit rundown). Fail-open: when the bridge is down the
+# bot answers from its own RAG lookup + live tools + daily digest.
 BRIDGE_CONTEXT_ENDPOINT = os.getenv("BRIDGE_CONTEXT_ENDPOINT", "http://127.0.0.1:8095/chat/context")
 BRIDGE_TIMEOUT = 12.0  # web search can take a few seconds; never block chat on it
 

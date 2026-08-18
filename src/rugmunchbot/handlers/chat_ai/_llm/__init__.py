@@ -13,8 +13,8 @@ Layout:
   * ``_constants.py`` — endpoint/budget constants + tier/question regexes
   * ``_sources.py``   — untrusted-context delimiters + source rendering
   * ``_router.py``    — tier router + question-type router + context gathers
-  * ``_clients.py``   — backend RAG + remote LLM clients
-  * ``_fallback.py``  — backend-less fallback orchestration
+  * ``_clients.py``   — remote LLM clients (fully bot-local)
+  * ``_fallback.py``  — bot-local answer orchestration (the PRIMARY path)
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ from __future__ import annotations
 import httpx as httpx
 
 from rugmunchbot.handlers.chat_ai._llm._clients import (
-    _call_backend_chat as _call_backend_chat,
     _call_remote_fast as _call_remote_fast,
     _call_remote_llm as _call_remote_llm,
 )
@@ -59,8 +58,6 @@ from rugmunchbot.handlers.chat_ai._llm._constants import (
     _TIER_DEFINITIONAL_RE as _TIER_DEFINITIONAL_RE,
     _WEB_FALLBACK_TIMEOUT as _WEB_FALLBACK_TIMEOUT,
     _WEB_RESULTS_MAX as _WEB_RESULTS_MAX,
-    CHAT_ENDPOINT as CHAT_ENDPOINT,
-    CHAT_TIMEOUT as CHAT_TIMEOUT,
     FALLBACK_CONTEXT_HARD_CAP as FALLBACK_CONTEXT_HARD_CAP,
     FALLBACK_CONTEXT_WAIT as FALLBACK_CONTEXT_WAIT,
     MAX_MESSAGE_CHARS as MAX_MESSAGE_CHARS,

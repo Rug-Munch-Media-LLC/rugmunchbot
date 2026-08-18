@@ -1,36 +1,31 @@
 """LLM clients — endpoint/budget constants + deterministic routers.
 
-Every constant the LLM clients / question router use: backend RAG chat
-endpoint + budget, remote snappy/long timeouts and output budgets, the
-context-gather caps, the lean SNAPPY system prompt, the tier-router
-regexes and the question-type classifier sets.
+Every constant the LLM clients / question router use: the remote
+snappy/long timeouts and output budgets, the context-gather caps, the
+lean SNAPPY system prompt, the tier-router regexes and the
+question-type classifier sets.
 """
 
 from __future__ import annotations
 
 import re
 
-from rugmunchbot.config import BACKEND_URL
-
 # ══════════════════════════════════════════════
-# ENDPOINTS & BUDGETS — BACKEND RAG CHAT (tier-1)
+# BUDGETS — REMOTE LLM (snappy / long)
 # ══════════════════════════════════════════════
-# Backend auto-RAG synthesis: POST /api/v1/chat runs its own RAG grounding
-# (news_v2) and reports the real hit count via the X-RAG-Context header.
-CHAT_ENDPOINT = f"{BACKEND_URL}/api/v1/chat"
-CHAT_TIMEOUT = 60.0
-MAX_MESSAGE_CHARS = 2000  # backend ChatRequest.message limit
-
-# ══════════════════════════════════════════════
-# ENDPOINTS & BUDGETS — REMOTE LLM (snappy / long)
-# ══════════════════════════════════════════════
-# Free remote providers (app/llm_config): snappy = Poolside Laguna S 2.1
-# via OpenRouter for fast short chat answers; long = NVIDIA Nemotron 3
+# The bot answers chat turns itself (no backend dependency): FREE remote
+# providers (in-repo llm_config) — snappy = Poolside Laguna S 2.1 via
+# OpenRouter for fast short chat answers; long = NVIDIA Nemotron 3
 # Ultra 550B via OpenRouter for longer / reasoning analysis answers.
 # Hosted GPU — seconds instead of the 70-90s CPU generation the old local
 # chain measured.
 REMOTE_SNAPPY_TIMEOUT = 12.0  # remote must stay fast for short chat answers
 REMOTE_LONG_TIMEOUT = 28.0  # deep-analysis must fit within the long turn deadline
+
+# Question window for the current message in the remote prompt. The
+# question gets its own MAX_MESSAGE_CHARS window — context must never share
+# (and thus silently cut) the user's actual question.
+MAX_MESSAGE_CHARS = 2000
 
 # Output budget for the deep/long tier. Hosted GPU (no CPU budget): give the
 # long tier room to finish a thorough structured answer (direct answer →

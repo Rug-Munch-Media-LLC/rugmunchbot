@@ -1,12 +1,12 @@
-"""LLM clients — backend RAG chat + FREE remote LLM (snappy / long).
+"""LLM clients — FREE remote LLM (snappy / long), fully bot-local.
 
-``_call_backend_chat`` POSTs to ``/api/v1/chat`` (tier-1 auto-RAG, real
-X-RAG-Context count); ``_call_remote_fast`` answers via the FREE remote
-provider chain (Poolside Laguna S 2.1 / NVIDIA Nemotron 3 Ultra 550B via
-OpenRouter) with a cost-aware paid fallback; ``_call_remote_llm`` is the
-public entry (routes to snappy/long). ``get_snappy_config`` /
-``get_long_config`` / ``_call_remote_fast`` resolve through the package so
-tests can patch ``chat_ai._llm.*`` (monkeypatch contract).
+The bot answers chat turns ITSELF (no backend dependency):
+``_call_remote_fast`` answers via the FREE remote provider chain (Poolside
+Laguna S 2.1 / NVIDIA Nemotron 3 Ultra 550B via OpenRouter) with a
+cost-aware paid fallback; ``_call_remote_llm`` is the public entry
+(routes to snappy/long). ``get_snappy_config`` / ``get_long_config`` /
+``_call_remote_fast`` resolve through the package so tests can patch
+``chat_ai._llm.*`` (monkeypatch contract).
 """
 
 from __future__ import annotations
@@ -18,7 +18,6 @@ from typing import Any
 import httpx
 
 from rugmunchbot._vendor.ai_guardrails import strip_think_tags
-from rugmunchbot.config import backend_headers
 from rugmunchbot.handlers.chat_ai import _llm as _llm_mod
 from rugmunchbot.handlers.chat_ai._llm._constants import (
     _SNAPPY_CONTEXT_BUDGET,
@@ -26,8 +25,6 @@ from rugmunchbot.handlers.chat_ai._llm._constants import (
     _SNAPPY_HISTORY_CHARS,
     _SNAPPY_HISTORY_MSGS,
     _SNAPPY_SYSTEM_PROMPT,
-    CHAT_ENDPOINT,
-    CHAT_TIMEOUT,
     MAX_MESSAGE_CHARS,
     REMOTE_LLM_CONTEXT_BUDGET,
     REMOTE_LONG_MAX_TOKENS,
@@ -42,122 +39,10 @@ from rugmunchbot.handlers.chat_ai._llm._sources import (
     _untrusted_block,
 )
 from rugmunchbot.model_usage import record as _record_model_usage
-from rugmunchbot.prompts import FALLBACK_SYSTEM_PROMPT, PERSONA_CONTEXT
+from rugmunchbot.prompts import FALLBACK_SYSTEM_PROMPT
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.chat_ai")
-
-
-async def _call_backend_chat(
-    message: str,
-    user_id: int,
-    history: list[dict[str, str]] | None = None,
-    *,
-    record_usage: bool = True,
-) -> dict[str, Any] | None:
-    """Backend RAG chat — ``POST /api/v1/chat`` (auto-RAG, news_v2 grounding).
-
-    Tier-1 synthesis path: the backend runs its own RAG retrieval. The sharp
-    grounded persona (``PERSONA_CONTEXT``) is shipped via
-    ``context_override.system_context`` so the production model gets the
-    grounding bullets + anti-hallucination rules + response-formatting
-    instead of answering with the generic backend SYSTEM_PROMPT alone. The
-    backend appends this block to its own prompt (``_build_messages``).
-    The real RAG hit count is parsed from the ``X-RAG-Context`` response
-    header and returned as ``rag_count`` so the "⚡ Grounded in N
-    intelligence sources" footer renders truthfully. Per-user rate limiting
-    is keyed by ``X-Forwarded-For`` (the Telegram user id).
-
-    Returns a dict with ``message``, ``rag_count``, ``tokens``, ``model``,
-    ``provider`` and ``latency_ms``, or ``None`` on any failure/timeout.
-    """
-    payload: dict[str, Any] = {
-        "message": message[:MAX_MESSAGE_CHARS],
-        "history": history or [],
-        # Output budget for the backend RAG synthesis. 1536 is the value the
-        # backend team validated for COMPLETE answers (2026-08-14: 512 was
-        # truncating long educational answers mid-sentence; 1536 fixed it).
-        # The old 320 cap was a CPU-host latency lever (87-136s on the local
-        # 4B) — the backend chat route now runs on hosted GPU free tiers
-        # (OpenRouter: Laguna snappy / Nemotron long), so generation is fast
-        # and the budget is no longer the latency lever. 1536 tokens ≈ 6000
-        # chars ≈ 1.5 Telegram parts; the bot-side chunker (3800 chars/part)
-        # splits anything longer into multiple messages. The /chat route
-        # accepts 64..8192.
-        "max_tokens": 1536,
-        # The #1 intelligence gap: without this, ~90% of answers use the
-        # generic backend SYSTEM_PROMPT, not the sharp grounded persona.
-        "context_override": {"system_context": PERSONA_CONTEXT},
-    }
-    headers = backend_headers()
-    headers["X-Forwarded-For"] = str(user_id)
-
-    t0 = time.monotonic()
-    try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(CHAT_TIMEOUT, connect=5.0, read=CHAT_TIMEOUT, write=10.0)
-        ) as client:
-            # Hard total deadline on top of the httpx phase timeouts: httpx
-            # bounds each PHASE (connect/write/read) separately, so the raw
-            # worst case is connect(5) + write(10) + read(60) = 75s. The
-            # wait_for guarantees a turn never blocks > CHAT_TIMEOUT total.
-            r = await asyncio.wait_for(
-                client.post(CHAT_ENDPOINT, headers=headers, json=payload),
-                timeout=CHAT_TIMEOUT,
-            )
-    except (httpx.HTTPError, ConnectionError, OSError, TimeoutError) as e:
-        logger.debug("backend chat unavailable (user=%s): %s", user_id, e)
-        return None
-    if r.status_code != 200:
-        logger.debug("backend chat HTTP %d (user=%s)", r.status_code, user_id)
-        return None
-    try:
-        raw = r.json()
-    except ValueError:
-        return None
-    if not isinstance(raw, dict):
-        return None
-    # Robust payload parsing (code-review HIGH #2): a malformed backend
-    # response (non-str ``message`` / non-dict ``usage`` / bad token count)
-    # used to raise AttributeError and either crash the turn or degrade a
-    # valid tier-1 answer to the canned fallback. Guard with isinstance
-    # (mirrors ``_call_remote_fast``) and degrade gracefully — never raise.
-    try:
-        raw_message = raw.get("message")
-        if not isinstance(raw_message, str):
-            logger.debug(
-                "backend chat malformed message (user=%s, type=%s)",
-                user_id,
-                type(raw_message).__name__,
-            )
-            return None
-        answer = _links_to_plain_text(raw_message.strip())
-        usage = raw.get("usage")
-        raw_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
-        # A bad token count is a non-fatal enrichment — default to 0 and keep
-        # the valid answer rather than dropping the whole tier-1 response.
-        tokens = raw_tokens if isinstance(raw_tokens, int) else 0
-    except (AttributeError, TypeError, ValueError) as exc:
-        logger.debug("backend chat malformed payload (user=%s): %s", user_id, exc)
-        return None
-    if not answer:
-        return None
-    try:
-        rag_count = int(r.headers.get("X-RAG-Context", "0") or "0")
-    except (TypeError, ValueError):
-        rag_count = 0
-    latency_ms = (time.monotonic() - t0) * 1000
-    model = raw.get("model") or "rmi-backend"
-    if record_usage:
-        _record_model_usage(tier="backend", model=model, latency_ms=latency_ms, tokens=tokens)
-    return {
-        "message": answer,
-        "rag_count": rag_count,
-        "tokens": tokens,
-        "model": model,
-        "provider": "backend",
-        "latency_ms": latency_ms,
-    }
 
 
 async def _call_remote_fast(

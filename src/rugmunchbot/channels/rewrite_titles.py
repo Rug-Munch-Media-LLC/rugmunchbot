@@ -10,9 +10,9 @@ headline.
 
 Env gate: ``RMI_NEWS_TITLE_REWRITE_ENABLED`` (default ``"0"`` = off). When
 disabled, the LLM errors, or a single rewrite exceeds 5s, the original title
-is returned unchanged. The bot's existing tier-1 LLM client
-(``handlers/chat_ai/_llm._call_backend_chat``) is reused — it already ships
-``PERSONA_CONTEXT`` (``prompts.py``) via ``context_override``, so the rewrite
+is returned unchanged. The bot's own remote LLM client
+(``handlers/chat_ai/_llm._call_remote_llm``) is reused — it already ships
+``PERSONA_CONTEXT`` (``prompts.py``) via the system prompt, so the rewrite
 stays in the bot's canonical voice without duplicating the persona prompt.
 """
 
@@ -23,8 +23,8 @@ import os
 import re
 from typing import Final
 
-# PERSONA_CONTEXT is a contract pin: the rewrite reuses the bot's tier-1
-# client (_call_backend_chat), which already ships it via context_override.
+# PERSONA_CONTEXT is a contract pin: the rewrite reuses the bot's own remote
+# LLM client (_call_remote_llm), which already ships it via the system prompt.
 from rugmunchbot.prompts import PERSONA_CONTEXT  # noqa: F401
 from rugmunchbot.support.logging import get_logger
 
@@ -69,14 +69,14 @@ async def rewrite_news_title(title: str) -> str:
     """Rewrite *title* into a concise, human-sounding headline (fail-open).
 
     Returns the original *title* unchanged when:
-      * ``RMI_NEWS_TITLE_REWRITE_ENABLED`` is off (default);
-      * the bot's backend chat client is unavailable or errors;
-      * a single rewrite exceeds ``_TITLE_REWRITE_TIMEOUT`` (5s);
-      * the model returns an empty / no-op result.
+          * ``RMI_NEWS_TITLE_REWRITE_ENABLED`` is off (default);
+          * the bot's remote LLM client is unavailable or errors;
+          * a single rewrite exceeds ``_TITLE_REWRITE_TIMEOUT`` (5s);
+          * the model returns an empty / no-op result.
 
-    Never raises. Reuses ``_call_backend_chat`` (the bot's existing tier-1
-    LLM client), which already injects ``PERSONA_CONTEXT`` from
-    ``prompts.py`` via ``context_override``.
+        Never raises. Reuses ``_call_remote_llm`` (the bot's own remote LLM
+        client), which already injects ``PERSONA_CONTEXT`` from ``prompts.py``
+        via the system prompt.
     """
     original = (title or "").strip()
     if not original or not TITLE_REWRITE_ENABLED:
@@ -84,12 +84,12 @@ async def rewrite_news_title(title: str) -> str:
     try:
         # Lazy import keeps this module import-light (no chat_ai deps at
         # module scope) and mirrors the codebase's lazy-client pattern.
-        from rugmunchbot.handlers.chat_ai._llm import _call_backend_chat
+        from rugmunchbot.handlers.chat_ai._llm import _call_remote_llm
 
         result = await asyncio.wait_for(
-            # record_usage=False: channel title rewrites are NOT chat calls —
-            # keep the owner /admin model-usage counters chat-pipeline-only.
-            _call_backend_chat(_REWRITE_PROMPT.format(title=original), user_id=0, record_usage=False),
+            # Channel title rewrites are NOT chat calls — no history, no
+            # usage counters; the client is fail-open and never raises.
+            _call_remote_llm(_REWRITE_PROMPT.format(title=original), user_id=0),
             timeout=_TITLE_REWRITE_TIMEOUT,
         )
     except asyncio.CancelledError:
