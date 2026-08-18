@@ -127,12 +127,23 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 # skip the backend deployer module, so this is what fills the
                 # report's Deployer + Socials blocks). One fetch, fail-open,
                 # real data only.
-                result = await _supplement_deployer_socials(result, target, chain or str(result.get("chain") or ""))
+                result = await _supplement_deployer_socials(
+                    result, target, chain or str(result.get("chain") or "")
+                )
             else:
                 # v2 unavailable → fall back to legacy multi-source scanner
                 result = await scan_token(target, chain)
             _scan_cache_set(target, chain_key, result)
-        if result["name"] == "Unknown" and not result["errors"]:
+        # A token is "not found" when the v2 scanner couldn't even compute a
+        # safety score (no DexScreener data, no chain data at all). If safety_score
+        # is set (even 0), the scanner found the token on-chain — pump.fun tokens
+        # often have no name/symbol but still get scored.
+        has_scan_data = (
+            result.get("safety_score") is not None
+            or result.get("modules_run")
+            or bool(result.get("evidence"))
+        )
+        if result["name"] == "Unknown" and not result["errors"] and not has_scan_data:
             await msg.edit_text(
                 token_not_found_card(target, cmd="scan"),
                 parse_mode=ParseMode.HTML,
@@ -184,7 +195,9 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         logger.debug("unknown_error", exc_info=True)
         logger.error(f"Scan error: {e}")
         await msg.edit_text(
-            failure_card("Scan Failed", "The scanner hit an unexpected error.", ACTION_CHECK_ADDRESS),
+            failure_card(
+                "Scan Failed", "The scanner hit an unexpected error.", ACTION_CHECK_ADDRESS
+            ),
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -193,7 +206,9 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await _stop_task(typing_task)
 
 
-async def _poll_v2_scan_completion(address: str, chain: str, max_wait_s: float = 24.0) -> dict[str, Any] | None:
+async def _poll_v2_scan_completion(
+    address: str, chain: str, max_wait_s: float = 24.0
+) -> dict[str, Any] | None:
     """Poll the v2 scan status endpoint until background phases complete.
 
     The v2 scan API returns within ~25s while deep phases (wallet metrics,
