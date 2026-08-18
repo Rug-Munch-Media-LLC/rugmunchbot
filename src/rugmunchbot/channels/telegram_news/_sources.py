@@ -76,13 +76,13 @@ logger = get_logger("rmi_bot.channels.tg_news")
 #: failures for a 24h cooldown, so a stale handle can never burn the sweep
 #: indefinitely.
 _DEFAULT_CHANNELS: tuple[str, ...] = (
-    # ── News outlets ──────────────────────────────────────────────────────
-    "cointelegraph",  # official CoinTelegraph (View)
-    "coindesk",  # official CoinDesk (View)
-    "cryptoslate",  # CryptoSlate (Contact — preview disabled)
-    "WatcherGuru",  # Watcher Guru (View)
-    "bitcoinmagazine",  # Bitcoin Magazine [REVIEW: Contact preview, needs membership]
-    "PANewsOfficial",  # PANews [REVIEW: verify casing] — mostly KR/CN → runtime language filter
+    # ── News outlets (View = t.me preview accessible) ──────────────────────────
+    "cointelegraph",  # CoinTelegraph (View)
+    "coindesk",  # CoinDesk (View)
+    "cryptoslate",  # CryptoSlate (Contact)
+    "WatcherGuru",  # Watcher Guru (View) — high-frequency news aggregator
+    "bitcoinmagazine",  # Bitcoin Magazine (Contact)
+    "PANewsOfficial",  # PANews — KR/CN → runtime language filter
     "cryptopotato",  # CryptoPotato (View)
     "coingape",  # CoinGape (View)
     "U_Today",  # U.Today (View)
@@ -93,66 +93,157 @@ _DEFAULT_CHANNELS: tuple[str, ...] = (
     "blockworks",  # Blockworks (View)
     "cryptobriefing",  # Crypto Briefing (View)
     "coinjournal",  # CoinJournal (View)
-    "thedefiant",  # The Defiant [REVIEW: Contact preview, needs membership]
-    "decryptmedia",  # Decrypt [REVIEW: Contact preview, needs membership]
-    "ambcrypto",  # AMBCrypto [REVIEW: Contact preview, needs membership]
-    "bitcoinist",  # Bitcoinist [REVIEW: Contact preview, needs membership]
-    "trustnodes",  # Trustnodes [REVIEW: Contact preview, needs membership]
-    # ── Security / exploit alerts ─────────────────────────────────────────
+    "thedefiant",  # The Defiant (Contact)
+    "decryptmedia",  # Decrypt (Contact)
+    "ambcrypto",  # AMBCrypto (Contact)
+    "bitcoinist",  # Bitcoinist (Contact)
+    "trustnodes",  # Trustnodes (Contact)
+    "thebitcoinnews",  # The Bitcoin News (View)
+    "altcoinbuzz",  # Altcoin Buzz — news/alpha (View)
+    "cryptopanic",  # CryptoPanic — news aggregator (Contact)
+    "cryptonewscom",  # Cryptonews.com (Contact)
+    # ── News outlets — expansion batch (2026-08-18) ────────────────────────────
+    "CryptoNewsDose",  # Crypto News Dose — daily roundup (View)
+    "AltcoinToday",  # Altcoin Today — news/altcoins (View)
+    "CoinMarketCap",  # CoinMarketCap — official (View)
+    "CoinGecko",  # CoinGecko — official announcements (View)
+    "binance_news",  # Binance News — official (View)
+    "kucoinnews",  # KuCoin News — official (View)
+    "bybit_announcements",  # Bybit — official (View)
+    "cryptocomnews",  # Crypto.com — official news (View)
+    "okx_announcements",  # OKX — official (View)
+    "tokeninsight",  # TokenInsight — research/ratings (View)
+    "cryptorank_io",  # CryptoRank — data/rankings (View)
+    "coincodex",  # CoinCodex — market data (View)
+    "Cryptonews",  # Cryptonews.com (View)
+    "news_btc",  # NewsBTC alt (View)
+    "blockchainnews",  # Blockchain News (View)
+    "CryptoDaily",  # Crypto Daily — news/analysis (View)
+    "cryptonewswire",  # Crypto News Wire — press releases (View)
+    # ── Security / exploit alerts ──────────────────────────────────────────────
     "CertiKAlert",  # CertiK Alert (View)
     "PeckShieldAlert",  # PeckShield Alert (View)
     "rektnews",  # REKT News — exploit/incident intel (View)
     "ScamSniffer",  # ScamSniffer — phishing alerts (View)
     "zachxbt",  # ZachXBT — on-chain sleuth (View)
-    "SlowMist",  # SlowMist — security team [REVIEW: Contact preview, needs membership]
-    # ── On-chain / alpha ──────────────────────────────────────────────────
-    "lookonchain",  # Lookonchain — on-chain analytics (View)
-    "spotonchain",  # Spot On Chain — on-chain alerts (View)
-    "whale_alert",  # Whale Alert — large-transaction alerts (View)
-    "ArkhamIntel",  # Arkham — entity/alert intel [REVIEW: Contact preview, needs membership]
-    "OnChainWizard",  # OnChain Wizard — alpha/on-chain [REVIEW: Contact preview, needs membership]
-    "AltcoinDaily",  # Altcoin Daily — alpha/community [REVIEW: Contact preview, needs membership]
-    # ── Expansion batch 2026-08-16 (t.me preview probe; all resolve) ──────
-    # ── News outlets (batch) ──────────────────────────────────────────────
-    "thebitcoinnews",  # The Bitcoin News (View)
-    "altcoinbuzz",  # Altcoin Buzz — news/alpha (View)
-    "cryptopanic",  # CryptoPanic — news aggregator [REVIEW: Contact preview, needs membership]
-    "cryptonewscom",  # Cryptonews.com [REVIEW: Contact preview, needs membership]
-    # ── Security / exploit alerts (batch) ─────────────────────────────────
+    "SlowMist",  # SlowMist — security team (Contact)
     "BlockSecTeam",  # BlockSec — security alerts (View)
     "halborn",  # Halborn — security audits/alerts (View)
     "solidityfinance",  # Solidity Finance — audits + alerts (View)
     "Hacken",  # Hacken — security audits (View)
     "verichains",  # Verichains — security research (View)
     "trmlabs",  # TRM Labs — crypto risk/security (View)
-    "EthereumSecurity",  # Ethereum Foundation security [REVIEW: Contact preview, needs membership]
-    "FuzzLandAlert",  # FuzzLand — exploit/rugpull alerts [REVIEW: Contact preview, needs membership]
-    "BeosinAlert",  # Beosin — security alerts [REVIEW: Contact preview, needs membership]
-    "hypernative",  # Hypernative — exploit monitoring [REVIEW: Contact preview, needs membership]
-    "openzeppelin",  # OpenZeppelin — security research [REVIEW: Contact preview, needs membership]
-    # ── DeFi / protocol channels (batch) ──────────────────────────────────
-    "arbitrum",  # Arbitrum Announcements Official (View)
-    "avax",  # AVAX — Avalanche official (View)
-    "zksync",  # ZKsync — official (View)
-    "starknet",  # Starknet community (View)
-    "aptos",  # Aptos — official (View)
-    "lidofinance",  # Lido Finance — staking/defi (View)
-    "chainlink",  # Chainlink — official (View)
-    "Uniswap",  # Uniswap — official [REVIEW: Contact preview, needs membership]
-    "Aave",  # Aave — official [REVIEW: Contact preview, needs membership]
-    "base",  # Base — official [REVIEW: Contact preview, needs membership]
-    "solana",  # Solana — official [REVIEW: Contact preview, needs membership]
-    # ── On-chain / alpha (batch) ──────────────────────────────────────────
+    "EthereumSecurity",  # Ethereum Foundation security (Contact)
+    "FuzzLandAlert",  # FuzzLand — exploit/rugpull alerts (Contact)
+    "BeosinAlert",  # Beosin — security alerts (Contact)
+    "hypernative",  # Hypernative — exploit monitoring (Contact)
+    "openzeppelin",  # OpenZeppelin — security research (Contact)
+    "Cyvers",  # Cyvers — real-time security alerts (View)
+    "AnciliaInc",  # Ancilia — security audits (View)
+    "NeptuneMutual",  # Neptune Mutual — cover/security (View)
+    "immunefi",  # Immunefi — bug bounty/alerts (View)
+    "hackenio",  # Hacken — additional alerts (View)
+    # ── On-chain / alpha / whale tracking ──────────────────────────────────────
+    "lookonchain",  # Lookonchain — on-chain analytics (View)
+    "spotonchain",  # Spot On Chain — on-chain alerts (View)
+    "whale_alert",  # Whale Alert — large-transaction alerts (View)
+    "ArkhamIntel",  # Arkham — entity/alert intel (Contact)
+    "OnChainWizard",  # OnChain Wizard — alpha (Contact)
+    "AltcoinDaily",  # Altcoin Daily — alpha/community (Contact)
     "glassnode",  # Glassnode — on-chain analytics (View)
     "cryptowhaletrades",  # Crypto Whale Trading — whale/on-chain (View)
-    "icodrops",  # ICO Drops — token launch/alpha (View)
-    "nansen_ai",  # Nansen — on-chain analytics [REVIEW: Contact preview, needs membership]
-    "chainfeeds",  # ChainFeeds — crypto research digest [REVIEW: Contact preview, needs membership]
+    "nansen_ai",  # Nansen — on-chain analytics (Contact)
+    "chainfeeds",  # ChainFeeds — crypto research digest (Contact)
+    "intotheblock",  # IntoTheBlock — on-chain metrics (View)
+    "SantimentFeed",  # Santiment — crypto data/insights (View)
+    "CoinGlass",  # CoinGlass — liquidation data (View)
+    "Coinalyze",  # Coinalyze — funding/volume (View)
+    "duneanalytics",  # Dune — on-chain dashboards (View)
+    "defillama",  # DeFi Llama — TVL/data (View)
+    "MessariCrypto",  # Messari — research/intel (View)
+    "tokenterminal",  # Token Terminal — fundamentals (View)
+    "NerdStaking",  # Nerd Staking — validator/defi (View)
+    # ── DeFi / protocol channels ───────────────────────────────────────────────
+    "arbitrum",  # Arbitrum Official (View)
+    "avax",  # Avalanche Official (View)
+    "zksync",  # ZKsync Official (View)
+    "starknet",  # Starknet (View)
+    "aptos",  # Aptos Official (View)
+    "lidofinance",  # Lido Finance (View)
+    "chainlink",  # Chainlink Official (View)
+    "Uniswap",  # Uniswap Official (Contact)
+    "Aave",  # Aave Official (Contact)
+    "base",  # Base Official (Contact)
+    "solana",  # Solana Official (Contact)
+    "ethereum",  # Ethereum Foundation (View)
+    "optimism",  # Optimism Official (View)
+    "polygon",  # Polygon Official (View)
+    "bnbchain",  # BNB Chain Official (View)
+    "sui",  # Sui Network (View)
+    "NEARProtocol",  # NEAR Protocol (View)
+    "cosmos",  # Cosmos — Interchain (View)
+    "polkadot",  # Polkadot Official (View)
+    "celestia",  # Celestia — modular (View)
+    "avalancheavax",  # Avalanche official alt (View)
+    "jupiterexchange",  # Jupiter — Solana DEX (View)
+    "raydiumprotocol",  # Raydium — Solana AMM (View)
+    "pancakeswap",  # PancakeSwap — BSC DEX (View)
+    "aavegrants",  # Aave Grants (View)
+    "Compound",  # Compound Finance (View)
+    "MakerDAO",  # MakerDAO Official (View)
+    "CurveFinance",  # Curve Finance (View)
+    "balancer",  # Balancer — DEX (View)
+    "yearnfinance",  # Yearn Finance (View)
+    "convexfinance",  # Convex Finance (View)
+    # ── Research & macro ───────────────────────────────────────────────────────
+    "DelphiDigital",  # Delphi Digital — research (View)
+    "alphanonce",  # Alpha Nome — research (View)
+    "ASXNResearch",  # ASXN — crypto research (View)
+    "kryptocast",  # KryptoCast — interviews/analysis (View)
+    "BanklessHQ",  # Bankless — media/analysis (View)
+    "TheDeFiReport",  # DeFi Report — analysis (View)
+    "CryptoCred",  # CryptoCred — trading/research (View)
+    "DoseofDeFi",  # Dose of DeFi — newsletter (View)
+    "milkroad",  # Milk Road — daily newsletter (View)
+    "defiedge",  # DeFi Edge — alpha/education (View)
+    # ── Trading & market analysis ─────────────────────────────────────────────
+    "CryptoBubbles",  # Crypto Bubbles — market heatmap (View)
+    "Coin360",  # Coin360 — market visualization (View)
+    "MaterialIndicators",  # Material Indicators — trading (View)
+    "TheNews_Trader",  # TheNews.Trader — trade signals (View)
+    "AltcoinTrader",  # Altcoin Trader — signals/analysis (View)
+    "TradingShot",  # Trading Shot — TA signals (View)
+    "crypto_traders",  # Crypto Traders — community (View)
+    "fibonacci_trading",  # Fibonacci Trading — TA (View)
+    # ── News from X/Twitter personalities (cross-post channels) ───────────────
+    "wublockchain",  # Wu Blockchain — Colin Wu news (View, re-verified)
+    "Cointelegraph_",  # CoinTelegraph alt (View)
+    "u_today",  # U.Today alt (View)
+    # ── Verified from @cryptorugmunch account's follows (2026-08-18 live probe) ──
+    # Major news with verified live channels
+    "BlockchainReporter",  # Blockchain Reporter (View, 49k members)
+    "CryptoWorldNews",  # CryptoWorldNews (View, 43k members)
+    "Cryptocurrency_Inside",  # Crypto Bitcoin Ethereum News (View, 45k members)
+    "cryptothedoggy",  # CryptoTheDoggy Blockchain News (View, 148k members)
+    "FinancialWorldUpdates",  # Financial World Updates (View, 24k members)
+    "danny_crypton",  # Danny Crypton (View, 43k members)
+    # Major alpha/research channels (for news feed — posts have real news value)
+    "CryptoCapoTG",  # CryptoCapo TG (View, 117k — news+analysis)
+    "shahlito",  # Shah's Journal (View, 32k — crypto research)
+    "spidersjournal",  # SpiderCrypto Trading Journal (View, 33k)
+    # Security/exploit channels (verified live)
+    "Rektproof",  # RektProof PA (View, 43k — security/PA)
+    "thepumpalert",  # THE PUMP ALERT (View, 374 members — scam call-out channel)
+    # On-chain / analytics (verified live, separate from the alpha call channels)
+    "nansen_digest",  # Nansen Digest (View, 6.5k)
+    "CallAnalyser",  # Call Analyser (View, 49k — KOL call analysis)
+    "walloftrophies",  # KOL Trending / CallAnalyser (View, 15k)
+    "skeletonlounge",  # Skeleton Lounge Portal (View, 23k)
+    "rickburpbotnews",  # Rick's Lab (View, 70k — research/alpha)
     # ── Known-dead handles (2026-08-16 MTProto probe: "No user has X as username") ──
-    # "wublockchain",  # Wu Blockchain — DEAD handle
     # "TheBlock__",  # The Block — DEAD handle
     # "beincrypto",  # BeInCrypto — DEAD handle
-    # "cryptonews",  # Cryptonews.com — DEAD handle
+    # "cryptonews",  # Cryptonews.com — DEAD handle (use cryptonewscom instead)
 )
 
 
@@ -189,8 +280,8 @@ def re_split(value: str) -> list[str]:
 TG_NEWS_ENABLED = _env_bool("RMI_TG_NEWS_CHANNEL_ENABLED", True)
 TG_NEWS_INTERVAL_MINUTES = _env_int("RMI_CHANNEL_TG_NEWS_INTERVAL_MINUTES", 30)
 TG_NEWS_SWEEP_HOURS = _env_int("RMI_TG_NEWS_SWEEP_HOURS", 6)
-TG_NEWS_PER_CHANNEL_LIMIT = _env_int("RMI_TG_NEWS_PER_CHANNEL_LIMIT", 30)
-TG_NEWS_MAX_CHANNELS = _env_int("RMI_TG_NEWS_MAX_CHANNELS", 40)
+TG_NEWS_PER_CHANNEL_LIMIT = _env_int("RMI_TG_NEWS_PER_CHANNEL_LIMIT", 50)
+TG_NEWS_MAX_CHANNELS = _env_int("RMI_TG_NEWS_MAX_CHANNELS", 100)
 TG_NEWS_POST_LIMIT = _env_int("RMI_TG_NEWS_POST_LIMIT", 5)
 TG_NEWS_PERSIST = _env_bool("RMI_TG_NEWS_PERSIST", True)
 TG_NEWS_RAG = _env_bool("RMI_TG_NEWS_RAG", True)
@@ -398,7 +489,9 @@ async def resolve_channel_sources(client: Any | None = None) -> list[dict[str, A
                     counts,
                 )
                 return sources
-            logger.debug("tg_news:auto_discover_no_news_channels fallback_to_explicit counts=%s", counts)
+            logger.debug(
+                "tg_news:auto_discover_no_news_channels fallback_to_explicit counts=%s", counts
+            )
     return channel_sources()
 
 
@@ -453,10 +546,18 @@ _OG_HTML_MAX_CHARS: int = 512_000
 #: og:image / twitter:image meta extraction (attribute-order tolerant, case-
 #: insensitive). Best-effort only — a page without a usable image yields none.
 _OG_IMAGE_RES: Final = (
-    re.compile(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
-    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.IGNORECASE),
-    re.compile(r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
-    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']', re.IGNORECASE),
+    re.compile(
+        r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE
+    ),
+    re.compile(
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.IGNORECASE
+    ),
+    re.compile(
+        r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE
+    ),
+    re.compile(
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']', re.IGNORECASE
+    ),
 )
 
 
@@ -576,7 +677,9 @@ async def _fetch_page(url: str, timeout: float) -> str | None:
                 attempts += 1
                 client = rotator.get_client(proxy=proxy)
                 response = await client.get(url, headers={"User-Agent": "rmi-news/1.0"})
-                if response.is_success and not _is_waf_block(response.status_code, response.text[:_OG_HTML_MAX_CHARS]):
+                if response.is_success and not _is_waf_block(
+                    response.status_code, response.text[:_OG_HTML_MAX_CHARS]
+                ):
                     return response.text[:_OG_HTML_MAX_CHARS]
                 proxy = rotator.next_after_failure(proxy)
     except Exception:
@@ -651,8 +754,12 @@ _TME_IN_TEXT_RE: Final = re.compile(r"https?://(?:t\.me|telegram\.me)/", re.IGNO
 #: insensitive), then the first external http(s) href. Best-effort only — a
 #: t.me page without a usable real URL yields the original link.
 _TME_OG_URL_RES: Final = (
-    re.compile(r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
-    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:url["\']', re.IGNORECASE),
+    re.compile(
+        r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE
+    ),
+    re.compile(
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:url["\']', re.IGNORECASE
+    ),
 )
 _TME_CANONICAL_RES: Final = (
     re.compile(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', re.IGNORECASE),
@@ -748,7 +855,9 @@ async def _enrich_articles(articles: list[NewsArticle]) -> None:
         tme_only = [
             a
             for a in articles
-            if is_telegram_link(a.source_url) and not extract_canonical_url(a) and _message_has_tme_link(a)
+            if is_telegram_link(a.source_url)
+            and not extract_canonical_url(a)
+            and _message_has_tme_link(a)
         ]
         if tme_only:
             results = await asyncio.gather(

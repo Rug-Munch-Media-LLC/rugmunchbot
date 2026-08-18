@@ -108,15 +108,37 @@ class ScamSourceType(StrEnum):
 _DIALOG_HEURISTICS: tuple[tuple[ScamSourceType, tuple[str, ...]], ...] = (
     (
         ScamSourceType.SEED_PHRASE_SCAM,
-        ("seed phrase", "private key", "wallet drain", "wallet recovery", "12 words", "recover wallet", "sync wallet"),
+        (
+            "seed phrase",
+            "private key",
+            "wallet drain",
+            "wallet recovery",
+            "12 words",
+            "recover wallet",
+            "sync wallet",
+        ),
     ),
     (
         ScamSourceType.FAKE_AIRDROP,
-        ("airdrop", "presale", "giveaway", "free coins", "free tokens", "claim bonus", "whitelist spot"),
+        (
+            "airdrop",
+            "presale",
+            "giveaway",
+            "free coins",
+            "free tokens",
+            "claim bonus",
+            "whitelist spot",
+        ),
     ),
-    (ScamSourceType.PUMP_GROUP, ("pump", "pnd", "pump and dump", "pump group", "pump signal", "pumps")),
+    (
+        ScamSourceType.PUMP_GROUP,
+        ("pump", "pnd", "pump and dump", "pump group", "pump signal", "pumps"),
+    ),
     (ScamSourceType.SHILL_CHANNEL, ("shill", "shiller", "shillx", "promo")),
-    (ScamSourceType.ALPHA_RUG_SHILL, ("alpha", "100x", "1000x", "moon", "mooner", "gem", "calls", "signals")),
+    (
+        ScamSourceType.ALPHA_RUG_SHILL,
+        ("alpha", "100x", "1000x", "moon", "mooner", "gem", "calls", "signals"),
+    ),
     (ScamSourceType.SCAM_TOKEN_CHANNEL, ("rug", "honeypot", "scam token", "scam coin")),
 )
 
@@ -161,7 +183,7 @@ SCAM_WATCH_ENABLED = _env_bool("RMI_SCAM_WATCH_ENABLED", True)
 SCAM_WATCH_INTERVAL_MINUTES = _env_int("RMI_SCAM_WATCH_INTERVAL_MINUTES", 60)
 SCAM_WATCH_SWEEP_HOURS = _env_int("RMI_SCAM_WATCH_SWEEP_HOURS", 6)
 SCAM_WATCH_PER_CHANNEL_LIMIT = _env_int("RMI_SCAM_WATCH_PER_CHANNEL_LIMIT", 30)
-SCAM_WATCH_MAX_DISCOVERED = _env_int("RMI_SCAM_WATCH_MAX_DISCOVERED", 20)
+SCAM_WATCH_MAX_DISCOVERED = _env_int("RMI_SCAM_WATCH_MAX_DISCOVERED", 50)
 SCAM_WATCH_SCAN_LIMIT = _env_int("RMI_SCAM_WATCH_SCAN_LIMIT", 5)
 SCAM_WATCH_QUEUE_LIMIT = _env_int("RMI_SCAM_WATCH_QUEUE_LIMIT", 50)
 SCAM_WATCH_ENQUEUE = _env_bool("RMI_SCAM_WATCH_ENQUEUE", True)
@@ -170,12 +192,54 @@ SCAM_WATCH_INCLUDE_WATCHERS = _env_bool("RMI_SCAM_WATCH_INCLUDE_WATCHERS", False
 #: scam/shill handles already flagged in the followed-channels registry
 #: (``kind=scammer_caller`` / ``category=shill_promotions``); env overrides.
 _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
+    # Security watchers (scan tokens they flag)
     "CertiKAlert",
     "PeckShieldAlert",
     "ScamSniffer",
     "SlowMist",
     "zachxbt",
     "cryptobanter",
+    # Call/signal/alpha channels that shill tokens — auto-scan every address
+    "Caesars_Calls",  # 40k members — call channel
+    "PowsGemCalls",  # 113k members — gem calls
+    "renzosalpha",  # 83k members — alpha calls
+    "unfolded",  # 119k members — call channel
+    "mad_apes_gambles",  # 101k members — gamble calls
+    "solearlytrending",  # 109k members — early trending
+    "lyxedegen",  # 43k members — degen calls
+    "CatfishcallsbyPoe",  # 36k members — call channel
+    "ramcalls",  # 42k members — gem calls
+    "LevisAlpha",  # 32k members — alpha calls
+    "masonsalpha",  # 27k members — alpha calls
+    "Bossy_Callz",  # 14k members — call channel
+    "eunicalls",  # 29k members — calls
+    "DarkyCalls",  # 8k members — calls
+    "ALSTEIN_GEMCLUB",  # 10k members — gem club
+    "x100xcallz",  # 24k members — 100x calls
+    "x666calls",  # 18k members — calls
+    "soltrenchtrending",  # 13k members — trench trending
+    "solana100xhunt",  # 40k members — low cap gambles
+    "cryptoprof93",  # 8k members — crypto professor calls
+    "CarnagecallsGambles",  # 7k members — gamble calls
+    "DiorAlpha",  # Dior's Alpha calls
+    "ShmooCalls",  # Shmoo's Calls
+    "marcellcooks",  # 45k members — trench calls
+    "MiladyCalls",  # 13k members — degen calls
+    "Hellokook",  # 16k members — kook calls
+    "NoahhCalls",  # 6k members — alpha group
+    "SugarCalls",  # 34k members — calls
+    "WulfCalls",  # 29k members — calls
+    "YenniDegen",  # 31k members — degen
+    "multichaintrending",  # 33k members — trending events
+    "SoITeam100x",  # 3k members — 100x calls
+    "autosnipeai",  # 3k members — sniper lounge
+    "DogenCalls",  # DOGEN'S CALLS
+    "LegionCallz",  # LEGION calls
+    "SolbixSignal",  # 24k members — bot signals
+    "MajorSOLTrending",  # 55k members — SOL trending
+    "Meraki",  # 23k members
+    "MrpunkGamble",  # 8k members
+    "PhanesHub",  # 49k members
 )
 SCAM_CHANNELS = _env_list("RMI_SCAM_CHANNELS", list(_DEFAULT_SCAM_CHANNELS))
 #: Extra handles/titles to exclude from dialog auto-discovery.
@@ -292,7 +356,9 @@ def _classify_dialog(title: str, username: str) -> ScamSourceType | None:
     return None
 
 
-async def discover_scam_channels(client: Any, max_discovered: int | None = None) -> list[dict[str, Any]]:
+async def discover_scam_channels(
+    client: Any, max_discovered: int | None = None
+) -> list[dict[str, Any]]:
     """Auto-discover scam/shill channels from the followed dialogs list.
 
     Reuses ``app.domains.news_ingest.discovery.discover_followed_channels``
@@ -468,7 +534,9 @@ def extract_token_addresses(article: NewsArticle) -> tuple[list[dict[str, str]],
                 tickers.append(ticker)
         elif kind in ("evm", "solana") and entity not in seen:
             seen.add(entity)
-            addresses.append({"address": entity, "chain": "ethereum" if kind == "evm" else "solana"})
+            addresses.append(
+                {"address": entity, "chain": "ethereum" if kind == "evm" else "solana"}
+            )
     return addresses, tickers
 
 
