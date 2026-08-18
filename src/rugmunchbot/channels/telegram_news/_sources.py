@@ -240,6 +240,19 @@ _DEFAULT_CHANNELS: tuple[str, ...] = (
     "walloftrophies",  # KOL Trending / CallAnalyser (View, 15k)
     "skeletonlounge",  # Skeleton Lounge Portal (View, 23k)
     "rickburpbotnews",  # Rick's Lab (View, 70k — research/alpha)
+    # ── Batch 2: more verified news channels from live probe ──
+    "blockchainmedia",  # Blockchainmedia.id (View, 2k — crypto news)
+    "Coinspeaker",  # Coinspeaker (View, 2k — crypto news)
+    "coingeckonews",  # CoinGecko News (View, 10k — exchange news)
+    "CryptoNobler",  # 0xNobler (View, 51k — crypto analysis)
+    "dimethyeth",  # dime (View, 6k — crypto research)
+    "kamocalls",  # Kamo | Daily trades (View, 3k — market analysis)
+    "fullfeed",  # Drago Den Crypto Technical Signals (View, 7k — TA)
+    "icodrops",  # ICO Drops (View, 43k — ICO/launch news)
+    "BTC_Tick",  # Bitcoin Price (View, 4k — BTC price feed)
+    "BTCPriceX",  # BTC Price (View, 11k — BTC price feed)
+    "solusdprices",  # SOL Price (View, 13k — SOL price feed)
+    "khmertimesbreakingnews",  # Khmer Times Breaking News (View, 21k — regional)
     # ── Known-dead handles (2026-08-16 MTProto probe: "No user has X as username") ──
     # "TheBlock__",  # The Block — DEAD handle
     # "beincrypto",  # BeInCrypto — DEAD handle
@@ -281,7 +294,7 @@ TG_NEWS_ENABLED = _env_bool("RMI_TG_NEWS_CHANNEL_ENABLED", True)
 TG_NEWS_INTERVAL_MINUTES = _env_int("RMI_CHANNEL_TG_NEWS_INTERVAL_MINUTES", 30)
 TG_NEWS_SWEEP_HOURS = _env_int("RMI_TG_NEWS_SWEEP_HOURS", 6)
 TG_NEWS_PER_CHANNEL_LIMIT = _env_int("RMI_TG_NEWS_PER_CHANNEL_LIMIT", 50)
-TG_NEWS_MAX_CHANNELS = _env_int("RMI_TG_NEWS_MAX_CHANNELS", 100)
+TG_NEWS_MAX_CHANNELS = _env_int("RMI_TG_NEWS_MAX_CHANNELS", 200)
 TG_NEWS_POST_LIMIT = _env_int("RMI_TG_NEWS_POST_LIMIT", 5)
 TG_NEWS_PERSIST = _env_bool("RMI_TG_NEWS_PERSIST", True)
 TG_NEWS_RAG = _env_bool("RMI_TG_NEWS_RAG", True)
