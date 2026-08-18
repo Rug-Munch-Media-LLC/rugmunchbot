@@ -272,11 +272,11 @@ HONEYPOT = "https://api.honeypot.is/v2"  # primary EVM security scanner
 # (SentinelReport) for the response schema.
 @lru_cache
 def _resolve_sentinel_url() -> str:
-    """Lazy sentinel endpoint (env override or derived from backend URL)."""
-    return os.getenv("SENTINEL_URL", f"{_resolve_backend_url()}/api/v1/x402-tools/sentinel_scan")
+    """Lazy deepscan endpoint (env override or derived from backend URL)."""
+    return os.getenv("DEEPSCAN_URL", f"{_resolve_backend_url()}/api/v2/scanner/token/deepscan")
 
 
-SENTINEL_TIMEOUT = 60.0  # deep forensic scan can take a while (9+ modules)
+SENTINEL_TIMEOUT = 90.0  # deep forensic scan can take a while (all 20+ modules)
 
 # ══════════════════════════════════════════════
 # SUBSCRIPTION TIERS (Weekly Allotments)
