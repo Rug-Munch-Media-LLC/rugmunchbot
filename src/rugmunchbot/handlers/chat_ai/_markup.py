@@ -22,12 +22,14 @@ from rugmunchbot.handlers.chat_ai._parts import _is_fence_line
 CHUNK_MAX_CHARS = 3800
 
 # Answer length cap applied in ``_send_answer`` BEFORE ``split_in_parts``:
-# a simple query must never turn into a 1000-word wall. 4600 chars ≈ 650-750
-# words — room for a thorough deep analysis; answers that exceed Telegram's
-# 4096 message limit are split across parts by ``split_in_parts``. Capped
-# answers are trimmed at a paragraph/sentence boundary and end with an
-# ellipsis so truncation is honest.
-MAX_ANSWER_CHARS = 4600
+# a guardrail against true 1000-word walls, NOT a truncation policy. 14000
+# chars ≈ 2000-2200 words ≈ 3-4 Telegram parts (each part ≤ 3800 chars) —
+# room for a complete deep analysis (security + holders + deployer +
+# liquidity + narrative + verdict) delivered as multiple messages. Answers
+# that exceed Telegram's 4096 message limit are split across parts by
+# ``split_in_parts``; only answers beyond the cap are trimmed at a
+# paragraph/sentence boundary with an ellipsis so truncation is honest.
+MAX_ANSWER_CHARS = 14000
 
 # ══════════════════════════════════════════════
 # v10 RESPONSE BEAUTIFIER (see _beautify_answer / _markdown_bold_to_html)

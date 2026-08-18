@@ -158,7 +158,9 @@ def _grounding_source_labels(
             # Our own endpoints (quick scanner, wallet analytics, bridge).
             # Map the raw internal key to its RMI brand label first; fall
             # back to the tool name so no /api/ path ever reaches the footer.
-            label = _internal_source_label(src) or _our_tool_labels.get(tool, f"RMI {tool.replace('_', ' ')}")
+            label = _internal_source_label(src) or _our_tool_labels.get(
+                tool, f"RMI {tool.replace('_', ' ')}"
+            )
             _add(label, True)
         elif src:
             key = src.lower()
@@ -288,7 +290,9 @@ async def _send_and_trace_answer(
             data_sources.append(r.source)
     if result.get("provider") == "backend" and result.get("rag_count"):
         data_sources.append("backend-rag")
-    data_sources.extend(str(s.get("type")) for s in bridge_sources if isinstance(s, dict) and s.get("type"))
+    data_sources.extend(
+        str(s.get("type")) for s in bridge_sources if isinstance(s, dict) and s.get("type")
+    )
     trace_answer(
         question=text,
         user_id=user_id,
@@ -356,11 +360,15 @@ async def _send_answer(
     keyboard on the last chunk when present; otherwise the back menu is used.
     """
     raw = _beautify_answer(
-        _tables_to_lists(strip_think_blocks(_scrub_internal_api_refs(_normalize_llm_markup(answer))))
+        _tables_to_lists(
+            strip_think_blocks(_scrub_internal_api_refs(_normalize_llm_markup(answer)))
+        )
     )
-    # No 1000-word walls: a rambling answer is trimmed to a sane length at a
-    # paragraph/sentence boundary (with an ellipsis) BEFORE the Telegram
-    # chunker — a simple query must never become a multi-part monologue.
+    # Anti-wall guardrail, not a truncation policy: the cap (14000 chars ≈
+    # 3-4 Telegram parts) only trims a genuinely rambling answer at a
+    # paragraph/sentence boundary (with an ellipsis). Deep analysis is
+    # EXPECTED to span multiple parts — split_in_parts below delivers each
+    # part as its own message, so answers complete fully.
     raw = _cap_answer(raw)
     chunks = split_in_parts(raw, max_chars=CHUNK_MAX_CHARS)
     if not chunks:
@@ -374,7 +382,9 @@ async def _send_answer(
             # untrusted bridge metadata — scrub internal API refs then escape
             # AFTER the answer escape pass so they can never inject HTML into
             # the footer.
-            names = ", ".join(escape(_scrub_internal_api_refs(name)) for name, _is_ours in source_labels)
+            names = ", ".join(
+                escape(_scrub_internal_api_refs(name)) for name, _is_ours in source_labels
+            )
             if distinct_sources is not None and distinct_sources > len(source_labels):
                 names += f", \u2026 +{distinct_sources - len(source_labels)} more"
             count_word = "source" if grounding_count == 1 else "sources"

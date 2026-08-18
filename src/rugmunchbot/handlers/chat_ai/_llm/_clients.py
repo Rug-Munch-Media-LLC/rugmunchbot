@@ -74,13 +74,17 @@ async def _call_backend_chat(
     payload: dict[str, Any] = {
         "message": message[:MAX_MESSAGE_CHARS],
         "history": history or [],
-        # Output budget for the backend RAG synthesis. 320 is the backend
-        # ChatRequest default (2026-08-15: 768 -> 320) — measured on the live
-        # CPU host, the real ~2100-token prompt takes 87-136s on the 4B at
-        # max_tokens=768 but only 24-27s at 320. Long answers are chunked
-        # bot-side (3800 chars) so a shorter budget still renders fully; the
-        # /chat route accepts 64..8192.
-        "max_tokens": 320,
+        # Output budget for the backend RAG synthesis. 1536 is the value the
+        # backend team validated for COMPLETE answers (2026-08-14: 512 was
+        # truncating long educational answers mid-sentence; 1536 fixed it).
+        # The old 320 cap was a CPU-host latency lever (87-136s on the local
+        # 4B) — the backend chat route now runs on hosted GPU free tiers
+        # (OpenRouter: Laguna snappy / Nemotron long), so generation is fast
+        # and the budget is no longer the latency lever. 1536 tokens ≈ 6000
+        # chars ≈ 1.5 Telegram parts; the bot-side chunker (3800 chars/part)
+        # splits anything longer into multiple messages. The /chat route
+        # accepts 64..8192.
+        "max_tokens": 1536,
         # The #1 intelligence gap: without this, ~90% of answers use the
         # generic backend SYSTEM_PROMPT, not the sharp grounded persona.
         "context_override": {"system_context": PERSONA_CONTEXT},
@@ -121,7 +125,11 @@ async def _call_backend_chat(
     try:
         raw_message = raw.get("message")
         if not isinstance(raw_message, str):
-            logger.debug("backend chat malformed message (user=%s, type=%s)", user_id, type(raw_message).__name__)
+            logger.debug(
+                "backend chat malformed message (user=%s, type=%s)",
+                user_id,
+                type(raw_message).__name__,
+            )
             return None
         answer = _links_to_plain_text(raw_message.strip())
         usage = raw.get("usage")
@@ -191,7 +199,9 @@ async def _call_remote_fast(
     base_url = str(cfg.get("base_url") or "")
     model = str(cfg.get("model") or "")
     if not api_key or not base_url or not model:
-        logger.debug("remote LLM not configured (user=%s, tier=%s): key/base/model missing", user_id, tier)
+        logger.debug(
+            "remote LLM not configured (user=%s, tier=%s): key/base/model missing", user_id, tier
+        )
         return None
 
     timeout = REMOTE_SNAPPY_TIMEOUT if tier == "snappy" else REMOTE_LONG_TIMEOUT
@@ -216,7 +226,9 @@ async def _call_remote_fast(
     }
     t0 = time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=5.0, read=timeout, write=10.0)) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout, connect=5.0, read=timeout, write=10.0)
+        ) as client:
             r = await asyncio.wait_for(
                 client.post(base_url, headers=headers, json=payload),
                 timeout=timeout,
@@ -281,7 +293,9 @@ async def _call_remote_fast(
                 answer = strip_think_tags(answer)
                 answer = _links_to_plain_text(answer)
         except Exception as exc:
-            logger.debug("cost-aware chat fallback failed (user=%s, tier=%s): %s", user_id, tier, exc)
+            logger.debug(
+                "cost-aware chat fallback failed (user=%s, tier=%s): %s", user_id, tier, exc
+            )
             answer = ""
 
     if not answer:
@@ -429,7 +443,9 @@ async def _call_remote_llm(
     result = await _llm_mod._call_remote_fast(tier, messages, user_id, sources=sources)
     if result is not None:
         return result
-    logger.warning("remote LLM chain unavailable (user=%s, tier=%s) — graceful message", user_id, tier)
+    logger.warning(
+        "remote LLM chain unavailable (user=%s, tier=%s) — graceful message", user_id, tier
+    )
     return {
         "message": REMOTE_UNAVAILABLE_MESSAGE,
         "rag_count": len(sources or []),

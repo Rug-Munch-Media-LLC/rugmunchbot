@@ -37,14 +37,15 @@ CHAT_TURN_DEADLINE = 25.0
 
 # Long-tier (deep-analysis) turns get a SLIGHTLY higher end-to-end deadline
 # than snappy/backend turns. The deep fallback chain stacks a hard-capped
-# ~6s context gather (FALLBACK_CONTEXT_HARD_CAP) + a 15s long-model call
-# (REMOTE_LONG_TIMEOUT) + a possible 10s paid fallback
-# (llm_config._chat_once) — ~31s worst case, which no longer fits the snappy
-# 25s window. Snappy/backend turns keep the fast CHAT_TURN_DEADLINE; only
-# questions that _route_tier() sends to the "long" provider get the extra
-# room. The typing indicator + interim "still digging" placeholder keep the
-# user engaged for the longer wait (see _keep_typing / _edit_placeholder_if_slow).
-CHAT_TURN_DEADLINE_LONG = 40.0
+# ~6s context gather (FALLBACK_CONTEXT_HARD_CAP) + a 28s long-model call
+# (REMOTE_LONG_TIMEOUT — raised with REMOTE_LONG_MAX_TOKENS so the 2000-token
+# deep-analysis budget can complete on hosted GPU) + a possible 10s paid
+# fallback (llm_config._chat_once) — ~44s worst case, which no longer fits
+# the snappy 25s window. Snappy/backend turns keep the fast CHAT_TURN_DEADLINE;
+# only questions that _route_tier() sends to the "long" provider get the
+# extra room. The typing indicator + interim "still digging" placeholder keep
+# the user engaged for the longer wait (see _keep_typing / _edit_placeholder_if_slow).
+CHAT_TURN_DEADLINE_LONG = 50.0
 
 # Short graceful reply when a turn exceeds the hard end-to-end deadline.
 TIMEOUT_REPLY = "\u23f3 Taking longer than expected \u2014 try again or narrow your question."

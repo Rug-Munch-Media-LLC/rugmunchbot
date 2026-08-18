@@ -1,0 +1,39 @@
+"""Config loading — env-driven defaults, no gopass at import time."""
+
+import importlib
+import os
+
+
+def test_bot_token_not_bound_at_import():
+    """BOT_TOKEN must not trigger gopass at module import (config loads clean)."""
+    os.environ.pop("RUGMUNCH_BOT_TOKEN", None)
+    os.environ.pop("TELEGRAM_RUGMUNCH_BOT_TOKEN", None)
+    os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+    import rugmunchbot.config as cfg
+
+    # token resolution is on-demand (property/dynamic) — importing is safe
+    assert hasattr(cfg, "BACKEND_URL")
+
+
+def test_backend_url_env_override():
+    # Need to set env var BEFORE importing the module
+    os.environ["RMI_BACKEND_URL"] = "http://test-backend:8000"
+    # Force re-import to pick up the new env var
+    import rugmunchbot.config as cfg
+
+    importlib.reload(cfg)
+    from rugmunchbot.config import BACKEND_URL
+
+    assert BACKEND_URL == "http://test-backend:8000"
+
+
+def test_llm_model_defaults():
+    os.environ.pop("LLM_MODEL", None)
+    os.environ.pop("LLM_LONG_MODEL", None)
+    importlib.reload(__import__("rugmunchbot.llm_config", fromlist=["x"]))
+    from rugmunchbot.llm_config import get_long_config, get_snappy_config
+
+    snappy = get_snappy_config()
+    long_cfg = get_long_config()
+    assert "laguna" in snappy["model"]  # snappy tier
+    assert "nemotron" in long_cfg["model"]  # long tier

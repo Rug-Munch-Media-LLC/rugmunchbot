@@ -16,6 +16,11 @@ WEB = (
 )
 raw = WEB.read_text()
 
+# Check if already migrated
+if "from rugmunchbot.llm_config import chat_with_fallback" in raw:
+    print("web.py: already bot-local (idempotent)")
+    sys.exit(0)
+
 OLD_IMPORT = "    from app.ai_router import chat_completion as _chat_completion"
 NEW_IMPORT = "    from rugmunchbot.llm_config import chat_with_fallback"
 
@@ -58,7 +63,12 @@ if OLD_IMPORT in raw:
 
     WEB.write_text(raw)
     print("web.py: knowledge fallback -> bot-local llm_config")
-elif "chat_with_fallback(messages=messages" not in raw:
-    raise SystemExit("web.py: ai_router import neither old nor new form")
-else:
+    sys.exit(0)
+
+# Already migrated - check if already using chat_with_fallback
+if "chat_with_fallback(messages=messages, tier=" in raw:
     print("web.py: already bot-local (idempotent)")
+    sys.exit(0)
+
+# Neither old nor new pattern found
+raise SystemExit("web.py: unrecognized format")
