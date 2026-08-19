@@ -2,17 +2,20 @@
 
 Phase 2a extraction of the bits the bot uses from rmi-backend's
 ``app.llm_config`` (frozen copy of the same logic; env-driven, reads the
-bot's own environment — ``OPENROUTER_BACKUP_API_KEY`` etc. come from
-``/srv/secrets/rugmunchbot.env``).
+bot's own environment — ``OPENROUTER_BACKUP_API_KEY`` and
+``KILOCODE_API_KEY`` come from ``/srv/secrets/rugmunchbot.env``).
 
-Chain (canonical — matches rmi-backend):
-  snappy = ``poolside/laguna-s-2.1:free``   (fast chat, OpenRouter free)
-  long   = ``nvidia/nemotron-3-ultra-550b-a55b:free`` (deep analysis)
-  paid   = ``qwen/qwen-2.5-7b-instruct:lowest`` (last-resort fallback)
+Chain (canonical — updated 2026-08-19):
+  snappy = ``stepfun/step-3.7-flash:free`` via KiloCode (fast chat, free)
+  long   = ``nvidia/nemotron-3.5-lightning:free`` via KiloCode (deep analysis, fast)
+  paid   = ``openai/gpt-oss-20b:free`` via OpenRouter (last-resort fallback)
 On ANY free-tier failure (429 / non-200 / timeout / empty) the call is
 retried once with the paid ``:lowest`` model so chat never dies on a
 free-tier rate-limit. Returns ``""`` when both fail — callers fail open.
 Never raises; never logs the API key.
+
+Note: StepFlash on OpenRouter is 402 (needs credits). StepFlash IS free on
+KiloCode. Lightning is snappier than Ultra for detailed analysis.
 """
 
 from __future__ import annotations
@@ -25,47 +28,59 @@ import httpx
 
 OPENROUTER_BASE = os.getenv("OPENROUTER_BASE", "https://openrouter.ai/api/v1")
 OPENROUTER_BACKUP_API_KEY = os.getenv("OPENROUTER_BACKUP_API_KEY", "")
+KILOCODE_BASE = os.getenv("KILOCODE_BASE", "http://127.0.0.1:18091/api/gateway")
+KILOCODE_API_KEY = os.getenv("KILOCODE_API_KEY", "")
 
 
 def get_snappy_config() -> dict[str, Any]:
-    """Config for fast chat answers (Poolside Laguna S 2.1, FREE via OpenRouter).
+    """Config for fast chat answers (StepFlash 3.7 via KiloCode, FREE).
 
-    max_tokens 2000 (was 256) — the snappy prompt tells the model to write the
+    StepFlash delivers quick, snappy responses with 256K context.
+    Falls back to OpenRouter GPT-OSS if KiloCode is down.
+    max_tokens 2000 — the snappy prompt tells the model to write the
     COMPLETE answer when a question needs depth; the old cap truncated
     detailed answers mid-sentence. Multi-part delivery splits long answers.
     """
     return {
-        "model": "poolside/laguna-s-2.1:free",
-        "base_url": f"{OPENROUTER_BASE}/chat/completions",
-        "api_key": OPENROUTER_BACKUP_API_KEY,
+        "model": "stepfun/step-3.7-flash:free",
+        "base_url": f"{KILOCODE_BASE}/chat/completions",
+        "api_key": KILOCODE_API_KEY,
+        "fallback_model": "openai/gpt-oss-20b:free",
+        "fallback_base_url": f"{OPENROUTER_BASE}/chat/completions",
+        "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 2000,
         "temperature": 0.4,
     }
 
 
 def get_long_config() -> dict[str, Any]:
-    """Config for longer/deep answers (NVIDIA Nemotron 3 Ultra 550B, FREE via OpenRouter).
+    """Config for deep analysis answers (Nemotron 3.5 Lightning via KiloCode, FREE).
 
-    max_tokens 3000 (was 1024) — deep analysis needs the budget to finish the
+    Lightning is snappier than Nemotron Ultra — delivers deep analysis in
+    ~1/5 the time. 256K context window fits full contract audits + reports.
+    Falls back to OpenRouter Nemotron Ultra:free if KiloCode is down.
+    max_tokens 3000 — deep analysis needs the budget to finish the
     full structure (direct answer → mechanism → figures → caveat).
     """
     return {
-        "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "base_url": f"{OPENROUTER_BASE}/chat/completions",
-        "api_key": OPENROUTER_BACKUP_API_KEY,
+        "model": "nvidia/nemotron-3.5-lightning:free",
+        "base_url": f"{KILOCODE_BASE}/chat/completions",
+        "api_key": KILOCODE_API_KEY,
+        "fallback_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "fallback_base_url": f"{OPENROUTER_BASE}/chat/completions",
+        "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 3000,
         "temperature": 0.7,
     }
 
 
 def get_cheap_fallback_config() -> dict[str, Any]:
-    """Bottom-of-the-barrel PAID fallback when the free tiers rate-limit.
+    """Free last-resort fallback when primary tiers fail.
 
-    Uses the ``:lowest`` modifier so OpenRouter routes to the cheapest host.
-    ~$0.05-0.07 / 1M tokens. Swap the model here to change the fallback.
+    Uses GPT-OSS 20B via OpenRouter free tier. Zero cost.
     """
     return {
-        "model": "qwen/qwen-2.5-7b-instruct:lowest",
+        "model": "openai/gpt-oss-20b:free",
         "base_url": f"{OPENROUTER_BASE}/chat/completions",
         "api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 2000,
@@ -121,7 +136,13 @@ async def _chat_once(
     try:
         content = raw["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError):
-        return ""
+        content = ""
+    # KiloCode StepFlash puts output in `reasoning` field when `content` is empty
+    if not content:
+        try:
+            content = raw["choices"][0]["message"]["reasoning"]
+        except (KeyError, IndexError, TypeError):
+            content = ""
     if not isinstance(content, str):
         return ""
     return content.strip()
@@ -149,11 +170,14 @@ async def chat_with_fallback(
     tier: str,
     max_tokens: int | None = None,
 ) -> str:
-    """Chat via the free OpenRouter tier, degrading to the cheap PAID model.
+    """Chat via KiloCode free tier with OpenRouter fallback.
 
-    ``tier`` selects the free provider: ``"snappy"`` (laguna-s-2.1:free) or
-    ``"long"`` (nemotron-3-ultra:free). On ANY failure the call is retried
-    ONCE with the paid ``:lowest`` fallback. Returns ``""`` when both fail.
+    ``tier`` selects the free provider:
+      ``"snappy"`` → KiloCode StepFlash 3.7:free → OR GPT-OSS 20B:free
+      ``"long"``   → KiloCode Lightning:free → OR Nemotron Ultra:free
+    On ANY failure the call is retried ONCE with the fallback free model,
+    then once more with the cheap paid-tier fallback.
+    Returns ``""`` when all fail.
     """
     if tier == "snappy":
         config = get_snappy_config()
@@ -162,7 +186,22 @@ async def chat_with_fallback(
     else:
         return ""  # unknown tier — fail open, no request
 
+    # Try primary (KiloCode)
     answer = await _chat_once(config, messages, max_tokens)
     if answer:
         return answer
+
+    # Try fallback (OpenRouter)
+    fallback_config = {
+        "model": config.get("fallback_model", ""),
+        "base_url": config.get("fallback_base_url", ""),
+        "api_key": config.get("fallback_api_key", ""),
+        "max_tokens": config.get("max_tokens", 2000),
+        "temperature": config.get("temperature", 0.5),
+    }
+    answer = await _chat_once(fallback_config, messages, max_tokens)
+    if answer:
+        return answer
+
+    # Last resort: cheap fallback
     return await _chat_once(get_cheap_fallback_config(), messages, max_tokens)
