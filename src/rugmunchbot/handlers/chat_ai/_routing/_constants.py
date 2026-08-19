@@ -33,10 +33,10 @@ TOKEN_CARD_DECIDE_WAIT = 1.0
 # but stacked worst-case they could hang a turn. This outer bound guarantees
 # the user always gets SOME reply: asyncio.wait_for cancels the turn past the
 # deadline and the timeout handler swaps the placeholder for a short graceful
-# reply. 30s = 20s snappy LLM generation (REMOTE_SNAPPY_TIMEOUT, raised with
+# reply. 35s = 25s snappy LLM generation (REMOTE_SNAPPY_TIMEOUT, raised with
 # REMOTE_SNAPPY_MAX_TOKENS so a full 2000-token answer completes) + the
 # concurrent context gather that overlaps the LLM call.
-CHAT_TURN_DEADLINE = 30.0
+CHAT_TURN_DEADLINE = 35.0
 
 # Long-tier (deep-analysis) turns get a SLIGHTLY higher end-to-end deadline
 # than snappy/backend turns. The deep fallback chain stacks a hard-capped

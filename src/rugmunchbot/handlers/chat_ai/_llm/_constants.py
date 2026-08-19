@@ -19,7 +19,7 @@ import re
 # Ultra 550B via OpenRouter for longer / reasoning analysis answers.
 # Hosted GPU — seconds instead of the 70-90s CPU generation the old local
 # chain measured.
-REMOTE_SNAPPY_TIMEOUT = 20.0  # must stay fast, but room for a full 2000-token answer
+REMOTE_SNAPPY_TIMEOUT = 25.0  # room for a full 2000-token answer on KiloCode StepFlash
 REMOTE_LONG_TIMEOUT = 60.0  # deep-analysis needs the full outer deadline; free Nemotron
 # 3 Ultra can take 45-55s to generate 3000 tokens at 0.7 temperature
 
@@ -148,7 +148,7 @@ RAG_LOOKUP_WAIT = 4.0
 _TIER_ADDRESS_OR_HASH_RE = re.compile(r"\b0x[a-fA-F0-9]{40,64}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b")
 # Explicit forensics/contract signals — analysis even inside a definition.
 _TIER_ANALYSIS_FORENSIC_RE = re.compile(
-    r"\b(?:analyze|investigate|trace|contract|deployer|tokenomics|audit)\b",
+    r"\b(?:analyze|analysis|investigate|trace|contract|deployer|tokenomics|audit)\b",
     re.IGNORECASE,
 )
 # Definitional questions — "what is / explain / define / how does X work":
