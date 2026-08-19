@@ -226,6 +226,9 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "Shahlito",  # shahlito calls — scam shills
     "WatcherGuru",  # crypto news + shills aggregator
     "SpidersJournal",  # spyder's journal — calls/signals
+    "WimarX",  # ardizor scam network — call channel
+    "danny_crypton",  # ardizor scam network — call channel (also in news sources)
+    "solsticesmoonshots",  # ardizor scam network — moon shot calls
     "DiorAlpha",  # Dior's Alpha calls
     "ShmooCalls",  # Shmoo's Calls
     "marcellcooks",  # 45k members — trench calls
