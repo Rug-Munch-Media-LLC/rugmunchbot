@@ -211,14 +211,23 @@ _MENU_EMOJI: dict[str, str] = {
 }
 
 # ══════════════════════════════════════════════
-# Project & Open Source links (public Codeberg mirrors only — never the
-# internal forgejo/radicle remotes). Single source of truth for the compact
-# "🔗 Project & Open Source" block shown in the /start welcome and the /menu
-# atlas (reused by ``keyboards.category_help_kb``).
+# Project & Open Source links (public mirrors across all platforms).
+# Single source of truth for the compact "🔗 Project & Open Source" block
+# shown in the /start welcome and the /menu atlas (reused by
+# ``keyboards.category_help_kb``).
 # ══════════════════════════════════════════════
 
 #: Public Codeberg org page for the RugMunch open-source repos.
 CODEBERG_ORG: str = "https://codeberg.org/cryptorugmunch"
+
+#: Forgejo (primary) org page.
+FORGEJO_ORG: str = "https://git.rugmunch.io/RugMunchMedia"
+
+#: GitLab mirror org.
+GITLAB_ORG: str = "https://gitlab.com/cryptorugmunch"
+
+#: Radicle seed hosted at cryptorugmunch.com
+RADICLE_SEED: str = "https://cryptorugmunch.com"
 
 #: The six public RMI open-source repos: (short label, public Codeberg URL).
 OPEN_SOURCE_REPOS: tuple[tuple[str, str], ...] = (
@@ -237,11 +246,35 @@ def project_links_section() -> str:
     Three lines only — one section header, the website, one repo line with
     short labels — so it stays a small block, never a wall of links.
     """
-    repos = " \u00b7 ".join(f'<a href="{url}">{html.escape(label, quote=True)}</a>' for label, url in OPEN_SOURCE_REPOS)
+    repos = " \u00b7 ".join(
+        f'<a href="{url}">{html.escape(label, quote=True)}</a>' for label, url in OPEN_SOURCE_REPOS
+    )
     return (
         "\U0001f517 <b>Project &amp; Open Source</b>\n"
         '\U0001f310 <a href="https://rugmunch.io">rugmunch.io</a> \u2014 crypto intelligence\n'
         f"\U0001f419 {repos}"
+    )
+
+
+def build_in_public_section() -> str:
+    """Full '🔨 Build in Public' block with all four repo mirrors (HTML-safe).
+
+    Shown in the welcome card for returning users: lists every repo mirror
+    platform so users can follow development wherever they prefer.
+    """
+    repos = " \u00b7 ".join(
+        f'<a href="{url}">{html.escape(label, quote=True)}</a>' for label, url in OPEN_SOURCE_REPOS
+    )
+    return (
+        "\U0001f6e0\ufe0f <b>Built in Public</b>\n"
+        "Every line of code ships open source \u2014 see what's coming next, "
+        "report issues, or fork the stack.\n\n"
+        f"\U0001f419 <b>Repos</b>\n{repos}\n\n"
+        "\U0001f4e6 <b>Mirrors</b>\n"
+        f'\U0001f310 <a href="{CODEBERG_ORG}">Codeberg</a>'
+        f' \u00b7 <a href="{FORGEJO_ORG}">Forgejo</a>'
+        f' \u00b7 <a href="{GITLAB_ORG}">GitLab</a>'
+        f' \u00b7 <a href="{RADICLE_SEED}">Radicle</a>'
     )
 
 

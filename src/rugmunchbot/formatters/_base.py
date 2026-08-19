@@ -268,7 +268,9 @@ DEX_BUTTONS_PER_ROW = 2
 UNKNOWN_CHAIN_MINIMAL = ("odinbot", "banana")
 
 
-def _ref_platform_buttons(token: str, chain: str, only: tuple[str, ...] | None = None) -> list[InlineKeyboardButton]:
+def _ref_platform_buttons(
+    token: str, chain: str, only: tuple[str, ...] | None = None
+) -> list[InlineKeyboardButton]:
     """Chain-filtered ``DEX_REF_LINKS`` buttons in ``DEX_BUTTON_PRIORITY`` order.
 
     Fills ``{token}`` / ``{chain}`` / ``{chain_id}`` placeholders from the
@@ -279,7 +281,11 @@ def _ref_platform_buttons(token: str, chain: str, only: tuple[str, ...] | None =
     chain_l = (chain or "").lower()
     ordered = sorted(
         DEX_REF_LINKS.items(),
-        key=lambda kv: DEX_BUTTON_PRIORITY.index(kv[0]) if kv[0] in DEX_BUTTON_PRIORITY else len(DEX_BUTTON_PRIORITY),
+        key=lambda kv: (
+            DEX_BUTTON_PRIORITY.index(kv[0])
+            if kv[0] in DEX_BUTTON_PRIORITY
+            else len(DEX_BUTTON_PRIORITY)
+        ),
     )
     buttons: list[InlineKeyboardButton] = []
     for key, dex in ordered:
@@ -297,7 +303,9 @@ def _ref_platform_buttons(token: str, chain: str, only: tuple[str, ...] | None =
     return buttons
 
 
-def dex_button_rows(token: str, chain: str, per_row: int = DEX_BUTTONS_PER_ROW) -> list[list[InlineKeyboardButton]]:
+def dex_button_rows(
+    token: str, chain: str, per_row: int = DEX_BUTTONS_PER_ROW
+) -> list[list[InlineKeyboardButton]]:
     """Chain-filtered referral trade buttons grouped into rows of ≤ ``per_row``.
 
     Renders the full ``DEX_REF_LINKS`` set for the chain in
@@ -321,8 +329,12 @@ def dex_button_rows(token: str, chain: str, per_row: int = DEX_BUTTONS_PER_ROW) 
         # Chart trade links — DexScreener (no ref program) + DexTools (ref via
         # REF_CODES / RMI_REF_DEXTOOLS when configured). GMGN already ships via
         # DEX_REF_LINKS above, so it is not duplicated here.
-        buttons.append(InlineKeyboardButton("\U0001f986 DexScreener", url=dexscreener_url(token, chain_l)))
-        buttons.append(InlineKeyboardButton("\U0001f4c8 DexTools", url=dextools_url(token, chain_l)))
+        buttons.append(
+            InlineKeyboardButton("\U0001f986 DexScreener", url=dexscreener_url(token, chain_l))
+        )
+        buttons.append(
+            InlineKeyboardButton("\U0001f4c8 DexTools", url=dextools_url(token, chain_l))
+        )
     per_row = max(1, per_row)
     return [buttons[i : i + per_row] for i in range(0, len(buttons), per_row)]
 
@@ -431,7 +443,16 @@ def welcome_card_text() -> str:
         f"\U0001f4cc Try <code>/scan</code> <code>address</code> or "
         f"<code>/chat</code> <code>question</code>\n"
         f"\U0001f4cc New here? <code>/faq</code> \u2014 how it works\n"
-        f"\U0001f4cc Pick a section below \U0001f447"
+        f"\U0001f4cc Pick a section below \U0001f447\n\n"
+        f"\U0001f6e0\ufe0f <b>Built in Public</b>\n"
+        f"Every line of code ships open source \u2014 "
+        f'<a href="https://codeberg.org/cryptorugmunch">Codeberg</a>'
+        f" \u00b7 "
+        f'<a href="https://git.rugmunch.io/RugMunchMedia">Forgejo</a>'
+        f" \u00b7 "
+        f'<a href="https://gitlab.com/cryptorugmunch">GitLab</a>'
+        f" \u00b7 "
+        f'<a href="https://cryptorugmunch.com">Radicle</a>\n'
         f"{footer_links()}"
     )
 
@@ -606,7 +627,9 @@ def format_scoring_breakdown(breakdown: dict[str, Any]) -> str:
             delta_str = " \u25b2"
         elif delta < 0:
             delta_str = " \u25bc"
-        lines.append(f"  {marker} {label:<22} <code>{bar}</code> <b>{score:.0f}/{maximum:.0f}</b>{delta_str}")
+        lines.append(
+            f"  {marker} {label:<22} <code>{bar}</code> <b>{score:.0f}/{maximum:.0f}</b>{delta_str}"
+        )
         flags = entry.get("flags") or []
         if flags:
             for fl in flags[:2]:
