@@ -231,6 +231,7 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "solsticesmoonshots",  # moon shot calls
     "erics_calls",  # eric's call channel — scam shills
     "CryptoFrogsGems",  # crypto frogs gem calls — scam shills
+    "crypto_memes",  # crypto memes — meme coin shills
     "DiorAlpha",  # Dior's Alpha calls
     "ShmooCalls",  # Shmoo's Calls
     "marcellcooks",  # 45k members — trench calls
