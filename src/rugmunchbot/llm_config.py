@@ -49,7 +49,8 @@ def get_snappy_config() -> dict[str, Any]:
         "fallback_base_url": f"{OPENROUTER_BASE}/chat/completions",
         "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 2000,
-        "temperature": 0.4,
+        "temperature": 0.3,
+        "timeout": 20.0,
     }
 
 
@@ -60,7 +61,8 @@ def get_long_config() -> dict[str, Any]:
     ~1/5 the time. 256K context window fits full contract audits + reports.
     Falls back to OpenRouter Nemotron Ultra:free if KiloCode is down.
     max_tokens 3000 — deep analysis needs the budget to finish the
-    full structure (direct answer → mechanism → figures → caveat).
+    full structure (direct answer → figures → evidence → caveat → close).
+    120s timeout — Lightning can take 30-60s for a full analysis.
     """
     return {
         "model": "nvidia/nemotron-3.5-lightning:free",
@@ -71,6 +73,7 @@ def get_long_config() -> dict[str, Any]:
         "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 3000,
         "temperature": 0.7,
+        "timeout": 120.0,
     }
 
 
@@ -78,6 +81,7 @@ def get_cheap_fallback_config() -> dict[str, Any]:
     """Free last-resort fallback when primary tiers fail.
 
     Uses GPT-OSS 20B via OpenRouter free tier. Zero cost.
+    30s timeout — should be fast enough for a lightweight model.
     """
     return {
         "model": "openai/gpt-oss-20b:free",
@@ -85,19 +89,21 @@ def get_cheap_fallback_config() -> dict[str, Any]:
         "api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 2000,
         "temperature": 0.5,
+        "timeout": 30.0,
     }
 
 
 async def _chat_once(
     config: dict[str, Any],
     messages: list[dict[str, str]],
-    max_tokens: int | None,
+    max_tokens: int | None = None,
 ) -> str:
     """One OpenAI-compatible chat POST to ``config``. Returns stripped content
-    or ``""``. Never raises."""
+    or ``""``. Uses tier-specific timeout from config. Never raises."""
     api_key = str(config.get("api_key") or "")
     base_url = str(config.get("base_url") or "")
     model = str(config.get("model") or "")
+    timeout = float(config.get("timeout") or 60.0)
     if not api_key or not base_url or not model or not messages:
         return ""
 
@@ -115,37 +121,47 @@ async def _chat_once(
         else int(config.get("max_tokens") or 512),
         "temperature": float(config.get("temperature") or 0.5),
     }
-    try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0, connect=5.0, read=60.0, write=10.0)
-        ) as client:
-            resp = await asyncio.wait_for(
-                client.post(base_url, headers=headers, json=payload),
-                timeout=60.0,
-            )
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError, ValueError):
-        return ""
-    if resp.status_code != 200:
-        return ""
-    try:
-        raw = resp.json()
-    except ValueError:
-        return ""
-    if not isinstance(raw, dict):
-        return ""
-    try:
-        content = raw["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError):
-        content = ""
-    # KiloCode StepFlash puts output in `reasoning` field when `content` is empty
-    if not content:
+
+    # Retry once on transient failures (429, 5xx, timeout)
+    for attempt in range(2):
         try:
-            content = raw["choices"][0]["message"]["reasoning"]
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(timeout, connect=5.0, read=timeout, write=10.0)
+            ) as client:
+                resp = await asyncio.wait_for(
+                    client.post(base_url, headers=headers, json=payload),
+                    timeout=timeout,
+                )
+        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError, ValueError):
+            if attempt == 0:
+                continue  # retry once
+            return ""
+        if resp.status_code in (429, 502, 503, 504):
+            if attempt == 0:
+                continue  # retry once on rate-limit / gateway errors
+            return ""
+        if resp.status_code != 200:
+            return ""
+        try:
+            raw = resp.json()
+        except ValueError:
+            return ""
+        if not isinstance(raw, dict):
+            return ""
+        try:
+            content = raw["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
             content = ""
-    if not isinstance(content, str):
-        return ""
-    return content.strip()
+        # KiloCode StepFlash puts output in `reasoning` field when `content` is empty
+        if not content:
+            try:
+                content = raw["choices"][0]["message"]["reasoning"]
+            except (KeyError, IndexError, TypeError):
+                content = ""
+        if not isinstance(content, str):
+            return ""
+        return content.strip()
+    return ""
 
 
 async def chat_completion(
