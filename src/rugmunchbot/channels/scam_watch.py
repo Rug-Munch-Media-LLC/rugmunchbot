@@ -696,10 +696,10 @@ async def _feed_rag(articles: list[NewsArticle]) -> int:
     if not articles:
         return 0
     try:
-        from rugmunchbot._vendor.rag_pkg.ingestion import BatchIngestor
+        from rugmunchbot._vendor.rag_pkg.ingestion import BatchIngestor, Document
 
-        ingestor = BatchIngestor(collection="threat_intel_v2")
-        docs = []
+        ingestor = BatchIngestor()
+        ingested = 0
         for art in articles:
             title = (art.title or "Scam Alert").strip()
             body = (art.body or art.text or "").strip()
@@ -710,25 +710,22 @@ async def _feed_rag(articles: list[NewsArticle]) -> int:
             content = f"Source: {source}\nTitle: {title}\n{body}"
             if url:
                 content = f"URL: {url}\n{content}"
-            from rugmunchbot._vendor.rag_pkg.ingestion import Document
-
-            docs.append(
-                Document(
-                    content=content[:8000],
-                    doc_id=f"scam:{source}:{hash(content[:500])}",
-                    metadata={
-                        "source": source,
-                        "category": "scam_shill",
-                        "channel": source,
-                        "url": url,
-                        "ingested_at": datetime.now(UTC).isoformat(),
-                    },
-                )
+            doc = Document(
+                content=content[:8000],
+                doc_id=f"scam:{source}:{hash(content[:500])}",
+                collection="threat_intel_v2",
+                metadata={
+                    "source": source,
+                    "category": "scam_shill",
+                    "channel": source,
+                    "url": url,
+                    "ingested_at": datetime.now(UTC).isoformat(),
+                },
+                source_type="telegram_scam",
             )
-        if not docs:
-            return 0
-        report = await ingestor.ingest_batch(docs)
-        ingested = getattr(report, "ingested", 0) or 0
+            report = await ingestor.ingest_batch([doc])
+            if report.ingested:
+                ingested += report.ingested
         if ingested:
             logger.info("scam_watch:rag_ingested count=%s", ingested)
         return ingested
