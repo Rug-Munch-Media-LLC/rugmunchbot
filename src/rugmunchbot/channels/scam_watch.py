@@ -228,6 +228,8 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "SpidersJournal",  # spyder's journal — calls/signals
     "WimarX",  # ardizor scam network — call channel
     "danny_crypton",  # ardizor scam network — call channel (also in news sources)
+    "ardizoralpha",  # ardizor alpha — ardizor scam network calls
+    "ardizor",  # ardizor main — ardizor scam network
     "solsticesmoonshots",  # moon shot calls
     "erics_calls",  # eric's call channel — scam shills
     "CryptoFrogsGems",  # crypto frogs gem calls — scam shills
@@ -239,6 +241,7 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "Hellokook",  # 16k members — kook calls
     "NoahhCalls",  # 6k members — alpha group
     "SugarCalls",  # 34k members — calls
+    "sugarydick",  # sugar calls — scam shill channel
     "WulfCalls",  # 29k members — calls
     "YenniDegen",  # 31k members — degen
     "multichaintrending",  # 33k members — trending events
