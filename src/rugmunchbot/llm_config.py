@@ -50,7 +50,7 @@ def get_snappy_config() -> dict[str, Any]:
         "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 2000,
         "temperature": 0.3,
-        "timeout": 20.0,
+        "timeout": 40.0,
     }
 
 
