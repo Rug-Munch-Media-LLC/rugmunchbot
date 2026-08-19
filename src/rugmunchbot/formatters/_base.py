@@ -452,7 +452,7 @@ def welcome_card_text() -> str:
         f" \u00b7 "
         f'<a href="https://gitlab.com/cryptorugmunch">GitLab</a>'
         f" \u00b7 "
-        f'<a href="https://cryptorugmunch.com">Radicle</a>\n'
+        f'<a href="https://git.cryptorugmunch.com">Radicle</a>\n'
         f"{footer_links()}"
     )
 

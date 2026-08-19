@@ -227,7 +227,7 @@ FORGEJO_ORG: str = "https://git.rugmunch.io/RugMunchMedia"
 GITLAB_ORG: str = "https://gitlab.com/cryptorugmunch"
 
 #: Radicle seed hosted at cryptorugmunch.com
-RADICLE_SEED: str = "https://cryptorugmunch.com"
+RADICLE_SEED: str = "https://git.cryptorugmunch.com"
 
 #: The six public RMI open-source repos: (short label, public Codeberg URL).
 OPEN_SOURCE_REPOS: tuple[tuple[str, str], ...] = (
