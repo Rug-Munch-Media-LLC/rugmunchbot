@@ -225,6 +225,7 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "WolfsCryptoCallz",  # wolf crypto calls alt handle
     "Shahlito",  # shahlito calls — scam shills
     "WatcherGuru",  # crypto news + shills aggregator
+    "SpidersJournal",  # spyder's journal — calls/signals
     "DiorAlpha",  # Dior's Alpha calls
     "ShmooCalls",  # Shmoo's Calls
     "marcellcooks",  # 45k members — trench calls
