@@ -221,6 +221,10 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "solana100xhunt",  # 40k members — low cap gambles
     "cryptoprof93",  # 8k members — crypto professor calls
     "CarnagecallsGambles",  # 7k members — gamble calls
+    "wulfcryptocalls",  # wolf crypto calls — low cap shills
+    "WolfsCryptoCallz",  # wolf crypto calls alt handle
+    "Shahlito",  # shahlito calls — scam shills
+    "WatcherGuru",  # crypto news + shills aggregator
     "DiorAlpha",  # Dior's Alpha calls
     "ShmooCalls",  # Shmoo's Calls
     "marcellcooks",  # 45k members — trench calls
@@ -672,6 +676,57 @@ async def _feed_scanner(submissions: list[dict[str, Any]]) -> tuple[int, int]:
     return submitted, enqueued
 
 
+async def _feed_rag(articles: list[NewsArticle]) -> int:
+    """Ingest scam channel articles into the RAG threat_intel_v2 collection.
+
+    Every swept scam/shill article is embedded so the bot can answer
+    questions about known scam callers, shill channels, and rug operations.
+    Fail-open: any RAG outage logs and returns 0.
+    """
+    if not articles:
+        return 0
+    try:
+        from rugmunchbot._vendor.rag_pkg.ingestion import BatchIngestor
+
+        ingestor = BatchIngestor(collection="threat_intel_v2")
+        docs = []
+        for art in articles:
+            title = (art.title or "Scam Alert").strip()
+            body = (art.body or art.text or "").strip()
+            if not body and not title:
+                continue
+            source = art.source_channel or "telegram_scam"
+            url = art.source_url or ""
+            content = f"Source: {source}\nTitle: {title}\n{body}"
+            if url:
+                content = f"URL: {url}\n{content}"
+            from rugmunchbot._vendor.rag_pkg.ingestion import Document
+
+            docs.append(
+                Document(
+                    content=content[:8000],
+                    doc_id=f"scam:{source}:{hash(content[:500])}",
+                    metadata={
+                        "source": source,
+                        "category": "scam_shill",
+                        "channel": source,
+                        "url": url,
+                        "ingested_at": datetime.now(UTC).isoformat(),
+                    },
+                )
+            )
+        if not docs:
+            return 0
+        report = await ingestor.ingest_batch(docs)
+        ingested = getattr(report, "ingested", 0) or 0
+        if ingested:
+            logger.info("scam_watch:rag_ingested count=%s", ingested)
+        return ingested
+    except Exception as exc:
+        logger.warning("scam_watch:rag_ingest_failed err=%s", str(exc)[:200])
+        return 0
+
+
 # ── Scheduled job (feeds the scanner; does not post to a bot channel) ────────
 
 
@@ -694,14 +749,19 @@ async def run_scam_watch(ctx: Any = None) -> int:
     submissions = _collect_submissions(articles)
     if not submissions:
         logger.debug("scam_watch:no_token_addresses")
+        # Still RAG the articles even without token addresses
+        await _feed_rag(articles)
         return 0
     submitted, enqueued = await _feed_scanner(submissions)
+    # RAG all scam content so it's searchable by the bot
+    rag_count = await _feed_rag(articles)
     logger.info(
-        "scam_watch:run_done articles=%s unique_addresses=%s submitted=%s enqueued=%s",
+        "scam_watch:run_done articles=%s unique_addresses=%s submitted=%s enqueued=%s rag_ingested=%s",
         len(articles),
         len(submissions),
         submitted,
         enqueued,
+        rag_count,
     )
     return submitted + enqueued
 
