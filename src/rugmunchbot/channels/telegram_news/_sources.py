@@ -236,6 +236,7 @@ _DEFAULT_CHANNELS: tuple[str, ...] = (
     "thepumpalert",  # THE PUMP ALERT (View, 374 members — scam call-out channel)
     # On-chain / analytics (verified live, separate from the alpha call channels)
     "nansen_digest",  # Nansen Digest (View, 6.5k)
+    "CryptoAlche",  # Crypto Alchemy (View, 10k+ — crypto analysis)
     "CallAnalyser",  # Call Analyser (View, 49k — KOL call analysis)
     "walloftrophies",  # KOL Trending / CallAnalyser (View, 15k)
     "skeletonlounge",  # Skeleton Lounge Portal (View, 23k)
