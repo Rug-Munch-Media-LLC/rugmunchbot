@@ -724,8 +724,8 @@ async def _feed_rag(articles: list[NewsArticle]) -> int:
                 source_type="telegram_scam",
             )
             report = await ingestor.ingest_batch([doc])
-            if report.ingested:
-                ingested += report.ingested
+            if report.accepted:
+                ingested += report.accepted
         if ingested:
             logger.info("scam_watch:rag_ingested count=%s", ingested)
         return ingested
