@@ -228,7 +228,9 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "SpidersJournal",  # spyder's journal — calls/signals
     "WimarX",  # ardizor scam network — call channel
     "danny_crypton",  # ardizor scam network — call channel (also in news sources)
-    "solsticesmoonshots",  # ardizor scam network — moon shot calls
+    "solsticesmoonshots",  # moon shot calls
+    "erics_calls",  # eric's call channel — scam shills
+    "CryptoFrogsGems",  # crypto frogs gem calls — scam shills
     "DiorAlpha",  # Dior's Alpha calls
     "ShmooCalls",  # Shmoo's Calls
     "marcellcooks",  # 45k members — trench calls
