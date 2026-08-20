@@ -105,6 +105,10 @@ async def _call_remote_fast(
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": float(cfg.get("temperature") or 0.7),
+        # Disable chain-of-thought emission where the provider supports it
+        # (StepFlash/DeepSeek-style reasoning models). The guardrail strips
+        # any CoT that still leaks, but preventing it at the source is safer.
+        "reasoning": {"enabled": False},
     }
     headers = {
         "Authorization": f"Bearer {api_key}",

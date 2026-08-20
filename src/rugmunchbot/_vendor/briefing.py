@@ -103,6 +103,15 @@ Format:
 - Follow the skeleton section order exactly — do not reorder, rename, drop, or add sections.
 - Fill each section with prose built ONLY from the provided context.
 - If a section has no context data, write "N/A".
+- Paragraphs: one idea per paragraph, separated by a blank line. Never run
+  multiple ideas into a wall of text. Keep paragraphs to 1-3 sentences.
+- Links: embed source URLs inline as markdown links on the relevant phrase
+  (e.g. `[CoinDesk](https://...`) — never dump raw URLs on their own line.
+  One link per item is enough; drop duplicate URLs.
+- Addresses: put the on-chain address in backticks right after the token name
+  so a reader can /scan it instantly — do not paste full explorer URLs.
+- Keep the whole brief tight: aim for 5-8 short paragraphs total, not a
+  sprawling essay. Telegram posts read best when every line earns its place.
 """
 
 # §3 fixed skeleton — section names in render order.
@@ -213,8 +222,16 @@ def _hit_to_item(hit: dict[str, Any], fallback_title: str) -> dict[str, Any]:
     """Convert a RAG hit dict (compat ``three_pillar_search`` shape) to a briefing item."""
     metadata = hit.get("metadata") or {}
     content = (hit.get("content") or hit.get("text") or "").strip()
-    title = metadata.get("title") or metadata.get("name") or metadata.get("symbol") or fallback_title
-    url = metadata.get("url") or metadata.get("link") or metadata.get("source_url") or metadata.get("source") or ""
+    title = (
+        metadata.get("title") or metadata.get("name") or metadata.get("symbol") or fallback_title
+    )
+    url = (
+        metadata.get("url")
+        or metadata.get("link")
+        or metadata.get("source_url")
+        or metadata.get("source")
+        or ""
+    )
     source = metadata.get("outlet") or metadata.get("publisher") or metadata.get("source") or ""
     if not url and source.startswith("http"):
         url, source = source, ""
@@ -380,7 +397,8 @@ def _render_section_lines(name: str, items: list[dict[str, Any]], bullet: str = 
     """Render one context block into display lines (used by the fallback)."""
     if name == "Top Stories":
         return [
-            f"{i + 1}. {it['title']} — {it['detail']}" + (f" — {it['source']} {it['url']}" if it.get("url") else "")
+            f"{i + 1}. {it['title']} — {it['detail']}"
+            + (f" — {it['source']} {it['url']}" if it.get("url") else "")
             for i, it in enumerate(items)
         ]
     lines: list[str] = []
@@ -506,7 +524,13 @@ def _numbers_in(text: str) -> set[float]:
     for m in _MONEY_RE.finditer(text):
         raw, suffix = m.group(1), m.group(2)
         with suppress(ValueError):
-            values.add(round(float(raw.replace(",", "")) * {"K": 1e3, "M": 1e6, "B": 1e9}.get(suffix.upper(), 1.0), 1))
+            values.add(
+                round(
+                    float(raw.replace(",", ""))
+                    * {"K": 1e3, "M": 1e6, "B": 1e9}.get(suffix.upper(), 1.0),
+                    1,
+                )
+            )
     for m in _PCT_RE.finditer(text):
         with suppress(ValueError):
             values.add(round(float(m.group(1)), 1))
@@ -566,7 +590,9 @@ def review_briefing(draft: str, context: dict[str, Any]) -> dict[str, Any]:
             if value not in grounding:
                 flags.append({"type": "hallucination", "line": line[:200], "metric": value})
         # Source-presence: metric-bearing claim bullets need a URL or address.
-        is_claim_bullet = line.lstrip().startswith(("•", "- ", "* ", "1. ", "2. ", "3. ", "4. ", "5. "))
+        is_claim_bullet = line.lstrip().startswith(
+            ("•", "- ", "* ", "1. ", "2. ", "3. ", "4. ", "5. ")
+        )
         if is_claim_bullet and not (_URL_RE.search(line) or _extract_address(line)):
             flags.append({"type": "unsourced", "line": line[:200], "metric": None})
     return {"ok": not flags, "flags": flags}

@@ -343,6 +343,13 @@ def _build_help_text() -> str:
         "verdicts, prices, charts, news and wallet intel \u2014 before you "
         "buy. Built by <b>Rug Munch Intelligence</b> \u2014 "
         "<b>Rug Munch Media LLC</b> (Wyoming).\n",
+        f"\U0001f310 <b>Full RMI app \u2014 "
+        f'<a href="https://rugmunch.io">rugmunch.io</a></b>\n'
+        "The complete platform: <b>RugMaps</b> (token &amp; wallet maps), "
+        "<b>RugCharts</b> (live charts &amp; signals), <b>Scanner</b> "
+        "(AEGIS forensics), <b>AI Chat</b> (deep RAG answers) and "
+        "<b>Market Intelligence</b> (news, sentiment, whale flows) \u2014 "
+        "all in one dashboard.\n",
         f"\U0001f680 <b>WHAT YOU CAN DO</b>\n{d}",
     ]
     for header, desc, example in _HELP_SECTIONS:
@@ -376,6 +383,8 @@ def _build_menu_text() -> str:
     v13: five (plus Account & Community) intent groups, every line a REAL
     registered command with a one-line description + example usage. The
     quick-action inline keyboard is built in ``keyboards.menu_kb()``.
+    v15: appends the community-channels block (same as /help) so users can
+    reach every channel straight from the menu.
     """
     s = sep()
     d = thin_sep()
@@ -391,6 +400,9 @@ def _build_menu_text() -> str:
                 parts.append(f"\u2022 {cmd} {desc}")
             else:
                 parts.append(f"\u2022 /{cmd} {desc}")
+    channels = _channels_section()
+    if channels:
+        parts.append(f"\n{channels}")
     parts.append(f"\n{project_links_section()}")
     return "\n".join(parts)
 

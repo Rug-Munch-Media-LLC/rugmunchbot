@@ -115,20 +115,42 @@ def _ref_code(platform: str) -> str:
 
 
 def footer_links(address: str = "", chain: str = "") -> str:
-    """Bot footer with links. When a token is provided, includes
-    GMGN → DexScreener → DexTools → RugCharts → RugMaps as a clean SINGLE
-    tappable-text line (GMGN carries the owner's ref code) so the report
-    ends with one links footer instead of a button stack. HTML-safe for
-    Telegram (only ``<a>`` tags)."""
+    """Bot footer with links. When a token is provided, includes the full
+    referral trade-link set (GMGN · Jupiter · Photon · Birdeye · 1inch ·
+    PancakeSwap · DexScreener · DexTools) plus RugCharts → RugMaps as a
+    clean SINGLE tappable-text line — every platform that embeds the token
+    address carries our ``?ref=`` code (see ``DEX_REF_LINKS`` / ``REF_CODES``)
+    so the report ends with one links footer instead of a button stack.
+    HTML-safe for Telegram (only ``<a>`` tags)."""
     if address:
-        trade = (
-            f'<a href="{gmgn_url(address, chain)}">GMGN</a>'
-            f' | <a href="{dexscreener_url(address, chain)}">DexScreener</a>'
-            f' | <a href="{dextools_url(address, chain)}">DexTools</a>'
+        chain_l = (chain or "").lower()
+        # Referral platforms that embed the token address (chain-filtered).
+        ref_parts: list[str] = []
+        for key in DEX_BUTTON_PRIORITY:
+            dex = DEX_REF_LINKS.get(key)
+            if not dex or chain_l not in dex.get("chains", []):
+                continue
+            if "{token}" not in dex["url"]:
+                continue  # signup/home bots have no per-token URL — skip in text footer
+            url = dex["url"].format(
+                token=address,
+                chain=chain_l,
+                chain_id=CHAIN_IDS.get(chain_l, 1),
+            )
+            ref_parts.append(
+                f'<a href="{html.escape(url, quote=True)}">{html.escape(dex["name"])}</a>'
+            )
+        # Chart links (DexScreener no-ref + DexTools ref when configured).
+        ref_parts.append(
+            f'<a href="{html.escape(dexscreener_url(address, chain_l), quote=True)}">DexScreener</a>'
         )
+        ref_parts.append(
+            f'<a href="{html.escape(dextools_url(address, chain_l), quote=True)}">DexTools</a>'
+        )
+        trade = " | ".join(ref_parts)
         charts = (
-            f'\U0001f4c8 <a href="https://rugmunch.io/rugcharts?token={address}&chain={chain}">RugCharts</a>'
-            f' | \U0001f5fa\ufe0f <a href="https://rugmunch.io/rugmaps?token={address}&chain={chain}">RugMaps</a>'
+            f'\U0001f4c8 <a href="https://rugmunch.io/rugcharts?token={address}&chain={chain_l}">RugCharts</a>'
+            f' | \U0001f5fa\ufe0f <a href="https://rugmunch.io/rugmaps?token={address}&chain={chain_l}">RugMaps</a>'
         )
         return (
             f"\n{sep()}\n{trade} | {charts}\n"
@@ -429,6 +451,20 @@ def welcome_card_text() -> str:
         f"the team at Rug Munch Media LLC\n"
         f"<i>The scam-detection copilot for crypto</i>\n\n"
         f"{social_proof_text()}\n\n"
+        f"\U0001f310 <b>Full RMI app \u2014 rugmunch.io</b>\n"
+        f"The complete Rug Munch Intelligence platform lives on the web: "
+        f'<a href="https://rugmunch.io">rugmunch.io</a> \u2014 '
+        f"token scanner, AI chat, market intelligence and more, all in one "
+        f"dashboard.\n"
+        f"\U0001f5fa\ufe0f <b>RugMaps</b> \u2014 interactive token &amp; wallet "
+        f"relationship maps\n"
+        f"\U0001f4c8 <b>RugCharts</b> \u2014 live charts, liquidity &amp; "
+        f"technical signals\n"
+        f"\U0001f50d <b>Scanner</b> \u2014 the same AEGIS forensics as this bot\n"
+        f"\U0001f916 <b>AI Chat</b> \u2014 deep RAG answers with on-chain "
+        f"intelligence\n"
+        f"\U0001f4ca <b>Market Intelligence</b> \u2014 news, sentiment &amp; "
+        f"whale flows\n\n"
         f"<b>What I can do</b>\n"
         f"\U0001f50d <b>Scan</b> \u2014 instant token audits &amp; AEGIS forensics\n"
         f"\U0001f45b <b>Wallet</b> \u2014 forensics, portfolio &amp; funding analysis\n"

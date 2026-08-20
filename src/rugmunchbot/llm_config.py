@@ -120,6 +120,8 @@ async def _chat_once(
         if max_tokens is not None
         else int(config.get("max_tokens") or 512),
         "temperature": float(config.get("temperature") or 0.5),
+        # Never emit chain-of-thought (StepFlash/DeepSeek-style reasoning).
+        "reasoning": {"enabled": False},
     }
 
     # Retry once on transient failures (429, 5xx, timeout)
@@ -152,12 +154,10 @@ async def _chat_once(
             content = raw["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
             content = ""
-        # KiloCode StepFlash puts output in `reasoning` field when `content` is empty
-        if not content:
-            try:
-                content = raw["choices"][0]["message"]["reasoning"]
-            except (KeyError, IndexError, TypeError):
-                content = ""
+        # NEVER fall back to the `reasoning` field as the answer — that is the
+        # model's chain-of-thought and must not be surfaced to users. If the
+        # provider returned only reasoning (content empty), treat it as a
+        # failed call so the fallback chain picks a non-reasoning model.
         if not isinstance(content, str):
             return ""
         return content.strip()

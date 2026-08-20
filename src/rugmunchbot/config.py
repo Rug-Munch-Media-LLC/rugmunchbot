@@ -640,14 +640,14 @@ DEX_REF_LINKS: dict[str, DexRefLink] = {
     "oneinch": {
         "name": "1inch",
         "emoji": "🦄",
-        "url": "https://app.1inch.io/#/{chain_id}/simple/swap/ETH/{token}?ref=rugmunch",  # [swap] token pair
+        "url": "https://1inch.com/swap?src={chain_id}:ETH&dst={chain_id}:{token}",  # [swap] token pair (no ref program)
         "chains": ["ethereum", "base", "arbitrum", "bsc", "polygon", "avalanche"],
-        "description": "Best EVM DEX aggregator",
+        "description": "EVM DEX aggregator",
     },
     "pancakeswap": {
         "name": "PancakeSwap",
         "emoji": "🥞",
-        "url": "https://pancakeswap.finance/swap?inputCurrency=BNB&outputCurrency={token}&ref=rugmunch",  # [swap] token pair
+        "url": "https://pancakeswap.finance/swap?inputCurrency=BNB&outputCurrency={token}",  # [swap] token pair (no ref program)
         "chains": ["bsc", "ethereum", "arbitrum", "base"],
         "description": "BSC's #1 DEX",
     },

@@ -195,6 +195,7 @@ def strip_think_tags(text: str) -> str:
         r"^\s*(?:(?:The|This) user (?:is|was|asked|wants).*?\n?|"
         r"(?:I|We) (?:need|want|should|must|have|can|will).*?\n?|"
         r"Let me (?:think|check|look|start|begin|consider).*?\n?|"
+        r"Here'?s (?:a|my) (?:thinking|reasoning|thought) (?:process|chain|steps?)[:.]?.*?\n?|"
         r"Okay,? so .*?\n?|Alright,? so .*?\n?|"
         r"As (?:an AI|a (?:crypto|security|market) analyst).*?\n?){1,4}",
         cleaned,
