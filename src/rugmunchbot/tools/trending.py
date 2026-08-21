@@ -100,7 +100,9 @@ def _filter_tokens_by_chain(tokens: list[dict[str, Any]], chain: str) -> list[di
     return [t for t in tokens if _normalize_chain(str(t.get("chain") or "")) == want]
 
 
-async def _resolve_missing_address(symbol: str, name: str, want_chain: str = "") -> tuple[str, str] | None:
+async def _resolve_missing_address(
+    symbol: str, name: str, want_chain: str = ""
+) -> tuple[str, str] | None:
     """Resolve a real on-chain address for a trending token that lacks one.
 
     Queries DexScreener ``/latest/dex/search?q=<symbol or name>`` and picks
@@ -138,7 +140,11 @@ async def _resolve_missing_address(symbol: str, name: str, want_chain: str = "")
         if not (sym_upper or name_lower):
             continue
         try:
-            vol = float(((p.get("volume") or {}).get("h24")) or 0) if isinstance(p.get("volume"), dict) else 0.0
+            vol = (
+                float(((p.get("volume") or {}).get("h24")) or 0)
+                if isinstance(p.get("volume"), dict)
+                else 0.0
+            )
         except (TypeError, ValueError):
             vol = 0.0
         if sym_upper and str(base.get("symbol") or "").strip().upper() == sym_upper:
@@ -176,7 +182,9 @@ async def _ensure_addresses(tokens: list[dict[str, Any]], chain: str) -> list[di
     async def resolve_one(idx: int, tok: dict[str, Any]) -> tuple[int, tuple[str, str] | None]:
         async with sem:
             want = chain or str(tok.get("chain") or "")
-            return idx, await _resolve_missing_address(str(tok.get("symbol") or ""), str(tok.get("name") or ""), want)
+            return idx, await _resolve_missing_address(
+                str(tok.get("symbol") or ""), str(tok.get("name") or ""), want
+            )
 
     tasks = [asyncio.ensure_future(resolve_one(i, t)) for i, t in missing]
     done, pending = await asyncio.wait(tasks, timeout=_RESOLVE_DEADLINE)
@@ -225,8 +233,17 @@ async def _ensure_addresses(tokens: list[dict[str, Any]], chain: str) -> list[di
     return out
 
 
-async def _fetch_market_trending(chain: str = "all", limit: int = 10) -> tuple[list[dict[str, Any]], str] | None:
-    body = await backend_json_get("/api/v1/market/trending", params={"limit": limit}, timeout=6.0)
+async def _fetch_market_trending(
+    chain: str = "all", limit: int = 10
+) -> tuple[list[dict[str, Any]], str] | None:
+    try:
+        body = await backend_json_get(
+            "/api/v1/market/trending", params={"limit": limit}, timeout=6.0
+        )
+    except BackendApiError as exc:
+        # Chain leg — token_boosts fallback follows; degrade to a miss.
+        logger.debug("trending backend miss (%s): %s", exc.status_code, exc)
+        return None
     if not body:
         return None
     items = body.get("items")
@@ -256,7 +273,9 @@ async def _fetch_market_trending(chain: str = "all", limit: int = 10) -> tuple[l
     return tokens, "backend:/api/v1/market/trending"
 
 
-async def _fetch_token_boosts(chain: str = "all", limit: int = 10) -> tuple[list[dict[str, Any]], str] | None:
+async def _fetch_token_boosts(
+    chain: str = "all", limit: int = 10
+) -> tuple[list[dict[str, Any]], str] | None:
     body = await http_get_json(DEXSCREENER_TOKEN_BOOSTS, timeout=6.0)
     if not isinstance(body, list) or not body:
         return None
@@ -291,10 +310,16 @@ async def trending(*, chain: str = "all", limit: int = 10) -> ToolResult:
         limit: max tokens to return.
     """
     tokens, source = (
-        (await _fetch_market_trending(chain, limit)) or (await _fetch_token_boosts(chain, limit)) or (None, "")
+        (await _fetch_market_trending(chain, limit))
+        or (await _fetch_token_boosts(chain, limit))
+        or (None, "")
     )
     if tokens is None:
-        return ToolResult(tool="trending", ok=False, error="no live trending data (backend + DexScreener unavailable)")
+        return ToolResult(
+            tool="trending",
+            ok=False,
+            error="no live trending data (backend + DexScreener unavailable)",
+        )
 
     # Every emitted token must carry a real on-chain address — resolve the
     # addressless CoinGecko entries or drop them (never a placeholder).
@@ -321,7 +346,9 @@ async def news_headlines(*, limit: int = 5) -> ToolResult:
     body = await backend_json_get("/api/v1/news/trending", params={"limit": limit}, timeout=6.0)
     if not body:
         return ToolResult(
-            tool="news_headlines", ok=False, error="no live news (backend /api/v1/news/trending unavailable)"
+            tool="news_headlines",
+            ok=False,
+            error="no live news (backend /api/v1/news/trending unavailable)",
         )
     items = body.get("items") or body.get("articles") or []
     headlines = []
@@ -330,7 +357,9 @@ async def news_headlines(*, limit: int = 5) -> ToolResult:
             continue
         title = (it.get("title") or "").strip()
         if title:
-            headlines.append({"title": title, "url": it.get("url") or "", "source": it.get("source") or ""})
+            headlines.append(
+                {"title": title, "url": it.get("url") or "", "source": it.get("source") or ""}
+            )
     if not headlines:
         return ToolResult(tool="news_headlines", ok=False, error="no headlines returned")
     return ToolResult(

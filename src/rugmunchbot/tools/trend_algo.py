@@ -63,8 +63,8 @@ from typing import Any
 
 from rugmunchbot.config import DEXSCREENER
 from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools._client import http_get_any, http_get_json
-from rugmunchbot.tools.registry import ToolResult, backend_json_get
+from rugmunchbot.tools._client import BackendApiError, http_get_any, http_get_json
+from rugmunchbot.tools.registry import ToolResult, backend_json_get, backend_json_get_any
 
 logger = get_logger("rmi_bot.tools.trend_algo")
 
@@ -205,7 +205,15 @@ def _to_int(value: Any) -> int | None:
 
 async def _scanner_candidates() -> list[dict[str, Any]]:
     """OUR scanner activity: real risk scores + honeypot flags per token."""
-    body = await backend_json_get("/api/v1/scanner/recent", params={"limit": _SCANNER_RECENT_LIMIT}, timeout=8.0)
+    try:
+        # ``/api/v1/scanner/recent`` answers with a JSON ARRAY — the dict-only
+        # loud helper rejects arrays, so use the list-capable loud variant.
+        body = await backend_json_get_any(
+            "/api/v1/scanner/recent", params={"limit": _SCANNER_RECENT_LIMIT}, timeout=8.0
+        )
+    except BackendApiError as exc:
+        logger.debug("trend_algo scanner backend miss (%s): %s", exc.status_code, exc)
+        return []
     if not isinstance(body, list):
         return []
     out: list[dict[str, Any]] = []
@@ -233,7 +241,16 @@ async def _scanner_candidates() -> list[dict[str, Any]]:
 
 async def _trending_candidates() -> list[dict[str, Any]]:
     """Our fused trending feed — real symbols/addresses/chain."""
-    body = await backend_json_get("/api/v1/market/trending", params={"limit": _TRENDING_LIMIT}, timeout=8.0)
+    try:
+        body = await backend_json_get(
+            "/api/v1/market/trending", params={"limit": _TRENDING_LIMIT}, timeout=8.0
+        )
+    except BackendApiError as exc:
+        # One candidate source among several (gathered WITHOUT return_exceptions
+        # in trend_by_chain) — a dead backend must degrade THIS leg to empty,
+        # not crash the whole candidate gather.
+        logger.debug("trend_algo trending backend miss (%s): %s", exc.status_code, exc)
+        return []
     items = body.get("items") if isinstance(body, dict) else None
     if not isinstance(items, list):
         return []
@@ -260,7 +277,14 @@ async def _trending_candidates() -> list[dict[str, Any]]:
 
 async def _launch_candidates() -> list[dict[str, Any]]:
     """ClickHouse deployer_events via our launch feed (own indexer data)."""
-    body = await backend_json_get("/api/v1/launches/recent", params={"limit": _LAUNCHES_LIMIT}, timeout=8.0)
+    try:
+        body = await backend_json_get(
+            "/api/v1/launches/recent", params={"limit": _LAUNCHES_LIMIT}, timeout=8.0
+        )
+    except BackendApiError as exc:
+        # Same rationale as _trending_candidates: degrade this leg to empty.
+        logger.debug("trend_algo launches backend miss (%s): %s", exc.status_code, exc)
+        return []
     items = body.get("items") if isinstance(body, dict) else None
     if not isinstance(items, list):
         return []
@@ -301,7 +325,9 @@ async def _dex_profile_candidates() -> list[dict[str, Any]]:
         if not addr:
             continue
         chain = _normalize_chain(str(it.get("chainId") or ""))
-        out.append({"address": addr, "chain": chain, "symbol": "", "source": "dexscreener:token-profiles"})
+        out.append(
+            {"address": addr, "chain": chain, "symbol": "", "source": "dexscreener:token-profiles"}
+        )
     return out
 
 
@@ -331,7 +357,12 @@ async def _fetch_pair_metrics(address: str) -> dict[str, Any] | None:
         symbol = (bt.get("symbol") or "").strip()
         if not symbol:
             continue
-        vol = _to_float((p.get("volume") or {}).get("h24") if isinstance(p.get("volume"), dict) else None) or 0.0
+        vol = (
+            _to_float(
+                (p.get("volume") or {}).get("h24") if isinstance(p.get("volume"), dict) else None
+            )
+            or 0.0
+        )
         if vol > best_vol:
             best_vol = vol
             best = p
@@ -406,17 +437,27 @@ def _score_token(metrics: dict[str, Any], risk: dict[str, Any] | None) -> dict[s
     s_growth = 0.5 * _clamp01((buy_ratio - 0.40) / 0.60) + 0.5 * _exp_norm(total, _TRADES_REF)
     s_momentum = _exp_norm(abs(float(price_change_24h)), _MOMENTUM_REF_PCT)
     age_h = metrics.get("age_hours")
-    s_age = (1.0 - min(max(float(age_h), 0.0) / _AGE_DECAY_HOURS, 1.0)) if age_h is not None else 0.5
+    s_age = (
+        (1.0 - min(max(float(age_h), 0.0) / _AGE_DECAY_HOURS, 1.0)) if age_h is not None else 0.5
+    )
 
     if risk is not None and (risk.get("is_honeypot") or risk.get("is_rug_pull")):
         risk_penalty = 1.0
     elif risk is not None and risk.get("risk_score") is not None:
         risk_score = float(risk["risk_score"])
-        risk_penalty = _clamp01((risk_score - _RISK_FLOOR) / (100.0 - _RISK_FLOOR)) * _RISK_MAX_PENALTY
+        risk_penalty = (
+            _clamp01((risk_score - _RISK_FLOOR) / (100.0 - _RISK_FLOOR)) * _RISK_MAX_PENALTY
+        )
     else:
         risk_penalty = 0.0
 
-    raw = _W_VOL * s_vol + _W_LIQ * s_liq + _W_GROWTH * s_growth + _W_MOMENTUM * s_momentum + _W_AGE * s_age
+    raw = (
+        _W_VOL * s_vol
+        + _W_LIQ * s_liq
+        + _W_GROWTH * s_growth
+        + _W_MOMENTUM * s_momentum
+        + _W_AGE * s_age
+    )
     final = round(100.0 * raw * (1.0 - risk_penalty), 1)
 
     return {
@@ -568,7 +609,9 @@ async def trend_by_chain(*, chain: str = "all", limit: int = 10, rank: str = "tr
         except Exception as exc:  # pragma: no cover — per-call failures already swallowed
             logger.debug("trend_by_chain metric task failed: %s", exc)
             continue
-    risk_by_key: dict[tuple[str, str], dict[str, Any]] = {(c["chain"], c["address"].lower()): c for c in scanner}
+    risk_by_key: dict[tuple[str, str], dict[str, Any]] = {
+        (c["chain"], c["address"].lower()): c for c in scanner
+    }
 
     tokens: list[dict[str, Any]] = []
     sources_used: set[str] = set()

@@ -46,6 +46,81 @@ _MAX_KEEPALIVE = 20
 _shared_clients: dict[float, httpx.AsyncClient] = {}
 
 
+class BackendApiError(Exception):
+    """Loud failure of a backend (own-data) API call — never a silent ``None``.
+
+    Audit 2026-08-21 (§F): the wallet ``/pnl`` + ``/tokens`` routes returned
+    bare 502s which the old helpers mapped to ``None``, and commands rendered
+    that as "no data" — users could not tell a dead backend from an empty
+    wallet. The backend now returns an honest 200+``{"data": null,
+    "reason": "no_data"}`` contract for genuine no-data, so ANY non-200 that
+    still reaches the bot is a REAL error and must surface with its HTTP
+    status.
+
+    Attributes:
+        status_code: HTTP status of the failed call. ``429`` is the sentinel
+            for "provider budget exhausted" (call never made); ``0`` means a
+            network-level failure (no response at all).
+        url: The request URL (for attribution in user-facing error text).
+    """
+
+    def __init__(self, message: str, *, status_code: int = 0, url: str = "") -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.url = url
+
+
+def _loud_parse_body(response: Any, url: str, *, allow_list: bool) -> Any:
+    """Parse a 200 body for the loud helpers — raise on anything malformed.
+
+    Invalid JSON and scalar/``null`` bodies always raise
+    :class:`BackendApiError`; JSON arrays raise UNLESS ``allow_list`` (the
+    dict-only helpers keep their strict object contract, the ``*_any`` twins
+    accept arrays — backend routes like ``/api/v1/scanner/recent`` return
+    them). Never returns ``None``.
+    """
+    try:
+        body = response.json()
+    except ValueError as exc:
+        raise BackendApiError(
+            f"invalid JSON body from {url} (HTTP {response.status_code})",
+            status_code=response.status_code,
+            url=url,
+        ) from exc
+    if isinstance(body, list) and allow_list:
+        return body
+    if not isinstance(body, dict):
+        raise BackendApiError(
+            f"non-object JSON body from {url}: {type(body).__name__}",
+            status_code=response.status_code,
+            url=url,
+        )
+    return body
+
+
+def _loud_body_detail(response: Any, *, limit: int = 160) -> str:
+    """Best-effort ``detail``/``error``/``message`` extraction from an error body.
+
+    Never raises: malformed or missing bodies yield an empty string. The text
+    is truncated so a chatty upstream cannot bloat user-facing error lines.
+    """
+    try:
+        body = response.json()
+    except Exception:  # noqa: BLE001 — detail extraction must never raise
+        return ""
+    if not isinstance(body, dict):
+        return ""
+    for key in ("detail", "error", "message"):
+        value = body.get(key)
+        if isinstance(value, str) and value.strip():
+            return f" — {value.strip()[:limit]}"
+        if isinstance(value, dict):
+            inner = value.get("detail") or value.get("message")
+            if isinstance(inner, str) and inner.strip():
+                return f" — {inner.strip()[:limit]}"
+    return ""
+
+
 def make_client(timeout: float = DEFAULT_TIMEOUT) -> httpx.AsyncClient:
     """Create an isolated AsyncClient with connect/read/write timeouts.
 
@@ -79,7 +154,9 @@ def get_shared_client(timeout: float = DEFAULT_TIMEOUT) -> httpx.AsyncClient:
             timeout=httpx.Timeout(timeout, connect=3.0, read=timeout, write=8.0),
             follow_redirects=True,
             headers={"User-Agent": "RugMunchBot/1.0"},
-            limits=httpx.Limits(max_connections=_MAX_CONNECTIONS, max_keepalive_connections=_MAX_KEEPALIVE),
+            limits=httpx.Limits(
+                max_connections=_MAX_CONNECTIONS, max_keepalive_connections=_MAX_KEEPALIVE
+            ),
         )
         _shared_clients[timeout] = client
     return client
@@ -194,3 +271,119 @@ async def http_post_json(
         return None
     finally:
         maybe_log_summary()
+
+
+# ── LOUD variants for own-data (backend) calls ─────────────────────────────
+# The external helpers above keep the None=miss contract because multi-provider
+# fallback chains depend on it. Our OWN backend is not one provider among many:
+# it is the source of truth, and since 2026-08-21 it answers genuine no-data
+# with 200+{"data": null, "reason": "no_data"} — so any non-200 / network
+# error / budget miss that reaches these helpers is a REAL failure and must
+# raise :class:`BackendApiError` (with the HTTP status) instead of degrading
+# to a silent ``None`` that commands render as "no data".
+
+
+async def http_get_json_loud(
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT,
+    provider: str | None = None,
+) -> dict[str, Any]:
+    """GET a URL and parse JSON — raise :class:`BackendApiError` on ANY failure.
+
+    Unlike :func:`http_get_json` (None=miss for external fallback chains),
+    every failure mode is loud: budget exhaustion (429 sentinel), network
+    errors (status 0), non-200 responses (status + body detail), invalid JSON
+    and non-object bodies. Returns the parsed dict on success — never ``None``.
+    """
+    bucket = provider_for_url(url, provider)
+    if not budget.acquire(bucket):
+        raise BackendApiError(
+            f"provider budget exhausted for {bucket} (429): {url}", status_code=429, url=url
+        )
+    try:
+        client = get_shared_client(timeout)
+        r = await client.get(url, params=params, headers=headers)
+    except (httpx.HTTPError, ConnectionError, OSError, TimeoutError) as exc:
+        raise BackendApiError(f"network error for {url}: {exc}", status_code=0, url=url) from exc
+    finally:
+        maybe_log_summary()
+    if r.status_code != 200:
+        detail = _loud_body_detail(r)
+        raise BackendApiError(
+            f"HTTP {r.status_code} from {url}{detail}", status_code=r.status_code, url=url
+        )
+    return _loud_parse_body(r, url, allow_list=False)
+
+
+async def http_get_any_loud(
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT,
+    provider: str | None = None,
+) -> dict[str, Any] | list[Any]:
+    """GET a URL and parse JSON (dict OR list) — raise on ANY failure.
+
+    List-capable loud twin of :func:`http_get_json_loud` (mirrors how
+    :func:`http_get_any` relates to :func:`http_get_json`). Backend routes
+    like ``/api/v1/scanner/recent`` answer with a JSON array — the dict-only
+    loud helper would raise on those, silently emptying any consumer that
+    degrades ``BackendApiError`` to a miss. Same failure contract otherwise:
+    budget exhaustion (429), network errors (0), non-200 (status + detail),
+    invalid JSON and scalar bodies all raise — never ``None``.
+    """
+    bucket = provider_for_url(url, provider)
+    if not budget.acquire(bucket):
+        raise BackendApiError(
+            f"provider budget exhausted for {bucket} (429): {url}", status_code=429, url=url
+        )
+    try:
+        client = get_shared_client(timeout)
+        r = await client.get(url, params=params, headers=headers)
+    except (httpx.HTTPError, ConnectionError, OSError, TimeoutError) as exc:
+        raise BackendApiError(f"network error for {url}: {exc}", status_code=0, url=url) from exc
+    finally:
+        maybe_log_summary()
+    if r.status_code != 200:
+        detail = _loud_body_detail(r)
+        raise BackendApiError(
+            f"HTTP {r.status_code} from {url}{detail}", status_code=r.status_code, url=url
+        )
+    return _loud_parse_body(r, url, allow_list=True)
+
+
+async def http_post_json_loud(
+    url: str,
+    *,
+    json: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT,
+    provider: str | None = None,
+) -> dict[str, Any]:
+    """POST JSON — raise :class:`BackendApiError` on ANY failure.
+
+    Loud twin of :func:`http_post_json`; see :func:`http_get_json_loud` for
+    the failure contract. Returns the parsed dict on success — never ``None``.
+    """
+    bucket = provider_for_url(url, provider)
+    if not budget.acquire(bucket):
+        raise BackendApiError(
+            f"provider budget exhausted for {bucket} (429): {url}", status_code=429, url=url
+        )
+    try:
+        client = get_shared_client(timeout)
+        r = await client.post(url, json=json or {}, headers=headers)
+    except (httpx.HTTPError, ConnectionError, OSError, TimeoutError) as exc:
+        raise BackendApiError(f"network error for {url}: {exc}", status_code=0, url=url) from exc
+    finally:
+        maybe_log_summary()
+    if r.status_code != 200:
+        detail = _loud_body_detail(r)
+        raise BackendApiError(
+            f"HTTP {r.status_code} from {url}{detail}", status_code=r.status_code, url=url
+        )
+    return _loud_parse_body(r, url, allow_list=False)

@@ -109,7 +109,14 @@ async def _backend_trending_breadth(limit: int = 50) -> dict[str, Any] | None:
     token with an unknown change is not counted (real-data-only). Returns
     ``None`` when the feed is unreachable or has no countable items.
     """
-    body = await backend_json_get("/api/v1/market/trending", params={"limit": min(max(int(limit), 1), 50)}, timeout=6.0)
+    try:
+        body = await backend_json_get(
+            "/api/v1/market/trending", params={"limit": min(max(int(limit), 1), 50)}, timeout=6.0
+        )
+    except BackendApiError as exc:
+        # Chain leg — breadth is one signal among several; degrade to a miss.
+        logger.debug("market_condition breadth backend miss (%s): %s", exc.status_code, exc)
+        return None
     items = body.get("items") if body else None
     if not isinstance(items, list) or not items:
         return None
@@ -168,7 +175,12 @@ def _tvl_change_7d(series: list[Any], lookback_days: int) -> float | None:
             continue
         d = pt.get("date")
         tvl = pt.get("tvl")
-        if isinstance(d, (int, float)) and d >= cutoff and isinstance(tvl, (int, float)) and tvl > 0:
+        if (
+            isinstance(d, (int, float))
+            and d >= cutoff
+            and isinstance(tvl, (int, float))
+            and tvl > 0
+        ):
             ref_tvl = float(tvl)
             break
     if ref_tvl is None:
@@ -201,7 +213,9 @@ async def _defillama_top_chains(limit: int = 8) -> list[dict[str, Any]] | None:
     )
     out: list[dict[str, Any]] = []
     for c in ranked[:limit]:
-        out.append({"name": c.get("name"), "tvl": c.get("tvl"), "tokenSymbol": c.get("tokenSymbol")})
+        out.append(
+            {"name": c.get("name"), "tvl": c.get("tvl"), "tokenSymbol": c.get("tokenSymbol")}
+        )
     return out or None
 
 
@@ -222,7 +236,9 @@ async def _defillama_tvl_trend(
     if not top_chains:
         return None
     names = [
-        str(c.get("name")) for c in top_chains[:top_n] if isinstance(c.get("name"), str) and str(c.get("name")).strip()
+        str(c.get("name"))
+        for c in top_chains[:top_n]
+        if isinstance(c.get("name"), str) and str(c.get("name")).strip()
     ]
     if not names:
         return None
@@ -357,7 +373,9 @@ def assess_market_condition(signals: dict[str, Any]) -> dict[str, Any]:
         v = float(fg["value"])
         vote = _vote(v >= _FEAR_GREED_RISK_ON, v <= _FEAR_GREED_RISK_OFF)
         votes.append(vote)
-        reasons.append(f"Fear & Greed {v:.0f} ({fg.get('classification') or 'n/a'}) — {_lean(vote)}")
+        reasons.append(
+            f"Fear & Greed {v:.0f} ({fg.get('classification') or 'n/a'}) — {_lean(vote)}"
+        )
 
     for key, label in (("btc", "BTC"), ("eth", "ETH")):
         coin = signals.get(key)
@@ -389,7 +407,9 @@ def assess_market_condition(signals: dict[str, Any]) -> dict[str, Any]:
         change = float(tvl["median_change_7d"])
         vote = _vote(change >= _TVL_TREND_RISK_ON, change <= _TVL_TREND_RISK_OFF)
         votes.append(vote)
-        reasons.append(f"Top-chain TVL 7d {_fmt_pct(change)} ({tvl.get('chains_measured')} chains) — {_lean(vote)}")
+        reasons.append(
+            f"Top-chain TVL 7d {_fmt_pct(change)} ({tvl.get('chains_measured')} chains) — {_lean(vote)}"
+        )
 
     count = len(votes)
     if count == 0:
@@ -480,7 +500,9 @@ async def market_condition(*, chain: str = "global", **_ctx: Any) -> ToolResult:
 
     if global_data:
         signals["global_market_cap_usd"] = (global_data.get("total_market_cap") or {}).get("usd")
-        signals["global_market_cap_change_24h"] = global_data.get("market_cap_change_percentage_24h_usd")
+        signals["global_market_cap_change_24h"] = global_data.get(
+            "market_cap_change_percentage_24h_usd"
+        )
         sources.append("coingecko:/global")
 
     if breadth:

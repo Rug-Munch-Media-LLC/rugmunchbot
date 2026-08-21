@@ -112,10 +112,16 @@ async def _cache_set_meta(address: str, chain: str, meta: dict[str, Any]) -> Non
         return
     try:
         identity = {k: v for k, v in meta.items() if k != "price_usd"}
-        await r.set(_identity_key(address, chain), json.dumps(identity, default=str), ex=_META_IDENTITY_TTL)
+        await r.set(
+            _identity_key(address, chain), json.dumps(identity, default=str), ex=_META_IDENTITY_TTL
+        )
         price = meta.get("price_usd")
         if price is not None:
-            await r.set(_price_key(address, chain), json.dumps({"price_usd": price}, default=str), ex=_META_PRICE_TTL)
+            await r.set(
+                _price_key(address, chain),
+                json.dumps({"price_usd": price}, default=str),
+                ex=_META_PRICE_TTL,
+            )
     except Exception:  # fail-open by contract
         logger.debug("token_meta:cache_set_failed address=%.20s", address, exc_info=True)
 
@@ -256,7 +262,11 @@ def _finalize_meta(
 
 async def _meta_from_backend_databus(address: str, chain: str) -> dict[str, Any] | None:
     """Own backend DataBus token detail — our aggregate, own data first."""
-    body = await backend_json_get(f"/api/v1/databus/token/{address}", timeout=6.0)
+    try:
+        body = await backend_json_get(f"/api/v1/databus/token/{address}", timeout=6.0)
+    except BackendApiError as exc:
+        logger.debug("token_meta databus backend miss (%s): %s", exc.status_code, exc)
+        return None
     if not isinstance(body, dict):
         return None
     pairs = body.get("pairs")
@@ -280,7 +290,11 @@ async def _meta_from_backend_databus(address: str, chain: str) -> dict[str, Any]
 
 async def _meta_from_backend_scanner(address: str, chain: str) -> dict[str, Any] | None:
     """Own backend scanner result cache — last SENTINEL scan for this token."""
-    body = await backend_json_get(f"/api/v2/scanner/token/full/{chain}/{address}", timeout=6.0)
+    try:
+        body = await backend_json_get(f"/api/v2/scanner/token/full/{chain}/{address}", timeout=6.0)
+    except BackendApiError as exc:
+        logger.debug("token_meta scanner backend miss (%s): %s", exc.status_code, exc)
+        return None
     if not isinstance(body, dict):
         return None
     data = body.get("data")
@@ -346,7 +360,9 @@ async def _meta_from_coingecko(symbol: str) -> dict[str, Any] | None:
     }
 
 
-def _normalized_meta(meta: dict[str, Any], *, address: str, chain: str, symbol: str) -> dict[str, Any]:
+def _normalized_meta(
+    meta: dict[str, Any], *, address: str, chain: str, symbol: str
+) -> dict[str, Any]:
     """Apply the canonical defaults to a resolved identity block.
 
     The returned dict ALWAYS contains ``address``, ``chain``, ``price_usd``,

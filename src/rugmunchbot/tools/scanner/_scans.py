@@ -228,11 +228,18 @@ async def scan_token_v2(address: str, chain: str | None = None) -> dict[str, Any
     callers can fall back to the legacy scanner.
     """
     chain_norm = chain or detect_chain(address)
-    data = await _scanner.backend_json_post(
-        "/api/v2/scanner/token/scan",
-        json={"address": address, "chain": chain_norm},
-        timeout=45.0,
-    )
+    try:
+        data = await _scanner.backend_json_post(
+            "/api/v2/scanner/token/scan",
+            json={"address": address, "chain": chain_norm},
+            timeout=45.0,
+        )
+    except _scanner.BackendApiError as exc:
+        # Fail-loud helper, but scan_token_v2 is the FIRST leg of a
+        # fallback chain (v2 → legacy bot scan → DexScreener): degrade to a
+        # miss with the status logged, let the callers fall back.
+        logger.warning("scan_token_v2 backend error %s for %s: %s", exc.status_code, address, exc)
+        return None
     if data is None:
         logger.warning("scan_token_v2 failed for %s", address)
         return None
@@ -411,11 +418,18 @@ async def analyze_wallet_v2(address: str, chain: str | None = None) -> dict[str,
     to the legacy wallet analyzer.
     """
     chain_norm = chain or detect_chain(address)
-    data = await _scanner.backend_json_post(
-        "/api/v2/scanner/wallet/scan",
-        json={"address": address, "chain": chain_norm},
-        timeout=45.0,
-    )
+    try:
+        data = await _scanner.backend_json_post(
+            "/api/v2/scanner/wallet/scan",
+            json={"address": address, "chain": chain_norm},
+            timeout=45.0,
+        )
+    except _scanner.BackendApiError as exc:
+        # Fallback-chain leg (v2 → legacy wallet analyzer): degrade to a miss.
+        logger.warning(
+            "analyze_wallet_v2 backend error %s for %s: %s", exc.status_code, address, exc
+        )
+        return None
     if data is None:
         logger.warning("analyze_wallet_v2 failed for %s", address)
         return None

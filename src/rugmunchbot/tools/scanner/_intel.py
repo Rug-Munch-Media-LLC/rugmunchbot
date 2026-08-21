@@ -66,11 +66,16 @@ async def scanner_intel(*, address: str = "", chain: str = "") -> ToolResult:
         )
 
     # 2. Own backend fast bot scan (Redis-cached quick scan).
-    body = await _scanner.backend_json_post(
-        "/api/v1/bot/scan",
-        json={"address": address, "chain": chain},
-        timeout=10.0,
-    )
+    try:
+        body = await _scanner.backend_json_post(
+            "/api/v1/bot/scan",
+            json={"address": address, "chain": chain},
+            timeout=10.0,
+        )
+    except _scanner.BackendApiError as exc:
+        # Backend down is a miss for THIS leg — DexScreener (leg 3) still runs.
+        logger.debug("bot/scan backend miss (%s): %s", exc.status_code, exc)
+        body = None
     if isinstance(body, dict) and body.get("risk_score") is not None and not body.get("error"):
         meta = await _token_meta_dict(address, chain)
         # v1 serves whatever sits in the scanner cache — including a garbage

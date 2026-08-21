@@ -94,7 +94,9 @@ _CHAIN_ALIASES: dict[str, str] = {
     "ftm": "fantom",
 }
 
-_GECKO_OHLCV_URL = "https://api.geckoterminal.com/api/v2/networks/{network}/pools/{pair}/ohlcv/{unit}"
+_GECKO_OHLCV_URL = (
+    "https://api.geckoterminal.com/api/v2/networks/{network}/pools/{pair}/ohlcv/{unit}"
+)
 
 # user timeframe -> (backend candle unit, gecko endpoint suffix, candles shown)
 _TIMEFRAMES: dict[str, tuple[str, str, int]] = {
@@ -215,11 +217,18 @@ def _pair_snapshot(pair: dict[str, Any], address: str, symbol: str) -> dict[str,
 async def _backend_candles(chain: str, pair_address: str, unit: str) -> _CandleResult:
     """Own-data candles via the backend RugCharts engine (ClickHouse first,
     GeckoTerminal server-side fallback). Returns (candles, source_label)."""
-    body = await backend_json_get(
-        f"/api/v1/rugcharts/ohlcv/{chain}/{pair_address}",
-        params={"timeframe": unit, "limit": 100},
-        timeout=6.0,
-    )
+    body: dict[str, Any] | None
+    try:
+        body = await backend_json_get(
+            f"/api/v1/rugcharts/ohlcv/{chain}/{pair_address}",
+            params={"timeframe": unit, "limit": 100},
+            timeout=6.0,
+        )
+    except BackendApiError as exc:
+        # Own-data leg of the candle chain (GeckoTerminal fallback follows):
+        # a dead backend degrades to a miss, not a tool-level failure.
+        logger.debug("charting candles backend miss (%s): %s", exc.status_code, exc)
+        return [], ""
     if not isinstance(body, dict):
         return [], ""
     data = body.get("data")
@@ -266,7 +275,9 @@ async def _gecko_candles(chain: str, pair_address: str, unit: str) -> _CandleRes
     return [], ""
 
 
-async def _fetch_candles(chain: str, pair_address: str, unit: str, gecko_unit: str) -> _CandleResult:
+async def _fetch_candles(
+    chain: str, pair_address: str, unit: str, gecko_unit: str
+) -> _CandleResult:
     """Run the own-data-first candle cascade (backend -> GeckoTerminal).
 
     ``unit`` is the backend candle timeframe ("1h"/"1d"); ``gecko_unit`` the
@@ -309,7 +320,11 @@ def _sparkline(closes: list[float], width: int = 48) -> str:
     span = hi - lo
     out: list[str] = []
     for v in sampled:
-        level = len(_SPARK_CHARS) // 2 if span < 1e-12 else round((v - lo) / span * (len(_SPARK_CHARS) - 1))
+        level = (
+            len(_SPARK_CHARS) // 2
+            if span < 1e-12
+            else round((v - lo) / span * (len(_SPARK_CHARS) - 1))
+        )
         out.append(_SPARK_CHARS[max(0, min(level, len(_SPARK_CHARS) - 1))])
     return "".join(out)
 
@@ -367,7 +382,11 @@ def _summary_text(analysis: dict[str, Any]) -> str:
     rsi_part = f"RSI-14 {rsi_value:.1f}" if rsi_value is not None else "RSI-14 n/a"
     ema9 = analysis.get("ema9")
     ema21 = analysis.get("ema21")
-    ema_part = f"EMA9 {ema9:.6g}/EMA21 {ema21:.6g}" if ema9 is not None and ema21 is not None else "EMA n/a"
+    ema_part = (
+        f"EMA9 {ema9:.6g}/EMA21 {ema21:.6g}"
+        if ema9 is not None and ema21 is not None
+        else "EMA n/a"
+    )
     macd_part = f"MACD {analysis.get('macd_label') or 'n/a'}"
     return f"{rsi_part} · {ema_part} · {macd_part} · trend {analysis.get('trend') or 'NEUTRAL'}"
 
@@ -423,7 +442,9 @@ def _render_chart(
     """Assemble the Telegram-monospace ASCII chart block (text only)."""
     sym = snapshot.get("symbol") or "?"
     chain = snapshot.get("chain") or ""
-    header = f"${sym} ({chain}) — {timeframe} chart ({len(candles)} x {unit} candles)  [src: {source}]"
+    header = (
+        f"${sym} ({chain}) — {timeframe} chart ({len(candles)} x {unit} candles)  [src: {source}]"
+    )
     lines = [
         header,
         _sparkline(closes, width),
@@ -503,7 +524,9 @@ async def chart(
                 error="OHLCV candles returned but could not be parsed (malformed payload)",
             )
         closes = [float(c["close"]) for c in candles]
-        chart_text = _render_chart(snapshot, tf, unit, candles, analysis, closes, source, width, height)
+        chart_text = _render_chart(
+            snapshot, tf, unit, candles, analysis, closes, source, width, height
+        )
         return ToolResult(
             tool="chart",
             ok=True,

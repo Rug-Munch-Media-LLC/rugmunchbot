@@ -40,7 +40,7 @@ from typing import Any
 
 from rugmunchbot.config import COINGECKO, DEXSCREENER, _get_token
 from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools._client import http_get_json
+from rugmunchbot.tools._client import BackendApiError, http_get_json
 from rugmunchbot.tools.birdeye import birdeye_price
 from rugmunchbot.tools.registry import backend_json_get
 
@@ -139,7 +139,9 @@ async def coingecko_quote(symbol: str) -> dict[str, Any] | None:
     coins = search.get("coins") if search else None
     if not isinstance(coins, list):
         return None
-    match = next((c for c in coins if isinstance(c, dict) and (c.get("symbol") or "").upper() == sym), None)
+    match = next(
+        (c for c in coins if isinstance(c, dict) and (c.get("symbol") or "").upper() == sym), None
+    )
     if not match:
         return None
     coin_id = match.get("id")
@@ -171,11 +173,15 @@ async def coinpaprika_quote(symbol: str) -> dict[str, Any] | None:
     sym = (symbol or "").strip().upper()
     if not sym:
         return None
-    search = await http_get_json(f"{COINPAPRIKA}/search", params={"q": sym, "c": "currencies"}, timeout=6.0)
+    search = await http_get_json(
+        f"{COINPAPRIKA}/search", params={"q": sym, "c": "currencies"}, timeout=6.0
+    )
     items = search if isinstance(search, list) else (search or {}).get("currencies")
     if not isinstance(items, list):
         return None
-    match = next((c for c in items if isinstance(c, dict) and (c.get("symbol") or "").upper() == sym), None)
+    match = next(
+        (c for c in items if isinstance(c, dict) and (c.get("symbol") or "").upper() == sym), None
+    )
     coin_id = (match or {}).get("id")
     if not coin_id:
         return None
@@ -203,7 +209,9 @@ async def coincap_quote(symbol: str) -> dict[str, Any] | None:
     assets = body.get("data") if body else None
     if not isinstance(assets, list):
         return None
-    match = next((a for a in assets if isinstance(a, dict) and (a.get("symbol") or "").upper() == sym), None)
+    match = next(
+        (a for a in assets if isinstance(a, dict) and (a.get("symbol") or "").upper() == sym), None
+    )
     if not match:
         return None
     price = match.get("priceUsd")
@@ -280,7 +288,15 @@ async def _scanner_snapshot_pairs(address: str, chain: str) -> list[dict[str, An
     ``baseToken.address`` is added so symbol→address resolution keeps working).
     """
     chain_id = chain if chain and chain != "unknown" else "ethereum"
-    body = await backend_json_get(f"/api/v2/scanner/token/price/{chain_id}/{address}", timeout=5.0)
+    try:
+        body = await backend_json_get(
+            f"/api/v2/scanner/token/price/{chain_id}/{address}", timeout=5.0
+        )
+    except BackendApiError as exc:
+        # Fail-loud helper, but this is one leg of a fallback chain:
+        # degrade to a miss so DataBus/DexScreener/Birdeye still run.
+        logger.debug("scanner_snapshot_pairs backend miss (%s): %s", exc.status_code, exc)
+        return None
     if not body or not body.get("cached") or not body.get("data"):
         return None
     d = body["data"]
@@ -298,12 +314,18 @@ async def _scanner_snapshot_pairs(address: str, chain: str) -> list[dict[str, An
             "volume": {"h24": _to_float(d.get("volume_24h_usd"))},
             "marketCap": _to_float(d.get("market_cap_usd")),
             "pairAddress": address,
-            "baseToken": {"name": d.get("name", "Unknown"), "symbol": d.get("symbol", "???"), "address": address},
+            "baseToken": {
+                "name": d.get("name", "Unknown"),
+                "symbol": d.get("symbol", "???"),
+                "address": address,
+            },
         }
     ]
 
 
-def _result_from_pairs(pairs: list[dict[str, Any]], *, address: str, chain: str, source: str) -> PriceResult:
+def _result_from_pairs(
+    pairs: list[dict[str, Any]], *, address: str, chain: str, source: str
+) -> PriceResult:
     """Build a PriceResult from the FIRST raw pair (best price/liquidity)."""
     first = pairs[0]
     raw_base = first.get("baseToken")
@@ -317,10 +339,18 @@ def _result_from_pairs(pairs: list[dict[str, Any]], *, address: str, chain: str,
     resolved_address = address or str(base.get("address") or "")
     return PriceResult(
         price_usd=_to_float(first.get("priceUsd")),
-        change_24h=_to_float(pc.get("h24")) if pc is not None and pc.get("h24") is not None else None,
-        liquidity=_to_float(liq.get("usd")) if liq is not None and liq.get("usd") is not None else None,
-        volume_24h=_to_float(vol.get("h24")) if vol is not None and vol.get("h24") is not None else None,
-        market_cap=_to_float(first.get("marketCap")) if first.get("marketCap") is not None else None,
+        change_24h=_to_float(pc.get("h24"))
+        if pc is not None and pc.get("h24") is not None
+        else None,
+        liquidity=_to_float(liq.get("usd"))
+        if liq is not None and liq.get("usd") is not None
+        else None,
+        volume_24h=_to_float(vol.get("h24"))
+        if vol is not None and vol.get("h24") is not None
+        else None,
+        market_cap=_to_float(first.get("marketCap"))
+        if first.get("marketCap") is not None
+        else None,
         symbol=base.get("symbol"),
         name=base.get("name"),
         chain=chain or str(base.get("chainId") or ""),
@@ -343,9 +373,17 @@ async def _resolve_address(address: str, chain: str = "") -> PriceResult:
     #    ``cmd_dex`` own-data primary).
     scanner_pairs = await _scanner_snapshot_pairs(address, chain)
     if scanner_pairs:
-        return _result_from_pairs(scanner_pairs, address=address, chain=chain, source=SOURCE_SCANNER)
+        return _result_from_pairs(
+            scanner_pairs, address=address, chain=chain, source=SOURCE_SCANNER
+        )
     # 2. Our backend DataBus aggregate (DexScreener + Birdeye + GMGN + scanners).
-    body = await backend_json_get(f"/api/v1/databus/token/{address}", timeout=6.0)
+    try:
+        body = await backend_json_get(f"/api/v1/databus/token/{address}", timeout=6.0)
+    except BackendApiError as exc:
+        # One leg of the fallback chain — a dead backend is a miss here so
+        # the external legs (DexScreener → Birdeye) still get their turn.
+        logger.debug("databus aggregate backend miss (%s): %s", exc.status_code, exc)
+        body = None
     pairs = _raw_pairs_from_backend(body)
     if pairs:
         return _result_from_pairs(pairs, address=address, chain=chain, source=SOURCE_BACKEND)
@@ -353,7 +391,9 @@ async def _resolve_address(address: str, chain: str = "") -> PriceResult:
     body = await http_get_json(f"{DEXSCREENER}/tokens/{address}", timeout=6.0)
     pairs = _raw_pairs(body)
     if pairs:
-        return _result_from_pairs(pairs, address=address, chain=chain, source=SOURCE_DEXSCREENER_TOKEN)
+        return _result_from_pairs(
+            pairs, address=address, chain=chain, source=SOURCE_DEXSCREENER_TOKEN
+        )
     # 4. Birdeye direct price (key from env/gopass; rotates on failure).
     quote = await birdeye_price(address, chain or "solana")
     if quote and quote.get("price_usd") is not None:
@@ -382,9 +422,15 @@ async def _resolve_symbol(symbol: str, chain: str = "") -> PriceResult:
     if quote and quote.get("price_usd") is not None:
         return PriceResult(
             price_usd=_to_float(quote.get("price_usd")),
-            change_24h=_to_float(quote.get("change_24h")) if quote.get("change_24h") is not None else None,
-            volume_24h=_to_float(quote.get("volume_24h")) if quote.get("volume_24h") is not None else None,
-            market_cap=_to_float(quote.get("market_cap")) if quote.get("market_cap") is not None else None,
+            change_24h=_to_float(quote.get("change_24h"))
+            if quote.get("change_24h") is not None
+            else None,
+            volume_24h=_to_float(quote.get("volume_24h"))
+            if quote.get("volume_24h") is not None
+            else None,
+            market_cap=_to_float(quote.get("market_cap"))
+            if quote.get("market_cap") is not None
+            else None,
             symbol=quote.get("symbol") or q,
             name=quote.get("name"),
             chain=chain,

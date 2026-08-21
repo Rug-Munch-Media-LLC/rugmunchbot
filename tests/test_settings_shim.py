@@ -8,6 +8,9 @@ def test_defaults_match_backend(monkeypatch):
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.delenv("QDRANT_URL", raising=False)
     monkeypatch.delenv("INFINITY_URL", raising=False)
+    monkeypatch.delenv("RERANKER_URL", raising=False)
+    monkeypatch.delenv("BGE_M3_URL", raising=False)
+    monkeypatch.delenv("SEARXNG_BASE_URL", raising=False)
     monkeypatch.delenv("EMBEDDER_PRIMARY", raising=False)
     monkeypatch.delenv("EMBEDDER_PRIMARY_MODEL", raising=False)
     monkeypatch.delenv("EMBEDDER_CACHE_TTL", raising=False)
@@ -19,9 +22,12 @@ def test_defaults_match_backend(monkeypatch):
 
     assert shim.settings.redis_url == "redis://localhost:6379/0"
     assert shim.settings.qdrant_url == "http://localhost:6333"
-    assert shim.settings.infinity_url == "http://localhost:8001"
+    # Qwen3 embedder/reranker stack (2026-08): llama.cpp servers on the
+    # docker bridge host, OpenAI-compatible /v1 API on 8004, reranker 8003.
+    assert shim.settings.infinity_url == "http://172.22.0.1:8004/v1"
+    assert shim.settings.reranker_url == "http://172.22.0.1:8003"
     assert shim.settings.embedder_primary == "infinity"
-    assert shim.settings.embedder_primary_model == "BAAI/bge-m3"
+    assert shim.settings.embedder_primary_model == "qwen3-embedding-4b"
     assert shim.settings.embedder_cache_ttl == 86400
     assert shim.settings.embedder_cache_maxsize == 10000
 

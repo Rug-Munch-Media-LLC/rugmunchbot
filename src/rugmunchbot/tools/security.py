@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import BackendApiError
 from rugmunchbot.tools.registry import ToolResult, backend_json_get, backend_json_post
 
 logger = get_logger("rmi_bot.tools.security")
@@ -31,7 +32,9 @@ async def security_scan(*, address: str = "", chain: str = "") -> ToolResult:
         timeout=8.0,
     )
     if not body or body.get("error"):
-        return ToolResult(tool="security_scan", ok=False, error="no live data (scanner unavailable)")
+        return ToolResult(
+            tool="security_scan", ok=False, error="no live data (scanner unavailable)"
+        )
     # Flatten the compact scanner payload so the LLM formats real numbers.
     keep = {
         "address": address,
@@ -63,21 +66,47 @@ async def wallet_analysis(*, address: str = "", chain: str = "") -> ToolResult:
     if not address:
         return ToolResult(tool="wallet_analysis", ok=False, error="address required")
 
-    tokens_body = await backend_json_get(f"/api/v1/databus/wallet/{address}/tokens", timeout=8.0)
-    pnl_body = await backend_json_get(f"/api/v1/databus/wallet/{address}/pnl", timeout=8.0)
-    v2_body = await backend_json_post(
-        "/api/v2/scanner/wallet/scan",
-        json={"address": address, "chain": chain or ""},
-        timeout=20.0,
+    # Fail-LOUD (audit 2026-08-21 §F): a dead backend must surface its HTTP
+    # status, not degrade to silent "no data". Each route is independent — a
+    # failure on one is collected for the aggregate error while the others
+    # still contribute whatever they return.
+    errors: list[str] = []
+
+    async def _fetch(label: str, coro: Any) -> dict[str, Any] | None:
+        try:
+            return await coro
+        except BackendApiError as exc:
+            errors.append(
+                f"{label}: {exc} (HTTP {exc.status_code})" if exc.status_code else f"{label}: {exc}"
+            )
+            return None
+
+    tokens_body = await _fetch(
+        "tokens", backend_json_get(f"/api/v1/databus/wallet/{address}/tokens", timeout=8.0)
+    )
+    pnl_body = await _fetch(
+        "pnl", backend_json_get(f"/api/v1/databus/wallet/{address}/pnl", timeout=8.0)
+    )
+    v2_body = await _fetch(
+        "wallet_scan_v2",
+        backend_json_post(
+            "/api/v2/scanner/wallet/scan",
+            json={"address": address, "chain": chain or ""},
+            timeout=20.0,
+        ),
     )
 
     payload: dict[str, Any] = {"address": address, "chain": chain or ""}
     if tokens_body is not None:
         payload["tokens"] = (
-            tokens_body.get("tokens") if isinstance(tokens_body.get("tokens"), list) else tokens_body.get("data")
+            tokens_body.get("tokens")
+            if isinstance(tokens_body.get("tokens"), list)
+            else tokens_body.get("data")
         )
     if pnl_body is not None:
-        payload["pnl"] = pnl_body.get("pnl") if pnl_body.get("pnl") is not None else pnl_body.get("data")
+        payload["pnl"] = (
+            pnl_body.get("pnl") if pnl_body.get("pnl") is not None else pnl_body.get("data")
+        )
     if v2_body and v2_body.get("status") == "ok":
         payload["v2"] = v2_body
 
@@ -95,6 +124,17 @@ async def wallet_analysis(*, address: str = "", chain: str = "") -> ToolResult:
                 token_addrs.append(str(t.get("address") or t.get("mint") or t.get("token_address")))
 
     if not any(k in payload for k in ("tokens", "pnl", "v2")):
+        if errors:
+            # LOUD: every backend route failed — carry the HTTP statuses to
+            # the user instead of a silent empty wallet ("backend down 502"
+            # is NOT the same as "wallet has no tokens").
+            detail = "; ".join(errors)[:300]
+            return ToolResult(
+                tool="wallet_analysis",
+                ok=False,
+                error=f"backend wallet routes unavailable ({detail})",
+                addresses=[address],
+            )
         return ToolResult(
             tool="wallet_analysis",
             ok=False,

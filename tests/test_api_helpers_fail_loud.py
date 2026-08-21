@@ -15,13 +15,19 @@ non-200 that still reaches the bot is a REAL error and must surface loudly:
 
 from __future__ import annotations
 
+import importlib
 from typing import Any
-from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 
-from rugmunchbot.tools import _client, budget, registry
+from rugmunchbot.tools import _client, budget
+
+# NOTE: ``from rugmunchbot.tools import registry`` resolves to the shared
+# ToolRegistry SINGLETON (package __getattr__), not the ``tools/registry.py``
+# module that owns ``backend_json_get`` / ``backend_json_post``. Import the
+# module explicitly via importlib (sys.modules path — immune to the shadow).
+registry = importlib.import_module("rugmunchbot.tools.registry")
 
 
 class FakeResponse:
@@ -85,14 +91,13 @@ def fake_http(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.mark.asyncio
 async def test_backend_json_get_returns_dict_on_200(fake_http) -> None:
-    fake_http["client"] = None
     body = await registry.backend_json_get("/api/v1/x")
     assert body == {}  # fake default 200 {}
 
 
 @pytest.mark.asyncio
 async def test_backend_json_get_non_200_raises_with_status(fake_http) -> None:
-    fake_http["client"].response = FakeResponse(502, {"detail": "bad gateway"})
+    fake_http.response = FakeResponse(502, {"detail": "bad gateway"})
     with pytest.raises(_client.BackendApiError) as excinfo:
         await registry.backend_json_get("/api/v1/databus/wallet/0xabc/pnl")
     assert excinfo.value.status_code == 502
@@ -101,7 +106,7 @@ async def test_backend_json_get_non_200_raises_with_status(fake_http) -> None:
 
 @pytest.mark.asyncio
 async def test_backend_json_post_non_200_raises_with_status(fake_http) -> None:
-    fake_http["client"].response = FakeResponse(503, {})
+    fake_http.response = FakeResponse(503, {})
     with pytest.raises(_client.BackendApiError) as excinfo:
         await registry.backend_json_post("/api/v1/bot/scan", json={"address": "0xabc"})
     assert excinfo.value.status_code == 503
@@ -109,7 +114,7 @@ async def test_backend_json_post_non_200_raises_with_status(fake_http) -> None:
 
 @pytest.mark.asyncio
 async def test_backend_json_get_network_error_raises_not_none(fake_http) -> None:
-    fake_http["client"].raise_on_call = httpx.ConnectError("connection refused")
+    fake_http.raise_on_call = httpx.ConnectError("connection refused")
     with pytest.raises(_client.BackendApiError):
         await registry.backend_json_get("/api/v1/x")
 
@@ -126,14 +131,14 @@ async def test_backend_json_get_budget_exhausted_is_loud(
 
 @pytest.mark.asyncio
 async def test_backend_json_get_invalid_json_body_raises(fake_http) -> None:
-    fake_http["client"].response = FakeResponse(200, ValueError("bad json"))
+    fake_http.response = FakeResponse(200, ValueError("bad json"))
     with pytest.raises(_client.BackendApiError):
         await registry.backend_json_get("/api/v1/x")
 
 
 @pytest.mark.asyncio
 async def test_backend_json_get_non_object_body_raises(fake_http) -> None:
-    fake_http["client"].response = FakeResponse(200, [1, 2, 3])
+    fake_http.response = FakeResponse(200, [1, 2, 3])
     with pytest.raises(_client.BackendApiError):
         await registry.backend_json_get("/api/v1/x")
 
@@ -143,13 +148,13 @@ async def test_backend_json_get_non_object_body_raises(fake_http) -> None:
 
 @pytest.mark.asyncio
 async def test_http_get_json_external_still_returns_none_on_non_200(fake_http) -> None:
-    fake_http["client"].response = FakeResponse(429, {})
+    fake_http.response = FakeResponse(429, {})
     assert await _client.http_get_json("https://api.dexscreener.com/x") is None
 
 
 @pytest.mark.asyncio
 async def test_http_get_json_external_still_returns_none_on_network_error(fake_http) -> None:
-    fake_http["client"].raise_on_call = httpx.ConnectError("boom")
+    fake_http.raise_on_call = httpx.ConnectError("boom")
     assert await _client.http_get_json("https://api.dexscreener.com/x") is None
 
 

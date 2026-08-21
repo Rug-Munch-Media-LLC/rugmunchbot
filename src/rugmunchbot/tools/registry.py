@@ -122,7 +122,12 @@ class ToolRegistry:
         self._cache: TTLCache[ToolResult] = TTLCache()
 
     def register(
-        self, name: str, handler: ToolHandler, *, timeout: float = DEFAULT_TOOL_TIMEOUT, ttl: float = DEFAULT_TOOL_TTL
+        self,
+        name: str,
+        handler: ToolHandler,
+        *,
+        timeout: float = DEFAULT_TOOL_TIMEOUT,
+        ttl: float = DEFAULT_TOOL_TTL,
     ) -> None:
         """Register a tool handler. ``timeout`` bounds each call; ``ttl`` is
         the cache lifetime in seconds (0 disables caching)."""
@@ -180,7 +185,9 @@ class ToolRegistry:
                 self._cache.set(_negative_namespace(name), key, result, NEGATIVE_TTL)
         return result
 
-    async def _run_with_retry(self, name: str, handler: ToolHandler, timeout: float, **kwargs: Any) -> ToolResult:
+    async def _run_with_retry(
+        self, name: str, handler: ToolHandler, timeout: float, **kwargs: Any
+    ) -> ToolResult:
         last: ToolResult | None = None
         for attempt in range(MAX_RETRIES + 1):
             start = time.perf_counter()
@@ -213,7 +220,9 @@ class ToolRegistry:
                 out[name] = res
         return out
 
-    async def run_many_kwargs(self, spec: dict[str, dict[str, Any]], **shared: Any) -> dict[str, ToolResult]:
+    async def run_many_kwargs(
+        self, spec: dict[str, dict[str, Any]], **shared: Any
+    ) -> dict[str, ToolResult]:
         """Run several tools concurrently, each with its OWN kwargs.
 
         ``spec`` maps tool name -> per-tool kwargs; ``shared`` is merged into
@@ -277,32 +286,75 @@ class ToolRegistry:
         self._cache.clear(namespace)
 
 
-# ── Shared helper: backend JSON GET with the bot's auth header ─────────────
+# ── Shared helpers: backend (own-data) calls with the bot's auth header ────
+#
+# FAIL-LOUD contract (audit 2026-08-21 §F): the backend answers genuine
+# no-data with 200+{"data": null, "reason": "no_data"}, so any non-200 is a
+# REAL error. These helpers raise :class:`BackendApiError` (carrying the HTTP
+# status) instead of returning ``None`` — a silent ``None`` used to render as
+# "no data" and users could not tell a dead backend from an empty wallet.
+# Callers inside multi-source fallback chains catch ``BackendApiError`` and
+# degrade that ONE source to a miss so the remaining chain legs still run.
+
+
 async def backend_json_get(
     path: str, *, params: dict[str, Any] | None = None, timeout: float = 6.0
-) -> dict[str, Any] | None:
-    """GET a backend (own-data) endpoint with the shared-secret header."""
-    from rugmunchbot.config import BACKEND_URL, backend_headers
-    from rugmunchbot.tools._client import http_get_json
+) -> dict[str, Any]:
+    """GET a backend (own-data) endpoint with the shared-secret header.
 
-    return await http_get_json(
+    Returns the parsed dict on success; raises :class:`BackendApiError` on
+    any failure (non-200, network error, budget exhaustion, malformed body).
+    """
+    from rugmunchbot.config import BACKEND_URL, backend_headers
+    from rugmunchbot.tools._client import http_get_json_loud
+
+    return await http_get_json_loud(
         f"{BACKEND_URL}{path}",
         params=params,
         headers=backend_headers(),
         timeout=timeout,
+        provider="backend",
+    )
+
+
+async def backend_json_get_any(
+    path: str, *, params: dict[str, Any] | None = None, timeout: float = 6.0
+) -> dict[str, Any] | list[Any]:
+    """GET a backend (own-data) endpoint that may return a JSON array.
+
+    Same fail-loud contract as :func:`backend_json_get` (raises
+    :class:`BackendApiError` on non-200 / network / budget / malformed
+    bodies), but accepts BOTH dict and list bodies — routes like
+    ``/api/v1/scanner/recent`` answer with an array, which the dict-only
+    helper rejects. Callers must still isinstance-check the shape.
+    """
+    from rugmunchbot.config import BACKEND_URL, backend_headers
+    from rugmunchbot.tools._client import http_get_any_loud
+
+    return await http_get_any_loud(
+        f"{BACKEND_URL}{path}",
+        params=params,
+        headers=backend_headers(),
+        timeout=timeout,
+        provider="backend",
     )
 
 
 async def backend_json_post(
     path: str, *, json: dict[str, Any] | None = None, timeout: float = 8.0
-) -> dict[str, Any] | None:
-    """POST a backend (own-data) endpoint with the shared-secret header."""
-    from rugmunchbot.config import BACKEND_URL, backend_headers
-    from rugmunchbot.tools._client import http_post_json
+) -> dict[str, Any]:
+    """POST a backend (own-data) endpoint with the shared-secret header.
 
-    return await http_post_json(
+    Returns the parsed dict on success; raises :class:`BackendApiError` on
+    any failure (non-200, network error, budget exhaustion, malformed body).
+    """
+    from rugmunchbot.config import BACKEND_URL, backend_headers
+    from rugmunchbot.tools._client import http_post_json_loud
+
+    return await http_post_json_loud(
         f"{BACKEND_URL}{path}",
         json=json,
         headers=backend_headers(),
         timeout=timeout,
+        provider="backend",
     )

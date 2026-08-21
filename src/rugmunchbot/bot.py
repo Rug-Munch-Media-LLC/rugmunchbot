@@ -247,6 +247,44 @@ def _metrics_job(name: str, fn: Any) -> Any:
     return wrapped
 
 
+def register_core_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
+    """Register the CORE repeating scheduler jobs on ``app.job_queue``.
+
+    Contract (unit-tested in tests/test_bot_scheduler.py): EXACTLY 4 core
+    repeating jobs — check_alerts, check_monitors,
+    deliver_pending_broadcasts, deliver_pending_alerts. The daily scam tip
+    stays DISABLED (2026-08-12); env-driven channel content jobs are a
+    separate concern owned by :func:`register_channel_jobs`. Extracted from
+    ``main()`` so the scheduling contract is testable without a Telegram
+    connection (``main`` ends in the blocking ``run_polling``).
+    """
+    job_queue = app.job_queue
+    if not job_queue:
+        return
+    job_queue.run_repeating(
+        _metrics_job("check_alerts", check_alerts), interval=ALERT_CHECK_INTERVAL, first=10
+    )
+    # Stars-paid token monitors: re-scan for tax/ownership/mint/LP deltas
+    # and push meaningful changes as DMs (live LP/whale/price events flow
+    # through the webhook bridge independently).
+    job_queue.run_repeating(
+        _metrics_job("check_monitors", check_monitors),
+        interval=MONITOR_CHECK_INTERVAL,
+        first=120,
+    )
+    # Admin-panel broadcasts (queued in Redis by the backend API)
+    job_queue.run_repeating(
+        _metrics_job("deliver_pending_broadcasts", deliver_pending_broadcasts),
+        interval=30,
+        first=15,
+    )
+    # Intelligent webhook alerts (queued in Redis by the backend webhook
+    # engine → telegram_bridge; whale/price/liquidity/launch push alerts)
+    job_queue.run_repeating(
+        _metrics_job("deliver_pending_alerts", deliver_pending_alerts), interval=30, first=15
+    )
+
+
 def install_maintenance_gate(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     """Globally disable the bot via /admin_toggle (maintenance mode).
 
@@ -643,28 +681,7 @@ def main() -> None:
     job_queue = app.job_queue
     if job_queue:
         # job_queue.run_daily(daily_scam_tip, dtime(hour=14, minute=0, tzinfo=UTC))  # disabled 2026-08-12
-        job_queue.run_repeating(
-            _metrics_job("check_alerts", check_alerts), interval=ALERT_CHECK_INTERVAL, first=10
-        )
-        # Stars-paid token monitors: re-scan for tax/ownership/mint/LP deltas
-        # and push meaningful changes as DMs (live LP/whale/price events flow
-        # through the webhook bridge independently).
-        job_queue.run_repeating(
-            _metrics_job("check_monitors", check_monitors),
-            interval=MONITOR_CHECK_INTERVAL,
-            first=120,
-        )
-        # Admin-panel broadcasts (queued in Redis by the backend API)
-        job_queue.run_repeating(
-            _metrics_job("deliver_pending_broadcasts", deliver_pending_broadcasts),
-            interval=30,
-            first=15,
-        )
-        # Intelligent webhook alerts (queued in Redis by the backend webhook
-        # engine → telegram_bridge; whale/price/liquidity/launch push alerts)
-        job_queue.run_repeating(
-            _metrics_job("deliver_pending_alerts", deliver_pending_alerts), interval=30, first=15
-        )
+        register_core_jobs(app)
         # Scheduled channel content: news / alerts / alpha digests (env-driven
         # cadence + per-channel switches; each job fails open).
         register_channel_jobs(app)

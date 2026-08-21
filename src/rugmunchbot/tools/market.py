@@ -42,16 +42,28 @@ FEAR_GREED = "https://api.alternative.me/fng"
 
 async def _backend_prices() -> dict[str, Any] | None:
     """BTC/ETH/SOL prices from our backend (CoinGecko front, cached)."""
-    body = await backend_json_get(
-        "/api/v1/databus/market/prices", params={"coins": "bitcoin,ethereum,solana"}, timeout=6.0
-    )
+    try:
+        body = await backend_json_get(
+            "/api/v1/databus/market/prices",
+            params={"coins": "bitcoin,ethereum,solana"},
+            timeout=6.0,
+        )
+    except BackendApiError as exc:
+        # Chain leg — CoinGecko direct fallback follows; degrade to a miss.
+        logger.debug("market prices backend miss (%s): %s", exc.status_code, exc)
+        return None
     if not body or not isinstance(body.get("prices"), dict):
         return None
     return body["prices"]
 
 
 async def _backend_fear_greed() -> dict[str, Any] | None:
-    body = await backend_json_get("/api/v1/databus/market/fear-greed", timeout=6.0)
+    try:
+        body = await backend_json_get("/api/v1/databus/market/fear-greed", timeout=6.0)
+    except BackendApiError as exc:
+        # Chain leg — alternative.me direct fallback follows; degrade to a miss.
+        logger.debug("market fear-greed backend miss (%s): %s", exc.status_code, exc)
+        return None
     if not body or body.get("value") is None:
         return None
     return body
@@ -80,7 +92,9 @@ async def _coingecko_global() -> dict[str, Any] | None:
 
 
 async def _coingecko_trending(limit: int = 10) -> list[dict[str, Any]] | None:
-    body = await http_get_json(f"{COINGECKO}/search/trending", headers=_coingecko_headers(), timeout=6.0)
+    body = await http_get_json(
+        f"{COINGECKO}/search/trending", headers=_coingecko_headers(), timeout=6.0
+    )
     coins = body.get("coins") if body else None
     if not isinstance(coins, list):
         return None
@@ -119,7 +133,9 @@ async def _defillama_top_chains(limit: int = 8) -> list[dict[str, Any]] | None:
     )
     out: list[dict[str, Any]] = []
     for c in ranked[:limit]:
-        out.append({"name": c.get("name"), "tvl": c.get("tvl"), "tokenSymbol": c.get("tokenSymbol")})
+        out.append(
+            {"name": c.get("name"), "tvl": c.get("tvl"), "tokenSymbol": c.get("tokenSymbol")}
+        )
     return out or None
 
 
@@ -172,9 +188,15 @@ async def market_overview(*, chain: str = "", limit: int = 10) -> ToolResult:
     if chains:
         sources.append("defillama:/v2/chains")
 
-    if not payload.get("prices") and not payload.get("global_market_cap_usd") and not payload.get("fear_greed"):
+    if (
+        not payload.get("prices")
+        and not payload.get("global_market_cap_usd")
+        and not payload.get("fear_greed")
+    ):
         return ToolResult(
-            tool="market_overview", ok=False, error="no live market data (backend + CoinGecko + DefiLlama unavailable)"
+            tool="market_overview",
+            ok=False,
+            error="no live market data (backend + CoinGecko + DefiLlama unavailable)",
         )
 
     return ToolResult(

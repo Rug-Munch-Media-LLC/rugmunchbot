@@ -29,6 +29,7 @@ from rugmunchbot._vendor.rag_pkg.scan_memory import (
     schedule_scan_memory_index as schedule_scan_memory_index,
     should_index_scan as should_index_scan,
 )
+from rugmunchbot.tools._client import BackendApiError as BackendApiError
 from rugmunchbot.tools._client import get_shared_client as get_shared_client
 from rugmunchbot.tools.registry import (
     ToolResult as ToolResult,

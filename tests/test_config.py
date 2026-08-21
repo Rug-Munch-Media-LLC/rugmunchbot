@@ -41,5 +41,7 @@ def test_llm_model_defaults():
 
     snappy = get_snappy_config()
     long_cfg = get_long_config()
-    assert "laguna" in snappy["model"]  # snappy tier
-    assert "nemotron" in long_cfg["model"]  # long tier
+    # Current chain (2026-08-19): snappy = StepFlash 3.7 via KiloCode (free),
+    # long = Nemotron 3.5 Lightning via KiloCode (free).
+    assert "step" in snappy["model"]  # snappy tier (stepfun/step-3.7-flash:free)
+    assert "nemotron" in long_cfg["model"]  # long tier (nvidia/nemotron-3.5-lightning:free)

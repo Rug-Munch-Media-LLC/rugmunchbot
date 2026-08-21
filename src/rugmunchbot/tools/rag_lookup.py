@@ -36,6 +36,7 @@ import re
 from typing import Any
 
 from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import BackendApiError
 from rugmunchbot.tools.guardrails import extract_addresses, extract_symbols
 from rugmunchbot.tools.registry import ToolResult, backend_json_post
 
@@ -70,7 +71,9 @@ KNOWLEDGE_COLLECTIONS: list[str] = [
     "contract_security",  # verdict-labeled good/bad contract patterns (221 pts)
     "scam_patterns",  # scam pattern docs + rug_timeline alias (9.9K pts)
 ]
-RAG_TOKEN_COLLECTIONS: list[str] = ["scanner_v2"]  # scan-to-RAG memory (191 pts — token-address questions)
+RAG_TOKEN_COLLECTIONS: list[str] = [
+    "scanner_v2"
+]  # scan-to-RAG memory (191 pts — token-address questions)
 
 RAG_LOOKUP_TOP_K = 5  # per collection — dedup keeps the prompt small
 RAG_LOOKUP_TIMEOUT = 5.0  # overall budget (seconds) — chat stays snappy
@@ -190,7 +193,9 @@ def _rag_hit_label(h: dict[str, Any]) -> str:
     return "[" + "\u00b7".join(parts) + "]"
 
 
-def _format_context(hits: list[dict[str, Any]], max_chars: int = RAG_LOOKUP_CONTEXT_MAX_CHARS) -> str:
+def _format_context(
+    hits: list[dict[str, Any]], max_chars: int = RAG_LOOKUP_CONTEXT_MAX_CHARS
+) -> str:
     """Render top RAG hits as a compact, LLM-friendly context block.
 
     Each hit is labeled with its collection + score AND a verdict source
@@ -278,18 +283,34 @@ async def rag_lookup(*, query: str = "") -> ToolResult:
         collections.extend(RAG_TOKEN_COLLECTIONS)
     search_query = _build_query(query, addresses, symbols)
 
+    # Loud backend errors collected per collection — a fully-down RAG backend
+    # must surface as "backend unavailable", not as "no knowledge" (silent).
+    backend_errors: list[str] = []
+
     async def _search(collection: str) -> list[dict[str, Any]]:
-        body = await backend_json_post(
-            "/api/v1/rag/v2/search",
-            json={
-                "query": search_query,
-                "collection": collection,
-                "top_k": RAG_LOOKUP_TOP_K,
-                "min_similarity": 0.0,
-                "filters": {},
-            },
-            timeout=RAG_LOOKUP_TIMEOUT,
-        )
+        try:
+            body = await backend_json_post(
+                "/api/v1/rag/v2/search",
+                json={
+                    "query": search_query,
+                    "collection": collection,
+                    "top_k": RAG_LOOKUP_TOP_K,
+                    "min_similarity": 0.0,
+                    "filters": {},
+                },
+                timeout=RAG_LOOKUP_TIMEOUT,
+            )
+        except BackendApiError as exc:
+            # Fail-loud helper, but a RAG miss must not kill the answer —
+            # record the loud error (so a fully-down backend is surfaced, not
+            # rendered as "no knowledge") and degrade this collection to [].
+            backend_errors.append(
+                f"{collection}: {exc} (HTTP {exc.status_code})"
+                if exc.status_code
+                else f"{collection}: {exc}"
+            )
+            logger.debug("rag_lookup backend miss (%s): %s", exc.status_code, exc)
+            return []
         if not body:
             return []
         raw_hits = body.get("hits")
@@ -318,6 +339,13 @@ async def rag_lookup(*, query: str = "") -> ToolResult:
         if isinstance(res, list):
             all_hits.extend(res)
     if not all_hits:
+        if backend_errors:
+            # LOUD: zero hits because the backend search failed — surface the
+            # HTTP statuses instead of a silent "no knowledge" (audit §F).
+            detail = "; ".join(backend_errors)[:300]
+            return ToolResult(
+                tool="rag_lookup", ok=False, error=f"rag backend unavailable ({detail})"
+            )
         return ToolResult(tool="rag_lookup", ok=False, error="no rag hits")
 
     # Dedupe across collections by normalized content hash, keep the
@@ -338,7 +366,9 @@ async def rag_lookup(*, query: str = "") -> ToolResult:
     for h in top:
         col = str(h.get("collection") or "unknown")
         per_collection[col] = per_collection.get(col, 0) + 1
-    sources = [{"type": "rag", "query": query[:90], "collection": col} for col in sorted(per_collection)]
+    sources = [
+        {"type": "rag", "query": query[:90], "collection": col} for col in sorted(per_collection)
+    ]
     known_syms: set[str] = set()
     known_addrs: set[str] = set()
     for h in top:
