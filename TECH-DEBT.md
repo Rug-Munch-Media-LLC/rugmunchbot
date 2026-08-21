@@ -32,6 +32,6 @@
 ## Known contracts / follow-ups
 - `TODO(ghost-admin-key)` in `channels/personal_channel.py` — provision
   `GHOST_ADMIN_API_KEY` via gopass to enable cross-posting.
-- Long-polling bot has no HTTP listener → compose uses restart policy only.
-  Follow-up: internal health thread so Docker HEALTHCHECK can attach.
+- Health surface: observability thread serves `/healthz` + `/metrics` on
+  :9191 (`RUGMUNCHBOT_METRICS_*`); Docker HEALTHCHECK + compose wired to it.
 - Test suite: 16 files, green. Coverage gates not yet wired (platform win 29).

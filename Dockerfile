@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir . && pip check
 
 USER 10002
 
-# Long-polling bot: no HTTP listener, so no HEALTHCHECK — restart policy in
-# compose is the recovery mechanism. An internal health thread is a follow-up.
+# Observability thread serves /healthz on :9191 (RUGMUNCHBOT_METRICS_PORT).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9191/healthz"]
+
 CMD ["python", "-m", "rugmunchbot.bot"]
