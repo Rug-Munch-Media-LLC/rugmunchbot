@@ -1,16 +1,17 @@
 # VENDORED 2026-08-17 from rmi-backend/app/domains/content/briefing.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
-"""RMI Morning Brief assembler — draft → review → publish.
+"""Daily Rug Report assembler — draft → review → publish.
 
-Implements the §3 content skeleton + §6 pipeline from the morning-brief
-methodology (2026-08-13). The pipeline is:
+Implements the §3 content skeleton + §6 pipeline from the daily-rug-report
+methodology (2026-08-20). The pipeline is:
 
     1. ``gather_briefing_context()`` — best-effort, structured context pulled
        from the market snapshot (CoinGecko, same pattern as
        ``app.routers.chat._fetch_market_context``) and RAG collections
        (news_v2 / market_intel / known_scams / threat_intel / defi_exploits /
-       whale_transfers). Never raises.
+       whale_transfers). Top stories are reranked by the Qwen3 reranker
+       for importance before inclusion.
     2. ``draft_briefing()`` — renders the fixed §3 skeleton. The default
         writer is the remote-LLM ``llm_writer`` (production), which re-writes
         the prose from the gathered context; whenever the LLM is unavailable,
@@ -20,7 +21,8 @@ methodology (2026-08-13). The pipeline is:
        must appear in the context (hallucination gate), and metric-bearing
        claim bullets must carry a source reference (URL or address).
     4. ``publish_briefing()`` — publishes via ``app.content_platform.create_post``
-       with ``post_type="briefing"``.
+       with ``post_type="briefing"``. Long-form goes to Ghost (blog.rugmunch.io),
+       compact version to Telegram @cryptorugmuncher.
 
 Grounding rules (methodology §3, non-negotiable):
     - Every metric cites a source or is omitted. No invented prices/mcap/%.
@@ -47,11 +49,11 @@ logger = get_logger(__name__)
 
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 
-_BRIEFING_TITLE = "RMI Morning Brief"
+_BRIEFING_TITLE = "Daily Rug Report"
 
 # Logical Telegram channels for the briefing micro-post (methodology §7):
-# the owner's main channel first, RMI Crypto News as fallback. Resolved via
-# ``telegram_transport.CHANNEL_IDS`` (env ``RMI_MAIN_CHANNEL_ID`` /
+# the @cryptorugmuncher channel first, RMI Crypto News as fallback. Resolved
+# via ``telegram_transport.CHANNEL_IDS`` (env ``RMI_MAIN_CHANNEL_ID`` /
 # ``RMI_CRYPTONEWS_CHANNEL_ID``); when neither is configured the step is
 # skipped and logged — it never raises.
 BRIEFING_TELEGRAM_CHANNELS = ("main_channel", "rmicryptonews")
@@ -59,8 +61,8 @@ BRIEFING_TELEGRAM_CHANNELS = ("main_channel", "rmicryptonews")
 # Telegram soft limit is 4096 chars; keep the compact briefing under it.
 BRIEFING_TELEGRAM_LIMIT = 3900
 
-# Token budget for the LLM briefing call. A Morning Brief is short prose, so
-# 512 tokens is the default; operators can raise it with
+# Token budget for the LLM briefing call. A Daily Rug Report is short prose,
+# so 512 tokens is the default; operators can raise it with
 # ``RMI_BRIEFING_MAX_TOKENS``.
 DEFAULT_BRIEFING_MAX_TOKENS = 512
 
@@ -85,7 +87,7 @@ def _briefing_max_tokens() -> int:
 # grounding rules). Mirrors the RMI Terminal grounding style (chat.py) with
 # the briefing's non-negotiable gates: cite-or-omit, zero hype, addresses on
 # every mover, exact skeleton order, "N/A" for empty sections.
-BRIEFING_SYSTEM_PROMPT = """You are the RMI Morning Brief writer — a forensic-grade crypto analyst at Rug Munch Intelligence.
+BRIEFING_SYSTEM_PROMPT = """You are the Daily Rug Report writer — a forensic-grade crypto analyst at Rug Munch Intelligence.
 
 Voice (from the RMI brand guide — non-negotiable):
 - Authoritative, not arrogant. Sharp and precise. Evidence-first.
@@ -295,13 +297,47 @@ async def _fetch_rag_block(query: str, collections: list[str], limit: int) -> li
         return []
 
 
+async def _rerank_stories(
+    items: list[dict[str, Any]],
+    top_k: int = 5,
+) -> list[dict[str, Any]]:
+    """Rerank top stories by importance using the Qwen3 reranker.
+
+    Uses the ``content_digest`` instruction template to prioritize: unusual
+    whale activity, imminent exchange risks, liquidation cascades, and DeFi
+    protocol anomalies over routine price movements. Falls back to original
+    order when the reranker is unavailable.
+    """
+    if not items:
+        return items
+    try:
+        from rugbrain.reranker import rerank_instructed
+
+        docs = [f"{it.get('title', '')} — {it.get('detail', '')[:200]}" for it in items]
+        results = await rerank_instructed(
+            "content_digest", "top crypto market news today", docs, top_k=top_k
+        )
+        if not results:
+            return items[:top_k]
+        reranked: list[dict[str, Any]] = []
+        for r in results:
+            idx = r["index"]
+            if idx < len(items):
+                reranked.append(items[idx])
+        return reranked[:top_k]
+    except Exception as e:
+        logger.debug("briefing_rerank_failed err=%s", str(e)[:120])
+        return items[:top_k]
+
+
 async def gather_briefing_context() -> dict[str, Any]:
     """Pull every §5 data block into one structured context dict.
 
     Returns a dict with keys ``market`` (raw CoinGecko dict) and one list per
     RAG block (``top_stories``, ``movers``, ``rug_watch``, ``whale_flows``),
-    each element ``{title, detail, source, url, address}``. Empty on failure —
-    this function never raises.
+    each element ``{title, detail, source, url, address}``. Top stories are
+    reranked by the Qwen3 reranker for importance. Empty on failure — this
+    function never raises.
     """
     context: dict[str, Any] = {
         "market": await _fetch_market_data(),
@@ -313,6 +349,9 @@ async def gather_briefing_context() -> dict[str, Any]:
     }
     for key, query, collections, limit in _RAG_BLOCKS:
         context[key] = await _fetch_rag_block(query, collections, limit)
+    # Rerank top stories by importance using the Qwen3 reranker
+    if context["top_stories"]:
+        context["top_stories"] = await _rerank_stories(context["top_stories"], top_k=5)
     return context
 
 
@@ -478,7 +517,7 @@ def _render_fallback(skeleton: dict[str, Any]) -> str:
         [
             "",
             "──────────────────────────",
-            "🔍 RugMunch Bot · /scan any address · rugmunch.io",
+            "📋 Daily Rug Report · rugmunch.io · @cryptorugmunch",
         ]
     )
     return "\n".join(lines)
@@ -609,7 +648,7 @@ async def publish_briefing(
 ) -> dict[str, Any]:
     """Publish the briefing via Ghost ``create_post`` (post_type="briefing").
 
-    The Ghost post is titled ``"RMI Morning Brief — {date}"`` (methodology §2),
+    The Ghost post is titled ``"Daily Rug Report — {date}"`` (methodology §2),
     the drafted body is the post content, and ``tags`` (default ``["briefing"]``)
     are attached on top of the auto-added ``briefing`` tag. ``now`` is
     injectable for deterministic titles (tests / scheduled runs).
@@ -650,7 +689,7 @@ def _compact_briefing(draft: str, *, limit: int = BRIEFING_TELEGRAM_LIMIT) -> st
         if idx > len(head):
             take = text[idx:].strip()
             break
-    footer = "🔍 RugMunch Bot · /scan any address · rugmunch.io"
+    footer = "📋 Daily Rug Report · rugmunch.io · @cryptorugmunch"
     if take:
         return f"{head}\n\n…\n\n{take}\n\n{footer}"[:limit]
     return f"{head}\n\n…\n\n{footer}"[:limit]

@@ -1,12 +1,12 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/rerank.py (frozen copy; do not edit).
+# VENDORED 2026-08-20 from rmi-backend/app/rag/rerank.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
-"""Infinity cross-encoder reranking for the RAG pipeline.
+"""Qwen3-Reranker-4B via llama.cpp reranking for the RAG pipeline.
 
-Reranks retrieved candidates with Infinity's ``/rerank`` endpoint
-(model ``BAAI/bge-reranker-v2-m3``) before they are handed to the LLM.
+Reranks retrieved candidates with llama.cpp's ``/rerank`` endpoint
+(Qwen3-Reranker-4B, port 8003) before they are handed to the LLM.
 
-Fail-open: if Infinity is unreachable, callers keep the pre-rerank order
+Fail-open: if the reranker is unreachable, callers keep the pre-rerank order
 so search never breaks because the reranker is unavailable.
 """
 
@@ -22,11 +22,9 @@ from rugmunchbot._vendor.rag_pkg.tracing import trace_span
 
 log = get_logger(__name__)
 
-INFINITY_RERANK_MODEL: str = "BAAI/bge-reranker-v2-m3"
-
 
 async def rerank_results(query: str, documents: list[str], top_n: int = 5) -> list[dict[str, Any]]:
-    """Rerank *documents* against *query* via Infinity's cross-encoder.
+    """Rerank *documents* against *query* via llama.cpp reranker.
 
     Args:
         query: The user query string.
@@ -42,20 +40,18 @@ async def rerank_results(query: str, documents: list[str], top_n: int = 5) -> li
     if not query or not documents:
         return []
     with trace_span(
-        "rag.rerank.infinity",
+        "rag.rerank.llama",
         {
             "openinference.span.kind": "RERANKER",
-            "openinference.embedding.model": INFINITY_RERANK_MODEL,
             "rerank.input_count": len(documents),
             "rerank.top_n": top_n,
         },
     ) as span:
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
-                    f"{settings.infinity_url.rstrip('/')}/rerank",
+                    f"{settings.reranker_url.rstrip('/')}/rerank",
                     json={
-                        "model": INFINITY_RERANK_MODEL,
                         "query": query,
                         "documents": documents,
                         "top_n": min(top_n, len(documents)),
@@ -73,7 +69,7 @@ async def rerank_results(query: str, documents: list[str], top_n: int = 5) -> li
 
 
 def reorder_by_relevance(items: list[Any], reranked: list[dict[str, Any]], top_n: int) -> list[Any]:
-    """Reorder *items* (index-aligned with the rerank request) by Infinity
+    """Reorder *items* (index-aligned with the rerank request) by reranker
     relevance, mutating each item's ``final_score`` and
     ``metadata["rerank_score"]``.
 
@@ -99,7 +95,6 @@ def reorder_by_relevance(items: list[Any], reranked: list[dict[str, Any]], top_n
 
 
 __all__ = [
-    "INFINITY_RERANK_MODEL",
     "reorder_by_relevance",
     "rerank_results",
 ]

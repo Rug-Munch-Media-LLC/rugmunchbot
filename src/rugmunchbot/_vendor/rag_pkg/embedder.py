@@ -45,6 +45,7 @@ class EmbeddingError(RuntimeError):
 # ── Known embedding dimensions ─────────────────────────────────────────
 KNOWN_DIMS: dict[str, int] = {
     "bge-m3": 1024,
+    "qwen3-embedding-4b": 2560,
     "llama-nemotron-embed-vl-1b-v2:free": 2048,
     "text-embedding-ada-002": 1536,
     "text-embedding-3-small": 1536,
@@ -53,8 +54,8 @@ KNOWN_DIMS: dict[str, int] = {
 
 
 def lookup_dim(model_name: str) -> int:
-    """Look up or default to 1024 for unknown models."""
-    return KNOWN_DIMS.get(model_name, 1024)
+    """Look up or default to 2560 for unknown models (Qwen3-Embedding-4B)."""
+    return KNOWN_DIMS.get(model_name, 2560)
 
 
 def normalize_dim(vec: list[float], target_dim: int) -> list[float]:
@@ -115,10 +116,10 @@ class EmbedderProtocol(ABC):
 
 
 class InfinityEmbedder(EmbedderProtocol):
-    """Embedder backed by an Infinity server (OpenAI-compatible API).
+    """Embedder backed by llama.cpp OpenAI-compatible API (Qwen3-Embedding-4B).
 
     Calls ``POST {url}/embeddings`` with
-    ``{"model": "BAAI/bge-m3", "input": [...]}`` and reads
+    ``{"model": "qwen3-embedding-4b", "input": [...]}`` and reads
     ``data[i].embedding`` — the same wire format as OpenAI, served locally
     by michaelfeil/infinity.
 
@@ -135,7 +136,7 @@ class InfinityEmbedder(EmbedderProtocol):
         self,
         model: str = "",
         url: str = "",
-        dim: int = 1024,
+        dim: int = 2560,
         timeout: float = 60.0,
         max_retries: int = 2,
     ) -> None:
@@ -204,23 +205,36 @@ class InfinityEmbedder(EmbedderProtocol):
                 resp.raise_for_status()
                 items = resp.json().get("data") or []
                 if len(items) != len(texts):
-                    raise RuntimeError(f"Infinity returned {len(items)} embeddings for {len(texts)} texts")
+                    raise RuntimeError(
+                        f"Infinity returned {len(items)} embeddings for {len(texts)} texts"
+                    )
                 vectors: list[list[float]] = [
                     item["embedding"] for item in sorted(items, key=lambda i: i.get("index", 0))
                 ]
                 self._validate(vectors)
                 return vectors
-            except (httpx.HTTPError, OSError, RuntimeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            except (
+                httpx.HTTPError,
+                OSError,
+                RuntimeError,
+                json.JSONDecodeError,
+                KeyError,
+                TypeError,
+            ) as exc:
                 last_exc = exc
                 log.warning("infinity_embed_attempt_failed attempt=%d error=%s", attempt, exc)
                 if attempt < self._max_retries:
                     await asyncio.sleep(0.5 * (attempt + 1))
 
-        raise RuntimeError(f"Infinity embed failed after {self._max_retries + 1} attempts") from last_exc
+        raise RuntimeError(
+            f"Infinity embed failed after {self._max_retries + 1} attempts"
+        ) from last_exc
 
     async def _embed_chunked(self, texts: list[str]) -> list[list[float]]:
         """Split large batches into chunks and embed concurrently."""
-        chunks = [texts[i : i + self.MAX_BATCH_SIZE] for i in range(0, len(texts), self.MAX_BATCH_SIZE)]
+        chunks = [
+            texts[i : i + self.MAX_BATCH_SIZE] for i in range(0, len(texts), self.MAX_BATCH_SIZE)
+        ]
         sem = asyncio.Semaphore(2)  # max 2 concurrent chunk requests
 
         async def _do(chunk: list[str]) -> list[list[float]]:
@@ -236,11 +250,19 @@ class InfinityEmbedder(EmbedderProtocol):
                         if len(items) != len(chunk):
                             raise RuntimeError(f"expected {len(chunk)} vectors, got {len(items)}")
                         vecs: list[list[float]] = [
-                            item["embedding"] for item in sorted(items, key=lambda i: i.get("index", 0))
+                            item["embedding"]
+                            for item in sorted(items, key=lambda i: i.get("index", 0))
                         ]
                         self._validate(vecs)
                         return vecs
-                    except (httpx.HTTPError, OSError, RuntimeError, json.JSONDecodeError, KeyError, TypeError):
+                    except (
+                        httpx.HTTPError,
+                        OSError,
+                        RuntimeError,
+                        json.JSONDecodeError,
+                        KeyError,
+                        TypeError,
+                    ):
                         if attempt < self._max_retries:
                             await asyncio.sleep(0.5 * (attempt + 1))
                         else:
@@ -271,7 +293,9 @@ class InfinityEmbedder(EmbedderProtocol):
                     )
                     self._dim = actual
                     return
-                raise RuntimeError(f"Infinity returned {actual}d vector for text[{i}], expected {self._dim}d")
+                raise RuntimeError(
+                    f"Infinity returned {actual}d vector for text[{i}], expected {self._dim}d"
+                )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -354,11 +378,15 @@ class BGE_M3_Embedder(EmbedderProtocol):
                 if attempt < self._max_retries:
                     await asyncio.sleep(0.5 * (attempt + 1))
 
-        raise RuntimeError(f"bge-m3 embed failed after {self._max_retries + 1} attempts") from last_exc
+        raise RuntimeError(
+            f"bge-m3 embed failed after {self._max_retries + 1} attempts"
+        ) from last_exc
 
     async def _embed_chunked(self, texts: list[str]) -> list[list[float]]:
         """Split large batches into chunks and embed concurrently."""
-        chunks = [texts[i : i + self.MAX_CHUNK_SIZE] for i in range(0, len(texts), self.MAX_CHUNK_SIZE)]
+        chunks = [
+            texts[i : i + self.MAX_CHUNK_SIZE] for i in range(0, len(texts), self.MAX_CHUNK_SIZE)
+        ]
         sem = asyncio.Semaphore(2)  # max 2 concurrent chunk requests
 
         async def _do(chunk: list[str]) -> list[list[float]]:
@@ -399,7 +427,9 @@ class BGE_M3_Embedder(EmbedderProtocol):
         for i, vec in enumerate(vectors):
             actual = len(vec)
             if actual != self._dim:
-                raise RuntimeError(f"bge-m3 returned {actual}d vector for text[{i}], expected {self._dim}d")
+                raise RuntimeError(
+                    f"bge-m3 returned {actual}d vector for text[{i}], expected {self._dim}d"
+                )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -538,7 +568,9 @@ class CachedEmbedder(EmbedderProtocol):
                 # Never return zero vectors: they silently corrupt ANN search
                 # results AND poison the cache with garbage. Propagate the
                 # error so callers can retry or fail loudly.
-                raise EmbeddingError(f"Failed to embed batch of {len(uncached_texts)}: {exc}") from exc
+                raise EmbeddingError(
+                    f"Failed to embed batch of {len(uncached_texts)}: {exc}"
+                ) from exc
 
             # Store in memory cache
             for idx, vec in zip(uncached_indices, fresh, strict=False):
@@ -662,10 +694,6 @@ class FallbackEmbedder(EmbedderProtocol):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def _create_bge_m3() -> BGE_M3_Embedder:
-    return BGE_M3_Embedder(url=settings.bge_m3_url, dim=1024)
-
-
 def _create_infinity(model: str | None = None) -> InfinityEmbedder:
     return InfinityEmbedder(model=model or settings.embedder_primary_model)
 
@@ -676,12 +704,12 @@ def get_embedder(
 ) -> EmbedderProtocol:
     """Build and return a fully-wired embedder chain.
 
-    Embedding is served exclusively by Infinity (OpenAI-compatible
-    ``/embeddings``); the legacy bge-m3 container remains only as an
-    explicit opt-in. No fallback chain is wired.
+    Embedding is served by Qwen3-Embedding-4B via llama.cpp
+    (OpenAI-compatible ``/embeddings``, 2560d). The old bge-m3 container
+    is fully retired. No fallback chain is wired.
 
     Args:
-        primary: Primary backend name (``"infinity"`` | ``"bge-m3"``).
+        primary: Primary backend name (``"infinity"`` — Qwen3-Embedding-4B).
                  Defaults to ``settings.embedder_primary``.
         enable_cache: Wrap in ``CachedEmbedder`` for in-memory + Redis cache.
     Returns:
@@ -696,17 +724,8 @@ def get_embedder(
     """
     primary_name = primary or settings.embedder_primary
 
-    # Build primary
-    if primary_name == "infinity":
-        primary_embedder: EmbedderProtocol = _create_infinity()
-    elif primary_name == "bge-m3":
-        primary_embedder = _create_bge_m3()
-    else:
-        log.warning(
-            "get_embedder_unknown_primary=%s falling_back_to_infinity",
-            primary_name,
-        )
-        primary_embedder = _create_infinity()
+    # Build primary — Qwen3-Embedding-4B via llama.cpp
+    primary_embedder: EmbedderProtocol = _create_infinity()
 
     # Wrap in cache
     chain: EmbedderProtocol = primary_embedder

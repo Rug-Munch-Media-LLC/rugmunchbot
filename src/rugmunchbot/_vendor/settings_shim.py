@@ -1,5 +1,8 @@
 """Phase 2d settings shim — bot-local replacement for ``app.config.settings``.
 
+Infinity/bge-m3 fully replaced by Qwen3-Embedding-4B via llama.cpp
+(local host, port 8004, 2560d). Updated 2026-08-20.
+
 The vendored rag/catalog modules read a handful of settings fields. This shim
 provides exactly those fields from env vars with the SAME defaults as
 rmi-backend's Settings (host/local context — the bot runs on the host, so
@@ -24,11 +27,14 @@ def resolve_service_url(name: str, docker: str | None = None, local: str | None 
 class _Settings:
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
-    infinity_url: str = os.getenv("INFINITY_URL", "http://localhost:8001")
+    # Qwen3-Embedding-4B via llama.cpp (replaces old Infinity bge-m3, 2560d)
+    infinity_url: str = os.getenv("INFINITY_URL", "http://172.22.0.1:8004/v1")
+    # Qwen3-Reranker-4B via llama.cpp (separate process, port 8003, docker bridge)
+    reranker_url: str = os.getenv("RERANKER_URL", "http://172.22.0.1:8003")
     bge_m3_url: str = os.getenv("BGE_M3_URL", "")
     searxng_base_url: str = os.getenv("SEARXNG_BASE_URL", "http://localhost:8889")
     embedder_primary: str = os.getenv("EMBEDDER_PRIMARY", "infinity")
-    embedder_primary_model: str = os.getenv("EMBEDDER_PRIMARY_MODEL", "BAAI/bge-m3")
+    embedder_primary_model: str = os.getenv("EMBEDDER_PRIMARY_MODEL", "qwen3-embedding-4b")
     embedder_cache_ttl: int = int(os.getenv("EMBEDDER_CACHE_TTL", "86400"))
     embedder_cache_maxsize: int = int(os.getenv("EMBEDDER_CACHE_MAXSIZE", "10000"))
 
