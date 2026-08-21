@@ -25,13 +25,16 @@
 ## Vendored code (`_vendor/`)
 - `osint/exploit_db.py` (1094), `osint/exploit_sources.py` (1000),
   `unified_scanner/*` — vendored copies of backend modules.
-- **Decision needed:** keep vendored (frozen, upstream-drifts) vs depend on
-  rmi-backend as a library. Vendoring was chosen for deploy independence;
-  revisit when rmi-common extraction lands (platform win 15).
+- **Decision (2026-08-21): KEEP VENDORED** — deploy independence wins while
+  the bot ships as a standalone container; the backend's module layout is
+  still in flux (platform win 13 domain-packaging). Revisit only after
+  `rmi-common` extraction (platform win 15) provides a stable shared lib.
 
 ## Known contracts / follow-ups
-- `TODO(ghost-admin-key)` in `channels/personal_channel.py` — provision
-  `GHOST_ADMIN_API_KEY` via gopass to enable cross-posting.
+- ~~`TODO(ghost-admin-key)`~~ **DONE 2026-08-21** — key provisioned from
+  gopass (`rmi/local-services/ghost-admin-api-key`) to
+  `/srv/secrets/ghost_admin_key` (0600), the first path in the vendored
+  content_platform resolution chain. Cross-posting enabled.
 - Health surface: observability thread serves `/healthz` + `/metrics` on
   :9191 (`RUGMUNCHBOT_METRICS_*`); Docker HEALTHCHECK + compose wired to it.
 - Test suite: 16 files, green. Coverage gates not yet wired (platform win 29).
