@@ -1,0 +1,22 @@
+# rugmunchbot — Telegram bot (production compose)
+# Fleet rule: NO .env files — populate values via operator environment / gopass.
+# Long-polling bot: no HTTP listener → restart policy is the recovery mechanism.
+services:
+  rugmunchbot:
+    build: .
+    image: rugmunch/rugmunchbot:latest
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?set from gopass}
+      BOT_DB_PATH: ${BOT_DB_PATH:-/data/rugmunchbot.db}
+      REDIS_URL: ${REDIS_URL:-redis://rmi-redis:6379/2}
+      BIRDEYE_API_KEY: ${BIRDEYE_API_KEY:+}
+      ARKHAM_API_KEY: ${ARKHAM_API_KEY:+}
+    volumes:
+      - bot-data:/data
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  bot-data:
