@@ -250,8 +250,8 @@ async def finalize_background(
         record_token_scan_coverage(result.enrichment_sources, modules_run_list)
     except ImportError:
         pass
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("token scan coverage recording failed: %s", exc)
 
     # ── Persist: Postgres + Redis cache (fire-and-forget) ──
     asyncio.create_task(persist_result(result))
