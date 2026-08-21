@@ -17,7 +17,7 @@
 | `config.py` | 1069 | per-domain sections → `config/` package (`telegram.py`, `llm.py`, `channels.py`, `integrations.py`) |
 | `formatters/_scan_report_deepscan.py` | 992 | section renderers → `_deepscan_sections.py` |
 | `channels/telegram_news/_sources.py` | 984 | one module per source family; registry stays |
-| `handlers/trace.py` | 965 | address/tx/wallet trace handlers → `handlers/trace/` pkg |
+| ~~`handlers/trace.py`~~ | ~~965~~ | **DONE 2026-08-21** → `handlers/trace/` pkg (`_common`/`_flow`/`_cmd_*`/`_register`, facade preserves public surface) |
 | `formatters/_scan_report_common.py` | 965 | shared blocks → `_blocks.py`; layout → `_layout.py` |
 | `channels/daily_market_summary.py` | 952 | data assembly vs rendering split |
 | `channels/formatters.py` | 923 | per-channel formatter modules |
