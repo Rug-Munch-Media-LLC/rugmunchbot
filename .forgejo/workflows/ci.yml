@@ -92,6 +92,10 @@ jobs:
       image: python:${{ env.PYTHON_VERSION }}-slim
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: the per-diff coverage gate (diff-cover) needs
+          # origin/main as the diff base.
+          fetch-depth: 0
       - name: Install system deps
         run: |
           apt-get update
@@ -108,16 +112,32 @@ jobs:
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
       - name: Install dependencies
         run: |
-          uv pip install --python .venv/bin/python pytest pytest-asyncio httpx python-telegram-bot
+          uv pip install --python .venv/bin/python pytest pytest-asyncio pytest-cov httpx python-telegram-bot python-dotenv diff-cover
           if [ -f "requirements.txt" ]; then
             uv pip install --python .venv/bin/python -r requirements.txt
           fi
-      - name: Run unit tests
+          # Install the package itself so `import rugmunchbot` and
+          # --cov=src/rugmunchbot resolve deterministically in CI.
+          uv pip install --python .venv/bin/python -e .
+      - name: Run unit tests with coverage (BLOCKING)
+        # Tests MUST pass and coverage must meet the 30% floor on the live
+        # package tree (src/rugmunchbot). covgate (the Rust CLI used by the
+        # frontend repos) does not parse Python coverage output, so the
+        # per-diff ratchet below is diff-cover (same semantics).
         run: |
           source .venv/bin/activate
-          python -m pytest tests/ -v --maxfail=1 -x -q --tb=short \
-            --cov=bot/app --cov-report=term --cov-report=xml:coverage.xml \
-            --cov-fail-under=30 2>&1 || echo "Coverage below threshold (non-blocking)"
+          python -m pytest tests/ -q --tb=short \
+            --cov=src/rugmunchbot \
+            --cov-report=term \
+            --cov-report=xml:coverage.xml \
+            --cov-report=lcov:coverage.lcov \
+            --cov-fail-under=30
+      - name: Per-diff coverage gate (diff-cover — BLOCKING)
+        # Ratchet: lines CHANGED vs origin/main must be >=30% covered.
+        # On pushes to main the diff is empty and this passes trivially.
+        run: |
+          source .venv/bin/activate
+          diff-cover coverage.xml --compare-branch=origin/main --fail-under=30
       - name: Verify bot module imports
         run: |
           source .venv/bin/activate
@@ -134,7 +154,9 @@ jobs:
         if: always()
         with:
           name: coverage-report
-          path: coverage.xml
+          path: |
+            coverage.xml
+            coverage.lcov
 
   # ── Security (gitleaks) ───────────────────────────────────────
   security:
