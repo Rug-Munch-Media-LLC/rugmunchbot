@@ -140,6 +140,43 @@ jobs:
         run: |
           source .venv/bin/activate
           diff-cover coverage.xml --compare-branch=origin/main --fail-under=25
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: |
+            coverage.xml
+            coverage.lcov
+
+  # ── Architecture contracts + package-import smoke (fast lane) ──
+  # Runs in parallel with the test suite so layering violations fail in
+  # seconds instead of waiting for the full pytest+coverage run.
+  architecture:
+    runs-on: docker-x64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install system deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+          rm -rf /var/lib/apt/lists/*
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Setup Python
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Install dependencies
+        run: |
+          uv pip install --python .venv/bin/python import-linter httpx python-telegram-bot python-dotenv
+          if [ -f "requirements.txt" ]; then
+            uv pip install --python .venv/bin/python -r requirements.txt
+          fi
+          uv pip install --python .venv/bin/python -e .
       - name: Verify package imports
         # Post-modularization smoke test: the package tree imports cleanly
         # and the lazy config machinery resolves fail-open (no secrets in CI).
@@ -161,14 +198,6 @@ jobs:
         run: |
           source .venv/bin/activate
           lint-imports
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: |
-            coverage.xml
-            coverage.lcov
 
   # ── Security (gitleaks) ───────────────────────────────────────
   security:
