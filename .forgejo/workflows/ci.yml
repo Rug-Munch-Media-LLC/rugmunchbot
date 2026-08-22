@@ -149,7 +149,7 @@ jobs:
           source .venv/bin/activate
           diff-cover coverage.xml --compare-branch=origin/main --fail-under=34
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         if: always()
         with:
           name: coverage-report
@@ -249,7 +249,7 @@ jobs:
             --exclude='.venv/' \
             --sarif=semgrep.sarif \
             bot/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         with:
           name: semgrep-report
           path: semgrep.sarif
