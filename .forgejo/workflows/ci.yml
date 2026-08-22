@@ -112,7 +112,7 @@ jobs:
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
       - name: Install dependencies
         run: |
-          uv pip install --python .venv/bin/python pytest pytest-asyncio pytest-cov httpx python-telegram-bot python-dotenv diff-cover
+          uv pip install --python .venv/bin/python pytest pytest-asyncio pytest-cov httpx python-telegram-bot python-dotenv diff-cover import-linter
           if [ -f "requirements.txt" ]; then
             uv pip install --python .venv/bin/python -r requirements.txt
           fi
@@ -138,17 +138,27 @@ jobs:
         run: |
           source .venv/bin/activate
           diff-cover coverage.xml --compare-branch=origin/main --fail-under=30
-      - name: Verify bot module imports
+      - name: Verify package imports
+        # Post-modularization smoke test: the package tree imports cleanly
+        # and the lazy config machinery resolves fail-open (no secrets in CI).
         run: |
           source .venv/bin/activate
           python3 -c "
-          import sys, importlib
-          sys.path.insert(0, 'src/rugmunchbot')
-          importlib.invalidate_caches()
-          import config; assert config.BOT_TOKEN == '', 'config loaded'
-          print('config.py imports OK')
-          print('db.py imports OK')
+          import rugmunchbot.config as cfg
+          token = cfg.BOT_TOKEN  # lazy resolution; fail-open '' without secrets
+          assert isinstance(token, str), 'lazy config must resolve to str'
+          import rugmunchbot.keyboards
+          import rugmunchbot.channels.scheduler
+          import rugmunchbot.formatters
+          print('package imports OK')
           "
+      - name: Architecture contracts (lint-imports — BLOCKING)
+        # Locks in the god-file modularization layering: config/formatters/
+        # keyboards stay foundation packages; presentation never reaches into
+        # orchestration. Contracts live in pyproject.toml [tool.importlinter].
+        run: |
+          source .venv/bin/activate
+          lint-imports
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         if: always()

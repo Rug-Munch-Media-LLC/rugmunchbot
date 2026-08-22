@@ -121,3 +121,42 @@ follow_imports_for_stubs = true
 minversion = "8.0"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+# ── import-linter — architectural contracts (wired 2026-08-21) ──────────────
+# Locks in the god-file modularization: foundational packages stay leaf
+# modules; presentation never reaches into orchestration. Run: lint-imports
+[tool.importlinter]
+root_package = "rugmunchbot"
+
+[[tool.importlinter.contracts]]
+name = "config is a foundation package (no upward imports)"
+type = "forbidden"
+source_modules = ["rugmunchbot.config"]
+forbidden_modules = [
+    "rugmunchbot.handlers",
+    "rugmunchbot.channels",
+    "rugmunchbot.keyboards",
+    "rugmunchbot.formatters",
+    "rugmunchbot.tools",
+    "rugmunchbot.bot",
+]
+
+[[tool.importlinter.contracts]]
+name = "keyboards never import orchestration"
+type = "forbidden"
+source_modules = ["rugmunchbot.keyboards"]
+forbidden_modules = [
+    "rugmunchbot.channels",
+    "rugmunchbot.tools",
+    "rugmunchbot.bot",
+]
+
+[[tool.importlinter.contracts]]
+name = "formatters never import orchestration"
+type = "forbidden"
+source_modules = ["rugmunchbot.formatters"]
+forbidden_modules = [
+    "rugmunchbot.channels",
+    "rugmunchbot.keyboards",
+    "rugmunchbot.bot",
+]
