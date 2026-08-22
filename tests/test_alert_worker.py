@@ -161,7 +161,8 @@ def test_format_alert_price_change_directions() -> None:
 )
 def test_format_alert_known_types_render(etype: str) -> None:
     text = alert_worker._format_alert(_item(type=etype, event_id=f"evt-{etype}"))
-    assert isinstance(text, str) and len(text) > 20
+    assert isinstance(text, str)
+    assert len(text) > 20
 
 
 def test_format_alert_unknown_type_falls_back() -> None:

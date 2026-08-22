@@ -142,12 +142,12 @@ jobs:
             --cov-report=lcov:coverage.lcov \
             --cov-fail-under=26
       - name: Per-diff coverage gate (diff-cover — BLOCKING)
-        # Ratchet: lines CHANGED vs origin/main must be >=34% covered
-        # (measured 37% after wave13, 2026-08-22).
+        # Ratchet: lines CHANGED vs origin/main must be >=46% covered
+        # (measured 51% after wave21, 2026-08-22).
         # On pushes to main the diff is empty and this passes trivially.
         run: |
           source .venv/bin/activate
-          diff-cover coverage.xml --compare-branch=origin/main --fail-under=34
+          diff-cover coverage.xml --compare-branch=origin/main --fail-under=46
       - name: Upload coverage
         uses: actions/upload-artifact@v3
         if: always()
@@ -270,7 +270,7 @@ jobs:
       - name: OSV dependency scan (hallucinated/vulnerable deps)
         run: osv-scanner scan source --format table ./ || echo "::warning::OSV findings — triaged baseline, see log"
       - name: Trufflehog verified-live secrets (all history)
-        run: trufflehog git file://. --only-verified --failures-only --no-update
+        run: trufflehog git file://. --only-verified --fail --no-update
 
   nightly-deep-scan:
     if: ${{ github.event_name == 'schedule' }}
