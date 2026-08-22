@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import Any
 
 from rugmunchbot._vendor.logging_shim import get_logger
@@ -109,6 +109,7 @@ _QUERY_VARIANTS: dict[str, list[str]] = {
 log = get_logger(__name__)
 
 
+@dataclass
 class ScoredHit:
     """A search hit with additional relevance signals."""
 
@@ -122,6 +123,7 @@ class ScoredHit:
     final_score: float = 0.0
 
 
+@dataclass
 class ContextWindow:
     """Assembled context ready for LLM consumption."""
 
