@@ -59,6 +59,16 @@ if [ "${1:-}" = "--check" ]; then
     echo "FAIL: _vendor/rag_pkg/dedup.py regrew to ${ragdedup_lines} lines (re-export shim only; canonical copy is _vendor/dedup.py)" >&2
     FAIL=1
   fi
+  owm_lines="$(wc -l <"$TARGET/_vendor/scanner_engines/own_wallet_map.py")"
+  if [ "$owm_lines" -gt 450 ]; then
+    echo "FAIL: scanner_engines/own_wallet_map.py regrew to ${owm_lines} lines (facade must stay <=450; split lives in own_wallet_map_time.py + own_wallet_map_intel.py)" >&2
+    FAIL=1
+  fi
+  lpr_lines="$(wc -l <"$TARGET/_vendor/scanner_engines/launchpad_resolver.py")"
+  if [ "$lpr_lines" -gt 220 ]; then
+    echo "FAIL: scanner_engines/launchpad_resolver.py regrew to ${lpr_lines} lines (facade must stay <=220; split lives in launchpad_registry.py + launchpad_resolve_chain.py + launchpad_resolve_universal.py)" >&2
+    FAIL=1
+  fi
   if [ "$FAIL" -eq 0 ]; then
     echo "OK: standalone bot + vendored modules (invariants hold)."
     exit 0
