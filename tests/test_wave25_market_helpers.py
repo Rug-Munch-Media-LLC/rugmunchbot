@@ -44,11 +44,10 @@ def test_time_ago_buckets() -> None:
     assert _time_ago(_iso(timedelta(days=-2))) == "2d ago"
 
 
-def test_time_ago_malformed_iso_raises_uncaught() -> None:
-    # Found defect: the except clause lists ConnectionError/OSError/
-    # TimeoutError only — a malformed ISO raises ValueError straight through.
-    with pytest.raises(ValueError, match="Invalid isoformat"):
-        _time_ago("not-a-timestamp")
+def test_time_ago_malformed_iso_degrades_to_empty() -> None:
+    # Fixed 2026-08-22: malformed ISO from an upstream source degrades to
+    # an empty label instead of crashing the trending renderer.
+    assert _time_ago("not-a-timestamp") == ""
 
 
 # ── chain / badge helpers ────────────────────────────────────────────────────

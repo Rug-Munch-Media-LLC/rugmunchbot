@@ -39,7 +39,9 @@ def _time_ago(dt_iso: str | None) -> str:
         if total_secs < 86400:
             return f"{int(total_secs / 3600)}h ago"
         return f"{diff.days}d ago"
-    except (ConnectionError, OSError, TimeoutError):
+    except (ConnectionError, OSError, TimeoutError, ValueError):
+        # ValueError: malformed ISO from an upstream source must degrade to
+        # an empty label, never crash the trending renderer.
         return ""
 
 
@@ -247,7 +249,12 @@ def _merge_trending_sources(
                 )
 
             if not existing or quality > existing_quality:
-                merged[norm] = {**t, "_priority": priority, "_quality": quality, "_source": t.get("source", "unknown")}
+                merged[norm] = {
+                    **t,
+                    "_priority": priority,
+                    "_quality": quality,
+                    "_source": t.get("source", "unknown"),
+                }
 
     # Convert to list and sort by: quality + freshness + mover magnitude, then
     # |24h change| (both directions), then volume.
@@ -262,7 +269,11 @@ def _merge_trending_sources(
     result.sort(key=_rank_key, reverse=True)
 
     # Filter out tokens with "Unknown" names (prefer named tokens from DexScreener)
-    result = [t for t in result if (t.get("name") or "").strip() and (t.get("name") or "").strip() != "Unknown"]
+    result = [
+        t
+        for t in result
+        if (t.get("name") or "").strip() and (t.get("name") or "").strip() != "Unknown"
+    ]
 
     return result[:limit]
 
@@ -408,7 +419,9 @@ def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str)
     return "\n".join(lines)
 
 
-def _build_trending_kb(tokens: list[dict[str, Any]], chain: str, window: str) -> InlineKeyboardMarkup:
+def _build_trending_kb(
+    tokens: list[dict[str, Any]], chain: str, window: str
+) -> InlineKeyboardMarkup:
     """Trending keyboard: named token buttons + chain/window selectors.
 
     Design: each token gets ONE button with its name → opens scan.
@@ -441,14 +454,18 @@ def _build_trending_kb(tokens: list[dict[str, Any]], chain: str, window: str) ->
             rows.append(chain_row)
             chain_row = []
         chain_row.append(
-            InlineKeyboardButton(f"[{label}]" if c == chain else label, callback_data=f"trending_chain_{c}")
+            InlineKeyboardButton(
+                f"[{label}]" if c == chain else label, callback_data=f"trending_chain_{c}"
+            )
         )
     if chain_row:
         rows.append(chain_row)
 
     # Window selector row
     win_row = [
-        InlineKeyboardButton(f"[{w}]" if w == window else w, callback_data=f"trending_win_{chain}_{w}")
+        InlineKeyboardButton(
+            f"[{w}]" if w == window else w, callback_data=f"trending_win_{chain}_{w}"
+        )
         for w in TRENDING_WINDOWS
     ]
     rows.append(win_row)
