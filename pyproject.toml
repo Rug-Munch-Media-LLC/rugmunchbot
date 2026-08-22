@@ -166,3 +166,23 @@ forbidden_modules = [
     "rugmunchbot.keyboards",
     "rugmunchbot.bot",
 ]
+
+[[tool.importlinter.contracts]]
+name = "tools never import orchestration"
+type = "forbidden"
+source_modules = ["rugmunchbot.tools"]
+forbidden_modules = [
+    "rugmunchbot.handlers",
+    "rugmunchbot.channels",
+    "rugmunchbot.keyboards",
+    "rugmunchbot.bot",
+]
+
+[[tool.importlinter.contracts]]
+name = "handlers never import bot or channel jobs"
+type = "forbidden"
+source_modules = ["rugmunchbot.handlers"]
+forbidden_modules = [
+    "rugmunchbot.bot",
+    "rugmunchbot.channels.scheduler",
+]

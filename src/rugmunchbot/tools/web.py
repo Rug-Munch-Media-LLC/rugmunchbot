@@ -461,3 +461,11 @@ async def web_search(*, query: str = "", history: list[dict[str, str]] | None = 
         addresses=[],
         source="knowledge-fallback",
     )
+
+
+NARRATIVE_QUERIES: tuple[str, ...] = (
+    "crypto dominant narrative today sector",
+    "AI agents crypto narrative news today",
+    "RWA tokenization crypto news today",
+    "crypto restaking layer 2 narrative news today",
+)

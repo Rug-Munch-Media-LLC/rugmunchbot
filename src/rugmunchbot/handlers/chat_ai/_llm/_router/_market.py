@@ -35,8 +35,7 @@ async def _fetch_market_narrative() -> list[dict[str, Any]]:
     starve the market block. Fail-open → ``[]``.
     """
     try:
-        from rugmunchbot.channels.daily_market_summary import NARRATIVE_QUERIES
-        from rugmunchbot.tools.web import searxng_top_results
+        from rugmunchbot.tools.web import NARRATIVE_QUERIES, searxng_top_results
 
         queries = list(NARRATIVE_QUERIES)[:2]
         tasks = [asyncio.create_task(searxng_top_results(q, limit=3)) for q in queries]

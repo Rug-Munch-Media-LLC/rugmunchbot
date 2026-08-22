@@ -9,6 +9,7 @@ from typing import Any
 from rugmunchbot.channels.daily_market_summary._config import (
     logger,
 )
+from rugmunchbot.tools.web import NARRATIVE_QUERIES
 
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 
@@ -145,12 +146,6 @@ async def _fetch_news() -> list[dict[str, Any]]:
     return []
 
 
-NARRATIVE_QUERIES: tuple[str, ...] = (
-    "crypto dominant narrative today sector",
-    "AI agents crypto narrative news today",
-    "RWA tokenization crypto news today",
-    "crypto restaking layer 2 narrative news today",
-)
 
 
 KOL_SIGNAL_QUERIES: tuple[str, ...] = (
