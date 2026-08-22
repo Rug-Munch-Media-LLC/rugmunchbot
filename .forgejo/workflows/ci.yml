@@ -142,11 +142,12 @@ jobs:
             --cov-report=lcov:coverage.lcov \
             --cov-fail-under=26
       - name: Per-diff coverage gate (diff-cover — BLOCKING)
-        # Ratchet: lines CHANGED vs origin/main must be >=23% covered.
+        # Ratchet: lines CHANGED vs origin/main must be >=32% covered
+        # (measured 36% after wave11, 2026-08-22).
         # On pushes to main the diff is empty and this passes trivially.
         run: |
           source .venv/bin/activate
-          diff-cover coverage.xml --compare-branch=origin/main --fail-under=26
+          diff-cover coverage.xml --compare-branch=origin/main --fail-under=32
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         if: always()
