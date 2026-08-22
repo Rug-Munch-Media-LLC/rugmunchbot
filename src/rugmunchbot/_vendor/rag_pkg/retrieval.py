@@ -19,51 +19,32 @@ Usage:
 
 from __future__ import annotations
 
-import re
 import time
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any
 
 from rugmunchbot._vendor.logging_shim import get_logger
+from rugmunchbot._vendor.rag_pkg._retrieval_entities import (  # noqa: F401
+    _merge_with_graph_results,
+    _metadata_entities,
+    _parse_published_at,
+    apply_news_boosts,
+    extract_crypto_entities,
+)
+from rugmunchbot._vendor.rag_pkg._retrieval_scoring import (
+    ContextWindow,
+    QueryExpander,
+    RelevanceScorer,
+    ScoredHit,
+)
 
 # ── Config ───────────────────────────────────────────────────────────
 # Will be imported after config module is ready
-from rugmunchbot._vendor.rag_pkg.config import (
-    RAG_EXPANSION_TERMS,
-    RAG_HYBRID_ALPHA,
-)
 from rugmunchbot._vendor.rag_pkg.rerank import reorder_by_relevance, rerank_results
 from rugmunchbot._vendor.rag_pkg.tracing import trace_span
 
 log = get_logger(__name__)
 
-# ── Data types ───────────────────────────────────────────────────────
-
-
-@dataclass
-class ScoredHit:
-    """A search hit with additional relevance signals."""
-
-    content: str
-    score: float = 0.0
-    metadata: dict[str, Any] = field(default_factory=dict)
-    collection: str = ""
-    doc_id: str = ""
-    keyword_overlap: float = 0.0
-    position_bonus: float = 0.0
-    final_score: float = 0.0
-
-
-@dataclass
-class ContextWindow:
-    """Assembled context ready for LLM consumption."""
-
-    formatted: str = ""
-    hits: list[ScoredHit] = field(default_factory=list)
-    total_tokens_est: int = 0
-    sources: list[str] = field(default_factory=list)
-    took_ms: int = 0
+# ── Data types (moved to _retrieval_scoring) ────────────────────────
 
 
 # ── QueryExpander ────────────────────────────────────────────────────
@@ -72,498 +53,45 @@ class ContextWindow:
 # corpus domains: scam/security taxonomy, DeFi, TA, tokenomics and market
 # microstructure. Values are appended space-separated to the query, so
 # single words help both the dense embedding and the lexical sparse pillar.
-_QUERY_SYNONYMS: dict[str, list[str]] = {
-    # ── scam / security ─────────────────────────────────────────────
-    "rug": ["rugpull", "exit_scam", "liquidity_grab"],
-    "scam": ["fraud", "scheme", "fake", "malicious"],
-    "honeypot": ["cannot_sell", "tax_trap", "sell_restricted"],
-    "phishing": ["fake_site", "lookalike", "spoof"],
-    "drain": ["drainer", "sweeper", "token_stealer"],
-    "pump": ["pump_and_dump", "artificial_volume", "wash_trade"],
-    "whale": ["large_holder", "concentrated_ownership", "insider"],
-    "exploit": ["vulnerability", "attack", "breach", "hack"],
-    "sanction": ["ofac", "blacklist", "banned", "restricted"],
-    "laundry": ["mixer", "tumbler", "coinjoin", "obfuscation"],
-    "flash": ["flash_loan", "uncollateralized_loan", "arbitrage"],
-    "reentrancy": ["reentrant", "recursive_call", "external_call"],
-    "oracle": ["price_feed", "data_feed", "manipulation"],
-    "approval": ["allowance", "approve", "spender", "revoke"],
-    "mint": ["supply_creation", "inflation", "new_supply"],
-    "frontrun": ["front_running", "tx_ordering", "mempool", "sandwich"],
-    "upgrade": ["upgradeable", "proxy", "implementation_swap"],
-    "tax": ["fee", "transfer_fee", "buy_sell_fee"],
-    "lock": ["lockup", "locked_liquidity", "timelock"],
-    # ── defi ────────────────────────────────────────────────────────
-    "liquidity": ["liquidity_pool", "depth", "reserves", "lp"],
-    "yield": ["apy", "rewards", "interest", "earnings"],
-    "lp": ["liquidity_provider", "liquidity_pool", "reserves"],
-    "mev": ["maximal_extractable_value", "sandwich", "front_running"],
-    "arb": ["arbitrage", "price_difference", "spread_trade"],
-    "arbitrage": ["price_difference", "spread_trade", "cross_venue"],
-    "farm": ["yield_farming", "incentives", "reward_pool"],
-    "lending": ["borrow", "collateral", "loan", "supply_rate"],
-    "borrow": ["lending", "collateral", "debt", "health_factor"],
-    "stablecoin": ["pegged", "peg", "collateralized", "algorithmic"],
-    "tvl": ["total_value_locked", "deposits", "locked_assets"],
-    "amm": ["automated_market_maker", "constant_product", "swap_pool"],
-    "bridge": ["cross_chain", "wrapped_asset", "bridge_exploit"],
-    "stake": ["staking", "delegate", "lock_tokens", "rewards"],
-    "liquidat": ["liquidation", "cascade", "health_factor", "collateral_call"],
-    "liquidation": ["cascade", "health_factor", "collateral_call", "margin_call"],
-    "liquidations": ["liquidation", "cascade", "health_factor"],
-    # ── ta ──────────────────────────────────────────────────────────
-    "rsi": ["relative_strength_index", "momentum", "overbought", "oversold"],
-    "macd": ["moving_average_convergence", "momentum", "histogram"],
-    "support": ["demand_zone", "floor", "buy_wall", "liquidity_zone"],
-    "resistance": ["supply_zone", "ceiling", "sell_wall", "liquidity_zone"],
-    "divergence": ["momentum_conflict", "reversal_warning"],
-    "momentum": ["rate_of_change", "velocity", "trend_strength"],
-    "trend": ["uptrend", "downtrend", "structure", "higher_highs"],
-    "breakout": ["consolidation", "range_break", "liquidity_sweep"],
-    "volume": ["participation", "turnover", "wash_trade", "fake_volume"],
-    "candle": ["candlestick", "wick", "engulfing", "rejection"],
-    # ── tokenomics ──────────────────────────────────────────────────
-    "vesting": ["cliff", "unlock_schedule", "lockup", "emission"],
-    "emission": ["inflation", "mint_rate", "rewards_schedule", "supply_growth"],
-    "supply": ["circulation", "float", "max_supply", "total_supply"],
-    "burn": ["deflation", "token_removal", "buyback_burn"],
-    "buyback": ["repurchase", "treasury", "burn"],
-    "inflation": ["dilution", "emission", "supply_growth", "minting"],
-    "allocation": ["distribution", "insider_bucket", "team_tokens"],
-    "airdrop": ["claim", "sybil", "distribution_event"],
-    "staking": ["lock", "rewards", "delegate", "ve_tokens"],
-    # ── market microstructure ───────────────────────────────────────
-    "slippage": ["price_impact", "spread", "execution_cost"],
-    "spread": ["bid_ask", "market_maker", "execution_cost"],
-    "depth": ["market_depth", "order_book", "liquidity"],
-    "maker": ["market_maker", "limit_order", "liquidity_provider"],
-    "taker": ["market_order", "crossing_spread", "liquidity_remover"],
-    "leverage": ["margin", "liquidation", "notional", "open_interest"],
-    "funding": ["funding_rate", "perpetual", "basis"],
-    "oi": ["open_interest", "derivative_positions", "crowded_trade"],
-    "order": ["order_book", "limit_order", "stop_order", "iceberg"],
-    "orders": ["order_book", "limit_order", "stop_order"],
-}
+
 
 # Multi-word phrase expansions: bigram keys (underscore-joined tokens) →
 # space-separated synonym phrases. Matched against consecutive query tokens
 # so e.g. "order block" recalls "supply demand zone institutional zone".
-_QUERY_PHRASES: dict[str, str] = {
-    "order_block": "supply demand zone institutional zone",
-    "flash_loan": "uncollateralized loan instant arbitrage exploit",
-    "impermanent_loss": "liquidity provider divergence holding",
-    "order_book": "bid ask depth resting orders",
-    "open_interest": "derivative positions leverage outstanding contracts",
-    "funding_rate": "perpetual premium basis longs pay shorts",
-    "rug_pull": "liquidity removal mint dump exit scam",
-    "pump_dump": "artificial volume wash trade coordinated",
-    "smart_contract": "program blockchain code audit vulnerability",
-    "token_supply": "circulation float emission max supply",
-}
+
 
 # Common crypto misspellings / variants for fuzzy expansion.
-_QUERY_VARIANTS: dict[str, list[str]] = {
-    "defi": ["defi", "de-fi", "decentralized_finance"],
-    "nft": ["nft", "non-fungible", "nonfungible"],
-    "dex": ["dex", "decentralized_exchange", "amm"],
-    "cex": ["cex", "centralized_exchange"],
-}
 
 
-class QueryExpander:
-    """Expand a user query with synonyms and related terms for better recall.
 
-    Strategy:
-      1. Tokenise the query into lowercased terms.
-      2. For each known term, append synonyms from the internal map.
-      3. For each consecutive token pair, append phrase synonyms from the
-         bigram map (e.g. ``order block`` → ``supply demand zone ...``).
-      4. Return the original query plus an "expanded" version with the
-         extra terms appended (space-separated, capped at ``max_terms``).
-
-    Expansion is a recall lever only — the original query is always kept
-    verbatim, so precision is never sacrificed.
-    """
-
-    def __init__(self) -> None:
-        self.synonyms = _QUERY_SYNONYMS
-        self.variants = _QUERY_VARIANTS
-        self.phrases = _QUERY_PHRASES
-
-    def expand(self, query: str, max_terms: int = RAG_EXPANSION_TERMS) -> str:
-        """Return an expanded query with additional search terms."""
-        if not query or not query.strip():
-            return query
-
-        tokens = re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", query.lower())
-        extra_terms: list[str] = []
-        # Bigram phrase expansion FIRST (more specific than single tokens):
-        # consecutive token pairs (underscore-joined) hit the phrase map,
-        # e.g. tokens "order","block" → "order_block" → "supply demand zone".
-        for i in range(len(tokens) - 1):
-            bigram = f"{tokens[i]}_{tokens[i + 1]}"
-            if bigram in self.phrases:
-                extra_terms.extend(self.phrases[bigram].split())
-        # Then single-token synonyms and variants.
-        for t in tokens:
-            if t in self.synonyms:
-                extra_terms.extend(self.synonyms[t])
-            if t in self.variants:
-                extra_terms.extend(v for v in self.variants[t] if v != t)
-
-        # Deduplicate, limit, and append
-        seen = set(tokens)
-        extra = [et for et in extra_terms if et not in seen]
-        expanded = query.strip()
-        if extra:
-            expanded += " " + " ".join(extra[:max_terms])
-
-        log.debug("query_expanded", original_len=len(query), expanded_len=len(expanded))
-        return expanded
-
-    def expand_multi(self, queries: list[str]) -> list[str]:
-        """Expand multiple queries in batch."""
-        return [self.expand(q) for q in queries]
 
 
 # ── RelevanceScorer ──────────────────────────────────────────────────
 
 
-class RelevanceScorer:
-    """Post-hoc relevance scoring with text-feature signals.
-
-    Computes a composite score from:
-      - Base similarity (from vector/keyword search)
-      - Keyword overlap ratio between query and hit content
-      - Position bonus (earlier results get a small boost)
-    """
-
-    def rescore(
-        self,
-        hits: list[dict[str, Any]],
-        query: str,
-        alpha: float = RAG_HYBRID_ALPHA,
-    ) -> list[ScoredHit]:
-        """Re-rank hits using additional relevance signals."""
-        if not hits:
-            return []
-
-        query_terms = set(re.findall(r"\w+", query.lower()))
-        scored: list[ScoredHit] = []
-
-        for rank, h in enumerate(hits):
-            content = h.get("content", h.get("text", ""))
-            base_score = float(h.get("score", h.get("similarity", 0)))
-
-            # Keyword overlap
-            content_terms = set(re.findall(r"\w+", content.lower())) if content else set()
-            overlap = len(query_terms & content_terms) / max(len(query_terms), 1) if query_terms else 0.0
-
-            # Position bonus: earliest positions get +20% max, linearly decaying
-            position_bonus = max(0.0, 1.0 - (rank / max(len(hits) * 2, 1)))
-
-            # Composite: weighted base + keyword overlap + small position bonus
-            final_score = alpha * base_score + (1.0 - alpha) * overlap * 0.8 + position_bonus * 0.05
-
-            scored.append(
-                ScoredHit(
-                    content=content,
-                    score=base_score,
-                    metadata=h.get("metadata", {}),
-                    collection=h.get("collection", ""),
-                    doc_id=h.get("doc_id", h.get("id", "")),
-                    keyword_overlap=overlap,
-                    position_bonus=position_bonus,
-                    final_score=final_score,
-                )
-            )
-
-        # Sort by final score descending
-        scored.sort(key=lambda s: -s.final_score)
-        return scored
-
-    def score_document(self, content: str, query: str) -> float:
-        """Score a single document against a query. Returns 0-1."""
-        if not content or not query:
-            return 0.0
-        query_terms = set(re.findall(r"\w+", query.lower()))
-        content_terms = set(re.findall(r"\w+", content.lower()))
-        overlap = len(query_terms & content_terms) / max(len(query_terms), 1)
-        return min(1.0, overlap)
 
 
 # ── News ranking boosts ──────────────────────────────────────────────
 
 # Canonical entity map: ticker/name variants → one canonical lowercased
 # label. Used so "BTC" in a query matches "Bitcoin" in an article.
-_ENTITY_CANON: dict[str, str] = {
-    "BTC": "bitcoin",
-    "BITCOIN": "bitcoin",
-    "ETH": "ethereum",
-    "ETHEREUM": "ethereum",
-    "SOL": "solana",
-    "SOLANA": "solana",
-    "BNB": "bnb",
-    "XRP": "ripple",
-    "RIPPLE": "ripple",
-    "DOGE": "dogecoin",
-    "DOGECOIN": "dogecoin",
-    "ADA": "cardano",
-    "CARDANO": "cardano",
-    "AVAX": "avalanche",
-    "AVALANCHE": "avalanche",
-    "LINK": "chainlink",
-    "CHAINLINK": "chainlink",
-    "DOT": "polkadot",
-    "POLKADOT": "polkadot",
-    "MATIC": "polygon",
-    "POLYGON": "polygon",
-    "POL": "polygon",
-    "UNI": "uniswap",
-    "UNISWAP": "uniswap",
-    "PEPE": "pepe",
-    "SHIB": "shiba",
-    "WIF": "dogwifcoin",
-    "BONK": "bonk",
-    "USDC": "usdc",
-    "USDT": "usdt",
-    "DAI": "dai",
-    "WBTC": "wbtc",
-    "ARB": "arbitrum",
-    "ARBITRUM": "arbitrum",
-    "OP": "optimism",
-    "OPTIMISM": "optimism",
-    "SUI": "sui",
-    "APT": "aptos",
-    "APTOS": "aptos",
-    "NEAR": "near",
-    "ATOM": "cosmos",
-    "COSMOS": "cosmos",
-    "LTC": "litecoin",
-    "LITECOIN": "litecoin",
-    "XLM": "stellar",
-    "STELLAR": "stellar",
-    "TRX": "tron",
-    "TRON": "tron",
-    "TON": "ton",
-    "INJ": "injective",
-    "SEI": "sei",
-    "TIA": "celestia",
-    "JUP": "jupiter",
-    "JUPITER": "jupiter",
-    "PYTH": "pyth",
-    "AAVE": "aave",
-    "COMPOUND": "compound",
-    "CURVE": "curve",
-    "LIDO": "lido",
-    "MAKER": "maker",
-    "PANCAKESWAP": "pancakeswap",
-    "SUSHISWAP": "sushiswap",
-    "RAYDIUM": "raydium",
-    "ORCA": "orca",
-    "METAMASK": "metamask",
-    "PHANTOM": "phantom",
-    "BINANCE": "binance",
-    "COINBASE": "coinbase",
-    "KRAKEN": "kraken",
-    "BYBIT": "bybit",
-    "OKX": "okx",
-    "OPENSEA": "opensea",
-    "BLUR": "blur",
-    "CIRCLE": "circle",
-    "TETHER": "tether",
-    "BSC": "bsc",
-}
+
 
 # News collections that receive freshness/entity boosts.
-_NEWS_COLLECTIONS: frozenset[str] = frozenset({"news", "news_v2"})
 
 
-def extract_crypto_entities(text: str) -> list[str]:
-    """Extract crypto entities (tickers + protocol names) from free text.
-
-    Returns canonical lowercased labels (e.g. "BTC"/"Bitcoin" → ``bitcoin``,
-    "UNI"/"Uniswap" → ``uniswap``). Used to cross-reference query mentions
-    against article content so news hits about the same token/protocol are
-    boosted.
-    """
-    if not text:
-        return []
-    found: set[str] = set()
-    for m in re.finditer(r"\b([A-Za-z][A-Za-z0-9]{1,15})\b", text):
-        canon = _ENTITY_CANON.get(m.group(1).upper())
-        if canon:
-            found.add(canon)
-    return sorted(found)
 
 
-def _metadata_entities(hit: ScoredHit) -> set[str]:
-    """Entity labels already extracted by the ingestion pipeline.
-
-    Prefer ``tokens_mentioned`` / ``chains_mentioned`` metadata (normalized
-    at ingest time) and fall back to content extraction when absent.
-    """
-    meta = hit.metadata or {}
-    meta_entities: set[str] = set()
-    for key in ("tokens_mentioned", "chains_mentioned", "protocols_mentioned", "entities"):
-        val = meta.get(key)
-        if isinstance(val, list):
-            meta_entities.update(str(v).lower() for v in val)
-        elif isinstance(val, str):
-            meta_entities.add(val.lower())
-    return meta_entities | set(extract_crypto_entities(hit.content or ""))
 
 
-def _parse_published_at(hit: ScoredHit) -> datetime | None:
-    """Parse a news hit's publish timestamp from metadata (best-effort).
-
-    Accepts ISO-8601 strings (with or without tz), bare dates, and unix
-    epoch numbers. Returns a tz-aware datetime or None.
-
-    Key aliases are tried in order so docs written by every ingestion path
-    get a freshness signal: the crawler (``published_at``), the databus
-    news_intel fetchers (``published``), the nightly indexer (``date``),
-    and ingest-time fallbacks (``timestamp`` / ``fetched_at``).
-    """
-    meta = hit.metadata or {}
-    raw = (
-        meta.get("published_at")
-        or meta.get("published")
-        or meta.get("date")
-        or meta.get("timestamp")
-        or meta.get("fetched_at")
-    )
-    if raw is None:
-        return None
-    if isinstance(raw, (int, float)):
-        try:
-            return datetime.fromtimestamp(float(raw), tz=UTC)
-        except (ValueError, OSError, OverflowError):
-            return None
-    s = str(raw).strip()
-    if not s:
-        return None
-    s = s.replace("Z", "+00:00")
-    try:
-        dt = datetime.fromisoformat(s)
-    except ValueError:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    return dt
 
 
-def apply_news_boosts(
-    hits: list[ScoredHit],
-    query: str,
-    collection: str | None = None,
-    now: datetime | None = None,
-) -> list[ScoredHit]:
-    """Apply news-specific ranking boosts to news hits.
 
-    Freshness (articles only):
-      - < 1h old:   x1.5  (breaking news)
-      - < 6h old:   x1.2  (recent)
-      - > 72h old:  x0.5  (stale penalty)
-
-    Entity overlap: each crypto entity mentioned in both the query and the
-    document adds +10% (``1.0 + 0.1 * overlap``), so news that names the
-    same token/protocol the user asked about ranks higher.
-
-    Only news hits (collection ``news``/``news_v2`` or, when ``collection``
-    is passed, a news collection) are touched. Mutates ``score`` and
-    ``final_score`` in place, records ``metadata["news_boost"]``, and
-    re-sorts by ``final_score`` descending. No-op for non-news retrieval.
-    """
-    if not hits:
-        return hits
-    if now is None:
-        now = datetime.now(UTC)
-    if collection is not None and collection not in _NEWS_COLLECTIONS:
-        return hits
-
-    query_entities = set(extract_crypto_entities(query))
-    changed = False
-    # Retrieval (engine hits) leaves ScoredHit.collection="" — treat hits
-    # with no collection as members of the news collection being searched.
-    news_context = collection in _NEWS_COLLECTIONS if collection is not None else False
-    for h in hits:
-        hcol = (h.collection or "").lower()
-        if hcol not in _NEWS_COLLECTIONS and not (news_context and not hcol):
-            continue
-        boost = 1.0
-
-        published = _parse_published_at(h)
-        if published is not None:
-            age_hours = (now - published).total_seconds() / 3600.0
-            if age_hours < 1:
-                boost *= 1.5  # breaking news
-            elif age_hours < 6:
-                boost *= 1.2  # recent
-            elif age_hours > 72:
-                boost *= 0.5  # stale penalty
-
-        overlap = len(query_entities & _metadata_entities(h))
-        if overlap > 0:
-            boost *= 1.0 + (0.1 * overlap)
-
-        if abs(boost - 1.0) > 1e-9:
-            base = float(h.final_score or h.score or 0.0)
-            h.score = float(h.score or 0.0) * boost
-            h.final_score = base * boost
-            h.metadata = {**h.metadata, "news_boost": round(boost, 3)}
-            changed = True
-
-    if changed:
-        hits.sort(key=lambda s: -(s.final_score or s.score))
-    return hits
 
 
 # ── HybridRetriever ──────────────────────────────────────────────────
 
 
-def _merge_with_graph_results(
-    results: list[ScoredHit],
-    graph_results: list[dict[str, Any]],
-) -> list[ScoredHit]:
-    """Merge graph-enriched hits with vector hits using graph-boosted ranking.
-
-    Graph hits come from exact entity matches in the knowledge graph, so
-    they receive a boost that ranks them above weak similarity matches while
-    remaining below strong ones. Results are deduplicated by ``doc_id``
-    (higher score wins) and returned sorted by ``final_score`` descending.
-    """
-    by_doc: dict[str, ScoredHit] = {}
-    for h in results:
-        key = h.doc_id or f"vec:{id(h)}"
-        if key not in by_doc or h.final_score > by_doc[key].final_score:
-            by_doc[key] = h
-
-    for gr in graph_results:
-        content = gr.get("content", "")
-        if not content:
-            continue
-        doc_id = gr.get("doc_id") or gr.get("id") or ""
-        base = float(gr.get("score", 0.5))
-        # Exact entity matches get a boost over weak vector similarity.
-        boosted = min(1.0, base * 1.15 + 0.12)
-        hit = ScoredHit(
-            content=content,
-            score=base,
-            final_score=boosted,
-            metadata={
-                "relation": gr.get("relation", ""),
-                "node_type": gr.get("neighbor_type", ""),
-                "node_id": gr.get("neighbor_id", ""),
-            },
-            collection="graph",
-            doc_id=doc_id,
-        )
-        key = doc_id or f"kg:{len(by_doc)}"
-        if key not in by_doc or boosted > by_doc[key].final_score:
-            by_doc[key] = hit
-
-    return sorted(by_doc.values(), key=lambda s: -s.final_score)
 
 
 class HybridRetriever:
