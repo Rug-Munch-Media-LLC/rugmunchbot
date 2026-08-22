@@ -74,7 +74,7 @@ ignore = ["ASYNC109"]
 # does not block the ported code.
 "src/rugmunchbot/handlers/scanning.py" = ["S110", "SIM105"]
 "src/rugmunchbot/handlers/webhook.py" = ["B904"]
-"src/rugmunchbot/bot.py" = ["S110", "S311"]
+"src/rugmunchbot/bot/_profile.py" = ["S110", "S311"]
 "src/rugmunchbot/config/_secrets.py" = ["S603", "S607"]
 "src/rugmunchbot/alert_worker.py" = ["F401"]
 "src/rugmunchbot/commands/rugmap.py" = ["F821", "F841"]

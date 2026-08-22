@@ -1,0 +1,65 @@
+"""Bot command registration — /help sections and BotFather sync."""
+
+from __future__ import annotations
+
+from datetime import time as dtime  # noqa: F401 — used by daily_scam_tip if re-enabled
+from functools import wraps
+from typing import Any
+
+from telegram import BotCommand, Update
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    ContextTypes,
+)
+
+from rugmunchbot import db
+from rugmunchbot.admin_state import track_command
+from rugmunchbot.support.logging import get_logger
+
+logger = get_logger("rmi_bot")
+
+
+_COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
+    (
+        "Core",
+        [
+            ("scan", "Scan a token for scams & risks"),
+            ("deepscan", "Deep token scan — full forensic audit"),
+            ("wallet", "Wallet forensics & analysis"),
+            ("price", "Token price by address"),
+            ("chart", "Chart & technical analysis"),
+            ("trace", "Cross-chain fund trace"),
+            ("market", "Market overview & trends"),
+            ("news", "Latest crypto news"),
+            ("alerts", "Manage price alerts"),
+            ("chat", "Freestyle AI chat"),
+            ("help", "Full command guide"),
+            ("start", "Welcome & quick start"),
+        ],
+    ),
+]
+
+
+_BOT_COMMANDS: list[BotCommand] = [
+    BotCommand(cmd, desc) for _section, cmds in _COMMAND_SECTIONS for cmd, desc in cmds
+]
+
+
+def _reg(app: Application[Any, Any, Any, Any, Any, Any], name: str, handler) -> None:
+    """Register a command with per-command activity tracking (for /admin_stats).
+
+    Tracks into the Redis-backed fleet analytics (admin_state.track_command,
+    shared with the backend admin API) AND the local SQLite daily stats.
+    """
+
+    @wraps(handler)
+    async def tracked(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        db.record_activity(cmd=True)
+        try:
+            await track_command(name)
+        except Exception:
+            logger.debug("admin_state track_command failed", exc_info=True)
+        await handler(update, ctx)
+
+    app.add_handler(CommandHandler(name, tracked))
