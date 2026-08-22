@@ -16,7 +16,7 @@ jobs:
     container:
       image: node:22-bookworm-slim
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Install commitlint
@@ -40,7 +40,7 @@ jobs:
     container:
       image: python:${{ env.PYTHON_VERSION }}-slim
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system deps
         run: |
           apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl
@@ -66,7 +66,7 @@ jobs:
     container:
       image: python:${{ env.PYTHON_VERSION }}-slim
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system deps
         run: |
           apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl
@@ -91,7 +91,7 @@ jobs:
     container:
       image: python:${{ env.PYTHON_VERSION }}-slim
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # Full history: the per-diff coverage gate (diff-cover) needs
           # origin/main as the diff base.
@@ -164,7 +164,7 @@ jobs:
     runs-on: docker-x64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system deps
         run: |
           apt-get update
@@ -220,7 +220,7 @@ jobs:
     container:
       image: python:${{ env.PYTHON_VERSION }}-slim
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Install gitleaks
@@ -237,7 +237,7 @@ jobs:
     container:
       image: python:3.12-slim
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install semgrep
         run: pip install semgrep
       - name: Semgrep SAST scan
@@ -259,7 +259,7 @@ jobs:
     container:
       image: python:3.11-slim
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Install scanners
@@ -278,7 +278,7 @@ jobs:
     container:
       image: python:3.11-slim
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Noseyparker full-history secret hunt
