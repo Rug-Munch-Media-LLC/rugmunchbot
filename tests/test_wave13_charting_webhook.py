@@ -11,7 +11,6 @@ import socket
 
 import pytest
 
-from rugmunchbot.handlers import webhook as webhook_module
 from rugmunchbot.handlers.webhook import (
     _assert_safe_target,
     _is_blocked_address,
@@ -221,7 +220,7 @@ def test_assert_safe_target_reports_unresolvable_host(
     def boom(*args: object, **kwargs: object) -> None:
         raise socket.gaierror(-2, "Name or service not known")
 
-    monkeypatch.setattr(webhook_module.socket, "getaddrinfo", boom)
+    monkeypatch.setattr(socket, "getaddrinfo", boom)
     with pytest.raises(ValueError, match="Could not resolve host"):
         _assert_safe_target("https://no-such-host.invalid/hook")
 
@@ -232,7 +231,7 @@ def test_assert_safe_target_blocks_private_resolution(
     def private(*args: object, **kwargs: object) -> list[tuple[object, ...]]:
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.9", 0))]
 
-    monkeypatch.setattr(webhook_module.socket, "getaddrinfo", private)
+    monkeypatch.setattr(socket, "getaddrinfo", private)
     with pytest.raises(ValueError, match="blocked"):
         _assert_safe_target("https://internal.example.com/hook")
 
@@ -243,5 +242,5 @@ def test_assert_safe_target_allows_public_resolution(
     def public(*args: object, **kwargs: object) -> list[tuple[object, ...]]:
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
 
-    monkeypatch.setattr(webhook_module.socket, "getaddrinfo", public)
+    monkeypatch.setattr(socket, "getaddrinfo", public)
     _assert_safe_target("https://example.com/hook")  # must not raise

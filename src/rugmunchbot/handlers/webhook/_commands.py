@@ -1,19 +1,12 @@
-#!/usr/bin/env python3
-"""
-RugMunchBot -- /webhook command: Custom webhook management.
+"""Webhook commands — /webhook add/list/remove/test/events management.
 
-Pro tier. Users can set up webhooks to receive real-time data
-about token events, price movements, wallet activity, etc.
+Extracted verbatim from the former single-module ``handlers/webhook.py``.
 """
 
 from __future__ import annotations
 
-import ipaddress
-import re
-import socket
 import time
 from typing import TYPE_CHECKING
-from urllib.parse import urlsplit
 
 import httpx
 from telegram.constants import ParseMode
@@ -33,6 +26,15 @@ from rugmunchbot.handlers._messages import (
     failure_card,
     usage_hint,
 )
+from rugmunchbot.handlers.webhook._constants import (
+    BACKEND_EVENT_MAP,
+    WEBHOOK_EVENT_EMOJIS,
+    WEBHOOK_EVENTS,
+)
+from rugmunchbot.handlers.webhook._security import (
+    _assert_safe_target,
+    _validate_webhook_url,
+)
 from rugmunchbot.keyboards import back_kb, paywall_kb
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools._client import get_shared_client
@@ -42,110 +44,6 @@ if TYPE_CHECKING:
     from telegram.ext import ContextTypes
 
 logger = get_logger("rmi_bot.webhook")
-
-WEBHOOK_URL_RE = re.compile(r"^https?://[^\s/$.?#].[^\s]*$", re.IGNORECASE)
-
-# SSRF guard: network ranges the bot must never POST to (internal services).
-_BLOCKED_IP_NETS = (
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("169.254.0.0/16"),
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("0.0.0.0/8"),
-    ipaddress.ip_network("::1"),
-    ipaddress.ip_network("fc00::/7"),
-    ipaddress.ip_network("fe80::/10"),
-)
-
-
-def _is_blocked_address(addr: ipaddress._BaseAddress) -> bool:
-    """True when addr is internal/private/link-local/loopback/multicast/unspecified."""
-    if addr.is_multicast or addr.is_unspecified:  # type: ignore[attr-defined]  # PTB None-able fields
-        return True
-    return any(addr in net for net in _BLOCKED_IP_NETS)
-
-
-def _validate_webhook_url(url: str) -> tuple[bool, str]:
-    """Format-level validation: scheme, hostname, no embedded credentials.
-
-    Returns (ok, error_message).
-    """
-    if not WEBHOOK_URL_RE.match(url):
-        return False, "Invalid URL. Must be a valid http:// or https:// URL."
-
-    try:
-        parsed = urlsplit(url)
-    except ValueError:
-        return False, "Invalid URL. Could not parse it."
-
-    if parsed.scheme not in ("http", "https"):
-        return False, "Invalid URL. Only http:// and https:// are allowed."
-
-    if parsed.hostname is None:
-        return False, "Invalid URL. Missing hostname."
-
-    if parsed.username or parsed.password:
-        return False, "Invalid URL. URLs with embedded credentials (@user:pass) are not allowed."
-
-    return True, ""
-
-
-def _assert_safe_target(url: str) -> None:
-    """Resolve the hostname and reject internal/private targets.
-
-    Call immediately before making the request so DNS resolution happens
-    right before the POST (prevents DNS-rebinding TOCTOU). Raises ValueError
-    with a user-facing message when the target is unsafe.
-    """
-    ok, err = _validate_webhook_url(url)
-    if not ok:
-        raise ValueError(err)
-
-    hostname = urlsplit(url).hostname
-
-    try:
-        infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
-    except socket.gaierror:
-        raise ValueError(f"Could not resolve host: {hostname}")
-
-    for info in infos:
-        addr = ipaddress.ip_address(info[4][0])
-        if _is_blocked_address(addr):
-            raise ValueError(
-                f"URL host {hostname} resolves to {addr}, which is a blocked "
-                "internal/private address. Webhook targets must be public."
-            )
-
-
-# Webhook event types users can subscribe to
-WEBHOOK_EVENTS = {
-    "price_change": "📊 Price change notifications",
-    "whale_move": "🐋 Whale movement alerts",
-    "token_deployed": "🆕 New token deployment",
-    "liquidity_change": "💧 Liquidity change alerts",
-    "first_swap": "🔄 First swap on new token",
-    "wallet_activity": "👛 Wallet activity alerts",
-}
-
-WEBHOOK_EVENT_EMOJIS = {
-    "price_change": "📊",
-    "whale_move": "🐋",
-    "token_deployed": "🆕",
-    "liquidity_change": "💧",
-    "first_swap": "🔄",
-    "wallet_activity": "👛",
-}
-
-# Map bot event names to backend /api/v1/scanner/webhooks event types
-BACKEND_EVENT_MAP = {
-    "price_change": "token.price_change",
-    "whale_move": "token.whale_move",
-    "token_deployed": "token.deployed",
-    "liquidity_change": "token.liquidity_change",
-    "first_swap": "token.first_swap",
-    "wallet_activity": "wallet.activity",
-}
 
 
 async def cmd_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -217,7 +115,11 @@ async def cmd_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def _list_events(update: Update, _user_id: int) -> None:
     """Show available webhook event types."""
-    text = "🔗 <b>Available Webhook Events</b>\n" + sep() + "\n\nChoose the events you want to receive:\n\n"
+    text = (
+        "🔗 <b>Available Webhook Events</b>\n"
+        + sep()
+        + "\n\nChoose the events you want to receive:\n\n"
+    )
     for evt, desc in WEBHOOK_EVENTS.items():
         emoji = WEBHOOK_EVENT_EMOJIS.get(evt, "🔗")
         text += f"  {emoji} <code>{evt}</code>\n     {desc}\n\n"
@@ -260,7 +162,9 @@ async def _list_webhooks(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id
             f"  🔗 {wh['url'][:80]}\n"
             f"  {status}{last_seen}\n\n"
         )
-    text += "Add new: /webhook add <code>url</code> [event]\nRemove: /webhook remove <code>id</code>"
+    text += (
+        "Add new: /webhook add <code>url</code> [event]\nRemove: /webhook remove <code>id</code>"
+    )
     text += footer_links()
 
     await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
@@ -343,7 +247,9 @@ async def _add_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id: 
     try:
         # Register with backend (POST /api/v1/scanner/webhooks)
         event_types = (
-            [BACKEND_EVENT_MAP[event_type]] if event_type in BACKEND_EVENT_MAP else list(BACKEND_EVENT_MAP.values())
+            [BACKEND_EVENT_MAP[event_type]]
+            if event_type in BACKEND_EVENT_MAP
+            else list(BACKEND_EVENT_MAP.values())
         )
         webhook_data = {
             "url": url,
@@ -527,7 +433,9 @@ async def _test_webhook(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_id:
 
         # Never echo response body content — only safe metadata.
         content_length = resp.headers.get("content-length")
-        size_text = f"Size: <b>{content_length}</b> bytes\n" if content_length else "Size: <b>unknown</b>\n"
+        size_text = (
+            f"Size: <b>{content_length}</b> bytes\n" if content_length else "Size: <b>unknown</b>\n"
+        )
 
         if resp.status_code < 500:
             await msg.edit_text(
