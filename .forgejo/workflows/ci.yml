@@ -131,8 +131,8 @@ jobs:
         # live package tree (src/rugmunchbot). Floor re-based 2026-08-21:
         # the de-godding waves added ~2k lines of package scaffolding which
         # diluted total coverage 30% -> 24%; re-based to measured reality and
-        # raised as test waves land (wave7 2026-08-22: 24% measured -> floor
-        # 23%; next: scanner_engines pure helpers + formatter render paths -> target 30%).
+        # raised as test waves land (wave7+8 2026-08-22: 25% measured -> floor
+        # 24%; next: formatter render paths + command handlers -> target 30%).
         run: |
           source .venv/bin/activate
           python -m pytest tests/ -q --tb=short \
@@ -140,13 +140,13 @@ jobs:
             --cov-report=term \
             --cov-report=xml:coverage.xml \
             --cov-report=lcov:coverage.lcov \
-            --cov-fail-under=23
+            --cov-fail-under=24
       - name: Per-diff coverage gate (diff-cover — BLOCKING)
         # Ratchet: lines CHANGED vs origin/main must be >=23% covered.
         # On pushes to main the diff is empty and this passes trivially.
         run: |
           source .venv/bin/activate
-          diff-cover coverage.xml --compare-branch=origin/main --fail-under=23
+          diff-cover coverage.xml --compare-branch=origin/main --fail-under=24
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         if: always()
