@@ -110,6 +110,13 @@ jobs:
         run: |
           uv python install ${{ env.PYTHON_VERSION }}
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Cache uv wheels
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
       - name: Install dependencies
         run: |
           uv pip install --python .venv/bin/python pytest pytest-asyncio pytest-cov httpx python-telegram-bot python-dotenv diff-cover import-linter
@@ -170,6 +177,13 @@ jobs:
         run: |
           uv python install ${{ env.PYTHON_VERSION }}
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Cache uv wheels
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
       - name: Install dependencies
         run: |
           uv pip install --python .venv/bin/python import-linter httpx python-telegram-bot python-dotenv
