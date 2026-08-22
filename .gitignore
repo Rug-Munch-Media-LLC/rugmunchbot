@@ -50,3 +50,10 @@ u003e
 # Turbo
 .turbo
 src/rugmunchbot/_vendor/data/
+
+# Coverage artifacts (regenerated every run — never track)
+.coverage
+.coverage.*
+coverage.xml
+coverage.lcov
+htmlcov/
