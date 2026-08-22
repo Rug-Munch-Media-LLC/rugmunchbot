@@ -47,6 +47,18 @@ if [ "${1:-}" = "--check" ]; then
     echo "FAIL: missing vendor script" >&2
     FAIL=1
   }
+  # De-godding tripwires: a vendor refresh re-copies mapped files one-way and
+  # would resurrect god modules that were split locally. Fail loudly instead.
+  gmgn_lines="$(wc -l <"$TARGET/_vendor/gmgn_provider.py")"
+  if [ "$gmgn_lines" -gt 200 ]; then
+    echo "FAIL: _vendor/gmgn_provider.py regrew to ${gmgn_lines} lines (facade must stay <=200; split lives in gmgn_transport.py + gmgn_endpoints_*.py)" >&2
+    FAIL=1
+  fi
+  ragdedup_lines="$(wc -l <"$TARGET/_vendor/rag_pkg/dedup.py")"
+  if [ "$ragdedup_lines" -gt 80 ]; then
+    echo "FAIL: _vendor/rag_pkg/dedup.py regrew to ${ragdedup_lines} lines (re-export shim only; canonical copy is _vendor/dedup.py)" >&2
+    FAIL=1
+  fi
   if [ "$FAIL" -eq 0 ]; then
     echo "OK: standalone bot + vendored modules (invariants hold)."
     exit 0
