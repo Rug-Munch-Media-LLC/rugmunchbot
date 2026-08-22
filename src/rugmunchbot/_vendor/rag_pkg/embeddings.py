@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from typing import Final
 
-from rugmunchbot._vendor.settings_shim import settings
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg.embedder import (
     EmbedderProtocol,
@@ -27,6 +26,7 @@ from rugmunchbot._vendor.rag_pkg.embedder import (
     lookup_dim,
     normalize_dim,
 )
+from rugmunchbot._vendor.settings_shim import settings
 
 log = get_logger(__name__)
 

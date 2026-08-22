@@ -46,10 +46,10 @@ class ScrapeRequest(BaseModel):
 
     url: str
     formats: list[str] | None = None
-    onlyMainContent: bool = True
+    onlyMainContent: bool = True  # noqa: N815
     timeout: int = 30
-    bypassCloudflare: bool = True
-    jsRender: bool = False
+    bypassCloudflare: bool = True  # noqa: N815
+    jsRender: bool = False  # noqa: N815
 
 
 class ScrapeResult(BaseModel):

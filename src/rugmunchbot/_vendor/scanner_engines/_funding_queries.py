@@ -17,8 +17,8 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from datetime import datetime
 
-from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
+from rugmunchbot._vendor.logging_shim import get_logger
 
 logger = get_logger(__name__)
 

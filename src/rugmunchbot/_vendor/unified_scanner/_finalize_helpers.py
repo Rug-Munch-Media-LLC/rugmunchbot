@@ -48,6 +48,17 @@ RAG_ENRICH_COOLDOWN_S = float(os.getenv("RAG_ENRICH_COOLDOWN_S", "60"))
 _RAG_ENRICH_LAST_FAILURE: float = 0.0
 
 
+_BACKGROUND_TASKS: set[asyncio.Task[None]] = set()
+
+
+def _spawn(coro):
+    """Fire-and-forget with a kept reference (prevents GC of pending tasks)."""
+    task = asyncio.create_task(coro)
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+    return task
+
+
 async def _enrich_scan_result_bounded(result: ScanResult) -> Any:
     """Best-effort RAG enrichment with a hard time budget + outage latch.
 
@@ -254,7 +265,7 @@ async def finalize_background(
         logger.warning("token scan coverage recording failed: %s", exc)
 
     # ── Persist: Postgres + Redis cache (fire-and-forget) ──
-    asyncio.create_task(persist_result(result))
+    _spawn(persist_result(result))
 
     # ── Publish high-risk findings to RAG pipeline ──
     if result.risk_level in ("high", "critical"):
@@ -294,6 +305,6 @@ async def finalize_background(
 
     # ── Auto-label high-risk deployer wallets (fire-and-forget) ──
     try:
-        asyncio.create_task(auto_label_deployer(result))
+        _spawn(auto_label_deployer(result))
     except Exception as exc:
         logger.debug("deployer_label_schedule_failed", error=str(exc)[:80])

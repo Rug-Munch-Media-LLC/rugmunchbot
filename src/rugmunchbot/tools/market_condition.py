@@ -35,7 +35,10 @@ from typing import Any
 
 from rugmunchbot.config import COINGECKO
 from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools._client import make_client
+from rugmunchbot.tools._client import (
+    BackendApiError,
+    make_client,
+)
 from rugmunchbot.tools.budget import budget, provider_for_url
 from rugmunchbot.tools.market import (
     _backend_fear_greed,

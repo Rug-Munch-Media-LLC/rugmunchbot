@@ -14,9 +14,8 @@ from typing import Any
 
 import httpx
 
-from rugmunchbot._vendor.logging_shim import get_logger
-
 from rugmunchbot._vendor.cache import ARKHAM_KEY, CACHE_TTL, HELIUS_KEY, _r
+from rugmunchbot._vendor.logging_shim import get_logger
 
 logger = get_logger("rugcharts_intel")
 

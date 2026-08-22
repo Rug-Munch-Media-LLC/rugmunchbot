@@ -41,9 +41,9 @@ from typing import Any, cast
 
 from qdrant_client import AsyncQdrantClient, models
 
-from rugmunchbot._vendor.settings_shim import settings
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg.embeddings import EMBEDDING_DIM, get_embedding
+from rugmunchbot._vendor.settings_shim import settings
 
 log = get_logger(__name__)
 

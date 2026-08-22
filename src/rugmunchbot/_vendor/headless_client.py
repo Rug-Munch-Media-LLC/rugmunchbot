@@ -16,9 +16,9 @@ import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.headless_credentials import get_api_credentials, get_session_path
 from rugmunchbot._vendor.headless_models import GroupConfig, GroupInfo, GroupType
+from rugmunchbot._vendor.logging_shim import get_logger
 
 # Telethon is imported lazily to allow graceful fallback.
 _telethon_available: bool | None = None
@@ -573,9 +573,8 @@ class HeadlessTelegramClient:
         if not self._client:
             raise RuntimeError("Client not started")
 
-        from rugmunchbot.config import BOT_TOKEN  # Phase 3: own repo
-
         from rugmunchbot._vendor.voice_chat import create_voice_chat
+        from rugmunchbot.config import BOT_TOKEN  # Phase 3: own repo
 
         if not BOT_TOKEN:
             logger.error("BOT_TOKEN not available for voice chat")
@@ -594,9 +593,8 @@ class HeadlessTelegramClient:
 
     async def end_voice_chat(self, chat_id: int) -> bool:
         """End an active voice/video chat."""
-        from rugmunchbot.config import BOT_TOKEN  # Phase 3: own repo
-
         from rugmunchbot._vendor.voice_chat import end_voice_chat
+        from rugmunchbot.config import BOT_TOKEN  # Phase 3: own repo
 
         if not BOT_TOKEN:
             logger.error("BOT_TOKEN not available")

@@ -20,7 +20,11 @@ import subprocess
 import tempfile
 from typing import TYPE_CHECKING, Any
 
-from rugmunchbot._vendor.osint.domain._common import _THEHARVESTER_LIMIT, _THEHARVESTER_SOURCES, _finding
+from rugmunchbot._vendor.osint.domain._common import (
+    _THEHARVESTER_LIMIT,
+    _THEHARVESTER_SOURCES,
+    _finding,
+)
 
 if TYPE_CHECKING:
     from rugmunchbot._vendor.osint import OsintReport

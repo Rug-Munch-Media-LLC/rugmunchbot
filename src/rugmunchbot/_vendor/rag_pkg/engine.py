@@ -32,7 +32,6 @@ from typing import Any
 import httpx
 import redis
 
-from rugmunchbot._vendor.settings_shim import settings
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg._ingest import (
     bulk_ingest,
@@ -82,6 +81,7 @@ from rugmunchbot._vendor.rag_pkg.chunking import (
 from rugmunchbot._vendor.rag_pkg.config import RAG_CONTEXT_MAX_TOKENS
 from rugmunchbot._vendor.rag_pkg.embeddings import current_backend, get_embedding
 from rugmunchbot._vendor.rag_pkg.tracing import trace_span
+from rugmunchbot._vendor.settings_shim import settings
 
 log = get_logger(__name__)
 

@@ -38,12 +38,12 @@ from rugmunchbot._vendor.catalog_models import (
     Wallet,
     utcnow,
 )
-from rugmunchbot._vendor.settings_shim import resolve_service_url
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg.engine import (
     ingest_document as rag_ingest_document,
     three_pillar_search as rag_three_pillar_search,
 )
+from rugmunchbot._vendor.settings_shim import resolve_service_url
 
 log = get_logger(__name__)
 

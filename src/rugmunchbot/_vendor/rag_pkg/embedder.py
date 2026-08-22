@@ -27,9 +27,9 @@ from typing import Any
 import httpx
 import numpy as np
 
-from rugmunchbot._vendor.settings_shim import settings
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg.tracing import trace_span
+from rugmunchbot._vendor.settings_shim import settings
 
 log = get_logger(__name__)
 
@@ -303,7 +303,7 @@ class InfinityEmbedder(EmbedderProtocol):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class BGE_M3_Embedder(EmbedderProtocol):
+class BGE_M3_Embedder(EmbedderProtocol):  # noqa: N801
     """BGE-M3 embedder via its container's HTTP API.
 
     Expects a FastAPI service at *url* with a POST ``/embed`` endpoint
@@ -722,7 +722,6 @@ def get_embedder(
 
         embedder_no_cache = get_embedder(enable_cache=False)
     """
-    primary_name = primary or settings.embedder_primary
 
     # Build primary — Qwen3-Embedding-4B via llama.cpp
     primary_embedder: EmbedderProtocol = _create_infinity()

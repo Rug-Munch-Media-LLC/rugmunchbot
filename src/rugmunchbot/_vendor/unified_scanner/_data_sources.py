@@ -121,7 +121,9 @@ async def get_token_holders(token_address: str, chain: str) -> dict[str, Any]:
     (``holder_count`` / ``top_holders`` / ``concentration_pct`` /
     ``gini_coefficient`` / ... ) with ``source == "own"``.
     """
-    from rugmunchbot._vendor.scanner_engines.own_holder_analysis import get_own_holder_analysis as _canonical
+    from rugmunchbot._vendor.scanner_engines.own_holder_analysis import (
+        get_own_holder_analysis as _canonical,
+    )
 
     return await _canonical(token_address, chain)
 

@@ -55,7 +55,10 @@ if TYPE_CHECKING:
 
 from rugmunchbot._vendor.scanner_engines.news_sentiment import HIGH_MEDIA_ATTENTION_THRESHOLD
 from rugmunchbot._vendor.unified_scanner._evidence import build_evidence
-from rugmunchbot._vendor.unified_scanner._score_helpers import apply_sentinel_scoring, build_breakdown
+from rugmunchbot._vendor.unified_scanner._score_helpers import (
+    apply_sentinel_scoring,
+    build_breakdown,
+)
 
 # Dimension weights — the maximum points each dimension can contribute
 # toward the safety score. 35 + 25 + 15 + 15 + 10 = 100.

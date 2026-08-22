@@ -33,8 +33,19 @@ from langgraph.graph import END, StateGraph
 
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg.rerank import reorder_by_relevance, rerank_results
-from rugmunchbot._vendor.rag_pkg.retrieval import ContextBuilder, HybridRetriever, ScoredHit, apply_news_boosts
-from rugmunchbot._vendor.rag_pkg.tools import get_gas_price, get_news, get_token_price, get_wallet_balance, scan_token
+from rugmunchbot._vendor.rag_pkg.retrieval import (
+    ContextBuilder,
+    HybridRetriever,
+    ScoredHit,
+    apply_news_boosts,
+)
+from rugmunchbot._vendor.rag_pkg.tools import (
+    get_gas_price,
+    get_news,
+    get_token_price,
+    get_wallet_balance,
+    scan_token,
+)
 
 log = get_logger(__name__)
 

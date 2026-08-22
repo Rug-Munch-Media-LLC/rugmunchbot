@@ -27,7 +27,10 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from rugmunchbot._vendor.logging_shim import get_logger
-from rugmunchbot._vendor.rag_pkg.chunking import content_hash as _content_hash, map_source_type_to_content_type as _content_type_for
+from rugmunchbot._vendor.rag_pkg.chunking import (
+    content_hash as _content_hash,
+    map_source_type_to_content_type as _content_type_for,
+)
 from rugmunchbot._vendor.rag_pkg.config import (
     RAG_CHUNK_SIZE,
     RAG_INGESTION_BATCH_SIZE,

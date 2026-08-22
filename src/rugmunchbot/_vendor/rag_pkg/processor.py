@@ -6,8 +6,16 @@
 from __future__ import annotations
 
 from rugmunchbot._vendor.logging_shim import get_logger
-from rugmunchbot._vendor.rag_pkg.chunking import chunk_text as _chunk_text, map_source_type_to_content_type as _content_type_for
-from rugmunchbot._vendor.rag_pkg.config import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE, RAG_MIN_CHUNK_CHARS, RAG_MIN_DOC_LENGTH
+from rugmunchbot._vendor.rag_pkg.chunking import (
+    chunk_text as _chunk_text,
+    map_source_type_to_content_type as _content_type_for,
+)
+from rugmunchbot._vendor.rag_pkg.config import (
+    RAG_CHUNK_OVERLAP,
+    RAG_CHUNK_SIZE,
+    RAG_MIN_CHUNK_CHARS,
+    RAG_MIN_DOC_LENGTH,
+)
 from rugmunchbot._vendor.rag_pkg.ingestion_models import Chunk, Document
 
 log = get_logger(__name__)

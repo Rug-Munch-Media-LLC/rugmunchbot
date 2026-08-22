@@ -202,7 +202,6 @@ def _run_pygod(
         )
     try:
         import networkx as nx
-
         from app.pygod_anomaly import get_pygod_anomaly
 
         graph: Any = nx.DiGraph()

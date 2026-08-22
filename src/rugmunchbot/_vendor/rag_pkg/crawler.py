@@ -39,7 +39,16 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 
-from rugmunchbot._vendor.settings_shim import settings
+from rugmunchbot._vendor.dedup import (
+    check_duplicates,
+    content_fingerprint,
+    lookup_group_by_url,
+    mark_content_ingested,
+    mark_url_ingested,
+    new_group_id,
+    record_fp_group,
+    record_group_membership,
+)
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg._crawler_constants import (
     _SOURCES_FILE,
@@ -72,17 +81,8 @@ from rugmunchbot._vendor.rag_pkg._crawler_helpers import (  # noqa: F401  (re-ex
     prioritize_by_freshness,
     score_article_quality,
 )
-from rugmunchbot._vendor.dedup import (
-    check_duplicates,
-    content_fingerprint,
-    lookup_group_by_url,
-    mark_content_ingested,
-    mark_url_ingested,
-    new_group_id,
-    record_fp_group,
-    record_group_membership,
-)
 from rugmunchbot._vendor.rag_pkg.ratings import rate_article
+from rugmunchbot._vendor.settings_shim import settings
 
 log = get_logger(__name__)
 

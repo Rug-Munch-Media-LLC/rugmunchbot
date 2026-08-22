@@ -32,7 +32,7 @@ def _gmgn(args: list[str], timeout: int = 15) -> dict[str, Any]:
     cmd = ["npx", "gmgn-cli", *args]
     try:
         # Fixed command list, no shell=True; args are internal CLI flags (no user input)
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=GMGN_ENV, shell=False)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=GMGN_ENV, shell=False)  # noqa: S603
         if result.returncode != 0:
             logger.error(f"gmgn-cli failed: {result.stderr[:200]}")
             return {"error": result.stderr[:200]}

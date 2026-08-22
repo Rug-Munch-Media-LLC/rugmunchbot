@@ -343,8 +343,8 @@ def _build_help_text() -> str:
         "verdicts, prices, charts, news and wallet intel \u2014 before you "
         "buy. Built by <b>Rug Munch Intelligence</b> \u2014 "
         "<b>Rug Munch Media LLC</b> (Wyoming).\n",
-        f"\U0001f310 <b>Full RMI app \u2014 "
-        f'<a href="https://rugmunch.io">rugmunch.io</a></b>\n'
+        "\U0001f310 <b>Full RMI app \u2014 "
+        '<a href="https://rugmunch.io">rugmunch.io</a></b>\n'
         "The complete platform: <b>RugMaps</b> (token &amp; wallet maps), "
         "<b>RugCharts</b> (live charts &amp; signals), <b>Scanner</b> "
         "(AEGIS forensics), <b>AI Chat</b> (deep RAG answers) and "

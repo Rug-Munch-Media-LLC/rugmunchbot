@@ -31,12 +31,12 @@ RAG_INGESTION_MAX_PER_MINUTE: int = 200
 # ── Chunking ──────────────────────────────────────────────────────────
 
 # Target chunk size in characters (not tokens — we use char-level for
-# simpler deterministic splitting; 512 chars ≈ 128–200 tokens for most
+# simpler deterministic splitting; 512 chars ≈ 128-200 tokens for most
 # crypto/English text).
 RAG_CHUNK_SIZE: int = 512
 
 # Overlap between consecutive chunks to preserve cross-chunk context.
-# 50 chars ≈ 2–3 words of sliding context.
+# 50 chars ≈ 2-3 words of sliding context.
 RAG_CHUNK_OVERLAP: int = 50
 
 # Minimum chunk length in characters. Shorter chunks are discarded as

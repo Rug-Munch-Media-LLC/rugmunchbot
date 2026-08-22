@@ -22,7 +22,10 @@ from typing import Any
 
 from rugmunchbot.config import DEXSCREENER, DEXSCREENER_TOKEN_BOOSTS
 from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools._client import http_get_json
+from rugmunchbot.tools._client import (
+    BackendApiError,
+    http_get_json,
+)
 from rugmunchbot.tools.registry import ToolResult, backend_json_get
 
 logger = get_logger("rmi_bot.tools.trending")

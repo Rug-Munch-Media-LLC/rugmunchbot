@@ -206,9 +206,8 @@ async def _maybe_upsert_token(session: Any, result: ScanResult) -> None:
     if not result.symbol:
         return
     try:
-        from sqlalchemy import select
-
         from app.models.token import Token
+        from sqlalchemy import select
 
         stmt = select(Token).where(
             Token.chain == result.chain,

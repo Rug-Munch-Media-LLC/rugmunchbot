@@ -52,11 +52,11 @@ try:
 except ImportError:  # pragma: no cover
     CHDriverError = Exception
 
-from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.lite_chain_indexer import (
     _get_ch_client,
     _normalize_chain,
 )
+from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.scanner_engines._common import (
     clear_cache as _common_clear_cache,
     get_cache_stats as _common_get_cache_stats,
@@ -530,7 +530,10 @@ async def _raw_to_usd(token: str, chain: str, raw_amount: float) -> float | None
     if raw_amount <= 0:
         return 0.0
     try:
-        from rugmunchbot._vendor.scanner_engines.price_oracle import get_token_decimals, get_token_price
+        from rugmunchbot._vendor.scanner_engines.price_oracle import (
+            get_token_decimals,
+            get_token_price,
+        )
 
         price_result = _PRICE_CACHE.get((token, chain))
         if price_result is None:

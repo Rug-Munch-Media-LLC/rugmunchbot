@@ -27,7 +27,9 @@ from rugmunchbot._vendor.logging_shim import get_logger
 
 if TYPE_CHECKING:
     from telegram import Bot
-    from telegram._utils.types import JSONValue  # type: ignore[attr-defined]  # PTB None-able fields
+    from telegram._utils.types import (
+        JSONValue,  # type: ignore[attr-defined]  # PTB None-able fields
+    )
 
 logger = get_logger("telegram.voice_chat")
 

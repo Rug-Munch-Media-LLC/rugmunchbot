@@ -187,8 +187,9 @@ def _redis_label(report: OsintReport, key: str) -> None:
     when Redis is unavailable — the file-based sources still run.
     """
     try:
-        from rugmunchbot._vendor.redis_client import get_redis
         from app.wallet_label_loader import lookup_wallet_label
+
+        from rugmunchbot._vendor.redis_client import get_redis
 
         redis_client = get_redis()
         if redis_client is None:

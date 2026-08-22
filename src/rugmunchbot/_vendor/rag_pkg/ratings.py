@@ -30,8 +30,8 @@ from enum import StrEnum
 from typing import Any
 from urllib.parse import urlparse
 
-from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.dedup import KNOWN_PEOPLE, KNOWN_PROTOCOLS, KNOWN_TOKENS
+from rugmunchbot._vendor.logging_shim import get_logger
 
 log = get_logger(__name__)
 

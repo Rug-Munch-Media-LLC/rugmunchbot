@@ -8,12 +8,12 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
-from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.crypto_embeddings.features import extract_contract_features
 from rugmunchbot._vendor.crypto_embeddings.models import (
     OR_FALLBACK_EMBED,
     OR_PRIMARY_EMBED,
 )
+from rugmunchbot._vendor.logging_shim import get_logger
 
 if TYPE_CHECKING:
     import numpy as np
@@ -166,7 +166,7 @@ class HuggingFaceEmbedder:
                 data = resp.json()
                 if isinstance(data, list) and len(data) > 0:
                     if isinstance(data[0], list):
-                        results.append(data[0] if len(data) == 1 else data[0])
+                        results.append(data[0])
                     else:
                         results.append(data)
                 else:

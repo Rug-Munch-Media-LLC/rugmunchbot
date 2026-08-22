@@ -106,7 +106,7 @@ def _loud_body_detail(response: Any, *, limit: int = 160) -> str:
     """
     try:
         body = response.json()
-    except Exception:  # noqa: BLE001 — detail extraction must never raise
+    except Exception:
         return ""
     if not isinstance(body, dict):
         return ""

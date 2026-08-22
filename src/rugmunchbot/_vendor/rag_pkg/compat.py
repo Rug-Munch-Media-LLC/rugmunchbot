@@ -54,7 +54,9 @@ async def _get_redis() -> Any:
 
 # ── Embedder — re-export the active crypto embedder (not deprecated) ─────
 
-from rugmunchbot._vendor.crypto_embeddings import get_embedder  # noqa: E402 — module docstring precedes import block
+from rugmunchbot._vendor.crypto_embeddings import (  # noqa: E402
+    get_embedder,
+)
 
 # ── Search shims ───────────────────────────────────────────────────────────
 

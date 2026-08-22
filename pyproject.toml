@@ -60,6 +60,12 @@ ignore = ["ASYNC109"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S105", "S106"]
 "src/rugmunchbot/plugins/*.py" = ["S101"]
+# Vendored scanner-engine analytics SQL: identifiers are code constants,
+# values are parameterized via client.execute params (reviewed 2026-08-21).
+"src/rugmunchbot/_vendor/scanner_engines/_deployer_fingerprint_queries.py" = ["S608"]
+"src/rugmunchbot/_vendor/scanner_engines/_sources.py" = ["S608"]
+"src/rugmunchbot/_vendor/scanner_engines/event_correlation.py" = ["S608"]
+"src/rugmunchbot/_vendor/scanner_engines/own_volume_authenticity.py" = ["S608"]
 # Ported fail-open fallbacks: try/except/pass is intentional (Redis down,
 # import guards) — same convention as the live rmi-backend per-file ignores.
 "src/rugmunchbot/admin_state.py" = ["S110"]

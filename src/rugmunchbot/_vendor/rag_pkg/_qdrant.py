@@ -23,9 +23,9 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from rugmunchbot._vendor.settings_shim import settings
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg.ann_index import Hit
+from rugmunchbot._vendor.settings_shim import settings
 
 if TYPE_CHECKING:
     from rugmunchbot._vendor.rag_pkg.chunking import Chunk

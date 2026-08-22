@@ -99,7 +99,10 @@ from rugmunchbot._vendor.rag_pkg.retrieval import (  # noqa: E402 — module doc
     expand_query,
     search as hybrid_search,
 )
-from rugmunchbot._vendor.rag_pkg.service import RAGService, init_rag  # noqa: E402 — module docstring precedes import block
+from rugmunchbot._vendor.rag_pkg.service import (  # noqa: E402 — module docstring precedes import block
+    RAGService,
+    init_rag,
+)
 
 # Story fetch + ingest glue (bot story_fetch chain + RAG ingest_url)
 from rugmunchbot._vendor.rag_pkg.story_ingest import (  # noqa: E402 — module docstring precedes import block

@@ -13,8 +13,8 @@ from __future__ import annotations
 import re
 from typing import Final
 
-from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
 from rugmunchbot._vendor.dedup import content_hash
+from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
 
 # ── Tunable thresholds ─────────────────────────────────────────────────────
 

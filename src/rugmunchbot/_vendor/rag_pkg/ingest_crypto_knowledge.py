@@ -85,6 +85,13 @@ if __name__ == "__main__":
     # object before importing the submodules so ``_ingest.X`` resolves here.
     sys.modules["app.rag.ingest_crypto_knowledge"] = sys.modules[__name__]
 
+from rugmunchbot._vendor.dedup import (
+    content_hash,
+    is_duplicate_content,
+    is_duplicate_url,
+    mark_content_ingested,
+    mark_url_ingested,
+)
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg._crawler_constants import (
     INCIDENT_CATEGORIES,
@@ -92,13 +99,10 @@ from rugmunchbot._vendor.rag_pkg._crawler_constants import (
     INCIDENT_COLLECTION_BY_CATEGORY,
     INCIDENT_SOURCES_FILE,
 )
-from rugmunchbot._vendor.rag_pkg.config import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE, RAG_MIN_CHUNK_CHARS
-from rugmunchbot._vendor.dedup import (
-    content_hash,
-    is_duplicate_content,
-    is_duplicate_url,
-    mark_content_ingested,
-    mark_url_ingested,
+from rugmunchbot._vendor.rag_pkg.config import (
+    RAG_CHUNK_OVERLAP,
+    RAG_CHUNK_SIZE,
+    RAG_MIN_CHUNK_CHARS,
 )
 from rugmunchbot._vendor.rag_pkg.ingest._chunking import (
     _ADOC_HEADING_RE,

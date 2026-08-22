@@ -39,7 +39,6 @@ from typing import Any
 
 import httpx
 
-from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.gmgn_fallbacks import (
     agent_auth_params,
     agent_headers,
@@ -51,6 +50,7 @@ from rugmunchbot._vendor.gmgn_fallbacks import (
     fallback_dexscreener_trades,
     normalize_trades,
 )
+from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.proxy_rotator import get_proxy_rotator
 
 logger = get_logger(__name__)

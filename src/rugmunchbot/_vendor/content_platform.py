@@ -476,7 +476,12 @@ async def generate_briefing() -> dict[str, Any]:
     summary. Non-breaking: on a catastrophic pipeline failure it falls back to
     the legacy RAG-snippet stub (``_generate_briefing_legacy``).
     """
-    from rugmunchbot._vendor.briefing import draft_briefing, gather_briefing_context, publish_briefing, review_briefing
+    from rugmunchbot._vendor.briefing import (
+        draft_briefing,
+        gather_briefing_context,
+        publish_briefing,
+        review_briefing,
+    )
 
     try:
         context = await gather_briefing_context()

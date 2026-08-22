@@ -84,6 +84,7 @@ async def crawl_and_ingest_with_fallback(url: str, collection: str = "news_v2") 
         ``{"doc_id", "chunks", "status"}``.
     """
     from app.rag import crawler
+
     from rugmunchbot._vendor.rag_pkg.engine import ingest_document
 
     content = await extract_with_fallback(url)

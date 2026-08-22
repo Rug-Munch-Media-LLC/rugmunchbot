@@ -16,9 +16,9 @@ from typing import Any
 
 import httpx
 
-from rugmunchbot._vendor.settings_shim import settings
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg.tracing import trace_span
+from rugmunchbot._vendor.settings_shim import settings
 
 log = get_logger(__name__)
 
