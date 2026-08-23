@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import os
 from typing import Any
 
 import base58
@@ -43,9 +44,10 @@ from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.tools.scanner.solana_onchain")
 
-# SPL Token programs (account owner field of the mint account).
-SPL_TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+# SPL Token programs (account owner field of the mint account) — on-chain
+# program addresses, not credentials (S105 false positive).
+SPL_TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"  # noqa: S105
+TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"  # noqa: S105
 
 # Token-2022 extension type ids we surface as risk-relevant flags.
 _T22_EXTENSION_NAMES: dict[int, str] = {
@@ -125,7 +127,7 @@ def _parse_mint_layout(data: bytes) -> dict[str, Any]:
         if name:
             extensions.add(name)
             if ext_type == 1 and ext_len >= 108:
-                # TransferFeeConfig: 2×COption<Pubkey>(36) + withheld u64(8)
+                # TransferFeeConfig: 2x COption<Pubkey>(36) + withheld u64(8)
                 # + older{epoch u64, max_fee u64, bp u16} + newer{same}.
                 base = body_start + 80
                 older_bp = int.from_bytes(data[base + 16 : base + 18], "little")
@@ -166,14 +168,41 @@ async def resolve_mint_facts(mint: str) -> dict[str, Any] | None:
     return facts
 
 
+async def _birdeye_holder_count(mint: str) -> int | None:
+    """Total holder count from Birdeye ``token_overview`` (key-gated).
+
+    Free RPC can rank the largest accounts but cannot cheaply COUNT holders;
+    Birdeye reports the exact number. Returns ``None`` when no
+    ``BIRDEYE_API_KEY`` is configured or the lookup fails — never raises.
+    """
+    key = os.getenv("BIRDEYE_API_KEY", "").strip()
+    if not key:
+        return None
+    try:
+        from rugmunchbot.tools._client import http_get_json
+
+        body = await http_get_json(
+            "https://public-api.birdeye.so/defi/token_overview",
+            params={"address": mint},
+            headers={"X-API-KEY": key, "x-chain": "solana"},
+            timeout=6.0,
+        )
+        data = body.get("data") if isinstance(body, dict) else None
+        raw = data.get("holder_count") if isinstance(data, dict) else None
+        return int(float(raw)) if raw is not None else None
+    except Exception:
+        logger.debug("birdeye_holder_count_failed for %s", mint)
+        return None
+
+
 async def resolve_holder_stats(mint: str) -> dict[str, Any] | None:
     """Top-holder concentration straight from RPC (always available).
 
     ``getTokenLargestAccounts`` returns the 20 largest token accounts;
     combined with ``getTokenSupply`` this yields exact top-10/top-20 supply
-    concentration plus the ranked holder rows. Total holder COUNT is not
-    cheaply available from public RPC — callers keep whatever count the
-    provider layer reported and this function never invents one.
+    concentration plus the ranked holder rows. Total holder COUNT comes from
+    Birdeye when ``BIRDEYE_API_KEY`` is set — this function never invents a
+    count it did not receive.
     """
     largest, supply = await asyncio.gather(
         _rpc("getTokenLargestAccounts", [mint], timeout=6.0),
@@ -205,12 +234,16 @@ async def resolve_holder_stats(mint: str) -> dict[str, Any] | None:
         return None
     top10 = round(sum(h["pct"] for h in holders[:10]), 2)
     top20 = round(sum(h["pct"] for h in holders[:20]), 2)
-    return {
+    stats: dict[str, Any] = {
         "top_holders": holders,
         "top_10_pct": top10,
         "top_20_pct": top20,
         "source": "rpc:getTokenLargestAccounts",
     }
+    holder_count = await _birdeye_holder_count(mint)
+    if holder_count is not None:
+        stats["holder_count"] = holder_count
+    return stats
 
 
 async def resolve_deployer(mint: str) -> str | None:
@@ -442,12 +475,18 @@ async def enrich_scan_solana(result: dict[str, Any], address: str, chain: str) -
         provenance["holder_stats"] = True
         if not result.get("top_holders"):
             result["top_holders"] = holders.get("top_holders") or []
+        # Holder count: only fill when no provider reported one (never
+        # overwrite a real provider count with ours, never fabricate).
+        if holders.get("holder_count") is not None and not result.get("holders"):
+            result["holders"] = int(holders["holder_count"])
         rs = result.get("risk_signals") if isinstance(result.get("risk_signals"), dict) else None
         if rs is not None and rs.get("top10_holder_pct") is None:
             rs["top10_holder_pct"] = holders.get("top_10_pct")
         oc = result.setdefault("onchain", {})
         oc["top_10_pct"] = holders.get("top_10_pct")
         oc["top_20_pct"] = holders.get("top_20_pct")
+        if holders.get("holder_count") is not None:
+            oc["holder_count"] = holders["holder_count"]
 
     if deployer and not (result.get("deployer_address") or result.get("dev_wallet")):
         result["deployer_address"] = deployer

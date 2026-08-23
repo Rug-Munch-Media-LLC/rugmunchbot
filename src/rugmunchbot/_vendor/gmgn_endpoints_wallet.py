@@ -1,6 +1,10 @@
 # Split from the vendored gmgn_provider.py during the de-godding program
 # 2026-08-22 (wallet/security endpoint seam). Method bodies moved VERBATIM —
 # see the facade ``gmgn_provider.py`` for provenance and the singleton.
+# 2026-08-23 FIX: _fetch_smart_money no longer calls the WALLET-scoped
+# endpoint with a token address (fabricated +0 nets); token-scoped paths
+# first, holder-derived fallback second. This file is bot-owned (not in
+# vendor-from-backend.sh's one-way pull list) — safe to maintain here.
 """GMGN wallet + security endpoints: wallet intelligence/detail, holder
 analysis, smart money, token security."""
 
@@ -209,39 +213,91 @@ class _GMGNWalletEndpointsMixin:
         return {"address": address, "smart_money_activity": [], "source": "none"}
 
     async def _fetch_smart_money(self, address: str, chain: str) -> dict[str, Any] | None:
-        """Fetch smart money data from GMGN."""
+        """Fetch smart money data for a TOKEN.
+
+        2026-08-23 fix: this used to call the WALLET-scoped endpoint
+        (``/smartmoney/{chain}/walletNew/{wallet}``) with a token address,
+        which can only return empty/garbage rows — every report then showed
+        a fabricated "Smart-Money Net: +0". Now queries GMGN's token-scoped
+        smart-money endpoints (``tokenNew`` / ``token`` spellings) first and
+        falls back to holder-derived smart money (backend methodology) when
+        both miss.
+        """
         if not self._available:
             return None
-        try:
-            chain_slug = _normalize_chain(chain)
-            resp = await self._request(
-                "GET",
-                f"{GMGN_BASE}/defi/quotation/v1/smartmoney/{chain_slug}/walletNew/{address}",
-                headers=self.headers,
-                params={"period": "7d"},
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                sm = data.get("data", data)
+        chain_slug = _normalize_chain(chain)
+        for scope in ("tokenNew", "token"):
+            try:
+                resp = await self._request(
+                    "GET",
+                    f"{GMGN_BASE}/defi/quotation/v1/smartmoney/{chain_slug}/{scope}/{address}",
+                    headers=self.headers,
+                    params={"period": "7d"},
+                )
+                if resp.status_code != 200:
+                    continue
+                sm = resp.json().get("data", resp.json())
+                if not isinstance(sm, dict):
+                    continue
+                activity = sm.get("activity") or sm.get("smart_degens") or []
+                if not isinstance(activity, list):
+                    activity = []
+                if not activity and not (
+                    sm.get("smart_degen_count") or sm.get("smart_money_count")
+                ):
+                    continue
                 return {
                     "address": address,
                     "chain": chain,
-                    "smart_money_activity": sm.get("activity", []),
+                    "smart_money_activity": activity,
                     "kol_trades": sm.get("kol_trades", []),
-                    "smart_money_count": sm.get("smart_money_count", 0),
-                    "kol_count": sm.get("kol_count", 0),
-                    "buy_pressure": sm.get("buy_pressure", 0),
+                    "smart_money_count": int(
+                        sm.get("smart_degen_count", sm.get("smart_money_count", 0)) or 0
+                    ),
+                    "kol_count": int(sm.get("kol_count", 0) or 0),
+                    "buy_pressure": sm.get("buy_pressure"),
                     "total_profit_pnl": sm.get("total_profit_pnl"),
                     "winrate": sm.get("winrate"),
-                    "sol_balance": sm.get("sol_balance"),
-                    "buy_7d": sm.get("buy_7d"),
                     "tags": sm.get("tags", []),
                     "source": "gmgn",
                     "timestamp": datetime.now(UTC).isoformat(),
                 }
-        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
-            logger.debug("GMGN smart_money failed: %s", e)
-        return None
+            except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
+                logger.debug("GMGN token smart_money %s failed: %s", scope, e)
+        # Fallback: derive smart-money rows from flagged top holders
+        # (mirrors rmi-backend's gmgn_provider methodology).
+        holders = await self.get_holder_analysis(address, chain)
+        if not holders or holders.get("source") != "gmgn":
+            return None
+        activity = []
+        for h in holders.get("top_holders", []):
+            if isinstance(h, dict) and h.get("is_smart_money"):
+                activity.append(
+                    {
+                        "wallet": h.get("address", ""),
+                        "buy_7d": int(h.get("buy_tx_count") or 0),
+                        "sell_7d": int(h.get("sell_tx_count") or 0),
+                        "realized_profit": h.get("realized_profit"),
+                        "unrealized_profit": h.get("unrealized_profit"),
+                    }
+                )
+        if not activity:
+            return None
+        return {
+            "address": address,
+            "chain": chain,
+            "smart_money_activity": activity,
+            "smart_money_count": int(holders.get("smart_money_count") or 0),
+            "kol_count": sum(
+                1
+                for h in holders.get("top_holders", [])
+                if isinstance(h, dict) and "kol" in (h.get("tags") or [])
+            ),
+            "buy_pressure": None,
+            "total_profit_pnl": None,
+            "source": "gmgn",
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
 
     # ═══════════════════════════════════════════════════════════════
     # AGENT API (openapi.gmgn.ai) — security / wallet detail.
