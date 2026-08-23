@@ -17,8 +17,9 @@ def test_impostor_washed_token_scores_low():
     assert r["verdict"] == "LIKELY_WASHED"
     assert r["score"] < 55
     flags = {c["check"]: c["flag"] for c in r["checks"]}
-    assert flags.get("vol_mcap") in ("CRITICAL", "WARN")
-    assert flags.get("buy_ratio") == "CRITICAL"
+    critical = [k for k, v in flags.items() if v == "CRITICAL"]
+    assert "buy_ratio" in critical
+    assert len(critical) >= 2, "impostor profile must trip multiple checks"
 
 
 def test_healthy_major_scores_clean():
