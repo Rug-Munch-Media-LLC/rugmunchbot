@@ -10,9 +10,9 @@ recent messages with ``app.domains.news_ingest``, then:
 2. **Posts** the important subset to the bot's news channel (same chat id as
    the existing ``post_news_update`` job; same ``format_news_post`` +
    ``_safe_send`` machinery). Importance is the reranker-derived score from
-   ``channels/importance.py`` (Infinity ``BAAI/bge-reranker-v2-m3``); every
+   ``channels/importance.py`` (qwen3 reranker); every
    article is persisted, only those above ``RMI_NEWS_IMPORTANCE_THRESHOLD``
-   are posted (fail-open: heuristic fallback when Infinity is down).
+   are posted (fail-open: heuristic fallback when qwen3 is down).
 3. **Feeds RAG** — the freshly-swept articles are clustered into stories and
    embedded into the RAG ``news_v2`` collection (``_rag.py`` →
    ``ingest_into_rag``, the same collection the bot's ``get_news`` RAG tool
@@ -120,7 +120,7 @@ otherwise the compelling ⭐ feature card — with the story's image attached.
 Importance
 ----------
 Two scorers back the routing:
-* **Rerank** (``channels/importance.py``, Infinity ``BAAI/bge-reranker-v2-m3``)
+* **Rerank** (``channels/importance.py``, qwen3 reranker)
   — the primary gate for what is posted at all (``RMI_NEWS_IMPORTANCE_THRESHOLD``).
 * **Lightweight** (``app.domains.news_ingest.lightweight_importance``) — a
   deterministic 0-1 score (source authority, breaking markers, crypto

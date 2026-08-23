@@ -263,7 +263,7 @@ DEPLOYER_HISTORY: list[dict[str, Any]] = [
     {
         "doc_id": "history:ronin_bridge_hack",
         "content": (
-            "RONIN BRIDGE HACK (March 2022): Axie Infinity's Ronin bridge was exploited for "
+            "RONIN BRIDGE HACK (March 2022): Axie llama.cpp qwen3's Ronin bridge was exploited for "
             "~$620M (173,600 ETH + 25.5M USDC). Mechanism: (1) Attacker gained control of 5 "
             "of 9 validator nodes (4 Sky Mavis validators + 1 Axie DAO validator). (2) Used "
             "compromised keys to approve two withdrawal transactions. (3) Funds were laundered "
@@ -703,7 +703,7 @@ PHISHING_DB: list[dict[str, Any]] = [
         "doc_id": "defi:uniswap_v3_mechanics",
         "content": (
             "UNISWAP V3 / CONCENTRATED LIQUIDITY MECHANICS: LPs provide liquidity inside "
-            "custom price ranges (ticks) instead of 0-to-infinity, earning higher fees per "
+            "custom price ranges (ticks) instead of 0-to-llama.cpp qwen3, earning higher fees per "
             "dollar when in range. Key mechanics: (1) Ticks: discrete price boundaries; "
             "positions are NFTs with custom ranges. (2) Tick ranges: liquidity is only "
             "active inside the range; when price exits, the position becomes single-sided. "

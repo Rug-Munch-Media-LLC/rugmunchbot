@@ -229,7 +229,7 @@ async def _score_and_partition(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
     """Rerank *items* and partition into (main_items, channel_items, reranker_down).
 
-    Reuses ``channels/importance.py::score_importance`` (the same Infinity
+    Reuses ``channels/importance.py::score_importance`` (the same qwen3
     cross-encoder the tg_news lane uses) and ``channels/router.py::route_news``
     for the main-channel gate:
 

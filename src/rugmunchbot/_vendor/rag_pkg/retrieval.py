@@ -134,7 +134,7 @@ class HybridRetriever:
             filters: Metadata filters (exact-match).
             expand: Whether to expand the query with synonyms (incl. bigram
                 phrase expansion).
-            rerank: Whether to rerank candidates with the Infinity
+            rerank: Whether to rerank candidates with the llama.cpp qwen3
                 cross-encoder (BAAI/bge-reranker-v2-m3) before returning.
                 The underlying ``three_pillar_search`` ALREADY runs the
                 mandatory cross-encoder rerank, so this pass only fires when
@@ -213,9 +213,9 @@ class HybridRetriever:
             except Exception as exc:
                 log.debug("graph_enrich_skipped err=%s", exc)
 
-            # 4. Optional cross-encoder rerank via Infinity (fail-open).
+            # 4. Optional cross-encoder rerank via llama.cpp qwen3 (fail-open).
             # Skipped when the engine's mandatory rerank already ran
-            # (rerank_score present) — avoids a duplicate Infinity call per
+            # (rerank_score present) — avoids a duplicate llama.cpp qwen3 call per
             # query. Graph-enriched hits added in step 3b ride along on the
             # engine rerank order (they carry an entity-match boost).
             if rerank and not engine_reranked and len(scored) > 1:
@@ -223,7 +223,7 @@ class HybridRetriever:
 
             # 4a. When a wider pre-rerank pool was requested, truncate to
             # the post-rerank ``top_k`` here — the reranker (engine or
-            # Infinity) has ranked the candidates, so the top_k slice keeps
+            # llama.cpp qwen3) has ranked the candidates, so the top_k slice keeps
             # the most relevant docs regardless of which path ran.
             if candidate_k is not None and candidate_k > top_k:
                 scored = scored[:top_k]
@@ -250,9 +250,9 @@ class HybridRetriever:
         return scored
 
     async def _apply_rerank(self, query: str, scored: list[ScoredHit], top_n: int) -> list[ScoredHit]:
-        """Rerank *scored* hits with the Infinity cross-encoder.
+        """Rerank *scored* hits with the llama.cpp qwen3 cross-encoder.
 
-        Reorders hits by Infinity relevance (updating ``final_score``) and
+        Reorders hits by llama.cpp qwen3 relevance (updating ``final_score``) and
         truncates to *top_n*. Fail-open: on any error or empty response the
         original ordering is returned unchanged.
         """

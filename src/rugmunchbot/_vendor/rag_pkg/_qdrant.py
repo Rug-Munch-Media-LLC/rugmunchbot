@@ -174,7 +174,7 @@ async def _qdrant_search(
 
     ``score_threshold`` defaults to 0.0 = no threshold, matching the
     legacy behavior (three_pillar_search passes ``min_similarity`` and
-    only filters when it is > 0). v2 bge-m3 cosine scores for relevant
+    only filters when it is > 0). v2 qwen3-embedding-4b cosine scores for relevant
     matches cluster around 0.45-0.70, so a high fixed default would make
     the fallback return 0 results for typical queries.
 
@@ -322,7 +322,7 @@ async def _qdrant_upsert_chunk(
     ``vector`` is the chunk's already-computed embedding when the caller
     (``app.rag._ingest.ingest_document``) has it — passing it avoids
     re-embedding the same chunk text inside ``upsert_rag_document`` (which
-    embeds again when ``vector`` is None), halving Infinity calls on ingest.
+    embeds again when ``vector`` is None), halving llama.cpp qwen3 calls on ingest.
     """
     from rugmunchbot._vendor.rag_pkg.qdrant_store import upsert_rag_document
 

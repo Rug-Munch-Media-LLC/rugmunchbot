@@ -8,7 +8,7 @@ signature is unchanged, and callers keep importing
 The **personal channel** is the operator's own Telegram surface
 (``t.me/cryptorugmuncher`` — registry role ``main``, gopass
 ``rmi/telegram/CHANNEL_CRYPTO_RUGMUNCHER``). It receives ONLY the "bigger
-stories": the same Infinity ``BAAI/bge-reranker-v2-m3`` importance scoring the
+stories": the same qwen3 ``qwen3-reranker-4b`` importance scoring the
 news channel uses (``channels/importance.py``), but gated by a **stricter
 threshold** — ``RMI_PERSONAL_CHANNEL_THRESHOLD`` (default 0.7) instead of the
 news channel's 0.4. Everything else (cadence, chat id, enabled flag, ghost
@@ -19,7 +19,7 @@ Pipeline (per tick, fail-open at every step):
 1. **Sweep** — reuse ``channels/telegram_news.py::sweep_telegram_news`` (same
    headless Telethon read + normalize + dedupe machinery; no second client).
 2. **Score** — reuse ``channels/importance.py::score_importance`` (single
-   Infinity reranker; heuristic fallback when the reranker is down).
+   qwen3 reranker; heuristic fallback when the reranker is down).
 3. **Gate** — :func:`select_personal` keeps only items at/above the stricter
    threshold. In reranker-down (fallback) mode it keeps the top-N by heuristic
    score (mirrors ``select_important`` semantics) so the channel never goes

@@ -105,6 +105,51 @@ async def _rpc(method: str, params: list[Any], timeout: float = 8.0) -> Any:
         return None
 
 
+async def _rpc_rotating(
+    method: str, params: list[Any], *, attempts: int = 3, timeout: float = 6.0
+) -> Any:
+    """JSON-RPC call that FORCES endpoint rotation between attempts.
+
+    The router's health tracking only marks failures — a rate-limited
+    endpoint that answers ``200`` with an empty result stays "healthy" and
+    wins the next pick too. This helper walks the healthy endpoint list
+    itself so each attempt lands on a different provider.
+    """
+    import httpx
+
+    router = _router()
+    if router is None:
+        return None
+    try:
+        endpoints = await router.ensure_healthy_endpoints("solana")
+    except Exception:  # noqa: BLE001 — fall back to plain call
+        return await _rpc(method, params, timeout=timeout)
+    urls = [url for url, _ in (endpoints or [])]
+    if not urls:
+        return await _rpc(method, params, timeout=timeout)
+
+    last: Any = None
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        for i, url in enumerate(urls[:attempts]):
+            try:
+                resp = await client.post(
+                    url,
+                    json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+                    timeout=timeout,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    result = data.get("result") if isinstance(data, dict) else None
+                    if result:
+                        return {"result": result}
+                    last = {"result": result}
+            except Exception as exc:  # noqa: BLE001 — try next endpoint
+                logger.debug("rotating rpc %s attempt %d failed: %s", method, i + 1, exc)
+            if i < min(len(urls), attempts) - 1:
+                await asyncio.sleep(0.4)
+    return last
+
+
 def _encode_pubkey(raw: bytes) -> str | None:
     """Base58-encode a 32-byte pubkey, ``None`` for zeroed/invalid bytes."""
     if not raw or len(raw) != 32 or not any(raw):
@@ -156,6 +201,35 @@ def _parse_mint_layout(data: bytes) -> dict[str, Any]:
     if transfer_fee_bp is not None:
         facts["transfer_fee_pct"] = round(transfer_fee_bp / 100.0, 2)
     return facts
+
+
+# Short-TTL in-process cache for resolver results. Repeated scans of the
+# same token (re-scan button, group chatter, deepscan after scan) must not
+# re-hammer the shared free-RPC pool — authority facts and holder stats are
+# stable over minutes.
+_CACHE_TTL_S = 120.0
+_cache: dict[str, tuple[float, Any]] = {}
+
+
+def _cache_get(key: str) -> Any | None:
+    import time
+
+    hit = _cache.get(key)
+    if not hit:
+        return None
+    ts, val = hit
+    if time.monotonic() - ts > _CACHE_TTL_S:
+        _cache.pop(key, None)
+        return None
+    return val
+
+
+def _cache_set(key: str, val: Any) -> None:
+    import time
+
+    if len(_cache) > 512:  # bounded
+        _cache.clear()
+    _cache[key] = (time.monotonic(), val)
 
 
 async def resolve_mint_facts(mint: str) -> dict[str, Any] | None:
@@ -218,7 +292,7 @@ async def resolve_holder_stats(mint: str) -> dict[str, Any] | None:
     count it did not receive.
     """
     largest, supply = await asyncio.gather(
-        _rpc("getTokenLargestAccounts", [mint], timeout=6.0),
+        _rpc_rotating("getTokenLargestAccounts", [mint]),
         _rpc("getTokenSupply", [mint], timeout=6.0),
     )
     accounts = (
@@ -229,7 +303,7 @@ async def resolve_holder_stats(mint: str) -> dict[str, Any] | None:
     # Retry once after a short backoff before giving up.
     if not accounts:
         await asyncio.sleep(1.5)
-        largest = await _rpc("getTokenLargestAccounts", [mint], timeout=6.0)
+        largest = await _rpc_rotating("getTokenLargestAccounts", [mint])
         accounts = (
             ((largest or {}).get("result", {}).get("value") or [])
             if isinstance(largest, dict)

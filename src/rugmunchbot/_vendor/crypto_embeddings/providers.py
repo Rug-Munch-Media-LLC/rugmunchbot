@@ -1,7 +1,7 @@
 # VENDORED 2026-08-17 from rmi-backend/app/crypto_embeddings/providers.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
-"""Embedding providers: Local BGE, Infinity bge-m3, OpenRouter, HuggingFace."""
+"""Embedding providers: Local BGE, llama.cpp qwen3 qwen3-embedding-4b, OpenRouter, HuggingFace."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ class LocalBGEEmbedder:
     The in-process sentence-transformers/torch path (~300MB resident in the bot
     process, never unloaded) was the direct cause of memory pressure. This class
     now fails fast and can NEVER load a local model or touch torch. Use the
-    remote embedders (Infinity primary, OpenRouter, HuggingFace) or the hash
+    remote embedders (llama.cpp qwen3 primary, OpenRouter, HuggingFace) or the hash
     fallback instead.
     """
 
@@ -41,7 +41,7 @@ class LocalBGEEmbedder:
         raise RuntimeError(
             "LocalBGEEmbedder disabled: in-process sentence-transformers/torch model "
             "loading removed for memory safety. Use remote embedders "
-            "(Infinity/OpenRouter/HuggingFace) or the hash fallback instead."
+            "(llama.cpp qwen3/OpenRouter/HuggingFace) or the hash fallback instead."
         )
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
@@ -53,15 +53,15 @@ class LocalBGEEmbedder:
         return results[0]
 
 
-class InfinityBGEEmbedder:
-    """BAAI/bge-m3 via the Infinity server (OpenAI-compatible /embeddings). 1024d, zero cost."""
+class Qwen3CryptoEmbedder:
+    """BAAI/qwen3-embedding-4b via the llama.cpp qwen3 server (OpenAI-compatible /embeddings). 1024d, zero cost."""
 
-    INFINITY_URL = os.getenv("INFINITY_URL", "http://infinity-rag:8001")
-    MODEL = "BAAI/bge-m3"
+    QWEN_EMBED_URL = os.getenv("QWEN_EMBED_URL", "http://172.22.0.1:8004/v1")
+    MODEL = "BAAI/qwen3-embedding-4b"
     DIMS = 1024
 
-    def __init__(self, infinity_url: str | None = None) -> None:
-        self.url = infinity_url or os.getenv("INFINITY_URL", self.INFINITY_URL)
+    def __init__(self, qwen_embed_url: str | None = None) -> None:
+        self.url = qwen_embed_url or self.QWEN_EMBED_URL
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         import httpx
@@ -92,7 +92,7 @@ class InfinityBGEEmbedder:
 
 
 class OpenRouterEmbedder:
-    """OpenRouter embedding API - NVIDIA Nemotron primary, bge-m3 fallback."""
+    """OpenRouter embedding API - NVIDIA Nemotron primary, qwen3-embedding-4b fallback."""
 
     BASE = "https://openrouter.ai/api/v1/embeddings"
     MODEL = OR_PRIMARY_EMBED
@@ -136,7 +136,7 @@ class HuggingFaceEmbedder:
     """HuggingFace Inference API - free tier fallback."""
 
     BASE = "https://api-inference.huggingface.co/models"
-    MODEL = "BAAI/bge-m3"
+    MODEL = "BAAI/qwen3-embedding-4b"
 
     def __init__(self, token: str | None = None) -> None:
         self.token = token or HF_TOKEN

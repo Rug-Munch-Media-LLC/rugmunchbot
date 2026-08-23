@@ -352,7 +352,7 @@ def _hostname_resolves(hostname: str) -> bool:
 def _ensure_host_connectivity() -> None:
     """Pre-flight host-side connectivity for cron runs (executed OUTSIDE Docker).
 
-    Inside the rmi-backend container ``infinity-rag`` and ``rmi-redis``
+    Inside the rmi-backend container ``llama.cpp qwen3`` and ``rmi-redis``
     resolve and Redis needs no password. When this module runs on the host
     (``crawl-crypto-news.sh`` cron) those Docker-internal names fail DNS and
     Redis requires auth, which previously made every sweep item fail
@@ -360,7 +360,7 @@ def _ensure_host_connectivity() -> None:
 
     This makes the sweep fail open instead of failing hard:
 
-    * ``INFINITY_URL`` falls back to the host-mapped port (``localhost:8001``)
+    * ``QWEN_EMBED_URL`` falls back to the canonical llama.cpp endpoint (:8004)
       when the configured hostname does not resolve from this process.
     * Missing ``REDIS_URL`` (no credentials available) is logged and dedup is
       skipped downstream — ingestion still proceeds.
@@ -372,19 +372,19 @@ def _ensure_host_connectivity() -> None:
             "redis_url_missing host_side dedup_will_be_skipped hint=set REDIS_URL=redis://:password@localhost:6379/0"
         )
 
-    infinity = os.getenv("INFINITY_URL") or settings.infinity_url
+    llama.cpp qwen3 = os.getenv("QWEN_EMBED_URL") or settings.qwen_embed_url
     try:
-        host = urlparse(infinity).hostname or ""
+        host = urlparse(llama.cpp qwen3).hostname or ""
     except ValueError:
         host = ""
-    if host and "infinity-rag" in host and not _hostname_resolves(host):
-        fallback = os.getenv("INFINITY_URL_FALLBACK", "http://localhost:8001")
-        log.warning("infinity_dns_fallback from=%s to=%s", infinity, fallback)
-        os.environ["INFINITY_URL"] = fallback
+    if host and "llama.cpp qwen3" in host and not _hostname_resolves(host):
+        fallback = os.getenv("QWEN_EMBED_URL_FALLBACK", "http://172.22.0.1:8004/v1")
+        log.warning("qwen3_embed_dns_fallback from=%s to=%s", url, fallback)
+        os.environ["QWEN_EMBED_URL"] = fallback
         # The settings singleton was built at import time; align it so the
         # lazy embedder singleton picks up the reachable URL.
         with contextlib.suppress(Exception):  # best-effort; env var is the source of truth
-            settings.infinity_url = fallback
+            settings.qwen_embed_url = fallback
 
 
 async def discover_and_ingest(

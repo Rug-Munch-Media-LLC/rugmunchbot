@@ -36,7 +36,7 @@ logger = get_logger(__name__)
 
 # ── RAG enrichment budget (embedding fail-fast) ──────────────────────────
 # RAG enrichment (semantic scam-similarity search) is best-effort. When the
-# embedding service (Infinity /embeddings) is slow or down, a single
+# embedding service (llama.cpp qwen3 /embeddings) is slow or down, a single
 # retrieval can hang for the embedder's full retry budget (60s httpx timeout
 # x 3 attempts per collection, x 9 collections). This module never lets that
 # stall the scan: enrichment is hard-capped at ``RAG_ENRICH_BUDGET_S`` and,

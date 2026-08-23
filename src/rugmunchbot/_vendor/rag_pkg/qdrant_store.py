@@ -6,7 +6,7 @@
 The primary retrieval backend for ``three_pillar_search`` (``app/rag/engine.py``)
 behind the ``RAG_STORE=qdrant`` flag. Replaces the in-process numpy ANN
 (``ann_index.py``) + Redis BM25-lite scan (``engine._keyword_search``) with a
-single Qdrant hybrid query: dense (bge-m3) and sparse (lexical) prefetches
+single Qdrant hybrid query: dense (qwen3-embedding-4b) and sparse (lexical) prefetches
 fused server-side with Reciprocal Rank Fusion (RRF, k=60 — Qdrant's native
 default, matching the legacy ``_RRF_K = 60``).
 
@@ -486,7 +486,7 @@ async def upsert_rag_document(
     Primary Qdrant write path (QDRANT-CONSOLIDATION Phase 1). Given a doc
     (``doc_id``, ``text``, ``payload``):
 
-      - embeds *text* via the existing Infinity bge-m3 embedder
+      - embeds *text* via the existing llama.cpp qwen3 qwen3-embedding-4b embedder
         (``app.rag.embeddings.get_embedding``) unless a precomputed
         *vector* is passed (test seam);
       - builds a lexical sparse vector with ``build_sparse_vector``

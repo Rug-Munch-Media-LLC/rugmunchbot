@@ -36,7 +36,7 @@ log = get_logger(__name__)
 
 
 #: Max concurrent chunk embed+store tasks per document. Chunk work is
-#: network-bound (Infinity embed + Qdrant upsert) and independent, so a
+#: network-bound (llama.cpp qwen3 embed + Qdrant upsert) and independent, so a
 #: modest concurrency cap collapses N serial round-trips into ~N/4 without
 #: hammering the embedder. Mirrors the embedder's own internal
 #: ``max_connections=8`` budget.
@@ -109,7 +109,7 @@ async def ingest_document(
             }
 
         # Embed + insert. Chunk work is independent (each chunk embeds and
-        # stores on its own) and network-bound (Infinity embed + Qdrant
+        # stores on its own) and network-bound (llama.cpp qwen3 embed + Qdrant
         # upsert), so run chunks concurrently with a bounded semaphore
         # instead of serializing N chunk round-trips per document. The
         # lazy per-chunk import stays inside the worker so the

@@ -4,7 +4,7 @@
 """M3 RAG Chunking - crypto-aware, per-content-type chunking with token enforcement.
 
 Why chunking matters:
-- Embedding models have context limits (bge-m3 = 8192 tokens, but we
+- Embedding models have context limits (qwen3-embedding-4b = 8192 tokens, but we
   chunk to 512 for granularity and to keep individual FAISS hits useful)
 - Smaller chunks = better retrieval precision (less noise per result)
 - Dedup via content SHA-256 prevents the same fact being ingested N times
@@ -115,7 +115,7 @@ def _enforce_token_limit(chunk: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> st
     """Truncate a chunk to fit within ``max_tokens`` (default 512).
 
     Uses tiktoken when available; otherwise truncates by character count
-    (~4 chars/token). Guarantees the chunk is safe to send to Infinity.
+    (~4 chars/token). Guarantees the chunk is safe to send to llama.cpp qwen3.
     """
     if not chunk:
         return chunk

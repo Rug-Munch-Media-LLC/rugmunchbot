@@ -5,9 +5,9 @@
 
 Provides a clean embedder abstraction with:
   - EmbedderProtocol ABC for all embedders
-  - InfinityEmbedder — OpenAI-compatible /embeddings client (PRIMARY;
-    serves BAAI/bge-m3, 1024d)
-  - BGE_M3_Embedder — HTTP client for the legacy bge-m3 Docker container
+  - Qwen3Embedder — OpenAI-compatible /embeddings client (PRIMARY;
+    serves BAAI/qwen3-embedding-4b, 1024d)
+  - LegacyBGEClient — HTTP client for the legacy qwen3-embedding-4b Docker container
   - CachedEmbedder — in-memory LRU + optional Redis
   - FallbackEmbedder — primary → secondary with dimension normalization
   - get_embedder() — factory that wires everything from settings
@@ -44,7 +44,7 @@ class EmbeddingError(RuntimeError):
 
 # ── Known embedding dimensions ─────────────────────────────────────────
 KNOWN_DIMS: dict[str, int] = {
-    "bge-m3": 1024,
+    "qwen3-embedding-4b": 1024,
     "qwen3-embedding-4b": 2560,
     "llama-nemotron-embed-vl-1b-v2:free": 2048,
     "text-embedding-ada-002": 1536,
@@ -92,7 +92,7 @@ class EmbedderProtocol(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Human-readable identifier (e.g. 'bge-m3', 'nomic-embed-text')."""
+        """Human-readable identifier (e.g. 'qwen3-embedding-4b', 'nomic-embed-text')."""
 
     @abstractmethod
     async def embed(self, texts: list[str]) -> list[list[float]]:
@@ -111,25 +111,25 @@ class EmbedderProtocol(ABC):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Infinity  (OpenAI-compatible embeddings server — PRIMARY)
+# llama.cpp qwen3  (OpenAI-compatible embeddings server — PRIMARY)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class InfinityEmbedder(EmbedderProtocol):
+class Qwen3Embedder(EmbedderProtocol):
     """Embedder backed by llama.cpp OpenAI-compatible API (Qwen3-Embedding-4B).
 
     Calls ``POST {url}/embeddings`` with
     ``{"model": "qwen3-embedding-4b", "input": [...]}`` and reads
     ``data[i].embedding`` — the same wire format as OpenAI, served locally
-    by michaelfeil/infinity.
+    by michaelfeil/llama.cpp qwen3.
 
-    PRIMARY RAG embedder; serves BAAI/bge-m3 via Infinity.
+    PRIMARY RAG embedder; serves qwen3-embedding-4b via llama.cpp (:8004).
     """
 
-    DEFAULT_MODEL: str = "BAAI/bge-m3"
+    DEFAULT_MODEL: str = "BAAI/qwen3-embedding-4b"
 
     # Max batch size — keep per-request latency predictable and avoid
-    # memory spikes on the Infinity server.
+    # memory spikes on the llama.cpp qwen3 server.
     MAX_BATCH_SIZE: int = 64
 
     def __init__(
@@ -141,7 +141,7 @@ class InfinityEmbedder(EmbedderProtocol):
         max_retries: int = 2,
     ) -> None:
         self._model = model or settings.embedder_primary_model or self.DEFAULT_MODEL
-        self._url = (url or settings.infinity_url).rstrip("/")
+        self._url = (url or settings.qwen_embed_url).rstrip("/")
         self._dim = dim
         self._timeout = timeout
         self._max_retries = max_retries
@@ -169,7 +169,7 @@ class InfinityEmbedder(EmbedderProtocol):
 
     @property
     def name(self) -> str:
-        return f"infinity:{self._model}"
+        return f"llama.cpp qwen3:{self._model}"
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed a batch of texts (Phoenix-traced wrapper)."""
@@ -177,7 +177,7 @@ class InfinityEmbedder(EmbedderProtocol):
             return []
 
         with trace_span(
-            "rag.embedding.infinity",
+            "rag.embedding.llama.cpp qwen3",
             {
                 "openinference.span.kind": "EMBEDDING",
                 "openinference.embedding.model": self._model,
@@ -190,7 +190,7 @@ class InfinityEmbedder(EmbedderProtocol):
             return vectors
 
     async def _embed_impl(self, texts: list[str]) -> list[list[float]]:
-        """Actual Infinity embed with batching + retries (unwrapped)."""
+        """Actual llama.cpp qwen3 embed with batching + retries (unwrapped)."""
         # Split large batches into chunks to avoid gateway timeouts.
         if len(texts) > self.MAX_BATCH_SIZE:
             return await self._embed_chunked(texts)
@@ -206,7 +206,7 @@ class InfinityEmbedder(EmbedderProtocol):
                 items = resp.json().get("data") or []
                 if len(items) != len(texts):
                     raise RuntimeError(
-                        f"Infinity returned {len(items)} embeddings for {len(texts)} texts"
+                        f"llama.cpp qwen3 returned {len(items)} embeddings for {len(texts)} texts"
                     )
                 vectors: list[list[float]] = [
                     item["embedding"] for item in sorted(items, key=lambda i: i.get("index", 0))
@@ -222,12 +222,12 @@ class InfinityEmbedder(EmbedderProtocol):
                 TypeError,
             ) as exc:
                 last_exc = exc
-                log.warning("infinity_embed_attempt_failed attempt=%d error=%s", attempt, exc)
+                log.warning("qwen3_embed_attempt_failed attempt=%d error=%s", attempt, exc)
                 if attempt < self._max_retries:
                     await asyncio.sleep(0.5 * (attempt + 1))
 
         raise RuntimeError(
-            f"Infinity embed failed after {self._max_retries + 1} attempts"
+            f"llama.cpp qwen3 embed failed after {self._max_retries + 1} attempts"
         ) from last_exc
 
     async def _embed_chunked(self, texts: list[str]) -> list[list[float]]:
@@ -268,7 +268,7 @@ class InfinityEmbedder(EmbedderProtocol):
                         else:
                             raise
 
-            raise RuntimeError(f"Infinity embed failed after {self._max_retries + 1} attempts")
+            raise RuntimeError(f"llama.cpp qwen3 embed failed after {self._max_retries + 1} attempts")
 
         chunk_results = await asyncio.gather(*[_do(c) for c in chunks])
 
@@ -286,7 +286,7 @@ class InfinityEmbedder(EmbedderProtocol):
                 # caller's collections stay consistent with the server.
                 if actual > 0:
                     log.info(
-                        "infinity_auto_dim model=%s expected=%d actual=%d",
+                        "qwen3_auto_dim model=%s expected=%d actual=%d",
                         self._model,
                         self._dim,
                         actual,
@@ -294,17 +294,17 @@ class InfinityEmbedder(EmbedderProtocol):
                     self._dim = actual
                     return
                 raise RuntimeError(
-                    f"Infinity returned {actual}d vector for text[{i}], expected {self._dim}d"
+                    f"llama.cpp qwen3 returned {actual}d vector for text[{i}], expected {self._dim}d"
                 )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# BGE-M3  (Docker container HTTP API)
+# qwen3-embedding-4b  (Docker container HTTP API)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class BGE_M3_Embedder(EmbedderProtocol):  # noqa: N801
-    """BGE-M3 embedder via its container's HTTP API.
+class LegacyBGEClient(EmbedderProtocol):  # noqa: N801
+    """qwen3-embedding-4b embedder via its container's HTTP API.
 
     Expects a FastAPI service at *url* with a POST ``/embed`` endpoint
     that accepts ``{"texts": ["..."]}`` and returns
@@ -318,7 +318,7 @@ class BGE_M3_Embedder(EmbedderProtocol):  # noqa: N801
         timeout: float = 30.0,
         max_retries: int = 2,
     ) -> None:
-        self._url = (url or settings.bge_m3_url).rstrip("/")
+        self._url = (url or settings.qwen_embed_url).rstrip("/")
         self._dim = dim
         self._timeout = timeout
         self._max_retries = max_retries
@@ -346,7 +346,7 @@ class BGE_M3_Embedder(EmbedderProtocol):  # noqa: N801
 
     @property
     def name(self) -> str:
-        return "bge-m3"
+        return "qwen3-embedding-4b"
 
     MAX_CHUNK_SIZE: int = 32
 
@@ -369,7 +369,7 @@ class BGE_M3_Embedder(EmbedderProtocol):  # noqa: N801
                 data = resp.json()
                 vectors: list[list[float]] | None = data.get("embeddings")
                 if not vectors:
-                    raise RuntimeError("bge-m3 returned empty embeddings list")
+                    raise RuntimeError("qwen3-embedding-4b returned empty embeddings list")
                 self._validate(vectors)
                 return vectors
             except (httpx.HTTPError, OSError, RuntimeError, json.JSONDecodeError) as exc:
@@ -379,7 +379,7 @@ class BGE_M3_Embedder(EmbedderProtocol):  # noqa: N801
                     await asyncio.sleep(0.5 * (attempt + 1))
 
         raise RuntimeError(
-            f"bge-m3 embed failed after {self._max_retries + 1} attempts"
+            f"qwen3-embedding-4b embed failed after {self._max_retries + 1} attempts"
         ) from last_exc
 
     async def _embed_chunked(self, texts: list[str]) -> list[list[float]]:
@@ -412,7 +412,7 @@ class BGE_M3_Embedder(EmbedderProtocol):  # noqa: N801
                         else:
                             raise
 
-            raise RuntimeError(f"bge-m3 embed failed after {self._max_retries + 1} attempts")
+            raise RuntimeError(f"qwen3-embedding-4b embed failed after {self._max_retries + 1} attempts")
 
         tasks = [_do(c) for c in chunks]
         chunk_results = await asyncio.gather(*tasks)
@@ -428,7 +428,7 @@ class BGE_M3_Embedder(EmbedderProtocol):  # noqa: N801
             actual = len(vec)
             if actual != self._dim:
                 raise RuntimeError(
-                    f"bge-m3 returned {actual}d vector for text[{i}], expected {self._dim}d"
+                    f"qwen3-embedding-4b returned {actual}d vector for text[{i}], expected {self._dim}d"
                 )
 
 
@@ -694,8 +694,8 @@ class FallbackEmbedder(EmbedderProtocol):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def _create_infinity(model: str | None = None) -> InfinityEmbedder:
-    return InfinityEmbedder(model=model or settings.embedder_primary_model)
+def _create_qwen3(model: str | None = None) -> Qwen3Embedder:
+    return Qwen3Embedder(model=model or settings.embedder_primary_model)
 
 
 def get_embedder(
@@ -705,11 +705,11 @@ def get_embedder(
     """Build and return a fully-wired embedder chain.
 
     Embedding is served by Qwen3-Embedding-4B via llama.cpp
-    (OpenAI-compatible ``/embeddings``, 2560d). The old bge-m3 container
+    (OpenAI-compatible ``/embeddings``, 2560d). The old qwen3-embedding-4b container
     is fully retired. No fallback chain is wired.
 
     Args:
-        primary: Primary backend name (``"infinity"`` — Qwen3-Embedding-4B).
+        primary: Primary backend name (``"llama.cpp qwen3"`` — Qwen3-Embedding-4B).
                  Defaults to ``settings.embedder_primary``.
         enable_cache: Wrap in ``CachedEmbedder`` for in-memory + Redis cache.
     Returns:
@@ -724,7 +724,7 @@ def get_embedder(
     """
 
     # Build primary — Qwen3-Embedding-4B via llama.cpp
-    primary_embedder: EmbedderProtocol = _create_infinity()
+    primary_embedder: EmbedderProtocol = _create_qwen3()
 
     # Wrap in cache
     chain: EmbedderProtocol = primary_embedder

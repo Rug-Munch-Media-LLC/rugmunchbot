@@ -17,13 +17,13 @@ Every method wraps the existing ``HybridRetriever`` and ``ContextBuilder``
 from ``app.rag.retrieval``, which themselves call the M3 three-pillar
 search engine (ANN + keyword + metadata filters fused via RRF).
 
-Embedding path (Infinity):
-    Retrieval embeds queries via Infinity ``/embeddings``
-    (``app.rag.embedder.InfinityEmbedder``, model BAAI/bge-m3) and each
+Embedding path (llama.cpp qwen3):
+    Retrieval embeds queries via llama.cpp qwen3 ``/embeddings``
+    (``app.rag.embedder.Qwen3Embedder``, model BAAI/qwen3-embedding-4b) and each
     public method finishes with one cross-encoder rerank across the
-    cross-collection candidates via Infinity ``/rerank``
+    cross-collection candidates via llama.cpp qwen3 ``/rerank``
     (BAAI/bge-reranker-v2-m3, see ``app.rag.rerank``). Reranking is
-    fail-open: if Infinity is unreachable the candidates are returned in
+    fail-open: if llama.cpp qwen3 is unreachable the candidates are returned in
     pre-rerank order.
 
 Quality metrics are logged via structlog and exposed via the feedback loop
@@ -164,7 +164,7 @@ class RAGIntelligenceEnricher:
 
         sorted_hits = sorted(seen.values(), key=lambda h: -h.final_score)
         # Cross-encoder rerank across the cross-collection candidates
-        # (Infinity /rerank, BAAI/bge-reranker-v2-m3; fail-open).
+        # (llama.cpp qwen3 /rerank, BAAI/bge-reranker-v2-m3; fail-open).
         sorted_hits = await self._rerank_aggregated(query, sorted_hits, self._top_k * 2)
         log.info(
             "find_similar_scams",
@@ -219,7 +219,7 @@ class RAGIntelligenceEnricher:
 
         sorted_hits = sorted(seen.values(), key=lambda h: -h.final_score)
         # Cross-encoder rerank across the cross-collection candidates
-        # (Infinity /rerank, BAAI/bge-reranker-v2-m3; fail-open).
+        # (llama.cpp qwen3 /rerank, BAAI/bge-reranker-v2-m3; fail-open).
         sorted_hits = await self._rerank_aggregated(query, sorted_hits, self._top_k * 2)
         log.info(
             "get_wallet_context",
@@ -275,7 +275,7 @@ class RAGIntelligenceEnricher:
 
         sorted_hits = sorted(seen.values(), key=lambda h: -h.final_score)
         # Cross-encoder rerank across the cross-collection candidates
-        # (Infinity /rerank, BAAI/bge-reranker-v2-m3; fail-open).
+        # (llama.cpp qwen3 /rerank, BAAI/bge-reranker-v2-m3; fail-open).
         sorted_hits = await self._rerank_aggregated(query, sorted_hits, k)
         log.info(
             "get_market_context",
@@ -399,9 +399,9 @@ class RAGIntelligenceEnricher:
         hits: list[ScoredHit],
         top_n: int,
     ) -> list[ScoredHit]:
-        """Rerank cross-collection candidates with the Infinity cross-encoder.
+        """Rerank cross-collection candidates with the llama.cpp qwen3 cross-encoder.
 
-        Uses the shared rerank path (``app.rag.rerank`` — Infinity
+        Uses the shared rerank path (``app.rag.rerank`` — llama.cpp qwen3
         ``/rerank`` with BAAI/bge-reranker-v2-m3): reorders hits by
         relevance, updates ``final_score``, and truncates to *top_n*.
         Fail-open: on any failure or empty response the hits are returned

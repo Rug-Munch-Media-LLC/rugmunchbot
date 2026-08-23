@@ -18,7 +18,7 @@ Design (mirrors ``app.domains.scanner.whale_indexer`` — the other
 scanner-domain Qdrant writer in this repo):
 
   - Collections: ``scanned_tokens`` / ``scanned_wallets``, bare 1024-dim
-    Cosine vectors (bge-m3 is the primary embedder; dimension comes from
+    Cosine vectors (qwen3-embedding-4b is the primary embedder; dimension comes from
     ``EMBEDDING_DIM``).
   - Deterministic point ID: ``uuid5(URL, "scan:{chain}:{address}:{date}")``
     (tokens) / ``uuid5(URL, "wallet:{chain}:{address}:{date}")`` (wallets)
@@ -57,7 +57,7 @@ COLLECTION = "scanned_tokens"
 WALLET_COLLECTION = "scanned_wallets"
 
 # All existing Qdrant collections in this repo are 1024-dim Cosine
-# (the primary embedder is bge-m3). Dimension derived, not hardcoded,
+# (the primary embedder is qwen3-embedding-4b). Dimension derived, not hardcoded,
 # so it tracks the active embedder model.
 VECTOR_SIZE = int(EMBEDDING_DIM)
 DISTANCE = "Cosine"

@@ -78,7 +78,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     article is persisted (store everything); only the articles
     ``select_important`` keeps (rerank importance >=
     ``RMI_NEWS_IMPORTANCE_THRESHOLD``, or the top-N under the heuristic
-    fallback when Infinity /rerank is down) are posted — per category.
+    fallback when qwen3 /rerank is down) are posted — per category.
     Dedup (multi-key, canonical-URL-first) + rerank importance happen BEFORE
     any post — the post-time ``_remember`` guard is a final freshness check,
     so only fresh important stories ship.

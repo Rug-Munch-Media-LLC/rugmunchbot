@@ -32,9 +32,9 @@ log = get_logger(__name__)
 
 # ── Public constants ────────────────────────────────────────────────────
 # Primary dimension is driven by the primary embedder model
-# (BAAI/bge-m3 = 1024d when EMBEDDER_PRIMARY=infinity + EMBEDDER_PRIMARY_MODEL=BAAI/bge-m3).
+# (BAAI/qwen3-embedding-4b = 1024d when EMBEDDER_PRIMARY=llama.cpp qwen3 + EMBEDDER_PRIMARY_MODEL=BAAI/qwen3-embedding-4b).
 _PRIMARY_MODEL = (
-    settings.embedder_primary_model if settings.embedder_primary == "infinity" else settings.embedder_primary
+    settings.embedder_primary_model if settings.embedder_primary == "llama.cpp qwen3" else settings.embedder_primary
 )
 EMBEDDING_DIM: Final = lookup_dim(_PRIMARY_MODEL)
 
@@ -64,7 +64,7 @@ def _get_embedder() -> EmbedderProtocol:
 async def get_embedding(text: str) -> list[float]:
     """Async embedding API. Returns ``EMBEDDING_DIM``-dimensional float list.
 
-    Uses the configured embedder chain (default: Infinity BAAI/bge-m3 + cache).
+    Uses the configured embedder chain (default: llama.cpp qwen3 BAAI/qwen3-embedding-4b + cache).
     Raises ``RAGUnavailableError`` on total failure.
 
     Per T04: NO hash fallback. If all neural backends fail, the error
@@ -83,7 +83,7 @@ async def get_embeddings(texts: list[str]) -> list[list[float]]:
     """Batch embedding. Handles 100+ texts efficiently.
 
     Delegates to the embedder chain which supports native batching
-    (bge-m3, Infinity batch mode) with automatic fallback to sequential
+    (qwen3-embedding-4b, llama.cpp qwen3 batch mode) with automatic fallback to sequential
     processing if the backend doesn't support batching.
     """
     if not texts:
@@ -99,7 +99,7 @@ async def get_embeddings(texts: list[str]) -> list[list[float]]:
 
 
 def current_backend() -> str:
-    """Return the configured PRIMARY embedder backend (e.g. ``infinity:BAAI/bge-m3``).
+    """Return the configured PRIMARY embedder backend (e.g. ``llama.cpp qwen3:BAAI/qwen3-embedding-4b``).
 
     Unwraps the CachedEmbedder/FallbackEmbedder wrappers and reports the
     primary embedder so stats show what should be serving queries rather
@@ -126,7 +126,7 @@ def create_embedder(
     """Build a fully-wired embedder chain (convenience wrapper).
 
     Args:
-        primary: ``"infinity"`` or ``"bge-m3"`` (default from settings).
+        primary: ``"llama.cpp qwen3"`` or ``"qwen3-embedding-4b"`` (default from settings).
         enable_cache: Wrap in ``CachedEmbedder``.
 
     Returns:

@@ -161,7 +161,7 @@ async def _legacy_pillar_search(
 
 
 async def _rerank_hits(query: str, hits: list[Hit]) -> list[Hit]:
-    """Cross-encoder rerank (Infinity, BAAI/bge-reranker-v2-m3) — MANDATORY.
+    """Cross-encoder rerank (llama.cpp qwen3, BAAI/bge-reranker-v2-m3) — MANDATORY.
 
     Reranks *hits* against *query* and reorders them by cross-encoder
     relevance, updating each hit's ``score`` and
@@ -229,9 +229,9 @@ async def three_pillar_search(
 
     Primary path (``RAG_STORE=qdrant``, default): the unified Qdrant hybrid
     store (dense + lexical-sparse prefetches, server-side RRF k=60) replaces
-    the in-process numpy ANN + Redis BM25-lite scan. The Infinity bge-m3
+    the in-process numpy ANN + Redis BM25-lite scan. The llama.cpp qwen3 qwen3-embedding-4b
     embedding (``get_embedding``) still runs here. Cross-encoder rerank
-    (Infinity ``BAAI/bge-reranker-v2-m3``) is MANDATORY: every result list
+    (llama.cpp qwen3 ``BAAI/bge-reranker-v2-m3``) is MANDATORY: every result list
     is reranked before a hard context-token budget (``RAG_CONTEXT_MAX_TOKENS``,
     default 4096) is applied, so the LLM never receives an unbounded
     context. Rerank is fail-open (pre-rerank order kept when the reranker

@@ -7,9 +7,9 @@ Sends OpenTelemetry spans to the self-hosted Phoenix instance
 (UI ``http://phoenix:6006``, OTLP gRPC ``http://phoenix:4317``) covering
 every RAG stage:
 
-  - embedding  — Infinity ``/embeddings`` (BAAI/bge-m3)
+  - embedding  — llama.cpp qwen3 ``/embeddings`` (BAAI/qwen3-embedding-4b)
   - retrieval  — Qdrant / in-process ANN search
-  - reranking  — Infinity ``/rerank`` (BAAI/bge-reranker-v2-m3)
+  - reranking  — llama.cpp qwen3 ``/rerank`` (BAAI/bge-reranker-v2-m3)
   - synthesis  — engine orchestration (``three_pillar_search``,
     ``ingest_document``)
 
@@ -26,7 +26,7 @@ Design notes:
     spans render correctly in the Phoenix UI (span kind, model, counts).
 
 Usage:
-    with trace_span("rag.embedding.infinity",
+    with trace_span("rag.embedding.llama.cpp qwen3",
                     {"openinference.span.kind": "EMBEDDING"}):
         vectors = await embedder.embed(texts)
 """

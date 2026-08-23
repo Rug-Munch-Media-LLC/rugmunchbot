@@ -14,14 +14,25 @@ logger = logging.getLogger(__name__)
 
 # Plausibility floors (USD) for majors — a "SOL" claiming less is an impostor.
 MAJOR_MCAP_FLOORS: dict[str, float] = {
-    "BTC": 400e9, "ETH": 100e9, "SOL": 15e9, "BNB": 20e9, "XRP": 15e9,
-    "ADA": 5e9, "DOGE": 8e9, "AVAX": 2e9, "LINK": 3e9, "TON": 2e9,
+    "BTC": 400e9,
+    "ETH": 100e9,
+    "SOL": 15e9,
+    "BNB": 20e9,
+    "XRP": 15e9,
+    "ADA": 5e9,
+    "DOGE": 8e9,
+    "AVAX": 2e9,
+    "LINK": 3e9,
+    "TON": 2e9,
 }
 
 # Price sanity bands (USD) — catch stale/corrupt spot prints.
 PRICE_BANDS: dict[str, tuple[float, float]] = {
-    "BTC": (10_000, 500_000), "ETH": (500, 25_000), "SOL": (20, 2_000),
-    "XRP": (0.20, 50), "BNB": (100, 5_000),
+    "BTC": (10_000, 500_000),
+    "ETH": (500, 25_000),
+    "SOL": (20, 2_000),
+    "XRP": (0.20, 50),
+    "BNB": (100, 5_000),
 }
 
 
@@ -67,6 +78,10 @@ def check_price(sym: str, price: Any) -> str | None:
 
 def sanitize_movers(movers: dict[str, Any]) -> dict[str, Any]:
     """Filter gainers/losers through plausibility; log every rejection."""
+    if not movers:
+        # No data in → no data out. A fabricated {"gainers": []} skeleton must
+        # not count as an active source downstream (truthiness gate).
+        return {}
     out: dict[str, Any] = {}
     for side in ("gainers", "losers"):
         kept, rejected = [], []

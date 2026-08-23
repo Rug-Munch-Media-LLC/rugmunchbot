@@ -26,7 +26,7 @@ from rugmunchbot._vendor.crypto_embeddings.models import (
 from rugmunchbot._vendor.crypto_embeddings.providers import (
     ContractCodeEmbedder,
     HuggingFaceEmbedder,
-    InfinityBGEEmbedder,
+    Qwen3CryptoEmbedder,
     LocalBGEEmbedder,
     OpenRouterEmbedder,
 )
@@ -53,7 +53,7 @@ __all__ = [
     "CryptoEmbedder",
     "EmbeddingResult",
     "HuggingFaceEmbedder",
-    "InfinityBGEEmbedder",
+    "Qwen3CryptoEmbedder",
     "LocalBGEEmbedder",
     "OpenRouterEmbedder",
     "extract_contract_features",

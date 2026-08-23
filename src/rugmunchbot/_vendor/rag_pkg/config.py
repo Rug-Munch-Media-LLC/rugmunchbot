@@ -24,7 +24,7 @@ from __future__ import annotations
 RAG_INGESTION_BATCH_SIZE: int = 50
 
 # Hard cap on ingestions per minute (across all collections).
-# Prevents the embedding backend (Infinity / OpenRouter) from being
+# Prevents the embedding backend (llama.cpp qwen3 / OpenRouter) from being
 # overwhelmed during bulk backfills or flash crowds.
 RAG_INGESTION_MAX_PER_MINUTE: int = 200
 

@@ -1,7 +1,7 @@
 """Reranker-based news importance scoring for the bot's news channel.
 
 Scores the normalized ``NewsArticle`` objects produced by the TG news sweep
-(``channels/telegram_news.py``) with the existing Infinity cross-encoder
+(``channels/telegram_news.py``) with the existing qwen3 cross-encoder
 (``BAAI/bge-reranker-v2-m3`` via ``app.rag.rerank.rerank_results`` — the
 same reranker the RAG pipeline uses, never a second client). Every article is
 scored against a small set of **importance queries**; the composite
@@ -22,7 +22,7 @@ sharply compressed for paraphrase-level matches).
 
 Fail-open
 ---------
-If Infinity /rerank is unreachable (or returns no results at all), the
+If qwen3 /rerank is unreachable (or returns no results at all), the
 scorer falls back to a deterministic keyword + ``rate_article`` sentiment
 heuristic (same rating card the website news ingest writes). In fallback
 mode ``select_important`` keeps the top-N by heuristic score **without** the
@@ -193,7 +193,7 @@ def _build_queries(focus_keywords: list[str] | tuple[str, ...] | None) -> list[s
 def _heuristic_importance(article: NewsArticle) -> float:
     """Deterministic keyword + ``rate_article`` sentiment importance (0-1).
 
-    Used only when Infinity /rerank is unreachable. Combines strong/weak
+    Used only when qwen3 /rerank is unreachable. Combines strong/weak
     importance keyword hits with the magnitude of the existing
     ``rate_article`` sentiment score (a strongly bullish/bearish headline is
     more likely market-moving). Never invents content.
@@ -248,7 +248,7 @@ def _reranker_tripped() -> bool:
 
 
 async def _rerank_query(query: str, texts: list[str]) -> dict[int, float]:
-    """Score all texts against one query via Infinity. Fail-open → {}."""
+    """Score all texts against one query via qwen3. Fail-open → {}."""
     try:
         from rugmunchbot._vendor.rag_pkg.rerank import rerank_results
 
@@ -267,7 +267,7 @@ async def score_importance(
 
     Returns one ``ScoredArticle`` per input article. Composite importance is
     the max relevance across queries (0.0 when no query scored it above 0).
-    When Infinity is unreachable or no query returns anything, every article
+    When qwen3 is unreachable or no query returns anything, every article
     is scored by the deterministic heuristic and ``fallback=True``.
     """
     global _consecutive_reranker_failures, _reranker_cooldown_until
