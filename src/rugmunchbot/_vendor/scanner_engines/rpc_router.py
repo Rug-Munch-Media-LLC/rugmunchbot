@@ -100,6 +100,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://bsc-dataseed2.bnbchain.org",  # BNB Chain official 2
         "https://bsc-mainnet.public.blastapi.io",  # probe-verified 2026-08-23 (fallback-only for getLogs; fine for call/balance)
         "https://rpc-bsc.48.club",  # 48 Club — free public
+        "https://ethereum.blockpi.network/v1/rpc/1b0e56635142347bae8b77c148a652705055329c",  # BlockPI keyed (probed live 2026-08-23)
+        "https://bsc.blockpi.network/v1/rpc/dda061f196261a9ab6c3079f80a9a5095063256c",  # BlockPI keyed (probed live 2026-08-23)
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=bsc&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/bsc/${ANKR_API_KEY}",
@@ -116,6 +118,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://polygon-bor-rpc.publicnode.com",  # PublicNode Polygon
         "https://polygon-mainnet.public.blastapi.io",  # BlastAPI Polygon
         "https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Polygon (key)
+        "https://polygon.blockpi.network/v1/rpc/4aa39c18c29b7ac4ef0b58ab65069a27c342f81c",  # BlockPI keyed (probed live 2026-08-23)
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=polygon&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/polygon/${ANKR_API_KEY}",
@@ -131,6 +134,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://arbitrum.blockpi.network/v1/rpc/public",  # BlockPI Arbitrum
         "https://arb1.arbitrum.io/rpc",  # Offchain Labs official
         "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Arbitrum (key)
+        "https://arbitrum.blockpi.network/v1/rpc/f91d8f7601e1a4b34e79335cf92c2515d79a12d5",  # BlockPI keyed (probed live 2026-08-23)
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=arbitrum&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/arbitrum/${ANKR_API_KEY}",
@@ -160,6 +164,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://optimism.blockpi.network/v1/rpc/public",  # BlockPI Optimism
         "https://mainnet.optimism.io",  # Optimism official
         "https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Optimism (key)
+        "https://optimism.blockpi.network/v1/rpc/c6e456de5f16b57f545310fef4657fb2ab2be75c",  # BlockPI keyed (probed live 2026-08-23)
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=optimism&dkey=${DRPC_API_KEY}",
     ],
@@ -173,6 +178,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://avalanche.blockpi.network/v1/rpc/public",  # BlockPI Avalanche
         "https://api.avax.network/ext/bc/C/rpc",  # Avalanche official
         "https://avalanche-mainnet.infura.io/v3/${INFURA_PROJECT_ID}",  # Infura (key)
+        "https://avalanche.blockpi.network/v1/rpc/9cbc011e7f9b0f8e72eb22377fa6016dea085b72",  # BlockPI keyed (probed live 2026-08-23)
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=avalanche&dkey=${DRPC_API_KEY}",
     ],
@@ -185,6 +191,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://rpc.fantom.network",  # Fantom official public
         "https://fantom-mainnet.public.blastapi.io",  # BlastAPI Fantom
         "https://fantom.blockpi.network/v1/rpc/public",  # BlockPI Fantom
+        "https://fantom.blockpi.network/v1/rpc/439ef758515123721ba658ed78220c20d63efba5",  # BlockPI keyed (probed live 2026-08-23)
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=fantom&dkey=${DRPC_API_KEY}",
     ],
@@ -196,6 +203,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://linea.blockpi.network/v1/rpc/public",  # BlockPI Linea
         "https://linea.meowrpc.com",  # MeowRPC Linea
         "https://linea-mainnet.infura.io/v3/${INFURA_PROJECT_ID}",  # Infura (key)
+        "https://linea.blockpi.network/v1/rpc/21b331fd54d06c8641e0396b2e50f62af6dc9276",  # BlockPI keyed (probed live 2026-08-23)
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=linea&dkey=${DRPC_API_KEY}",
     ],
@@ -206,6 +214,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://1rpc.io/zksync-era",  # 1RPC zkSync Era
         "https://zksync.meowrpc.com",  # MeowRPC zkSync
         "https://zksync-era.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy zkSync (key)
+        "https://zksync-era.blockpi.network/v1/rpc/853cc3247856ee3a291d4eea7ff13a8eb67c39af",  # BlockPI keyed (probed live 2026-08-23)
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=zksync&dkey=${DRPC_API_KEY}",
     ],
@@ -234,8 +243,64 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://rpc.gnosischain.com",  # Gnosis official
         "https://gnosis-rpc.publicnode.com",  # probe-verified 2026-08-23 (fallback-only for getLogs; fine for call/balance)
         "https://1rpc.io/gnosis",  # 1RPC Gnosis
+        "https://gnosis.blockpi.network/v1/rpc/89c1511fa988fc944cf35b237a58ed8b8af8cf67",  # BlockPI keyed (probed live 2026-08-23)
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=gnosis&dkey=${DRPC_API_KEY}",
+    ],
+    "flare": [
+        "https://flare-rpc.publicnode.com",
+        "https://rpc.ankr.com/flare/${ANKR_API_KEY}",
+    ],
+    "taiko": [
+        "https://rpc.mainnet.taiko.xyz",
+        "https://rpc.ankr.com/taiko/${ANKR_API_KEY}",
+    ],
+    "core": [
+        "https://rpc.coredao.org",
+        "https://rpc.ankr.com/core/${ANKR_API_KEY}",
+    ],
+    "filecoin": [
+        "https://api.node.glif.io",
+        "https://rpc.ankr.com/filecoin/${ANKR_API_KEY}",
+    ],
+    "iotex": [
+        "https://api.iotex.one",
+        "https://rpc.ankr.com/iotex/${ANKR_API_KEY}",
+    ],
+    "chiliz": [
+        "https://rpc.ankr.com/chiliz/${ANKR_API_KEY}",
+    ],
+    "gravity": [
+        "https://rpc.gravitychain.io",
+        "https://rpc.ankr.com/gravity/${ANKR_API_KEY}",
+    ],
+    "syscoin": [
+        "https://rpc.syscoin.org",
+        "https://rpc.ankr.com/syscoin/${ANKR_API_KEY}",
+    ],
+    "xdc": [
+        "https://rpc.xinfin.network",
+        "https://rpc.ankr.com/xdc/${ANKR_API_KEY}",
+    ],
+    "celo": [
+        "https://forno.celo.org",
+        "https://rpc.ankr.com/celo/${ANKR_API_KEY}",
+    ],
+    "klaytn": [
+        "https://public-en-kairos.node.kaia.io",
+        "https://rpc.ankr.com/klaytn/${ANKR_API_KEY}",
+    ],
+    "harmony": [
+        "https://api.harmony.one",
+        "https://rpc.ankr.com/harmony/${ANKR_API_KEY}",
+    ],
+    "blast": [
+        "https://rpc.blast.io",
+        "https://blast-rpc.publicnode.com",
+    ],
+    "tron": [
+        # TronGrid JSON-RPC compatible interface; keyed free tier.
+        "https://api.trongrid.io/jsonrpc",
     ],
 }
 
