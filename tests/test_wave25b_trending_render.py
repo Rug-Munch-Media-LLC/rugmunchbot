@@ -74,6 +74,28 @@ def test_render_trending_text_rows_badges_and_note() -> None:
     assert "Chains:" in text
 
 
+def test_render_trending_text_paragraph_break_between_cards() -> None:
+    tokens = [
+        {
+            "address": "0xAAAABBBBCCCCDDDD",
+            "name": "Pepe",
+            "symbol": "PEPE",
+            "change_24h": 12.5,
+            "volume_24h": 1000,
+        },
+        {
+            "address": "0xFFFF0000111122223333",
+            "name": "Doge",
+            "symbol": "DOGE",
+            "change_24h": -3,
+            "volume_24h": 10,
+        },
+    ]
+    text = _render_trending_text(tokens, "solana", "24h")
+    # Card separation: blank line before each subsequent numbered entry.
+    assert "\n\n2." in text
+
+
 def test_render_trending_text_caps_at_eight_rows() -> None:
     tokens = [
         {"address": f"0x{i:040d}", "name": f"T{i}", "symbol": f"T{i}", "change_24h": i}

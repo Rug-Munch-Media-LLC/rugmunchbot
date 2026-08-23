@@ -184,7 +184,9 @@ async def render_trending(
     cached = await _cache_get_trending(chain, window)
     if cached is not None:
         cached_tokens = cached[:limit]
-        return _render_trending_text(cached_tokens, chain, window), _build_trending_kb(cached_tokens, chain, window)
+        return _render_trending_text(cached_tokens, chain, window), _build_trending_kb(
+            cached_tokens, chain, window
+        )
 
     tokens = await _fetch_fused_trending(chain, limit)
     if not tokens:
@@ -196,7 +198,9 @@ async def render_trending(
 async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /trending [chain] — hot tokens from fused multi-source data."""
     chain = _resolve_chain(ctx.args[0]) if ctx.args else "solana"
-    msg = await update.message.reply_text("🔥 <b>Fetching trending tokens...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text(
+        "🔥 <b>Fetching trending tokens...</b>", parse_mode=ParseMode.HTML
+    )  # type: ignore[union-attr]  # PTB None-able fields
     text, trending_kb = await render_trending(chain, limit=20, window="24h")
     if text is None or trending_kb is None:
         await msg.edit_text(
@@ -277,7 +281,9 @@ async def _fetch_market_intel(
 
 def _menu_kb() -> InlineKeyboardMarkup:
     """Shared bottom bar: back to the main menu."""
-    return InlineKeyboardMarkup([[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]])
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")]]
+    )
 
 
 def _change_emoji(change: float) -> str:
@@ -286,7 +292,9 @@ def _change_emoji(change: float) -> str:
 
 async def cmd_market(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /market — global market overview (mcap, volume, dominance, fear/greed, BTC/ETH)."""
-    msg = await update.message.reply_text("\U0001f4ca <b>Fetching market overview...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text(
+        "\U0001f4ca <b>Fetching market overview...</b>", parse_mode=ParseMode.HTML
+    )  # type: ignore[union-attr]  # PTB None-able fields
     overview, macro = await asyncio.gather(
         _fetch_market_intel("/api/v1/market/overview"),
         _fetch_market_intel("/api/v1/market/macro"),
@@ -297,7 +305,9 @@ async def cmd_market(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     lines = ["\U0001f4ca <b>Market Overview</b>", sep()]
     if overview.get("total_market_cap") is not None:
-        lines.append(f"\U0001f310 Total Market Cap: <b>{_fmt_usd(overview.get('total_market_cap'))}</b>")
+        lines.append(
+            f"\U0001f310 Total Market Cap: <b>{_fmt_usd(overview.get('total_market_cap'))}</b>"
+        )
     if overview.get("total_volume_24h") is not None:
         lines.append(f"\U0001f4c8 24h Volume: <b>{_fmt_usd(overview.get('total_volume_24h'))}</b>")
     if overview.get("btc_dominance") is not None:
@@ -333,7 +343,9 @@ async def cmd_market(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             asset = it.get("asset", "")
             change = it.get("change_24h")
             change_txt = f" ({fmt_pct(change)})" if change is not None else ""
-            lines.append(f"\U0001f4b0 <b>{asset}:</b> {_fmt_usd(it.get('current_price'))}{change_txt}")
+            lines.append(
+                f"\U0001f4b0 <b>{asset}:</b> {_fmt_usd(it.get('current_price'))}{change_txt}"
+            )
 
     lines.append(footer_links())
     await msg.edit_text(
@@ -386,6 +398,10 @@ def _render_movers_lines(
             f"   <b>{fmt_pct(change)}</b> | {_fmt_usd(item.get('price'))} | Vol: {_fmt_usd(item.get('volume_24h'))}"
             f' | \U0001f517 <a href="{link}">Chart</a>'
         )
+        # Paragraph break between mover cards so multi-line entries never
+        # blur into a wall of text.
+        if i < len(gainers):
+            lines.append("")
     if not gainers:
         lines.append("<i>No gainers in the current window.</i>")
 
@@ -402,6 +418,8 @@ def _render_movers_lines(
             f"   <b>{fmt_pct(change)}</b> | {_fmt_usd(item.get('price'))} | Vol: {_fmt_usd(item.get('volume_24h'))}"
             f' | \U0001f517 <a href="{link}">Chart</a>'
         )
+        if i < len(losers):
+            lines.append("")
     if not losers:
         lines.append("<i>No losers in the top movers \u2014 market is green \U0001f7e2</i>")
     lines.append(footer_links())
@@ -417,7 +435,9 @@ async def cmd_movers(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         f"\U0001f680 <b>Fetching {label} market movers...</b>", parse_mode=ParseMode.HTML
     )
-    data = await _fetch_market_intel("/api/v1/market/movers", params={"limit": 20, "timeframe": timeframe})
+    data = await _fetch_market_intel(
+        "/api/v1/market/movers", params={"limit": 20, "timeframe": timeframe}
+    )
     if not data:
         await msg.edit_text(MARKET_UNAVAILABLE, parse_mode=ParseMode.HTML)
         return
@@ -442,7 +462,13 @@ async def cmd_movers(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if (item.get("source") or "").lower() == "gmgn":
             rows.append(token_buttons(addr, chain))
         else:
-            rows.append([InlineKeyboardButton("\U0001f4c8 Chart", url=f"https://www.coingecko.com/en/coins/{addr}")])
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        "\U0001f4c8 Chart", url=f"https://www.coingecko.com/en/coins/{addr}"
+                    )
+                ]
+            )
     rows.append([InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")])
     await msg.edit_text(
         "\n".join(lines),
@@ -454,7 +480,9 @@ async def cmd_movers(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_launches(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /launches — new token launches from the backend market router."""
-    msg = await update.message.reply_text("\U0001f195 <b>Fetching new launches...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text(
+        "\U0001f195 <b>Fetching new launches...</b>", parse_mode=ParseMode.HTML
+    )  # type: ignore[union-attr]  # PTB None-able fields
     data = await _fetch_market_intel("/api/v1/market/launches", params={"limit": 8})
     items = (data or {}).get("items") or []
     if not items:
@@ -495,7 +523,9 @@ async def cmd_launches(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_whales(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /whales — recent whale moves from the backend market router."""
-    msg = await update.message.reply_text("\U0001f40b <b>Fetching whale activity...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text(
+        "\U0001f40b <b>Fetching whale activity...</b>", parse_mode=ParseMode.HTML
+    )  # type: ignore[union-attr]  # PTB None-able fields
     data = await _fetch_market_intel("/api/v1/market/whales", params={"limit": 5})
     items = (data or {}).get("items") or []
     if not items:
@@ -551,7 +581,9 @@ def register_market(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
 
 async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Fetch and render the latest news (internal feed -> backend -> CoinGecko fallback)."""
-    msg = await update.message.reply_text("\U0001f4f0 <b>Fetching news...</b>", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
+    msg = await update.message.reply_text(
+        "\U0001f4f0 <b>Fetching news...</b>", parse_mode=ParseMode.HTML
+    )  # type: ignore[union-attr]  # PTB None-able fields
     articles = []
     source_label = "RMI News Network"
 
@@ -579,7 +611,13 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
             if body:
                 articles = body.get("items", [])
-        except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
+        except (
+            ConnectionError,
+            OSError,
+            TimeoutError,
+            httpx.HTTPError,
+            httpx.TimeoutException,
+        ) as e:
             logger.warning("cmd_news backend fetch failed: %s", e)
 
     if not articles:
@@ -612,7 +650,9 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             pub_str = f" \u00b7 {published}" if published else ""
             url = a.get("url") or a.get("link") or ""
             title_linked = (
-                f'<a href="{html.escape(url, quote=True)}">{html.escape(title)}</a>' if url else html.escape(title)
+                f'<a href="{html.escape(url, quote=True)}">{html.escape(title)}</a>'
+                if url
+                else html.escape(title)
             )
 
             # Bias/sentiment/factual ratings
@@ -620,9 +660,15 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             sentiment = a.get("sentiment_score", 0)
             factual = a.get("factual_rating", "N/A")
             source_tier = a.get("source_tier", 5)
-            sent_emoji = "\U0001f525" if sentiment > 30 else "\U0001f9ca" if sentiment < -30 else "\u2795"
+            sent_emoji = (
+                "\U0001f525" if sentiment > 30 else "\U0001f9ca" if sentiment < -30 else "\u2795"
+            )
             bias_e = bias_emoji.get(bias, "\u26aa")
-            tier_str = "\u2605" * max(1, 6 - int(source_tier)) if isinstance(source_tier, (int, float)) else ""
+            tier_str = (
+                "\u2605" * max(1, 6 - int(source_tier))
+                if isinstance(source_tier, (int, float))
+                else ""
+            )
 
             lines.append(
                 f"{sent_emoji} {bias_e} [{tier_str}] {title_linked}\n"

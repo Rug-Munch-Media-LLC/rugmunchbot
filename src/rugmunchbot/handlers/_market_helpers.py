@@ -385,6 +385,10 @@ def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str)
         rendered += 1
         if rendered > 8:
             break
+        # Paragraph break between token cards so multi-line entries never
+        # blur into a wall of text.
+        if rendered > 1:
+            lines.append("")
         chg = _window_change(t, window)
         vol = float(t.get("volume_24h") or 0)
         liq = float(t.get("liquidity_usd") or 0)

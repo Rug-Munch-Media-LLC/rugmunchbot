@@ -91,6 +91,18 @@ def test_render_movers_lines_structure_and_badges() -> None:
     assert "market is green" in text  # empty-losers honest fallback
 
 
+def test_render_movers_lines_paragraph_break_between_cards() -> None:
+    second = dict(_GAINER, symbol="doge", name="Dogecoin")
+    lines = _render_movers_lines([_GAINER, second], [], "24H")
+    text = "\n".join(lines)
+    # Card separation: a blank line before each subsequent numbered entry so
+    # multi-line mover cards never blur into a wall of text.
+    assert "\n\n2." in text
+    # Single-entry sections still render without a trailing gap card.
+    single = _render_movers_lines([_GAINER], [], "24H")
+    assert "\n\n2." not in "\n".join(single)
+
+
 def test_render_movers_lines_no_sources_line_when_absent() -> None:
     lines = _render_movers_lines([], [{"symbol": "doge", "change_24h": -3}], "24H")
     text = "\n".join(lines)
