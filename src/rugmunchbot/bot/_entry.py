@@ -70,6 +70,7 @@ from rugmunchbot.handlers.alerts import (
     cmd_alerts,
 )
 from rugmunchbot.handlers.api_access import cmd_api
+from rugmunchbot.handlers.owner import cmd_rpcstats
 from rugmunchbot.handlers.ask import cmd_ask
 from rugmunchbot.handlers.callback import handle_callback
 from rugmunchbot.handlers.chat import cmd_chat
@@ -286,6 +287,7 @@ def main() -> None:
     _reg(app, "investigate", cmd_investigate)
     _reg(app, "webhook", cmd_webhook)
     _reg(app, "api", cmd_api)
+    _reg(app, "rpcstats", cmd_rpcstats)  # owner: RPC pool health
 
     # Group management commands
     _reg(app, "mygroup", cmd_mygroup)

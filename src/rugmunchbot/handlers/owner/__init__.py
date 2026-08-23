@@ -52,6 +52,9 @@ from rugmunchbot.handlers.owner._shared import (
     _log as _log,
     _usage_line as _usage_line,
 )
+from rugmunchbot.handlers.owner._rpcstats import (
+    cmd_rpcstats as cmd_rpcstats,
+)
 from rugmunchbot.handlers.owner._users import (
     cmd_admin_ban as cmd_admin_ban,
     cmd_admin_logs as cmd_admin_logs,
@@ -69,6 +72,7 @@ __all__ = [
     "cmd_admin_broadcast",
     "cmd_admin_credits",
     "cmd_admin_logs",
+    "cmd_rpcstats",
     "cmd_admin_set_tier",
     "cmd_admin_stats",
     "cmd_admin_toggle",
