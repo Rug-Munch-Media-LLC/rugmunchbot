@@ -23,8 +23,25 @@ from rugmunchbot._vendor.scanner_engines.rpc_router import (
 )
 
 
-def _fresh_router() -> RpcRouter:
-    """Isolated router (not the global singleton) for hermetic tests."""
+def _fresh_router(monkeypatch=None) -> RpcRouter:
+    """Isolated router (not the global singleton) for hermetic tests.
+
+    When ``monkeypatch`` is given, all keyed-endpoint env vars are cleared
+    so tier-split assertions never depend on the ambient environment
+    (operator keys ARE set in some shells since 2026-08-23).
+    """
+    if monkeypatch is not None:
+        for var in (
+            "DRPC_API_KEY",
+            "ANKR_API_KEY",
+            "ALCHEMY_KEY",
+            "HELIUS_API_KEY",
+            "QUICKNODE_ETH_HTTP",
+            "QUICKNODE_BSC_HTTP",
+            "QUICKNODE_POLYGON_HTTP",
+            "QUICKNODE_SOLANA_HTTP",
+        ):
+            monkeypatch.delenv(var, raising=False)
     return RpcRouter()
 
 
@@ -51,9 +68,9 @@ def test_registry_has_freemium_depth() -> None:
     assert any("${" in u for u in SOLANA_RPC_ENDPOINTS), "solana lacks freemium depth"
 
 
-def test_missing_key_excludes_endpoint_entirely() -> None:
+def test_missing_key_excludes_endpoint_entirely(monkeypatch) -> None:
     """Unset key env vars drop the endpoint — no broken URLs ever surface."""
-    router = _fresh_router()
+    router = _fresh_router(monkeypatch)
     free, fremium = router._split_tiers("ethereum")
     joined = free + fremium
     assert all("${" not in u for u in joined), "unresolved placeholder leaked"
@@ -75,8 +92,8 @@ def test_resolved_key_unlocks_freemium(monkeypatch) -> None:
 # ── Tier selection ────────────────────────────────────────────────────
 
 
-def test_free_tier_served_exclusively_while_alive() -> None:
-    router = _fresh_router()
+def test_free_tier_served_exclusively_while_alive(monkeypatch) -> None:
+    router = _fresh_router(monkeypatch)
     monkey_keys = False  # no keys → only free exists anyway; still assert tiers
     available = router.get_available_endpoints("ethereum")
     assert available, "ethereum free pool must never be empty"
@@ -84,8 +101,8 @@ def test_free_tier_served_exclusively_while_alive() -> None:
     assert monkey_keys is False
 
 
-def test_escalation_only_when_free_exhausted() -> None:
-    router = _fresh_router()
+def test_escalation_only_when_free_exhausted(monkeypatch) -> None:
+    router = _fresh_router(monkeypatch)
     _kill_free_tier(router, "ethereum")
     # No keys set → nothing to escalate into → empty, no crash.
     assert router.get_available_endpoints("ethereum") == []
