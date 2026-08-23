@@ -86,6 +86,7 @@ from rugmunchbot.handlers.groups import (
 from rugmunchbot.handlers.holders import cmd_holders
 from rugmunchbot.handlers.inline import handle_inline
 from rugmunchbot.handlers.integrity_handlers import register_integrity
+from rugmunchbot.handlers.liqmap import register_liqmap
 from rugmunchbot.handlers.market import cmd_news, cmd_rugcheck, register_market
 from rugmunchbot.handlers.osint import (
     cmd_email,
@@ -202,6 +203,7 @@ def main() -> None:
     # Market commands
     register_market(app)  # /market /trending /movers /launches /whales
     register_integrity(app)  # /volume /exchangeaudit /dune
+    register_liqmap(app)  # /liqmap
     register_prediction(app)  # /polymarket /election /odds
     register_defi(app)  # /yield /lpcheck /defi
     _reg(app, "news", cmd_news)

@@ -98,8 +98,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://bsc-dataseed2.ninicoin.io",  # Ninicoin dataseed 2
         "https://bsc-dataseed1.bnbchain.org",  # BNB Chain official (renamed domain)
         "https://bsc-dataseed2.bnbchain.org",  # BNB Chain official 2
+        "https://bsc-mainnet.public.blastapi.io",  # probe-verified 2026-08-23 (fallback-only for getLogs; fine for call/balance)
         "https://rpc-bsc.48.club",  # 48 Club — free public
-        "https://bsc-mainnet.public.blastapi.io",  # BlastAPI BSC
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=bsc&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/bsc/${ANKR_API_KEY}",
@@ -144,6 +144,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://base.meowrpc.com",  # MeowRPC Base
         "https://base.blockpi.network/v1/rpc/public",  # BlockPI Base
         "https://mainnet.base.org",  # Base official public
+        "https://base-mainnet.public.blastapi.io",  # probe-verified 2026-08-23 (fallback-only for getLogs; fine for call/balance)
         "https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Base (key)
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=base&dkey=${DRPC_API_KEY}",
@@ -231,8 +232,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
     "gnosis": [
         "https://gnosis.drpc.org",  # dRPC Gnosis
         "https://rpc.gnosischain.com",  # Gnosis official
+        "https://gnosis-rpc.publicnode.com",  # probe-verified 2026-08-23 (fallback-only for getLogs; fine for call/balance)
         "https://1rpc.io/gnosis",  # 1RPC Gnosis
-        "https://gnosis-rpc.publicnode.com",  # PublicNode Gnosis
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=gnosis&dkey=${DRPC_API_KEY}",
     ],
