@@ -97,12 +97,12 @@ def install_pool_extensions() -> bool:
     if _installed:
         return True
     try:
-        from rugmunchbot._vendor.scanner_engines.rpc_router import RPCRouter
+        from rugmunchbot._vendor.scanner_engines.rpc_router import RpcRouter
     except ImportError:
         logger.debug("rpc_router unavailable; pool extension not installed")
         return False
 
-    original = RPCRouter._get_endpoints
+    original = RpcRouter._get_endpoints
     if getattr(original, "_pool_extended", False):
         _installed = True
         return True
@@ -118,7 +118,7 @@ def install_pool_extensions() -> bool:
         return urls
 
     extended._pool_extended = True  # type: ignore[attr-defined]
-    RPCRouter._get_endpoints = extended  # type: ignore[method-assign]
+    RpcRouter._get_endpoints = extended  # type: ignore[method-assign]
     _installed = True
     total = sum(len(v) for v in EXTRA_ENDPOINTS.values())
     logger.info(
