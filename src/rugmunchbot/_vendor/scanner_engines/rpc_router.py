@@ -69,6 +69,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://cloudflare-eth.com",  # Cloudflare — free, reliable
         "https://eth-mainnet.public.blastapi.io",  # BlastAPI — free public
         "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy — free tier (key)
+        "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY_2}",  # Alchemy acct 2 rotation
         "https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}",  # Infura — free tier (key)
         "https://virginia.rpc.blxrbdn.com",  # BloXroute — free tier
         "https://uk.rpc.blxrbdn.com",  # BloXroute — EU
@@ -116,6 +117,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://polygon-bor-rpc.publicnode.com",  # PublicNode Polygon
         "https://polygon-mainnet.public.blastapi.io",  # BlastAPI Polygon
         "https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Polygon (key)
+        "https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY_2}",  # Alchemy acct 2 rotation
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=polygon&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/polygon/${ANKR_API_KEY}",
@@ -131,6 +133,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://arbitrum.blockpi.network/v1/rpc/public",  # BlockPI Arbitrum
         "https://arb1.arbitrum.io/rpc",  # Offchain Labs official
         "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Arbitrum (key)
+        "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY_2}",  # Alchemy acct 2 rotation
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=arbitrum&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/arbitrum/${ANKR_API_KEY}",
@@ -146,6 +149,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://mainnet.base.org",  # Base official public
         "https://base-mainnet.public.blastapi.io",  # probe-verified 2026-08-23 (fallback-only for getLogs; fine for call/balance)
         "https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Base (key)
+        "https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY_2}",  # Alchemy acct 2 rotation
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=base&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/base/${ANKR_API_KEY}",
@@ -160,6 +164,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://optimism.blockpi.network/v1/rpc/public",  # BlockPI Optimism
         "https://mainnet.optimism.io",  # Optimism official
         "https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Optimism (key)
+        "https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY_2}",  # Alchemy acct 2 rotation
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=optimism&dkey=${DRPC_API_KEY}",
     ],
@@ -206,6 +211,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://1rpc.io/zksync-era",  # 1RPC zkSync Era
         "https://zksync.meowrpc.com",  # MeowRPC zkSync
         "https://zksync-era.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy zkSync (key)
+        "https://zksync-era.g.alchemy.com/v2/${ALCHEMY_KEY_2}",  # Alchemy acct 2 rotation
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=zksync&dkey=${DRPC_API_KEY}",
     ],
@@ -216,6 +222,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://1rpc.io/scroll",  # 1RPC Scroll
         "https://scroll.blockpi.network/v1/rpc/public",  # BlockPI Scroll
         "https://scroll-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Scroll (key)
+        "https://scroll-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY_2}",  # Alchemy acct 2 rotation
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=scroll&dkey=${DRPC_API_KEY}",
     ],
@@ -226,6 +233,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://1rpc.io/mantle",  # 1RPC Mantle
         "https://mantle.blockpi.network/v1/rpc/public",  # BlockPI Mantle
         "https://mantle-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Mantle (key)
+        "https://mantle-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY_2}",  # Alchemy acct 2 rotation
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=mantle&dkey=${DRPC_API_KEY}",
     ],
@@ -250,6 +258,7 @@ SOLANA_RPC_ENDPOINTS: list[str] = [
     "https://solana.blockpi.network/v1/rpc/public",  # BlockPI Solana
     "https://solana-api.projectserum.com",  # Project Serum — long-standing free
     "https://solana-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Solana (key)
+    "https://solana-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY_2}",  # Alchemy acct 2 rotation
     "https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}",  # Helius (key, paid fallback)
     # ── Freemium (keyed) ──
     "https://lb.drpc.org/ogrpc?network=solana&dkey=${DRPC_API_KEY}",
