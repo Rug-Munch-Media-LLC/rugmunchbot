@@ -187,7 +187,7 @@ async def scan_token(
                 if jup.get("liquidity"):
                     result.setdefault("jup_liquidity", jup["liquidity"])
                 result["threats"].append("Price via Jupiter (no DexScreener pair yet)")
-        except Exception as exc:  # noqa: BLE001 — fallback must fail open
+        except Exception as exc:
             result["errors"].append(f"Jupiter: {exc}")
 
     # Independent providers run CONCURRENTLY (8s per-provider cap, fail-open):

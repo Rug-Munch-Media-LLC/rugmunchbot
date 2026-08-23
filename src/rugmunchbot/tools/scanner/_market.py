@@ -170,7 +170,7 @@ async def jupiter_price(client: Any, mint: str) -> dict[str, Any] | None:
             "liquidity": _safe_float(entry.get("liquidity")),
             "change_24h": _safe_float(entry.get("priceChange24h")),
         }
-    except Exception as exc:  # noqa: BLE001 — keyless fallback must fail open
+    except Exception as exc:
         from rugmunchbot.support.logging import get_logger
 
         get_logger("rmi_bot.scanner.market").debug(
