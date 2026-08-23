@@ -122,7 +122,7 @@ async def _rpc_rotating(
         return None
     try:
         endpoints = await router.ensure_healthy_endpoints("solana")
-    except Exception:  # noqa: BLE001 — fall back to plain call
+    except Exception:
         return await _rpc(method, params, timeout=timeout)
     urls = [url for url, _ in (endpoints or [])]
     if not urls:
@@ -143,7 +143,7 @@ async def _rpc_rotating(
                     if result:
                         return {"result": result}
                     last = {"result": result}
-            except Exception as exc:  # noqa: BLE001 — try next endpoint
+            except Exception as exc:
                 logger.debug("rotating rpc %s attempt %d failed: %s", method, i + 1, exc)
             if i < min(len(urls), attempts) - 1:
                 await asyncio.sleep(0.4)

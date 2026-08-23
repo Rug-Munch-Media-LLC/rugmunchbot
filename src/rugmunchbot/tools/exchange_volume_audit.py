@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from rugmunchbot.tools.registry import ToolResult, backend_json_get
@@ -43,7 +43,7 @@ def _f(v: Any) -> float | None:
 async def _fetch_tickers(token_id: str) -> list[dict[str, Any]]:
     try:
         body = await backend_json_get(
-            f"/api/v1/databus/coingecko/tickers",
+            "/api/v1/databus/coingecko/tickers",
             params={"id": token_id, "per_page": 100},
             timeout=8.0,
         )
@@ -76,7 +76,7 @@ def audit_venues(tickers: list[dict[str, Any]]) -> dict[str, Any]:
             by_venue.setdefault(ex, []).append(t)
 
     total_vol = sum(_f(t.get("converted_volume", {}).get("usd")) or 0.0 for t in tickers) or 1.0
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     venues: list[dict[str, Any]] = []
 
     for ex, ts in by_venue.items():
@@ -126,7 +126,7 @@ def audit_venues(tickers: list[dict[str, Any]]) -> dict[str, Any]:
             try:
                 dt = datetime.fromisoformat(str(lt).replace("Z", "+00:00"))
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
+                    dt = dt.replace(tzinfo=UTC)
                 if now - dt > timedelta(minutes=30):
                     stale += 1
             except (ValueError, TypeError):
