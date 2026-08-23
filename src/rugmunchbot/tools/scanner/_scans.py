@@ -230,6 +230,38 @@ async def scan_token(
     # top-holder concentration, deployer fallback, same-slot bundle) —
     # fills whatever the providers dropped, fail-open, 9s hard budget.
     result = await _scanner.enrich_scan_solana(result, address, result["chain"])
+    # Vybe labeled holders (Solana): entity tags (CEX/KOL/treasury) on top
+    # holders + CEX-concentration threat when exchanges dominate supply.
+    # Fills gaps left by on-chain enrichment; fail-open, best-effort.
+    if result.get("chain") == "solana":
+        try:
+            from rugmunchbot.tools.vybe import vybe_top_holders
+
+            vholders = await vybe_top_holders(address, limit=10)
+            if vholders:
+                existing = {h.get("address"): h for h in result.get("top_holders", [])}
+                cex_pct = 0.0
+                for vh in vholders:
+                    slot = existing.get(vh["address"])
+                    if slot is not None and not slot.get("tag"):
+                        slot["tag"] = vh["owner_name"]
+                    elif slot is None and len(result["top_holders"]) < 10:
+                        result["top_holders"].append(
+                            {
+                                "address": vh["address"],
+                                "pct": vh["pct"],
+                                "is_contract": False,
+                                "tag": vh["owner_name"],
+                            }
+                        )
+                    name_l = (vh["owner_name"] or "").lower()
+                    if any(w in name_l for w in ("binance", "coinbase", "okx", "bybit", "kraken", "upbit", "bithumb")):
+                        cex_pct += vh["pct"]
+                if cex_pct >= 30:
+                    result["threats"].append(f"CEX wallets hold {cex_pct:.0f}% of supply")
+                    result["risk_score"] += 10
+        except Exception as exc:
+            result["errors"].append(f"Vybe: {exc}")
     # Token-scoped smart money — replaces the wallet-scoped endpoint's empty
     # rows with real tracked-wallet flow (fail-open, 6s budget).
     result = await _scanner.enrich_scan_smart_money(result, address, result["chain"])

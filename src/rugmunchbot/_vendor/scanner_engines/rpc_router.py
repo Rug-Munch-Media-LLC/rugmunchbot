@@ -103,6 +103,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://ethereum.blockpi.network/v1/rpc/1b0e56635142347bae8b77c148a652705055329c",  # BlockPI keyed (probed live 2026-08-23)
         "https://bsc.blockpi.network/v1/rpc/dda061f196261a9ab6c3079f80a9a5095063256c",  # BlockPI keyed (probed live 2026-08-23)
         # ── Freemium (keyed) ──
+        "https://shared.us-east-1.getblock.io/4d90b04f49aa4a09acd2ff4c635cf4d2",  # GetBlock dedicated (probed live 2026-08-23)
         "https://lb.drpc.org/ogrpc?network=bsc&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/bsc/${ANKR_API_KEY}",
         "${QUICKNODE_BSC_HTTP}",
@@ -307,6 +308,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
 # ─── Solana ─────────────────────────────────────────────────────────
 
 SOLANA_RPC_ENDPOINTS: list[str] = [
+    "https://solana-mainnet.core.chainstack.com/a082f5b6c00431766ebd1fbf3a835b41",  # Chainstack dedicated (probed live 2026-08-23)
+    "https://shared.us-east-1.getblock.io/e7faed9f6e624eb4978e01274a38eb9e",  # GetBlock dedicated (probed live 2026-08-23)
     "https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY_2}",  # Helius acct 2 (live)
     "https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY_3}",  # Helius acct 3 (live)
     "https://api.mainnet-beta.solana.com",  # Solana official public

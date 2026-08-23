@@ -48,7 +48,7 @@ async def _get(path: str, params: dict[str, Any] | None = None) -> Any | None:
     if not api_key:
         return None
     try:
-        client = await get_shared_client(_TIMEOUT)
+        client = get_shared_client(_TIMEOUT)
         resp = await client.get(
             f"{_BASE}{path}",
             params=params,
@@ -93,8 +93,8 @@ async def vybe_top_holders(mint: str, limit: int = 10) -> list[dict[str, Any]]:
             {
                 "address": r.get("ownerAddress") or "",
                 "owner_name": r.get("ownerName") or "",
-                "pct": float(r.get("percentageOfOwnedSupply") or 0),
-                "usd_value": float(r.get("tokenValueUsd") or 0),
+                "pct": float(r.get("percentageOfSupplyHeld") or 0),
+                "usd_value": float(r.get("valueUsd") or 0),
                 "label": r.get("ownerLabel") or r.get("ownerCategory") or "",
             }
         )
@@ -111,7 +111,7 @@ async def vybe_wallet_pnl(wallet: str) -> dict[str, Any] | None:
 
 __all__ = [
     "clear_cache",
-    "vybe_top_holders",
     "vybe_token_details",
+    "vybe_top_holders",
     "vybe_wallet_pnl",
 ]
