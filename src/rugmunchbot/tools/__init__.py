@@ -88,6 +88,8 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     registry_.register("top_traders", top_traders, timeout=8.0, ttl=120.0)
     registry_.register("smart_money", smart_money, timeout=8.0, ttl=120.0)
     registry_.register("security_scan", security_scan, timeout=8.0, ttl=60.0)
+    from rugmunchbot.tools.volume_integrity import volume_integrity
+    registry_.register("volume_integrity", volume_integrity, timeout=15.0, ttl=120.0)
     registry_.register("wallet_analysis", wallet_analysis, timeout=20.0, ttl=60.0)
     # web_search timeout is generous (75s): when the bridge + SearXNG are
     # down the tool synthesizes a knowledge answer through the remote LLM
