@@ -40,6 +40,10 @@ def _fresh_router(monkeypatch=None) -> RpcRouter:
             "QUICKNODE_BSC_HTTP",
             "QUICKNODE_POLYGON_HTTP",
             "QUICKNODE_SOLANA_HTTP",
+            "NOWNODES_API_KEY",
+            "CHAINSTACK_SOLANA_URL",
+            "GETBLOCK_SOLANA_URL",
+            "GETBLOCK_BSC_URL",
         ):
             monkeypatch.delenv(var, raising=False)
     return RpcRouter()
