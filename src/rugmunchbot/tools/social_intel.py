@@ -20,7 +20,10 @@ from rugmunchbot.tools.registry import ToolResult
 logger = logging.getLogger(__name__)
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
-SEARXNG = os.getenv("SEARXNG_URL", os.getenv("SEARXNG_BASE_URL", "http://127.0.0.1:8889"))
+# Resolve like tools/web.py: settings shim (SEARXNG_BASE_URL, canon :8889).
+# Do NOT read SEARXNG_URL — stale shell exports point at a dead tailnet port.
+from rugmunchbot._vendor.settings_shim import settings as _settings
+SEARXNG = _settings.searxng_base_url.rstrip("/")
 
 
 async def _feed_sentiment(symbol: str) -> dict[str, Any]:
