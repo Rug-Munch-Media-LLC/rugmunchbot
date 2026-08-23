@@ -211,6 +211,17 @@ async def resolve_holder_stats(mint: str) -> dict[str, Any] | None:
     accounts = (
         ((largest or {}).get("result", {}).get("value") or []) if isinstance(largest, dict) else []
     )
+    # Rate-limited providers can return a SUCCESSFUL response with an empty
+    # account list (not an error — so endpoint rotation never triggers).
+    # Retry once after a short backoff before giving up.
+    if not accounts:
+        await asyncio.sleep(1.5)
+        largest = await _rpc("getTokenLargestAccounts", [mint], timeout=6.0)
+        accounts = (
+            ((largest or {}).get("result", {}).get("value") or [])
+            if isinstance(largest, dict)
+            else []
+        )
     supply_ui = (
         float(((supply or {}).get("result", {}).get("value") or {}).get("uiAmount") or 0)
         if isinstance(supply, dict)
@@ -421,19 +432,28 @@ async def enrich_scan_solana(result: dict[str, Any], address: str, chain: str) -
         return result
 
     try:
-        facts, holders, deployer, bundle = await asyncio.wait_for(
+        # Two-tier budgeting: the light, high-value resolvers (authority
+        # facts, holder concentration, deployer) get their own tight budget
+        # so the heavy same-slot bundle scan (up to 30 transaction fetches)
+        # can never starve them on rate-limited public RPC.
+        facts, holders, deployer = await asyncio.wait_for(
             asyncio.gather(
                 resolve_mint_facts(address),
                 resolve_holder_stats(address),
                 resolve_deployer(address),
-                detect_same_slot_bundle(address),
                 return_exceptions=True,
             ),
-            timeout=_ENRICH_BUDGET_S,
+            timeout=_CORE_BUDGET_S,
         )
+        try:
+            bundle = await asyncio.wait_for(
+                detect_same_slot_bundle(address), timeout=_BUNDLE_BUDGET_S
+            )
+        except Exception:  # noqa: BLE001 — bundle is best-effort
+            bundle = None
     except Exception:
         return result
-    for i, val in enumerate((facts, holders, deployer, bundle)):
+    for i, val in enumerate((facts, holders, deployer)):
         if isinstance(val, BaseException):
             logger.debug("solana resolver %d failed: %s", i, val)
             if i == 0:

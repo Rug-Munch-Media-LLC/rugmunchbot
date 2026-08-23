@@ -47,6 +47,17 @@ async def gather_summary_data() -> dict[str, Any]:
     )
     blocks = [prices, condition, trending, movers, news, global_metrics]
     cleaned = [b if not isinstance(b, BaseException) else {} for b in blocks]
+
+    # The Daily Rug doctrine: no lies survive to publication. Symbol-colliding
+    # impostor pairs ("SOL" the $20M meme) and absurd volume prints are
+    # rejected here with logged reasons.
+    from rugmunchbot.channels.daily_market_summary._validate import (
+        sanitize_movers,
+        sanitize_prices,
+    )
+
+    cleaned[0] = sanitize_prices(cleaned[0])
+    cleaned[3] = sanitize_movers(cleaned[3])
     sources = ["prices", "condition", "trending", "movers", "news", "global_metrics"]
     active = [s for s, v in zip(sources, cleaned, strict=True) if v]
 
