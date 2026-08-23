@@ -7,7 +7,7 @@ def test_defaults_match_backend(monkeypatch):
     # Clear env to test defaults
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.delenv("QDRANT_URL", raising=False)
-    monkeypatch.delenv("INFINITY_URL", raising=False)
+    monkeypatch.delenv("QWEN_EMBED_URL", raising=False)
     monkeypatch.delenv("RERANKER_URL", raising=False)
     monkeypatch.delenv("BGE_M3_URL", raising=False)
     monkeypatch.delenv("SEARXNG_BASE_URL", raising=False)
@@ -24,9 +24,9 @@ def test_defaults_match_backend(monkeypatch):
     assert shim.settings.qdrant_url == "http://localhost:6333"
     # Qwen3 embedder/reranker stack (2026-08): llama.cpp servers on the
     # docker bridge host, OpenAI-compatible /v1 API on 8004, reranker 8003.
-    assert shim.settings.infinity_url == "http://172.22.0.1:8004/v1"
+    assert shim.settings.qwen_embed_url == "http://172.22.0.1:8004/v1"
     assert shim.settings.reranker_url == "http://172.22.0.1:8003"
-    assert shim.settings.embedder_primary == "infinity"
+    assert shim.settings.embedder_primary == "llama.cpp qwen3"
     assert shim.settings.embedder_primary_model == "qwen3-embedding-4b"
     assert shim.settings.embedder_cache_ttl == 86400
     assert shim.settings.embedder_cache_maxsize == 10000
@@ -43,12 +43,12 @@ def test_env_overrides(monkeypatch):
 
 
 def test_mutable_attribute_for_crawler_fallback(monkeypatch):
-    """rag crawler assigns settings.infinity_url — must be writable."""
+    """rag crawler assigns settings.qwen_embed_url — must be writable."""
     import importlib
 
     shim = importlib.reload(__import__("rugmunchbot._vendor.settings_shim", fromlist=["x"]))
-    shim.settings.infinity_url = "http://fallback:8001"
-    assert shim.settings.infinity_url == "http://fallback:8001"
+    shim.settings.qwen_embed_url = "http://fallback:8001"
+    assert shim.settings.qwen_embed_url == "http://fallback:8001"
 
 
 def test_resolve_service_url_local(monkeypatch):
