@@ -56,8 +56,16 @@ def _explorer_link(address: str, chain: str) -> str:
 def format_wallet_report(r: dict[str, Any]) -> str:
     s = sep()
     d = thin_sep()
+    # Honest-age rule: 0 days is REAL data (the freshest possible wallet),
+    # only None/missing means Unknown — never collapse 0 into "Unknown".
     age_days = r.get("wallet_age_days")
-    age_str = f"{age_days} days" if age_days else "Unknown"
+    if age_days is None:
+        age_str = "Unknown"
+    else:
+        try:
+            age_str = f"{int(age_days)} days"
+        except (TypeError, ValueError):
+            age_str = "Unknown"
     tx_count = r.get("tx_count")
     tx_str = (
         f"\U0001f4dd Transactions: <b>{tx_count:,}</b>"
@@ -83,7 +91,9 @@ def format_wallet_report(r: dict[str, Any]) -> str:
         lines.append("\U0001f195 <b>FRESH WALLET</b> (<7 days) - \u26a0\ufe0f Higher risk")
     _raw_trust = r.get("trust")
     trust = _raw_trust if isinstance(_raw_trust, dict) else {}
-    trust_line = trust.get("trust_line") if trust.get("trust_line") not in (None, "\u2014") else None
+    trust_line = (
+        trust.get("trust_line") if trust.get("trust_line") not in (None, "\u2014") else None
+    )
     if trust_line:
         lines.append(f"\U0001f511 <b>Trust:</b> {trust_line}")
     if r["flags"]:
@@ -96,7 +106,11 @@ def format_wallet_report(r: dict[str, Any]) -> str:
     if r["top_tokens"]:
         lines.extend(["", "\U0001fa99 <b>Top Holdings</b>", d])
         for i, t in enumerate(r["top_tokens"][:5], 1):
-            lines.append(f"  {i}. <b>{t.get('symbol', '???')}</b> - {fmt_number(t.get('value_usd', 0))}")
+            # Honest-value rule: a holding with no reported USD value renders
+            # "—" — a fabricated $0 would read as "worthless".
+            value = t.get("value_usd")
+            value_str = fmt_number(value) if value is not None else "\u2014"
+            lines.append(f"  {i}. <b>{t.get('symbol', '???')}</b> - {value_str}")
     if r["funding_source"]:
         lines.extend(["", f"\U0001f3e6 <b>Funding Source:</b> {r['funding_source']}"])
     if r["connected_wallets"]:
@@ -110,7 +124,9 @@ def format_wallet_report(r: dict[str, Any]) -> str:
     # v2 wallet metrics: entity, scam exposure, smart money overlap
     v2_lines = []
     if r.get("entity_name"):
-        v2_lines.append(f"\U0001f3e6 Entity: <b>{r['entity_name']}</b> ({r.get('entity_type', 'unknown')})")
+        v2_lines.append(
+            f"\U0001f3e6 Entity: <b>{r['entity_name']}</b> ({r.get('entity_type', 'unknown')})"
+        )
     if r.get("persona"):
         conf = f" ({r.get('persona_confidence', 0)}% conf)" if r.get("persona_confidence") else ""
         v2_lines.append(f"\U0001f9d0 Persona: {r['persona']}{conf}")
@@ -151,7 +167,9 @@ def format_wallet_report(r: dict[str, Any]) -> str:
 # --- Wallet composition section (for /deepscan) ---
 
 
-def format_wallet_composition_section(r: dict[str, Any], token_created_ts: str | None = None) -> str:
+def format_wallet_composition_section(
+    r: dict[str, Any], token_created_ts: str | None = None
+) -> str:
     """Full wallet-composition block for /deepscan (own funding_analysis engine).
 
     Combines ``wallet_metrics`` (fresh <30d / CEX-funded / first-tx-this-token)
@@ -207,7 +225,9 @@ def format_wallet_composition_section(r: dict[str, Any], token_created_ts: str |
                     ),
                 ]
                 if cex is not None:
-                    lines.append(f"\U0001f3e6 Exchange-funded (CEX, label-based): <b>{cex:.1f}%</b>")
+                    lines.append(
+                        f"\U0001f3e6 Exchange-funded (CEX, label-based): <b>{cex:.1f}%</b>"
+                    )
                 return "\n".join(lines)
         except (TypeError, ValueError) as e:
             logger.debug("unparseable dates — fall through: %s", e)
@@ -227,10 +247,15 @@ def format_wallet_composition_section(r: dict[str, Any], token_created_ts: str |
     if mixer:
         lines.append(f"\U0001f977 Mixer-funded: <b>{mixer:.1f}%</b>")
     if risk and risk not in ("", "UNKNOWN"):
-        emoji = {"LOW": "\U0001f7e2", "MEDIUM": "\U0001f7e1", "HIGH": "\U0001f534", "CRITICAL": "\U0001f6a8"}.get(
-            risk, "\u26aa"
-        )
+        emoji = {
+            "LOW": "\U0001f7e2",
+            "MEDIUM": "\U0001f7e1",
+            "HIGH": "\U0001f534",
+            "CRITICAL": "\U0001f6a8",
+        }.get(risk, "\u26aa")
         lines.append(f"{emoji} Funding risk: <b>{risk}</b>")
     if not lines:
         return ""
-    return "\U0001f45b <b>Wallet Composition</b>" + scope + "\n" + thin_sep() + "\n" + "\n".join(lines)
+    return (
+        "\U0001f45b <b>Wallet Composition</b>" + scope + "\n" + thin_sep() + "\n" + "\n".join(lines)
+    )
