@@ -60,6 +60,12 @@ Top-chain TVL 7d trend, total market volume, stablecoin/flow signals from GLOBAL
 ## RISK RADAR
 Hacks, exploits, depegs, rug warnings, suspicious launches from today's data (NEWS/NARRATIVE/TRENDING blocks). This is the signature section — every item linked, every claim sourced. Nothing to report = say the tape is clean today, one line, no filler.
 
+## ON-CHAIN ANALYTICS
+2-3 paragraphs from the DUNE block only (cite query names). What real on-chain usage/flows say about the market read. If the block is absent or all-error, OMIT silently.
+
+## SOCIAL PULSE
+1 paragraph from the SOCIAL PULSE block: chatter velocity + lean, and what it implies vs price action. Absent = OMIT.
+
 ## SENTIMENT
 Fear & Greed X/100 (classification) + market verdict with one concrete reason.
 

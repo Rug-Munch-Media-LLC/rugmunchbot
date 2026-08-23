@@ -250,4 +250,25 @@ def _serialize_context(context: dict[str, Any]) -> str:
             kol_lines.append(f'{label} "{title}" ({url}) {text}'.strip())
         parts.append("X/KOL SIGNALS (web search): " + " | ".join(kol_lines))
 
+
+    dune = context.get("dune_intel") or {}
+    d_queries = dune.get("queries") or {}
+    if d_queries:
+        d_lines = []
+        for name, q in list(d_queries.items())[:4]:
+            if "error" in q:
+                continue
+            rows = q.get("results") or q.get("data") or []
+            if rows and isinstance(rows[0], dict):
+                kv = ", ".join(f"{k}={v}" for k, v in list(rows[0].items())[:3])
+                d_lines.append(f"{name}: {kv}")
+        if d_lines:
+            parts.append("ON-CHAIN ANALYTICS (Dune, real queries): " + " | ".join(d_lines))
+
+    social = context.get("social_intel") or {}
+    if social.get("narrative"):
+        s_bits = [f"velocity={social.get('mention_velocity')}", f"mentions24h={social.get('mentions_24h')}"]
+        if social.get("sentiment_lean") is not None:
+            s_bits.append(f"lean={social['sentiment_lean']:+.0f}")
+        parts.append("SOCIAL PULSE (BTC): " + ", ".join(s_bits))
     return "\n".join(parts)

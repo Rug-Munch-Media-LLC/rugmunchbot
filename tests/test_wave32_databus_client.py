@@ -147,30 +147,18 @@ async def test_databus_rung_fires_when_free_providers_empty(monkeypatch):
     monkeypatch.setattr(db, "databus_token_scan", fake_scan)
 
     class FakeHTTP:
-        def __init__(self, *a, **k):
-            pass
+        async def __aenter__(self):
+            return self
 
-        def _raise(self, *a, **k):
-            raise ConnectionError("down")
+        async def __aexit__(self, *exc):
+            return None
 
-        get = _raise
+        async def get(self, url, timeout=None):
+            raise ConnectionError("free tier down")
 
     result = _base_result()
-    # Call only the security provider with a client whose GETs fail.
-    import httpx
-
-    orig_request = httpx.AsyncClient.request
-
-    async def raising_request(self, *a, **k):
-        raise ConnectionError("free tier down")
-
-    monkeypatch.setattr(httpx.AsyncClient, "request", raising_request)
-    monkeypatch.setattr(httpx.AsyncClient, "send", raising_request)
-    try:
-        async with httpx.AsyncClient() as client:
-            await prov._scan_evm_security_provider(client, "0xABC", result)
-    finally:
-        httpx.AsyncClient.request = orig_request
+    async with FakeHTTP() as client:
+        await prov._scan_evm_security_provider(client, "0xABC", result)
 
     assert fired["databus"] is True
     assert result["honeypot"] is True
@@ -196,6 +184,12 @@ async def test_databus_rung_skipped_when_goplus_answered(monkeypatch):
             return {"result": {}}
 
     class FakeHTTP:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return None
+
         async def get(self, url, timeout=None):
             return FakeResponse()
 
