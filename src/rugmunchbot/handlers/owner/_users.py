@@ -182,7 +182,14 @@ async def cmd_admin_set_tier(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
     except (ValueError, TypeError):
         await update.message.reply_text("Usage: /admin_set_tier <user_id> <tier> [days]")  # type: ignore[union-attr]  # PTB None-able fields
         return
-    days = int(ctx.args[2]) if len(ctx.args) > 2 else 30
+    try:
+        days = int(ctx.args[2]) if len(ctx.args) > 2 else 30
+    except (ValueError, TypeError):
+        await update.message.reply_text("Invalid days value. Use a whole number of days.")  # type: ignore[union-attr]  # PTB None-able fields
+        return
+    if not 1 <= days <= 3650:
+        await update.message.reply_text("Days must be between 1 and 3650.")  # type: ignore[union-attr]  # PTB None-able fields
+        return
     if tier not in TIERS:
         await update.message.reply_text(f"Invalid tier. Options: {', '.join(TIERS.keys())}")  # type: ignore[union-attr]  # PTB None-able fields
         return
