@@ -62,7 +62,14 @@ _T22_EXTENSION_NAMES: dict[int, str] = {
 
 # Hard budget for the whole enrichment pass (seconds). Public RPCs rate-limit
 # aggressively; the resolver must never dominate a scan's latency.
-_ENRICH_BUDGET_S = 9.0
+# Hard budget for the light core resolvers (authority facts, holders,
+# deployer) — kept separate from the bundle budget so heavy transaction
+# fetching can never starve the high-value cheap calls.
+_CORE_BUDGET_S = 8.0
+
+# Separate, larger budget for the same-slot bundle scan (up to 30 tx fetches
+# through rate-limited public RPC).
+_BUNDLE_BUDGET_S = 14.0
 
 # Same-slot bundle analysis caps (public-RPC friendly).
 _BUNDLE_MAX_TXS = 30
@@ -75,6 +82,12 @@ def _router():
     try:
         from rugmunchbot._vendor.scanner_engines.rpc_router import get_rpc_router
 
+        # Extend the frozen endpoint pools with bot-owned curated free
+        # endpoints (idempotent, fail-open) so every chain keeps enough
+        # healthy endpoints to always answer.
+        from rugmunchbot.tools.scanner._chain_pools import install_pool_extensions
+
+        install_pool_extensions()
         return get_rpc_router()
     except ImportError:  # pragma: no cover - vendor always ships in practice
         return None
@@ -449,7 +462,7 @@ async def enrich_scan_solana(result: dict[str, Any], address: str, chain: str) -
             bundle = await asyncio.wait_for(
                 detect_same_slot_bundle(address), timeout=_BUNDLE_BUDGET_S
             )
-        except Exception:  # noqa: BLE001 — bundle is best-effort
+        except Exception:
             bundle = None
     except Exception:
         return result
@@ -511,6 +524,24 @@ async def enrich_scan_solana(result: dict[str, Any], address: str, chain: str) -
     if deployer and not (result.get("deployer_address") or result.get("dev_wallet")):
         result["deployer_address"] = deployer
         provenance["deployer_resolved"] = True
+
+    # Lite Chain Indexer fallback layer: when the live RPC path could NOT
+    # resolve the deployer, query LCI's ClickHouse store (indexed from its
+    # own 62-endpoint free-RPC pool) for the token's deployer events.
+    if not (deployer or result.get("deployer_address") or result.get("dev_wallet")):
+        from rugmunchbot.tools.scanner._chain_pools import (
+            lci_deployer_history,
+            lci_deployer_summary,
+        )
+
+        try:
+            lci_hist = await asyncio.wait_for(lci_deployer_history(address, chain), timeout=4.0)
+        except Exception:
+            lci_hist = None
+        summary = lci_deployer_summary(lci_hist)
+        if summary:
+            result["deployer_history"] = summary
+            provenance["deployer_source"] = "lite_chain_indexer"
 
     if isinstance(bundle, dict):
         existing = result.get("bundle_analysis")

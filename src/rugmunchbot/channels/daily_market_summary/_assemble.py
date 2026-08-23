@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,6 +23,8 @@ from rugmunchbot.channels.daily_market_summary._fmt import (
     _fmt_price,
     _fmt_volume,
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def gather_summary_data() -> dict[str, Any]:
@@ -77,12 +80,29 @@ async def gather_summary_data() -> dict[str, Any]:
         if kol_signals:
             active.append("kol_signals")
 
+    # The Daily Rug story selection: freshness gate -> 4B reranker ranking.
+    # Candidates = RAG news + web narratives; only market-moving, dated,
+    # <48h stories survive. Fail-open at every stage.
+    try:
+        from rugmunchbot.channels.daily_market_summary._rerank import (
+            enforce_freshness,
+            rerank_stories,
+        )
+
+        candidates = [s for s in (cleaned[4] if isinstance(cleaned[4], list) else []) if isinstance(s, dict)]
+        candidates += [n for n in narratives if isinstance(n, dict)]
+        fresh, _rej = enforce_freshness(candidates)
+        top_stories, _ranked = await rerank_stories(fresh, top_n=6)
+    except Exception as exc:  # selection must never kill the summary
+        logger.warning("daily_rug:selection_failed fail_open err=%s", str(exc)[:140])
+        top_stories = cleaned[4] if isinstance(cleaned[4], list) else []
+
     return {
         "prices": cleaned[0] if isinstance(cleaned[0], dict) else {},
         "condition": cleaned[1] if isinstance(cleaned[1], dict) else {},
         "trending": cleaned[2] if isinstance(cleaned[2], list) else [],
         "movers": cleaned[3] if isinstance(cleaned[3], dict) else {},
-        "news": cleaned[4] if isinstance(cleaned[4], list) else [],
+        "news": top_stories,
         "global_metrics": cleaned[5] if isinstance(cleaned[5], dict) else {},
         "narratives": narratives,
         "kol_signals": kol_signals,
