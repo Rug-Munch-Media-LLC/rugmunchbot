@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import pytest
-
 from rugmunchbot.handlers._market_helpers import (
     _age_badge,
     _chain_badge,

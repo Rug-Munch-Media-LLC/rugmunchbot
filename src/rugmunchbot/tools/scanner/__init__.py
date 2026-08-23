@@ -98,6 +98,12 @@ from rugmunchbot.tools.scanner._security import (
     _honeypot_verdict as _honeypot_verdict,
     _security_checks as _security_checks,
 )
+from rugmunchbot.tools.scanner._smart_money_token import (
+    enrich_scan_smart_money as enrich_scan_smart_money,
+)
+from rugmunchbot.tools.scanner._solana_onchain import (
+    enrich_scan_solana as enrich_scan_solana,
+)
 from rugmunchbot.tools.token_meta import token_meta as token_meta
 
 # Self-registration: importing this package wires the extra tools into the

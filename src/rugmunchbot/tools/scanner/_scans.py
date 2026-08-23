@@ -208,6 +208,13 @@ async def scan_token(
     # ``risk_signals`` so the formatter can render the "why it's sus" block.
     if _scanner.enrich_scan is not None:
         result = await _scanner.enrich_scan(result, address, result["chain"])
+    # Solana on-chain ground truth (mint/freeze authority, Token-2022 tax,
+    # top-holder concentration, deployer fallback, same-slot bundle) —
+    # fills whatever the providers dropped, fail-open, 9s hard budget.
+    result = await _scanner.enrich_scan_solana(result, address, result["chain"])
+    # Token-scoped smart money — replaces the wallet-scoped endpoint's empty
+    # rows with real tracked-wallet flow (fail-open, 6s budget).
+    result = await _scanner.enrich_scan_smart_money(result, address, result["chain"])
     # Scan-to-RAG memory: auto-index the summary into Qdrant so future
     # chat queries can recall "have we scanned this token before?" with
     # risk context. Background + fail-open — never blocks the response.
@@ -252,6 +259,10 @@ async def scan_token_v2(address: str, chain: str | None = None) -> dict[str, Any
     # Risk-signal enrichment — best-effort + non-blocking, see scan_token.
     if _scanner.enrich_scan is not None:
         data = await _scanner.enrich_scan(data, address, chain_norm)
+    # Solana on-chain ground truth + token-scoped smart money (fail-open,
+    # see scan_token for the budget/fail-open contract).
+    data = await _scanner.enrich_scan_solana(data, address, chain_norm)
+    data = await _scanner.enrich_scan_smart_money(data, address, chain_norm)
     # Scan-to-RAG memory (background, fail-open) — see scan_token.
     if _scanner.should_index_scan(data, source="scan_v2"):
         _scanner.schedule_scan_memory_index(data, source="scan_v2")
@@ -309,6 +320,10 @@ async def sentinel_scan(address: str, chain: str | None = None) -> dict[str, Any
         ):
             if section not in data and isinstance(evidence, dict):
                 data[section] = evidence.get(section, {})
+        # Solana on-chain ground truth + token-scoped smart money — deep
+        # scans get the same always-available facts as regular scans.
+        data = await _scanner.enrich_scan_solana(data, address, chain_norm)
+        data = await _scanner.enrich_scan_smart_money(data, address, chain_norm)
         # Scan-to-RAG memory (background, fail-open)
         _scanner.schedule_scan_memory_index(data, source="deepscan")
         return data

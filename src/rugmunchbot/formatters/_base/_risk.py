@@ -59,17 +59,23 @@ def _verdict_sentence(r: dict[str, Any]) -> str:
 
     Only reads keys that actually exist in ``r`` — absent keys are skipped
     (never treated as ``False``), so a missing field cannot produce a false
-    claim. Priority: honeypot > mintable > ownership > blacklist > unverified
-    > liquidity; otherwise a clean bill.
+    claim. Priority: honeypot > mintable > freeze/blacklist > bundled launch
+    > ownership > unverified > thin LP > wash trading; otherwise a positive
+    confirmation of what DID pass (real signal — never a generic filler).
     """
     if r.get("honeypot") is True:
         return "Honeypot detected \u2014 selling may be blocked; extreme caution advised."
     if r.get("mintable") is True:
         return "Supply is mintable \u2014 the owner can print unlimited new tokens."
+    if r.get("can_blacklist") is True or r.get("freezable") is True:
+        return "Owner can blacklist or freeze wallets \u2014 holders can be locked out of selling."
+    ba = r.get("bundle_analysis")
+    if isinstance(ba, dict) and ba.get("is_bundled"):
+        n = ba.get("launch_buyers")
+        count = f" ({n} wallets)" if isinstance(n, (int, float)) and n else ""
+        return f"Launch was bundled{count} \u2014 early volume is coordinated, not organic."
     if r.get("owner_renounced") is False:
         return "Ownership is not renounced \u2014 the deployer retains contract control."
-    if r.get("can_blacklist") is True:
-        return "Owner can blacklist addresses \u2014 holders can be frozen out."
     if r.get("contract_verified") is False:
         return "Contract source is not verified \u2014 code cannot be audited."
     liquidity = r.get("liquidity_usd") or r.get("liquidity")
@@ -79,6 +85,22 @@ def _verdict_sentence(r: dict[str, Any]) -> str:
         liq_float = None
     if liq_float is not None and liq_float < 10_000:
         return "Liquidity is thin \u2014 large price swings and exit issues possible."
+    rs_raw = r.get("risk_signals")
+    rs: dict[str, Any] = rs_raw if isinstance(rs_raw, dict) else {}
+    if rs.get("wash_trading") is True:
+        return "Wash-trading signals present \u2014 treat reported volume with suspicion."
+    # Nothing fired — confirm what passed (positive confirmations are signal).
+    passed: list[str] = []
+    if r.get("honeypot") is False:
+        passed.append("sellable")
+    if r.get("owner_renounced") is True or r.get("mintable") is False:
+        passed.append("mint renounced")
+    if r.get("freezable") is False or r.get("can_blacklist") is False:
+        passed.append("freeze renounced")
+    if isinstance(ba, dict) and ba.get("is_bundled") is False:
+        passed.append("no launch bundle")
+    if len(passed) >= 2:
+        return "Core checks passed \u2014 " + ", ".join(passed[:3]) + "."
     return "No critical flags \u2014 normal caution advised."
 
 

@@ -12,6 +12,7 @@ from typing import Any
 
 from rugmunchbot.formatters._base import explorer_url, thin_sep
 from rugmunchbot.formatters._scan_report_common import _short_addr
+from rugmunchbot.formatters._scan_report_common._fields import _holders_count
 from rugmunchbot.formatters._sentinel_helpers import _deployer_history_line
 from rugmunchbot.support.logging import get_logger
 
@@ -71,7 +72,13 @@ def _format_deployer_section(r: dict[str, Any]) -> list[str]:
 
     # Reputation label
     if reputation_label and reputation_label != "UNKNOWN":
-        emoji = "🔴" if reputation_label in ("CRITICAL", "HIGH") else "🟡" if reputation_label == "MEDIUM" else "🟢"
+        emoji = (
+            "🔴"
+            if reputation_label in ("CRITICAL", "HIGH")
+            else "🟡"
+            if reputation_label == "MEDIUM"
+            else "🟢"
+        )
         lines.append(f"  {emoji} Reputation: <b>{html.escape(str(reputation_label))}</b>")
 
     # Reputation score (0-100, higher = more trusted)
@@ -110,12 +117,16 @@ def _format_deployer_section(r: dict[str, Any]) -> list[str]:
 
         if honeypot_pct:
             try:
-                hpct = float(honeypot_pct) * 100 if float(honeypot_pct) <= 1.0 else float(honeypot_pct)
+                hpct = (
+                    float(honeypot_pct) * 100 if float(honeypot_pct) <= 1.0 else float(honeypot_pct)
+                )
                 lines.append(f"  \U0001f52a Honeypot Rate: <b>{hpct:.0f}%</b>")
             except (TypeError, ValueError) as e:
                 logger.debug("wallet snapshot parse failed: %s", e)
         if chains_used:
-            lines.append(f"  \U0001f310 Chains: <b>{html.escape(', '.join(str(c) for c in chains_used))}</b>")
+            lines.append(
+                f"  \U0001f310 Chains: <b>{html.escape(', '.join(str(c) for c in chains_used))}</b>"
+            )
         if label:
             lines.append(f"  \U0001f3f7\ufe0f Label: <b>{html.escape(str(label))}</b>")
 
@@ -132,10 +143,12 @@ def _format_deployer_section(r: dict[str, Any]) -> list[str]:
 
 
 def _format_gmgn_section(r: dict[str, Any]) -> list[str]:
-    """Compact GMGN "Smart Money / Holders" section (empty when no data).
+    """Compact "Smart Money & Holders" section (empty when no data at all).
 
     Consumes the ``gmgn`` sub-dict attached by
-    ``app.domains.scanner.gmgn_enrich.enrich_scan_with_gmgn``::
+    ``app.domains.scanner.gmgn_enrich.enrich_scan_with_gmgn`` plus the
+    bot-native ``onchain`` provenance block (RPC top-holder concentration
+    from ``tools.scanner._solana_onchain``)::
 
         {
             "holders": {"top_holder_pct", "holder_count", "insider_count",
@@ -146,45 +159,59 @@ def _format_gmgn_section(r: dict[str, Any]) -> list[str]:
                                                          "direction"}],
                             "source"},
         }
+        onchain: {"top_10_pct", "top_20_pct", ...}
 
-    Returns an empty list when the scan result carries no ``gmgn`` data so
-    the report simply omits the section.
+    Renders holder concentration from whichever source reported it and the
+    tracked-wallet flow when real smart-money data exists. Returns an empty
+    list when the scan carries neither, so the report omits the section
+    instead of showing fabricated zeros.
     """
-    gmgn = r.get("gmgn")
-    if not isinstance(gmgn, dict):
-        return []
-    holders = gmgn.get("holders") if isinstance(gmgn.get("holders"), dict) else {}
-    smart = gmgn.get("smart_money") if isinstance(gmgn.get("smart_money"), dict) else {}
-    if not holders and not smart:
+    raw_gmgn = r.get("gmgn")
+    gmgn: dict[str, Any] = raw_gmgn if isinstance(raw_gmgn, dict) else {}
+    holders_raw = gmgn.get("holders")
+    holders: dict[str, Any] = holders_raw if isinstance(holders_raw, dict) else {}
+    smart_raw = gmgn.get("smart_money")
+    smart: dict[str, Any] = smart_raw if isinstance(smart_raw, dict) else {}
+    onchain_raw = r.get("onchain")
+    onchain: dict[str, Any] = onchain_raw if isinstance(onchain_raw, dict) else {}
+    top10_onchain = onchain.get("top_10_pct")
+    has_holder_data = bool(holders) or top10_onchain is not None or bool(r.get("top_holders"))
+    if not holders and not smart and not has_holder_data:
         return []
 
-    lines: list[str] = ["", "\U0001f4a1 <b>Smart Money / Holders</b>", thin_sep()]
+    lines: list[str] = ["", "\U0001f4a1 <b>Smart Money & Holders</b>", thin_sep()]
 
-    if holders:
-        pct = holders.get("top_holder_pct")
-        if pct is not None:
-            try:
-                pct_f = float(pct)
-            except (TypeError, ValueError):
-                pct_f = 0.0
-            emoji = "\U0001f534" if pct_f >= 50 else "\U0001f7e1" if pct_f >= 30 else "\U0001f7e2"
-            lines.append(f"  {emoji} Top-10 Supply: <b>{pct_f:.1f}%</b>")
-        hcount = holders.get("holder_count")
-        if hcount is not None:
-            with contextlib.suppress(TypeError, ValueError):
-                lines.append(f"  \U0001f465 Holders: <b>{int(hcount):,}</b>")
-        flags = []
-        if holders.get("insider_count"):
-            flags.append(f"\U0001f575\ufe0f insiders {int(holders['insider_count'])}")
-        if holders.get("sniper_count"):
-            flags.append(f"\U0001f3af snipers {int(holders['sniper_count'])}")
-        if flags:
-            lines.append(f"  {' · '.join(flags)}")
+    # Holder concentration — GMGN first, then the RPC largest-accounts block.
+    pct = holders.get("top_holder_pct")
+    if pct is None and top10_onchain is not None:
+        pct = top10_onchain
+    hcount = _holders_count(r)
+    holder_bits: list[str] = []
+    if hcount is not None:
+        holder_bits.append(f"\U0001f465 <b>{int(hcount):,}</b> holders")
+    if pct is not None:
+        try:
+            pct_f = float(pct)
+        except (TypeError, ValueError):
+            pct_f = 0.0
+        emoji = "\U0001f534" if pct_f >= 50 else "\U0001f7e1" if pct_f >= 30 else "\U0001f7e2"
+        holder_bits.append(f"{emoji} Top-10 hold <b>{pct_f:.1f}%</b>")
+    if holder_bits:
+        lines.append("  " + " · ".join(holder_bits))
+
+    flags = []
+    if holders.get("insider_count"):
+        flags.append(f"\U0001f575\ufe0f insiders {int(holders['insider_count'])}")
+    if holders.get("sniper_count"):
+        flags.append(f"\U0001f3af snipers {int(holders['sniper_count'])}")
+    if flags:
+        lines.append(f"  {' · '.join(flags)}")
 
     if smart:
         net = smart.get("net_bought")
         sm_count = int(smart.get("smart_money_count") or 0)
-        if net is not None:
+        source = str(smart.get("source") or "")
+        if net is not None and (sm_count or source == "gmgn_token_scoped"):
             try:
                 net_f = float(net)
             except (TypeError, ValueError):
@@ -192,7 +219,7 @@ def _format_gmgn_section(r: dict[str, Any]) -> list[str]:
             emoji = "\U0001f7e2" if net_f > 0 else "\U0001f534" if net_f < 0 else "\u26aa"
             flow = f"{net_f:+.0f}"
             tracked = f" ({sm_count} tracked)" if sm_count else ""
-            lines.append(f"  {emoji} Smart-Money Net: <b>{flow}</b>{tracked}")
+            lines.append(f"  \U0001f9e0 Smart-Money Net: <b>{flow}</b>{tracked}")
         wallets = smart.get("top_smart_money_wallets")
         if isinstance(wallets, list):
             parts = []
@@ -203,7 +230,9 @@ def _format_gmgn_section(r: dict[str, Any]) -> list[str]:
                 direction = html.escape(str(w.get("direction") or "MIXED"))
                 if not addr:
                     continue
-                arrow = {"BUY": "\U0001f7e2", "SELL": "\U0001f534", "MIXED": "\U0001f7e1"}.get(direction, "\u26aa")
+                arrow = {"BUY": "\U0001f7e2", "SELL": "\U0001f534", "MIXED": "\U0001f7e1"}.get(
+                    direction, "\u26aa"
+                )
                 parts.append(f"{arrow} {html.escape(_short_addr(addr))} {direction}")
             if parts:
                 lines.append(f"  \U0001f9e0 {' | '.join(parts)}")

@@ -277,18 +277,32 @@ def _scam_signal_rows(r: dict[str, Any]) -> list[tuple[str, str, str]]:
 
 
 def _format_scam_signals_section(r: dict[str, Any]) -> list[str]:
-    """Render the consolidated Scam Signals risk matrix (always 16 rows).
+    """Render the consolidated Scam Signals risk matrix — compact, honest.
 
-    Every modern scam technique is listed with a 🔴 / ✅ / — state so the
-    report is a complete coverage matrix: 🔴 when the signal fired, ✅ when
-    the check ran clean, — when no data was available (never claimed clean
-    without a check). Returns an empty list only for an empty report dict.
+    Signal-density design (2026-08 quality pass): flagged techniques render
+    first WITH their evidence detail; checks that ran clean collapse into a
+    single count line; techniques with no data collapse into one "no data"
+    line listing their names (never claimed clean without a check). A
+    16-row wall becomes a 2–8 line block where every remaining line carries
+    information. Returns an empty list only for an empty report dict.
     """
     if not isinstance(r, dict) or not r:
         return []
     rows = _scam_signal_rows(r)
+    flagged = [(label, detail) for label, state, detail in rows if state == _SCAM_SIGNAL_RED]
+    clean = [label for label, state, _ in rows if state == _SCAM_SIGNAL_GREEN]
+    unknown = [label for label, state, _ in rows if state == _SCAM_SIGNAL_UNKNOWN]
+
     lines = ["", "\U0001f50d <b>Scam Signals</b>", _THIN_SEP]
-    for label, state, detail in rows:
+    for label, detail in flagged:
         suffix = f" \u2014 {html.escape(detail)}" if detail else ""
-        lines.append(f"  {state} {html.escape(label)}{suffix}")
+        lines.append(f"  {_SCAM_SIGNAL_RED} {html.escape(label)}{suffix}")
+    if clean:
+        lines.append(f"  {_SCAM_SIGNAL_GREEN} {len(clean)} checks passed clean")
+    if unknown:
+        # Telegram-width discipline: name at most 5, summarize the rest.
+        shown = unknown[:5]
+        rest = len(unknown) - len(shown)
+        suffix = f" \u00b7 +{rest} more" if rest > 0 else ""
+        lines.append(f"  \u26aa No data: {html.escape(' \u00b7 '.join(shown))}{suffix}")
     return lines

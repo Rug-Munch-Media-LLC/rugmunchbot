@@ -36,6 +36,11 @@ from rugmunchbot.formatters._scan_report_common import (
     _launch_intel_rows,
     _what_to_watch_line,
 )
+from rugmunchbot.formatters._scan_report_common._fields import (
+    _freeze_auth,
+    _lp_lock_pct,
+    _mint_auth,
+)
 from rugmunchbot.formatters._scan_report_risk import _format_risk_signals_section, _verdict_text
 from rugmunchbot.formatters._scan_report_sentinel import _format_sentinel_pro
 from rugmunchbot.formatters._scan_report_token import _token_description, _token_image_url
@@ -53,6 +58,56 @@ logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+def _evidence_verdict_line(r: dict[str, Any]) -> str:
+    """One-sentence evidence-driven verdict for the report header.
+
+    Names the single most important finding in plain language (priority:
+    honeypot > mint authority > freeze authority > bundled launch >
+    unverified contract > thin LP > wash trading > fresh wallets), with a
+    short secondary clause when a second finding exists. When nothing
+    fired, states positively what DID pass — clean confirmations are real
+    signal too. Falls back to the generic score-based verdict text.
+    """
+    honeypot = r.get("honeypot")
+    if honeypot is True:
+        return "\U0001f6a8 Honeypot detected \u2014 sells can be blocked. Do not buy."
+    if _mint_auth(r) is True:
+        return "\U0001f7e0 Mint authority is live \u2014 supply can be inflated at any time."
+    if _freeze_auth(r) is True:
+        return "\U0001f7e0 Freeze authority is live \u2014 wallets can be blacklisted."
+    ba = r.get("bundle_analysis")
+    if isinstance(ba, dict) and ba.get("is_bundled"):
+        return "\U0001f7e0 Bundled launch detected \u2014 early volume is coordinated, not organic."
+    if r.get("contract_verified") is False:
+        primary = "Contract is unverified \u2014 token logic can't be independently confirmed"
+        if _lp_lock_pct(r) is not None and (_lp_lock_pct(r) or 100) < 50:
+            return f"{primary}, and LP is thinly locked."
+        return f"{primary}."
+    lp = _lp_lock_pct(r)
+    if lp is not None and lp < 20:
+        return (
+            f"\U0001f7e1 Only {lp:.0f}% of liquidity is locked \u2014 a pull drains the pool fast."
+        )
+    rs_raw = r.get("risk_signals")
+    rs: dict[str, Any] = rs_raw if isinstance(rs_raw, dict) else {}
+    if rs.get("wash_trading") is True:
+        return "\U0001f7e1 Wash-trading signals present \u2014 treat volume with suspicion."
+    # Nothing fired — state what passed (positive confirmation).
+    passed: list[str] = []
+    if honeypot is False:
+        passed.append("sellable")
+    if _mint_auth(r) is False:
+        passed.append("mint renounced")
+    if _freeze_auth(r) is False:
+        passed.append("freeze renounced")
+    if isinstance(ba, dict) and ba.get("is_bundled") is False:
+        passed.append("no launch bundle")
+    if len(passed) >= 2:
+        return "Core checks passed \u2014 " + ", ".join(passed[:3]) + "."
+    return ""
+
 
 # The parallel formatter refactor may add a dedicated verdict-header helper to
 # _base.py. Import it defensively so this module works with or without it.
@@ -139,7 +194,10 @@ def _format_scan_report(
             verdict_rendered = True
     if not verdict_rendered:
         lines.append(f"  {_risk_gauge(risk)} \u2014 <b>{risk:.0f}/100</b>")
-        lines.append(f"  \U0001f3af {_verdict_text(risk)}")
+        evidence_line = _evidence_verdict_line(r)
+        lines.append(
+            f"  {evidence_line}" if evidence_line else f"  \U0001f3af {_verdict_text(risk)}"
+        )
 
     # Bundle alert stays prominent, right after the verdict.
     bundle_alert = _bundle_alert_line(r)

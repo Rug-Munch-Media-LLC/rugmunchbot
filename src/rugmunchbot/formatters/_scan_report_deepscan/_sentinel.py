@@ -83,8 +83,43 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
     # ── Risk Assessment ──
     lines.append("\U0001f3af <b>Risk Assessment</b>")
     lines.append(d)
-    lines.append(f"{_risk_level_emoji(level)} Composite Risk: <b>{risk:.0f}/100</b> ({level.upper()})")
+    lines.append(
+        f"{_risk_level_emoji(level)} Composite Risk: <b>{risk:.0f}/100</b> ({level.upper()})"
+    )
     lines.append("")
+
+    # ── On-chain ground truth (bot-native RPC resolution) ──
+    # Mint/freeze authority + Token-2022 extension facts resolved directly
+    # from Solana RPC — always-available even when every provider dropped
+    # them. Renders only what was actually resolved.
+    oc_raw = data.get("onchain")
+    oc: dict[str, Any] = oc_raw if isinstance(oc_raw, dict) else {}
+    mint_active = data.get("mintable")
+    freeze_active = data.get("freezable")
+    if oc or mint_active is not None or freeze_active is not None:
+        lines.append("\u2699\ufe0f <b>On-Chain Facts</b>")
+        lines.append(d)
+        if mint_active is not None:
+            state = "\U0001f534 ACTIVE" if mint_active else "\U0001f7e2 renounced"
+            lines.append(f"  \U0001f964 Mint Authority: <b>{state}</b>")
+        if freeze_active is not None:
+            state = "\U0001f534 ACTIVE" if freeze_active else "\U0001f7e2 renounced"
+            lines.append(f"  \U0001f976 Freeze Authority: <b>{state}</b>")
+        program = oc.get("token_program")
+        if program:
+            label = "Token-2022" if program == "token-2022" else "SPL Token"
+            lines.append(f"  \U0001f9ea Program: <b>{label}</b>")
+        exts = data.get("token_extensions") or []
+        if exts:
+            pretty = ", ".join(str(e).replace("_", " ") for e in exts[:6])
+            lines.append(f"  \U0001f9ec Extensions: <b>{html.escape(pretty)}</b>")
+        if oc.get("top_10_pct") is not None and not holder:
+            with contextlib.suppress(TypeError, ValueError):
+                lines.append(
+                    f"  \U0001f40b Top-10 hold <b>{float(oc['top_10_pct']):.1f}%</b>"
+                    f" · Top-20 <b>{float(oc.get('top_20_pct') or 0):.1f}%</b> (RPC)"
+                )
+        lines.append("")
 
     # ── Consolidated risk signals (scan_enrich output, when present) ──
     risk_lines = _format_risk_signals_section(data)
@@ -135,24 +170,36 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
             except (TypeError, ValueError):
                 hhi_f = 0.0
             hhi_emoji = (
-                "\U0001f534" if str(holder.get("risk_level") or "").lower() in ("high", "critical") else "\U0001f7e2"
+                "\U0001f534"
+                if str(holder.get("risk_level") or "").lower() in ("high", "critical")
+                else "\U0001f7e2"
             )
-            lines.append(f"  {hhi_emoji} HHI Concentration: <b>{hhi_f:.0f}</b> ({holder.get('risk_level', 'unknown')})")
+            lines.append(
+                f"  {hhi_emoji} HHI Concentration: <b>{hhi_f:.0f}</b> ({holder.get('risk_level', 'unknown')})"
+            )
         if holder.get("total_holders") is not None:
             with contextlib.suppress(TypeError, ValueError):
                 lines.append(f"  \U0001f465 Total Holders: <b>{int(holder['total_holders']):,}</b>")
         if holder.get("top_10_percentage") is not None:
             with contextlib.suppress(TypeError, ValueError):
-                lines.append(f"  \U0001f40b Top-10 Supply: <b>{float(holder['top_10_percentage']):.0f}%</b>")
+                lines.append(
+                    f"  \U0001f40b Top-10 Supply: <b>{float(holder['top_10_percentage']):.0f}%</b>"
+                )
         if holder.get("top_20_percentage") is not None:
             with contextlib.suppress(TypeError, ValueError):
-                lines.append(f"  \U0001f40b Top-20 Supply: <b>{float(holder['top_20_percentage']):.0f}%</b>")
+                lines.append(
+                    f"  \U0001f40b Top-20 Supply: <b>{float(holder['top_20_percentage']):.0f}%</b>"
+                )
         if holder.get("exchange_funded_percentage") is not None:
             with contextlib.suppress(TypeError, ValueError):
-                lines.append(f"  \U0001f3e6 Exchange-Funded: <b>{float(holder['exchange_funded_percentage']):.0f}%</b>")
+                lines.append(
+                    f"  \U0001f3e6 Exchange-Funded: <b>{float(holder['exchange_funded_percentage']):.0f}%</b>"
+                )
         if holder.get("new_wallets_percentage") is not None:
             with contextlib.suppress(TypeError, ValueError):
-                lines.append(f"  \U0001f195 New Wallets (<7d): <b>{float(holder['new_wallets_percentage']):.0f}%</b>")
+                lines.append(
+                    f"  \U0001f195 New Wallets (<7d): <b>{float(holder['new_wallets_percentage']):.0f}%</b>"
+                )
         # One-line distribution verdict (concentrated vs healthy).
         top10_raw = holder.get("top_10_percentage")
         hhi_raw = holder.get("hhi")
@@ -192,7 +239,9 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
                 locked_f = float(locked)
             except (TypeError, ValueError):
                 locked_f = 0.0
-            lock_emoji = "\U0001f7e2" if locked_f >= 80 else "\U0001f7e1" if locked_f > 0 else "\U0001f534"
+            lock_emoji = (
+                "\U0001f7e2" if locked_f >= 80 else "\U0001f7e1" if locked_f > 0 else "\U0001f534"
+            )
             lines.append(f"  {lock_emoji} LP Locked: <b>{locked_f:.0f}%</b>")
         if liq.get("lp_burned"):
             lines.append("  \U0001f525 LP tokens burned")
@@ -231,14 +280,20 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
             except (TypeError, ValueError):
                 bundled_pct = 0.0
             b_level = str(bundle.get("risk_level") or "UNKNOWN").upper()
-            lines.append(f"  \U0001f534 Bundle detected: <b>{n_wallets}</b> wallets \u00b7 {bundled_pct:.0f}% bundled")
+            lines.append(
+                f"  \U0001f534 Bundle detected: <b>{n_wallets}</b> wallets \u00b7 {bundled_pct:.0f}% bundled"
+            )
             lines.append(f"     Risk: <b>{b_level}</b>")
             if snipers:
                 lines.append(f"     \U0001f3af Same-block snipers: <b>{len(snipers)}</b>")
             if deployer_wallets:
-                lines.append(f"     \U0001f468\u200d\U0001f4bb Deployer-funded wallets: <b>{len(deployer_wallets)}</b>")
+                lines.append(
+                    f"     \U0001f468\u200d\U0001f4bb Deployer-funded wallets: <b>{len(deployer_wallets)}</b>"
+                )
             if int(bundle.get("jito_bundles_detected") or 0) > 0:
-                lines.append(f"     \u26a1 Jito bundles: <b>{int(bundle['jito_bundles_detected'])}</b>")
+                lines.append(
+                    f"     \u26a1 Jito bundles: <b>{int(bundle['jito_bundles_detected'])}</b>"
+                )
         else:
             lines.append("  \U0001f7e2 No bundle detected")
         # Same-slot buy concentration (own_bundle_detect, Helius-backed on
@@ -259,7 +314,9 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
                         f"{sol_spent:.2f} SOL \u00b7 <b>{held_pct:.1f}%</b> held ({slot_txt})"
                     )
             elif same_slot.get("note"):
-                lines.append("     <i>\u26a0\ufe0f Same-slot detail unavailable \u2014 data source offline</i>")
+                lines.append(
+                    "     <i>\u26a0\ufe0f Same-slot detail unavailable \u2014 data source offline</i>"
+                )
                 if not bundle_detected:
                     n_own = int(same_slot.get("bundle_wallets") or 0)
                     conf = float(same_slot.get("confidence") or 0)
@@ -286,7 +343,9 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
         cex_count = int(exchange.get("cex_funded_count") or 0)
         total = int(exchange.get("total_buyers") or 0)
         cex_emoji = "\U0001f534" if cex_pct > 50 else "\U0001f7e1" if cex_pct > 20 else "\U0001f7e2"
-        lines.append(f"  {cex_emoji} CEX-funded: <b>{cex_pct:.0f}%</b> ({cex_count}/{total} buyers)")
+        lines.append(
+            f"  {cex_emoji} CEX-funded: <b>{cex_pct:.0f}%</b> ({cex_count}/{total} buyers)"
+        )
         if inst_pct > 0:
             lines.append(f"  \u26a1 Instant-buy (fund→buy <60s): <b>{inst_pct:.0f}%</b>")
         breakdown = exchange.get("exchange_breakdown")
@@ -391,13 +450,17 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
             except (TypeError, ValueError):
                 coord_buyers = 0
             if coord_buyers:
-                lines.append(f"  \u26a0\ufe0f Coordinated buys (same block + shared funder): <b>{coord_buyers}</b>")
+                lines.append(
+                    f"  \u26a0\ufe0f Coordinated buys (same block + shared funder): <b>{coord_buyers}</b>"
+                )
             try:
                 chain_buyers = int(cluster.get("funding_chain_buyers") or 0)
             except (TypeError, ValueError):
                 chain_buyers = 0
             if chain_buyers:
-                lines.append(f"  \U0001f517 Funding-chain wallets (funder = launch buyer): <b>{chain_buyers}</b>")
+                lines.append(
+                    f"  \U0001f517 Funding-chain wallets (funder = launch buyer): <b>{chain_buyers}</b>"
+                )
             # ── Deeper dimensions: 2-hop chain, supply grab, time nodes ──
             try:
                 depth = int(cluster.get("funding_chain_depth") or 0)
@@ -410,7 +473,10 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
                     two_hop = 0
                 lines.append(f"  \U0001f517 2-hop funding chain: <b>{two_hop}</b> wallets")
             supply_grab = cluster.get("supply_grab")
-            if isinstance(supply_grab, dict) and str(supply_grab.get("status") or "none") in ("holding", "dumped"):
+            if isinstance(supply_grab, dict) and str(supply_grab.get("status") or "none") in (
+                "holding",
+                "dumped",
+            ):
                 with contextlib.suppress(TypeError, ValueError):
                     sg_status = str(supply_grab.get("status") or "none")
                     held_pct = float(supply_grab.get("held_pct") or 0)
@@ -454,7 +520,9 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
         lines.append(d)
         dec_line = decentralization.get("decentralization_line")
         bubble_line = decentralization.get("bubble_line")
-        has_content = any(str(x or "").strip() not in ("", "\u2014") for x in (dec_line, bubble_line))
+        has_content = any(
+            str(x or "").strip() not in ("", "\u2014") for x in (dec_line, bubble_line)
+        )
         if has_content:
             if str(dec_line or "").strip() not in ("", "\u2014"):
                 lines.append(f"  <code>{html.escape(str(dec_line))}</code>")
