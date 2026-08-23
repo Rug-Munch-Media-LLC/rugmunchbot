@@ -150,16 +150,19 @@ async def lci_deployer_history(address: str, chain: str) -> dict[str, Any] | Non
 
 
 def lci_deployer_summary(history: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Reduce raw LCI deployer events to the fields the report needs."""
+    """Reduce raw LCI deployer events to the fields the report needs.
+
+    The vendored LCI module returns
+    ``{"data": {"deployer_events": [...], "count": N}, "source": ...}``.
+    """
     if not isinstance(history, dict):
         return None
-    events = history.get("events") or history.get("deployments") or []
-    if not isinstance(events, list):
-        events = []
+    data = history.get("data") if isinstance(history.get("data"), dict) else history
+    events = data.get("deployer_events") or data.get("events") or []
+    if not isinstance(events, list) or not events:
+        return None
     tokens = len(events)
     chains = sorted({str(e.get("chain")) for e in events if isinstance(e, dict) and e.get("chain")})
-    if not tokens:
-        return None
     return {
         "tokens_deployed": tokens,
         "chains": chains[:5],
