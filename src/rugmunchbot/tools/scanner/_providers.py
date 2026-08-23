@@ -126,9 +126,10 @@ async def _scan_evm_security_provider(
             result["errors"].append(f"Honeypot.is: {e}")
 
     # DataBus (platform-backed final rung): when BOTH free providers came up
-    # empty, pull the backend's aggregated risk scan and lift whatever
+    # empty (``honeypot`` is only ever set by GoPlus-with-data or
+    # honeypot.is), pull the backend's aggregated risk scan and lift whatever
     # security fields it carries. Fail-open — never blocks the scan.
-    if result["honeypot"] is None or not result.get("contract_verified"):
+    if result["honeypot"] is None:
         try:
             from rugmunchbot.tools.databus import databus_token_scan
 
@@ -136,11 +137,11 @@ async def _scan_evm_security_provider(
             scan = await databus_token_scan(address, chain=chain_name)
             if isinstance(scan, dict) and not scan.get("error"):
                 threats = scan.get("threats") or []
-                if threats and not result["honeypot"]:
+                if threats:
                     result["honeypot"] = any("HONEYPOT" in str(t).upper() for t in threats)
-                if scan.get("contract_verified") is not None and not result.get(
-                    "contract_verified"
-                ):
+                else:
+                    result["honeypot"] = False  # platform scan ran clean — don't re-probe next time
+                if scan.get("contract_verified") is not None:
                     result["contract_verified"] = bool(scan["contract_verified"])
                 if isinstance(scan.get("risk_score"), (int, float)) and scan["risk_score"] > 0:
                     result["risk_score"] += min(int(scan["risk_score"]), 30)

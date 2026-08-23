@@ -158,7 +158,9 @@ async def test_databus_rung_fires_when_free_providers_empty(monkeypatch):
 
     result = _base_result()
     async with FakeHTTP() as client:
-        await prov._scan_evm_security_provider(client, "0xABC", result)
+        await prov._scan_evm_security_provider(
+            client, "0x1234567890abcdef1234567890abcdef12345678", result
+        )
 
     assert fired["databus"] is True
     assert result["honeypot"] is True
@@ -181,7 +183,14 @@ async def test_databus_rung_skipped_when_goplus_answered(monkeypatch):
         status_code = 200
 
         def json(self):
-            return {"result": {}}
+            return {
+                "result": {
+                    "1234567890abcdef1234567890abcdef12345678": {
+                        "is_honeypot": "0",
+                        "is_open_source": "1",
+                    }
+                }
+            }
 
     class FakeHTTP:
         async def __aenter__(self):
@@ -195,6 +204,8 @@ async def test_databus_rung_skipped_when_goplus_answered(monkeypatch):
 
     result = _base_result()
     async with FakeHTTP() as client:
-        await prov._scan_evm_security_provider(client, "0xABC", result)
+        await prov._scan_evm_security_provider(
+            client, "0x1234567890abcdef1234567890abcdef12345678", result
+        )
 
     assert fired["databus"] is False
