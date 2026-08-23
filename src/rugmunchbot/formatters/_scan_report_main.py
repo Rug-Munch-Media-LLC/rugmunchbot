@@ -149,7 +149,9 @@ def _format_scan_report(
     # ── 1b. Key Metrics (canonical tight bold table; deep scans add rows) ──
     key_metrics = _key_metrics_rows(r, deep=deep)
     if key_metrics:
-        lines.extend(key_metrics)
+        # Paragraph break between the identity/verdict block and the
+        # metrics table so the two never run together.
+        lines.extend(["", *key_metrics])
 
     # ── 2. Security Assessment (risk bar + contract checks + taxes / LP lock) ──
     lines.extend(["", "\U0001f512 <b>Security Assessment</b>", d, risk_bar(risk)])
@@ -261,7 +263,11 @@ def _format_scan_report(
         adv.append(f"  {emoji} Vol/MCap ratio: <b>{ratio:.2f}x</b>")
     dev_wallet = r.get("dev_wallet")
     deployer_addr = r.get("deployer_address") or r.get("dev_wallet") or ""
-    if dev_wallet and dev_wallet != deployer_addr and not any("Dev:" in line for line in deployer_lines):
+    if (
+        dev_wallet
+        and dev_wallet != deployer_addr
+        and not any("Dev:" in line for line in deployer_lines)
+    ):
         adv.append(f"  \U0001f468\u200d\U0001f4bb Dev: <code>{dev_wallet}</code>")
     wallet_line = _wallet_freshness_line(r)
     if wallet_line:
@@ -322,7 +328,9 @@ def _format_scan_report(
                 f'<a href="{html.escape(surl, quote=True)}">\U0001f517 {html.escape(str(stype).capitalize())}</a>'
             )
     if image_url:
-        soc_parts.append(f'<a href="{html.escape(image_url, quote=True)}">\U0001f5bc\ufe0f Image</a>')
+        soc_parts.append(
+            f'<a href="{html.escape(image_url, quote=True)}">\U0001f5bc\ufe0f Image</a>'
+        )
 
     lines.append("")
     lines.append("\U0001f517 <b>Socials</b>")
