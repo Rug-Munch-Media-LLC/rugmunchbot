@@ -135,6 +135,52 @@ def _get_ch_client() -> Any | None:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+async def _ankr_holder_fallback(
+    token_address: str, chain: str, result: dict[str, Any]
+) -> dict[str, Any]:
+    """Ankr Advanced fallback when own ClickHouse has no holder data.
+
+    Marks source="ankr", confidence 0.5 (external indexed data).
+    """
+    try:
+        from rugmunchbot._vendor.ankr_advanced import token_holders as _ankr_holders
+
+        # Ankr uses short slugs ("eth" not "ethereum", "bsc" not ...).
+        ankr_chain = {"ethereum": "eth"}.get(chain, chain)
+        raw = await _ankr_holders(token_address, ankr_chain, limit=50)
+        if raw:
+            total_raw = 0.0
+            parsed: list[dict[str, Any]] = []
+            for idx, h in enumerate(raw[:50], start=1):
+                bal = float(h.get("balance") or 0)
+                total_raw += bal
+                parsed.append({
+                    "rank": idx,
+                    "address": h.get("holderAddress", ""),
+                    "percentage": 0.0,
+                    "balance": bal,  # float — Ankr returns decimal strings
+                })
+            if total_raw > 0:
+                for entry in parsed:
+                    entry["percentage"] = round(entry["balance"] / total_raw * 100, 2)
+                result["holder_count"] = len(parsed)
+                result["top_holders"] = parsed
+                result["concentration_pct"] = parsed[0]["percentage"] if parsed else 0.0
+                result["top5_pct"] = round(sum(h["percentage"] for h in parsed[:5]), 2)
+                result["top10_pct"] = round(sum(h["percentage"] for h in parsed[:10]), 2)
+                result["source"] = "ankr"
+                result["confidence"] = max(result["confidence"], 0.5)
+                logger.info(
+                    "ankr_holder_fallback_used token=%s chain=%s holders=%s",
+                    token_address[:16],
+                    chain,
+                    len(parsed),
+                )
+    except Exception as exc:
+        logger.debug("ankr_holder_fallback_failed %s: %s", token_address[:16], str(exc)[:100])
+    return result
+
+
 async def get_own_holder_analysis(
     token_address: str,
     chain: str,
@@ -208,9 +254,8 @@ async def get_own_holder_analysis(
         CHDriverError,
     ) as exc:
         logger.debug("holder_query_failed for %s: %s", token_address[:16], exc)
-        result["result"] = "unavailable"
-        result["source"] = "unavailable"
-        return result
+        # Own indexers blind -> Ankr indexed holders before giving up.
+        return await _ankr_holder_fallback(token_address, chain, result)
 
     # ── Top holders ──
     if top_data:
@@ -230,6 +275,9 @@ async def get_own_holder_analysis(
         result["top5_pct"] = round(top5_pct, 2)
         result["top10_pct"] = round(top10_pct, 2)
         result["confidence"] = max(result["confidence"], 0.7)
+
+    if not result["top_holders"]:
+        result = await _ankr_holder_fallback(token_address, chain, result)
 
     # ── Gini coefficient ──
     if gini_data:
