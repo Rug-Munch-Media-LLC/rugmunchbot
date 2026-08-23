@@ -22,7 +22,9 @@ from rugmunchbot.support.logging import get_logger
 logger = get_logger("rmi_bot.tools.scanner")
 
 
-async def _scan_evm_security_provider(client: httpx.AsyncClient, address: str, result: dict[str, Any]) -> None:
+async def _scan_evm_security_provider(
+    client: httpx.AsyncClient, address: str, result: dict[str, Any]
+) -> None:
     """EVM security chain: GoPlus Security, then honeypot.is fallback.
 
     Wrapped as ONE coroutine so the GoPlus → honeypot.is fallback ordering is
@@ -46,7 +48,9 @@ async def _scan_evm_security_provider(client: httpx.AsyncClient, address: str, r
             "fantom": "250",
         }
         cid = chain_id_map.get(result["chain"].lower(), "1")
-        r = await client.get(f"{GOPLUS}/token_security/{cid}?contract_addresses={address}", timeout=8.0)
+        r = await client.get(
+            f"{GOPLUS}/token_security/{cid}?contract_addresses={address}", timeout=8.0
+        )
         if r.status_code == 200:
             sec = r.json().get("result", {}).get(address.lower(), {})
             if sec:
@@ -55,10 +59,14 @@ async def _scan_evm_security_provider(client: httpx.AsyncClient, address: str, r
                 result["buy_tax"] = _safe_float(sec.get("buy_tax"))
                 result["sell_tax"] = _safe_float(sec.get("sell_tax"))
                 result["mintable"] = sec.get("is_mintable") == "1"
-                result["can_blacklist"] = sec.get("is_blacklisted") == "1" or sec.get("can_take_back_ownership") == "1"
+                result["can_blacklist"] = (
+                    sec.get("is_blacklisted") == "1" or sec.get("can_take_back_ownership") == "1"
+                )
                 result["owner_renounced"] = sec.get("is_owner_renounced") != "0"
                 lp_locks = sec.get("lp_holders", [])
-                locked_pct = sum(_safe_float(h.get("percent")) for h in lp_locks if h.get("is_locked") == 1)
+                locked_pct = sum(
+                    _safe_float(h.get("percent")) for h in lp_locks if h.get("is_locked") == 1
+                )
                 result["lp_locked"] = locked_pct
                 holders_data = sec.get("holders", [])
                 result["holders"] = len(holders_data) if holders_data else 0
@@ -108,18 +116,51 @@ async def _scan_evm_security_provider(client: httpx.AsyncClient, address: str, r
                 if result["honeypot"]:
                     result["threats"].append("HONEYPOT (honeypot.is)")
                     result["risk_score"] += 40
-        except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
+        except (
+            ConnectionError,
+            OSError,
+            TimeoutError,
+            httpx.HTTPError,
+            httpx.TimeoutException,
+        ) as e:
             result["errors"].append(f"Honeypot.is: {e}")
 
+    # DataBus (platform-backed final rung): when BOTH free providers came up
+    # empty, pull the backend's aggregated risk scan and lift whatever
+    # security fields it carries. Fail-open — never blocks the scan.
+    if result["honeypot"] is None or not result.get("contract_verified"):
+        try:
+            from rugmunchbot.tools.databus import databus_token_scan
 
-async def _scan_rmi_provider(client: httpx.AsyncClient, address: str, result: dict[str, Any]) -> None:
+            chain_name = result.get("chain", "ethereum").lower()
+            scan = await databus_token_scan(address, chain=chain_name)
+            if isinstance(scan, dict) and not scan.get("error"):
+                threats = scan.get("threats") or []
+                if threats and not result["honeypot"]:
+                    result["honeypot"] = any("HONEYPOT" in str(t).upper() for t in threats)
+                if scan.get("contract_verified") is not None and not result.get(
+                    "contract_verified"
+                ):
+                    result["contract_verified"] = bool(scan["contract_verified"])
+                if isinstance(scan.get("risk_score"), (int, float)) and scan["risk_score"] > 0:
+                    result["risk_score"] += min(int(scan["risk_score"]), 30)
+                    result.setdefault("databus_risk_contributed", True)
+        except Exception as exc:  # noqa: BLE001 — final rung must fail open
+            logger.debug("databus_security_fallback failed %s: %s", address[:10], exc)
+
+
+async def _scan_rmi_provider(
+    client: httpx.AsyncClient, address: str, result: dict[str, Any]
+) -> None:
     """RMI databus provider: bundle detection + fresh-wallet ratio + dev wallet.
 
     Fail-open into ``result['errors']``; 8s cap. Runs concurrently with the
     EVM security chain inside ``scan_token``.
     """
     try:
-        r = await client.get(f"{BACKEND_URL}/api/v1/databus/token/{address}", headers=backend_headers(), timeout=8.0)
+        r = await client.get(
+            f"{BACKEND_URL}/api/v1/databus/token/{address}", headers=backend_headers(), timeout=8.0
+        )
         if r.status_code == 200:
             rmi = r.json()
             if rmi.get("bundle_detected"):
@@ -129,7 +170,9 @@ async def _scan_rmi_provider(client: httpx.AsyncClient, address: str, result: di
             if rmi.get("fresh_wallet_pct"):
                 result["fresh_wallet_pct"] = rmi["fresh_wallet_pct"]
                 if rmi["fresh_wallet_pct"] > 50:
-                    result["threats"].append(f"High fresh wallet ratio: {rmi['fresh_wallet_pct']:.0f}%")
+                    result["threats"].append(
+                        f"High fresh wallet ratio: {rmi['fresh_wallet_pct']:.0f}%"
+                    )
                     result["risk_score"] += 10
             if rmi.get("dev_wallet"):
                 result["dev_wallet"] = rmi["dev_wallet"]

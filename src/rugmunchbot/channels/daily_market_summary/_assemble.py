@@ -51,6 +51,26 @@ async def gather_summary_data() -> dict[str, Any]:
     blocks = [prices, condition, trending, movers, news, global_metrics]
     cleaned = [b if not isinstance(b, BaseException) else {} for b in blocks]
 
+    # Dune on-chain digest + social composite — new intel lanes (2026-08-23).
+    dune_data: dict[str, Any] = {}
+    social_data: dict[str, Any] = {}
+    try:
+        from rugmunchbot.tools.dune_intel import dune_intel
+
+        _d = await dune_intel(limit=3)
+        if _d.ok:
+            dune_data = (_d.data or {}).get("digest") or {}
+    except Exception as exc:
+        logger.debug("daily_rug:dune_failed err=%s", str(exc)[:120])
+    try:
+        from rugmunchbot.tools.social_intel import social_intel as _social_intel
+
+        _s = await _social_intel(symbol="BTC")
+        if _s.ok:
+            social_data = _s.data or {}
+    except Exception as exc:
+        logger.debug("daily_rug:social_failed err=%s", str(exc)[:120])
+
     # The Daily Rug doctrine: no lies survive to publication. Symbol-colliding
     # impostor pairs ("SOL" the $20M meme) and absurd volume prints are
     # rejected here with logged reasons.
@@ -106,6 +126,8 @@ async def gather_summary_data() -> dict[str, Any]:
         "global_metrics": cleaned[5] if isinstance(cleaned[5], dict) else {},
         "narratives": narratives,
         "kol_signals": kol_signals,
+        "dune_intel": dune_data,
+        "social_intel": social_data,
         "sources": active,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
