@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/news_ingest/normalize.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/news_ingest/normalize.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Normalization: raw Telegram channel messages → ``NewsArticle``.
@@ -13,8 +13,8 @@ from __future__ import annotations
 import re
 from typing import Final
 
-from rugmunchbot._vendor.dedup import content_hash
 from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
+from rugmunchbot._vendor.dedup import content_hash
 
 # ── Tunable thresholds ─────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/_sources.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/_sources.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Price source layer — own-dex-events fetch, ClickHouse/Redis storage, caches.
@@ -474,7 +474,7 @@ async def _own_price_argmax(token: str, chain: str) -> dict[str, Any] | None:
                       AND type = 'swap'
                       AND {where_extra}
                       AND block_timestamp >= now() - INTERVAL 24 HOUR
-                    """,
+                    """,  # nosec B608 - internal constant fragments, params bound below
                     {"token": token, "chain": chain},
                 )
             )

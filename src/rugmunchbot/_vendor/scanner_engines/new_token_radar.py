@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/new_token_radar.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/new_token_radar.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -58,11 +58,11 @@ try:
 except ImportError:  # pragma: no cover
     CHDriverError = Exception
 
+from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.lite_chain_indexer import (
     _get_ch_client,
     _normalize_chain,
 )
-from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.scanner_engines._common import (
     clear_cache as _common_clear_cache,
     get_cache_stats as _common_get_cache_stats,
@@ -321,9 +321,7 @@ async def _fast_scan_token(deployment: dict[str, Any], chain: str) -> dict[str, 
 
         # ── Deployer reputation (C7 fingerprint — local, fast) ──
         try:
-            from rugmunchbot._vendor.scanner_engines.deployer_fingerprint import (
-                fingerprint_deployer,
-            )
+            from rugmunchbot._vendor.scanner_engines.deployer_fingerprint import fingerprint_deployer
 
             fp = await asyncio.wait_for(fingerprint_deployer(deployer, chain), timeout=6.0)
             if fp and fp.get("result") == "scanned":

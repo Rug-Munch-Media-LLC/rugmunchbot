@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/news/ratings.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/news/ratings.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Ground News-style article rating system.

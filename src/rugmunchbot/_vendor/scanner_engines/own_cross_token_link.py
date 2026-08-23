@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/own_cross_token_link.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/own_cross_token_link.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -61,8 +61,8 @@ from __future__ import annotations
 import time
 from typing import Any, cast
 
-from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
 from rugmunchbot._vendor.logging_shim import get_logger
+from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
 from rugmunchbot._vendor.scanner_engines._common import (
     clear_cache as _common_clear_cache,
     get_cache_stats as _common_get_cache_stats,

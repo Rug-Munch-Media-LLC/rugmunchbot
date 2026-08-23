@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/core/shared_utils.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/core/shared_utils.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Shared utilities: address validation, chain normalization, and common helpers.
@@ -73,7 +73,7 @@ def is_valid_address(address: str) -> bool:
 
     Accepts:
         - ``0x``-prefixed 40-char hex strings (EVM)
-        - base58 strings 32-44 chars long (Solana)
+        - base58 strings 32–44 chars long (Solana)
 
     Args:
         address: The wallet/contract address to validate.
@@ -108,7 +108,7 @@ def is_solana_address(address: str) -> bool:
         address: The address to validate.
 
     Returns:
-        ``True`` if it matches the base58 32-44 char pattern.
+        ``True`` if it matches the base58 32–44 char pattern.
     """
     return bool(address and SOLANA_ADDRESS_RE.match(address.strip()))
 

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/_own_bundle_common.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/_own_bundle_common.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Shared plumbing for own_bundle_detect (degodding split 2026-08-13).

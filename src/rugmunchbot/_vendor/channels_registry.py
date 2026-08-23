@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/core/channels_registry.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/core/channels_registry.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Canonical Telegram push-channel registry — single source of truth.
@@ -107,7 +107,7 @@ CHANNEL_ROLES: dict[str, ChannelRole] = {
         env_var="RMI_SCANS_CHANNEL_ID",
         public_handle="@rmiscans",
         fallback="-1003937506770",
-        description="Suspicious Tokens & Scans of Interest — daily notable scam/rug tokens flagged by the scanner",
+        description="RMI Scanner — deep security reports on suspicious tokens (verdict + metrics + links)",
     ),
     "main": ChannelRole(
         role="main",

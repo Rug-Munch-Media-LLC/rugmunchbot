@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/catalog/models.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/catalog/models.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """T27A - Canonical entity models for the RMI data catalog.

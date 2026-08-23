@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/databus/rugcharts_intel/smart_money.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/databus/rugcharts_intel/smart_money.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -14,8 +14,9 @@ from typing import Any
 
 import httpx
 
-from rugmunchbot._vendor.cache import ARKHAM_KEY, CACHE_TTL, HELIUS_KEY, _r
 from rugmunchbot._vendor.logging_shim import get_logger
+
+from rugmunchbot._vendor.cache import ARKHAM_KEY, CACHE_TTL, HELIUS_KEY, _r
 
 logger = get_logger("rugcharts_intel")
 
@@ -33,7 +34,7 @@ async def smart_money_feed(chain: str = "solana", limit: int = 20, **kw) -> dict
             r.close()
             return json.loads(cached)
         r.close()
-    except (ValueError, ConnectionError, TimeoutError, RuntimeError):
+    except (ValueError, ConnectionError, TimeoutError, RuntimeError, httpx.HTTPError):
         logger.warning("error")
 
     smart_wallets = []
@@ -80,7 +81,7 @@ async def smart_money_feed(chain: str = "solana", limit: int = 20, **kw) -> dict
                                     "signal": "large_holder",
                                 }
                             )
-    except (ValueError, ConnectionError, TimeoutError, RuntimeError) as e:
+    except (ValueError, ConnectionError, TimeoutError, RuntimeError, httpx.HTTPError) as e:
         logger.warning(f"error: {e}")
         logger.debug(f"Smart money feed: {e}")
 
@@ -97,7 +98,7 @@ async def smart_money_feed(chain: str = "solana", limit: int = 20, **kw) -> dict
                         entity = ar.json().get("arkhamEntity", {})
                         w["entity"] = entity.get("name", "")
                         w["entity_type"] = entity.get("type", "")
-            except (ValueError, ConnectionError, TimeoutError, RuntimeError):
+            except (ValueError, ConnectionError, TimeoutError, RuntimeError, httpx.HTTPError):
                 logger.warning("error")
 
     result = {
@@ -112,7 +113,7 @@ async def smart_money_feed(chain: str = "solana", limit: int = 20, **kw) -> dict
         r = _r()
         r.setex(cache_key, CACHE_TTL["smart_money"], json.dumps(result, default=str))
         r.close()
-    except (ValueError, ConnectionError, TimeoutError, RuntimeError):
+    except (ValueError, ConnectionError, TimeoutError, RuntimeError, httpx.HTTPError):
         logger.warning("error")
 
     return result

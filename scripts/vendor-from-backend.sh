@@ -43,7 +43,8 @@ declare -A MAP=(
   ["app/domains/telegram/headless_credentials.py"]="_vendor/headless_credentials.py"
   ["app/domains/telegram/voice_chat.py"]="_vendor/voice_chat.py"
   ["app/osint_tools.py"]="_vendor/osint_tools.py"
-  ["app/rag/dedup.py"]="_vendor/dedup.py"
+  ["app/utils/dedup.py"]="_vendor/dedup.py"
+  ["app/integrations/rugbrain_client.py"]="_vendor/rugbrain_client.py"
   ["app/domains/news_ingest/models.py"]="_vendor/news_ingest/models.py"
   ["app/domains/news_ingest/ingest.py"]="_vendor/news_ingest/ingest.py"
   ["app/domains/news_ingest/normalize.py"]="_vendor/news_ingest/normalize.py"
@@ -127,6 +128,7 @@ rewrite_vendor() {
     -e 's|from app\.domains\.databus\.providers\.chains\.lite_chain_indexer import|from rugmunchbot._vendor.lite_chain_indexer import|g' \
     -e 's|from app\.domains\.news_ingest\.|from rugmunchbot._vendor.news_ingest.|g' \
     -e 's|from app\.rag\.dedup import|from rugmunchbot._vendor.dedup import|g' \
+    -e 's|from app\.integrations\.rugbrain_client import|from rugmunchbot._vendor.rugbrain_client import|g' \
     -e 's|from app\.rag\.|from rugmunchbot._vendor.rag_pkg.|g' \
     -e 's|from app\.config import settings|from rugmunchbot._vendor.settings_shim import settings|g' \
     -e 's|from app\.config import resolve_service_url|from rugmunchbot._vendor.settings_shim import resolve_service_url|g' \
@@ -273,6 +275,7 @@ find "$HERE/src/rugmunchbot" -name '*.py' -not -path '*/_vendor/*' | while read 
     -e 's|from app\.domains\.scanner\.engines import|from rugmunchbot._vendor.scanner_engines import|g' \
     -e 's|from app\.domains\.databus\.providers\.chains\.lite_chain_indexer import|from rugmunchbot._vendor.lite_chain_indexer import|g' \
     -e 's|from app\.rag\.dedup import|from rugmunchbot._vendor.dedup import|g' \
+    -e 's|from app\.integrations\.rugbrain_client import|from rugmunchbot._vendor.rugbrain_client import|g' \
     -e 's|from app\.rag\.|from rugmunchbot._vendor.rag_pkg.|g' \
     -e 's|from app\.config import settings|from rugmunchbot._vendor.settings_shim import settings|g' \
     "$f"

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/crypto_embeddings/__init__.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/crypto_embeddings/__init__.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -26,9 +26,9 @@ from rugmunchbot._vendor.crypto_embeddings.models import (
 from rugmunchbot._vendor.crypto_embeddings.providers import (
     ContractCodeEmbedder,
     HuggingFaceEmbedder,
-    Qwen3CryptoEmbedder,
-    LocalBGEEmbedder,
+    LocalEmbedder,
     OpenRouterEmbedder,
+    Qwen3Embedder,
 )
 from rugmunchbot._vendor.crypto_embeddings.seed import KNOWN_SCAM_PATTERNS
 
@@ -53,9 +53,9 @@ __all__ = [
     "CryptoEmbedder",
     "EmbeddingResult",
     "HuggingFaceEmbedder",
-    "Qwen3CryptoEmbedder",
-    "LocalBGEEmbedder",
+    "LocalEmbedder",
     "OpenRouterEmbedder",
+    "Qwen3Embedder",
     "extract_contract_features",
     "extract_transaction_features",
     "extract_wallet_features",

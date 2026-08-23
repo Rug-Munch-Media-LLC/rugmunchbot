@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/core/redis.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/core/redis.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Redis singleton - single source of truth for Redis connections.

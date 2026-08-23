@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/_io.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/_io.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """ClickHouse fetch / cache IO layer for funding_analysis (degodding wave 6).
@@ -25,11 +25,11 @@ try:
 except ImportError:  # pragma: no cover
     CHDriverError = Exception
 
+from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.lite_chain_indexer import (
     _get_ch_client,
     _new_ch_client,
 )
-from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.scanner_engines._common import (
     _query_batch_labels,
     clear_cache as _common_clear_cache,

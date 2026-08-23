@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/catalog/service.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/catalog/service.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """T27 CatalogService - unified read/write API for RMI.
@@ -38,12 +38,9 @@ from rugmunchbot._vendor.catalog_models import (
     Wallet,
     utcnow,
 )
-from rugmunchbot._vendor.logging_shim import get_logger
-from rugmunchbot._vendor.rag_pkg.engine import (
-    ingest_document as rag_ingest_document,
-    three_pillar_search as rag_three_pillar_search,
-)
 from rugmunchbot._vendor.settings_shim import resolve_service_url
+from rugmunchbot._vendor.logging_shim import get_logger
+from rugmunchbot._vendor.rugbrain_client import rugbrain_search
 
 log = get_logger(__name__)
 
@@ -518,7 +515,7 @@ class CatalogService:
         Use get_token_risk / etc. when you want catalog-typed results.
         """
         try:
-            return await rag_three_pillar_search(query=query, collection=collection, top_k=top_k)
+            return await rugbrain_search(query=query, collections=[collection], limit=top_k)
         except Exception as e:
             log.warning("rag_search_fail: %s", e)
             return []
@@ -530,22 +527,21 @@ class CatalogService:
         doc_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Ingest a fact into RAG and (if it's about a token) link to Token.rag_embedding_id.
+        """Ingest a fact into RAG via rugbrain HTTP API.
 
         Returns the RAG ingest result plus the Qdrant point_id for cross-store ref.
         """
-        from rugmunchbot._vendor.rag_pkg.chunking import content_hash as _ch
+        from rugmunchbot._vendor.rugbrain_client import rugbrain_ingest
 
-        doc_id = doc_id or f"finding:{_ch(content)[:16]}"
+        doc_id = doc_id or f"finding:{content[:16]}"
         try:
-            r = await rag_ingest_document(
+            ok = await rugbrain_ingest(
+                content=content,
                 collection=collection,
                 doc_id=doc_id,
-                content=content,
                 metadata=metadata or {},
             )
-            r["qdrant_point_id"] = doc_id  # Engine returns the same
-            return r
+            return {"status": "ok" if ok else "failed", "qdrant_point_id": doc_id}
         except Exception as e:
             log.warning("rag_ingest_fail: %s", e)
             return {"status": "failed", "error": str(e)}

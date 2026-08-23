@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/telegram/voice_chat.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/telegram/voice_chat.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -27,9 +27,7 @@ from rugmunchbot._vendor.logging_shim import get_logger
 
 if TYPE_CHECKING:
     from telegram import Bot
-    from telegram._utils.types import (
-        JSONValue,  # type: ignore[attr-defined]  # PTB None-able fields
-    )
+    from telegram._utils.types import JSONValue  # type: ignore[attr-defined]  # PTB None-able fields
 
 logger = get_logger("telegram.voice_chat")
 

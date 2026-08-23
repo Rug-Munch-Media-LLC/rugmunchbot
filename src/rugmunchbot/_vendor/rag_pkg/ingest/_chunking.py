@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/ingest/_chunking.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/rag/ingest/_chunking.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Heading-aware doc chunking (markdown / reST / AsciiDoc).
@@ -17,11 +17,7 @@ import hashlib
 import re
 from typing import Any
 
-from rugmunchbot._vendor.rag_pkg.config import (
-    RAG_CHUNK_OVERLAP,
-    RAG_CHUNK_SIZE,
-    RAG_MIN_CHUNK_CHARS,
-)
+from rugmunchbot._vendor.rag_pkg.config import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE, RAG_MIN_CHUNK_CHARS
 
 _DOC_HEADING_RE = re.compile(r"^(#{1,6})[ \t]+([^\n]*?)[ \t]*$", re.MULTILINE)
 _RST_UNDERLINE_RE = re.compile(r"^([^\n].*?)\n([=\-~^\"'`:.+*#<>]{3,})[ \t]*$", re.MULTILINE)

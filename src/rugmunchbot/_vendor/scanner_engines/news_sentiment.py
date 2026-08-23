@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/news_sentiment.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/news_sentiment.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """News sentiment analysis engine — RugBrain RAG ``news_v2`` sentiment for tokens.
@@ -44,7 +44,7 @@ from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg.embeddings import RAGUnavailableError
 
 if TYPE_CHECKING:
-    from rugmunchbot._vendor.rag_pkg.retrieval import ScoredHit
+    from app.utils.retrieval import ScoredHit, hybrid_retrieve
 
 logger = get_logger(__name__)
 
@@ -270,14 +270,12 @@ async def _retrieve_news_hits(token_symbol: str, token_name: str) -> list[Scored
     """
     query = f"{token_name} {token_symbol} news".strip()
     try:
-        from rugmunchbot._vendor.rag_pkg.retrieval import HybridRetriever
+        from app.utils.retrieval import hybrid_retrieve
 
-        retriever = HybridRetriever()
-        hits: list[ScoredHit] = await retriever.retrieve(
+        hits = await hybrid_retrieve(
             query=query,
             collection=NEWS_COLLECTION,
             top_k=MAX_ARTICLES,
-            rerank=False,
         )
         return hits
     except (

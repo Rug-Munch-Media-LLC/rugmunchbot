@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/crypto_embeddings/embedder.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/crypto_embeddings/embedder.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """CryptoEmbedder - multi-head embedding engine for crypto scam detection."""
@@ -31,9 +31,9 @@ from rugmunchbot._vendor.crypto_embeddings.models import (  # noqa: E402 — mod
 from rugmunchbot._vendor.crypto_embeddings.providers import (  # noqa: E402 — module docstring precedes import block
     ContractCodeEmbedder,
     HuggingFaceEmbedder,
-    Qwen3CryptoEmbedder,
-    LocalBGEEmbedder,
+    LocalEmbedder,
     OpenRouterEmbedder,
+    Qwen3Embedder,
 )
 
 REDIS_HOST = os.getenv("REDIS_HOST", "rmi-redis")
@@ -47,8 +47,8 @@ class CryptoEmbedder:
     """Multi-head embedder for crypto scam detection."""
 
     def __init__(self) -> None:
-        self._local: LocalBGEEmbedder | None = None  # always None — local model path hard-disabled (memory safety)
-        self._qwen3: Qwen3CryptoEmbedder | None = None
+        self._local: LocalEmbedder | None = None  # always None — local model path hard-disabled (memory safety)
+        self._qwen3: Qwen3Embedder | None = None
         self._openrouter: OpenRouterEmbedder | None = None
         self._huggingface: HuggingFaceEmbedder | None = None
         self._redis: Any = None
@@ -61,8 +61,8 @@ class CryptoEmbedder:
         or_key = os.environ.get("OPENROUTER_API_KEY", "") or OPENROUTER_KEY
         hf_token = os.environ.get("HUGGINGFACE_TOKEN", "") or HF_TOKEN
 
-        self._qwen3 = Qwen3CryptoEmbedder()
-        logger.info("CryptoEmbedder: llama.cpp qwen3 qwen3-embedding-4b ready (PRIMARY, 1024d)")
+        self._qwen3 = Qwen3Embedder()
+        logger.info("CryptoEmbedder: Qwen3-Embedding-4B ready (PRIMARY, 2560d)")
         # Local BGE-small fallback is HARD-DISABLED: loading sentence-transformers/torch
         # in-process (~300MB resident, never unloaded) caused memory pressure. Do not re-enable.
         self._local = None
@@ -101,7 +101,7 @@ class CryptoEmbedder:
             try:
                 return await self._qwen3.embed(texts)
             except Exception as e:
-                logger.warning(f"llama.cpp qwen3 embedding failed: {e}")
+                logger.warning(f"Qwen3 embedding failed: {e}")
         if self._openrouter:
             try:
                 return await self._openrouter.embed(texts)
@@ -114,7 +114,7 @@ class CryptoEmbedder:
                 logger.warning(f"HuggingFace embedding failed: {e}")
         raise RuntimeError(
             "CryptoEmbedder: ALL remote embedding backends failed "
-            "(llama.cpp qwen3/OpenRouter/HuggingFace). Local in-process model is disabled "
+            "(Qwen3/OpenRouter/HuggingFace). Local in-process model is disabled "
             "for memory safety — no fallback loaded. Check remote embedder connectivity."
         )
 
@@ -420,7 +420,7 @@ Code patterns: {"; ".join(code_snippets or [])[:3000]}"""
                 "openrouter": self._openrouter is not None,
                 "huggingface": self._huggingface is not None,
             },
-            "primary": "llama.cpp qwen3/qwen3-embedding-4b (1024d, remote)",
+            "primary": "qwen3-embedding-4b (2560d, remote)",
             "cache": {
                 "hits": self._cache_hits,
                 "misses": self._cache_misses,

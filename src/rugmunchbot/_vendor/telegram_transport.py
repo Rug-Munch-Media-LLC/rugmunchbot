@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/alerts/telegram_transport.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/alerts/telegram_transport.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Telegram transport for platform alerts + news.
@@ -48,11 +48,11 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from rugmunchbot._vendor.channels_registry import CHANNEL_ROLES, resolve_channel_id
+from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.alerts_models import PlatformAlert
 from rugmunchbot._vendor.alerts_publisher import route_alerts
-from rugmunchbot._vendor.channels_registry import CHANNEL_ROLES, resolve_channel_id
 from rugmunchbot._vendor.headless import get_headless_client
-from rugmunchbot._vendor.logging_shim import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

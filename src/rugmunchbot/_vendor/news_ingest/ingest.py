@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/news_ingest/ingest.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/news_ingest/ingest.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Channel-monitoring ingestion: read → normalize → dedupe → rank.
@@ -32,10 +32,10 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Final
 
-from rugmunchbot._vendor.dedup import content_hash, url_hash
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
 from rugmunchbot._vendor.news_ingest.normalize import channel_message_to_article
+from rugmunchbot._vendor.dedup import content_hash, url_hash
 
 logger = get_logger(__name__)
 

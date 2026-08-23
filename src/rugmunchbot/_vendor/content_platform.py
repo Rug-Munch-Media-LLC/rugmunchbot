@@ -1,4 +1,4 @@
-# VENDORED 2026-08-18 from rmi-backend/app/content_platform.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/content_platform.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -476,12 +476,7 @@ async def generate_briefing() -> dict[str, Any]:
     summary. Non-breaking: on a catastrophic pipeline failure it falls back to
     the legacy RAG-snippet stub (``_generate_briefing_legacy``).
     """
-    from rugmunchbot._vendor.briefing import (
-        draft_briefing,
-        gather_briefing_context,
-        publish_briefing,
-        review_briefing,
-    )
+    from rugmunchbot._vendor.briefing import draft_briefing, gather_briefing_context, publish_briefing, review_briefing
 
     try:
         context = await gather_briefing_context()
@@ -507,21 +502,21 @@ async def _generate_briefing_legacy() -> dict[str, Any]:
 
     # Pull from RAG
     try:
-        from rugmunchbot._vendor.rag_pkg.compat import three_pillar_search
+        from rugmunchbot._vendor.rugbrain_client import rugbrain_search
 
         for topic, query in [
             ("Scam Alerts", "rug pull honeypot scam today"),
             ("Exploit Watch", "defi exploit hack attack today"),
             ("Market Intel", "crypto market movement whale alert"),
         ]:
-            results = await three_pillar_search(
+            results = await rugbrain_search(
                 query=query,
                 collections=["known_scams", "forensic_reports", "market_intel"],
                 limit=2,
             )
-            if results.get("results"):
+            if results:
                 content_parts.append(f"\n## {topic}")
-                for r in results["results"][:2]:
+                for r in results[:2]:
                     snippet = (r.get("content") or "")[:300]
                     if snippet:
                         content_parts.append(f"- {snippet}")
@@ -541,7 +536,7 @@ async def generate_newsletter() -> dict[str, Any]:
     content_parts = [f"# 📰 Weekly Intelligence Report\n\n*Week of {datetime.now(UTC).strftime('%B %d, %Y')}*\n"]
 
     try:
-        from rugmunchbot._vendor.rag_pkg.compat import three_pillar_search
+        from rugmunchbot._vendor.rugbrain_client import rugbrain_search
 
         for section, query in [
             ("🔴 Top Threats", "major scam exploit hack this week"),
@@ -549,7 +544,7 @@ async def generate_newsletter() -> dict[str, Any]:
             ("🟢 Market Overview", "crypto market weekly summary"),
             ("🔬 Deep Dive", "smart contract vulnerability analysis forensic"),
         ]:
-            results = await three_pillar_search(
+            results = await rugbrain_search(
                 query=query,
                 collections=["known_scams", "forensic_reports", "market_intel", "token_analysis"],
                 limit=3,

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/gmgn_client.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/gmgn_client.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -32,7 +32,7 @@ def _gmgn(args: list[str], timeout: int = 15) -> dict[str, Any]:
     cmd = ["npx", "gmgn-cli", *args]
     try:
         # Fixed command list, no shell=True; args are internal CLI flags (no user input)
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=GMGN_ENV, shell=False)  # noqa: S603
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=GMGN_ENV, shell=False)
         if result.returncode != 0:
             logger.error(f"gmgn-cli failed: {result.stderr[:200]}")
             return {"error": result.stderr[:200]}

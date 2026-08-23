@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/rpc_router.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/rpc_router.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import time
 from collections import defaultdict
 from dataclasses import dataclass
@@ -72,6 +73,12 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://virginia.rpc.blxrbdn.com",  # BloXroute — free tier
         "https://uk.rpc.blxrbdn.com",  # BloXroute — EU
         "https://singapore.rpc.blxrbdn.com",  # BloXroute — Asia
+        "https://rpc.mevblocker.io",  # MevBlocker — free, MEV-protecting
+        "https://gateway.tenderly.co/public/mainnet",  # Tenderly public gateway
+        # ── Freemium (keyed) — used ONLY when the free pool is exhausted ──
+        "https://lb.drpc.org/ogrpc?network=ethereum&dkey=${DRPC_API_KEY}",  # dRPC load balancer
+        "https://rpc.ankr.com/eth/${ANKR_API_KEY}",  # Ankr keyed (higher rate)
+        "${QUICKNODE_ETH_HTTP}",  # QuickNode dedicated endpoint (full URL via env)
     ],
     "bsc": [
         "https://binance.llamarpc.com",  # LlamaNodes BSC
@@ -89,7 +96,14 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://bsc-dataseed2.defibit.io",  # Defibit dataseed 2
         "https://bsc-dataseed1.ninicoin.io",  # Ninicoin dataseed
         "https://bsc-dataseed2.ninicoin.io",  # Ninicoin dataseed 2
+        "https://bsc-dataseed1.bnbchain.org",  # BNB Chain official (renamed domain)
+        "https://bsc-dataseed2.bnbchain.org",  # BNB Chain official 2
+        "https://rpc-bsc.48.club",  # 48 Club — free public
         "https://bsc-mainnet.public.blastapi.io",  # BlastAPI BSC
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=bsc&dkey=${DRPC_API_KEY}",
+        "https://rpc.ankr.com/bsc/${ANKR_API_KEY}",
+        "${QUICKNODE_BSC_HTTP}",
     ],
     "polygon": [
         "https://polygon.llamarpc.com",  # LlamaNodes Polygon
@@ -102,6 +116,10 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://polygon-bor-rpc.publicnode.com",  # PublicNode Polygon
         "https://polygon-mainnet.public.blastapi.io",  # BlastAPI Polygon
         "https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Polygon (key)
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=polygon&dkey=${DRPC_API_KEY}",
+        "https://rpc.ankr.com/polygon/${ANKR_API_KEY}",
+        "${QUICKNODE_POLYGON_HTTP}",
     ],
     "arbitrum": [
         "https://arbitrum.llamarpc.com",  # LlamaNodes Arbitrum
@@ -113,6 +131,9 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://arbitrum.blockpi.network/v1/rpc/public",  # BlockPI Arbitrum
         "https://arb1.arbitrum.io/rpc",  # Offchain Labs official
         "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Arbitrum (key)
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=arbitrum&dkey=${DRPC_API_KEY}",
+        "https://rpc.ankr.com/arbitrum/${ANKR_API_KEY}",
     ],
     "base": [
         "https://base.llamarpc.com",  # LlamaNodes Base
@@ -124,6 +145,9 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://base.blockpi.network/v1/rpc/public",  # BlockPI Base
         "https://mainnet.base.org",  # Base official public
         "https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Base (key)
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=base&dkey=${DRPC_API_KEY}",
+        "https://rpc.ankr.com/base/${ANKR_API_KEY}",
     ],
     "optimism": [
         "https://optimism.llamarpc.com",  # LlamaNodes Optimism
@@ -135,6 +159,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://optimism.blockpi.network/v1/rpc/public",  # BlockPI Optimism
         "https://mainnet.optimism.io",  # Optimism official
         "https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Optimism (key)
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=optimism&dkey=${DRPC_API_KEY}",
     ],
     "avalanche": [
         "https://avalanche.llamarpc.com",  # LlamaNodes Avalanche
@@ -146,6 +172,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://avalanche.blockpi.network/v1/rpc/public",  # BlockPI Avalanche
         "https://api.avax.network/ext/bc/C/rpc",  # Avalanche official
         "https://avalanche-mainnet.infura.io/v3/${INFURA_PROJECT_ID}",  # Infura (key)
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=avalanche&dkey=${DRPC_API_KEY}",
     ],
     "fantom": [
         "https://rpc.ankr.com/fantom",  # Ankr Fantom
@@ -156,6 +184,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://rpc.fantom.network",  # Fantom official public
         "https://fantom-mainnet.public.blastapi.io",  # BlastAPI Fantom
         "https://fantom.blockpi.network/v1/rpc/public",  # BlockPI Fantom
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=fantom&dkey=${DRPC_API_KEY}",
     ],
     "linea": [
         "https://rpc.linea.build",  # Linea official
@@ -165,6 +195,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://linea.blockpi.network/v1/rpc/public",  # BlockPI Linea
         "https://linea.meowrpc.com",  # MeowRPC Linea
         "https://linea-mainnet.infura.io/v3/${INFURA_PROJECT_ID}",  # Infura (key)
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=linea&dkey=${DRPC_API_KEY}",
     ],
     "zksync": [
         "https://mainnet.era.zksync.io",  # zkSync official
@@ -173,6 +205,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://1rpc.io/zksync-era",  # 1RPC zkSync Era
         "https://zksync.meowrpc.com",  # MeowRPC zkSync
         "https://zksync-era.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy zkSync (key)
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=zksync&dkey=${DRPC_API_KEY}",
     ],
     "scroll": [
         "https://rpc.scroll.io",  # Scroll official
@@ -181,6 +215,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://1rpc.io/scroll",  # 1RPC Scroll
         "https://scroll.blockpi.network/v1/rpc/public",  # BlockPI Scroll
         "https://scroll-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Scroll (key)
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=scroll&dkey=${DRPC_API_KEY}",
     ],
     "mantle": [
         "https://rpc.mantle.xyz",  # Mantle official
@@ -189,12 +225,16 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://1rpc.io/mantle",  # 1RPC Mantle
         "https://mantle.blockpi.network/v1/rpc/public",  # BlockPI Mantle
         "https://mantle-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Mantle (key)
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=mantle&dkey=${DRPC_API_KEY}",
     ],
     "gnosis": [
         "https://gnosis.drpc.org",  # dRPC Gnosis
         "https://rpc.gnosischain.com",  # Gnosis official
         "https://1rpc.io/gnosis",  # 1RPC Gnosis
         "https://gnosis-rpc.publicnode.com",  # PublicNode Gnosis
+        # ── Freemium (keyed) ──
+        "https://lb.drpc.org/ogrpc?network=gnosis&dkey=${DRPC_API_KEY}",
     ],
 }
 
@@ -207,8 +247,13 @@ SOLANA_RPC_ENDPOINTS: list[str] = [
     "https://rpc.ankr.com/solana",  # Ankr Solana
     "https://solana.meowrpc.com",  # MeowRPC Solana
     "https://solana.blockpi.network/v1/rpc/public",  # BlockPI Solana
+    "https://solana-api.projectserum.com",  # Project Serum — long-standing free
     "https://solana-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Solana (key)
     "https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}",  # Helius (key, paid fallback)
+    # ── Freemium (keyed) ──
+    "https://lb.drpc.org/ogrpc?network=solana&dkey=${DRPC_API_KEY}",
+    "https://rpc.ankr.com/solana/${ANKR_API_KEY}",
+    "${QUICKNODE_SOLANA_HTTP}",
 ]
 
 
@@ -223,6 +268,7 @@ class EndpointHealth:
 
     url: str
     chain: str
+    tier: str = "free"  # "free" (keyless public) | "freemium" (keyed free-tier)
     consecutive_failures: int = 0
     total_calls: int = 0
     total_failures: int = 0
@@ -301,6 +347,17 @@ class RpcRouter:
         # Shared httpx client (connection pooling)
         self._client: httpx.AsyncClient | None = None
 
+        # ── Tier / rotation / quota state ──────────────────────────
+        # Round-robin offset per chain: spreads consecutive calls across
+        # the top healthy endpoints instead of hammering the same winner.
+        self._rr_offset: dict[str, int] = defaultdict(int)
+        # Freemium quota ledger: provider host -> recent call timestamps
+        # (1h sliding window). Escalation picks the LEAST-used provider.
+        self._quota: dict[str, list[float]] = defaultdict(list)
+        # Escalation telemetry: how often the free tier failed us.
+        self.freemium_escalations: int = 0
+        self._last_escalation_log: dict[str, float] = {}
+
         # Performance tuning
         self._call_timeout: float = 10.0  # Per-endpoint timeout
         self._health_check_payloads: dict[str, tuple[str, list[Any]]] = {
@@ -336,52 +393,168 @@ class RpcRouter:
             )
         return self._client
 
-    def _resolve_url(self, url: str) -> str:
-        """Resolve ${ENV_VAR} references in URLs."""
-        import re
+    # ─── Tier helpers ──────────────────────────────────────────────
 
-        return re.sub(
-            r"\$\{(\w+)\}",
-            lambda m: os.getenv(m.group(1), ""),
-            url,
-        )
+    @staticmethod
+    def _tier_of_template(url: str) -> str:
+        """Classify a raw (unresolved) endpoint template.
+
+        Any URL embedding a ``${ENV_VAR}`` key placeholder is *freemium* —
+        a keyed free-tier provider whose quota we protect. Everything else
+        is *free*. Freemium endpoints are used ONLY when the free pool for
+        the chain is exhausted (all dead / rate-limited).
+        """
+        return "freemium" if "${" in url else "free"
+
+    def _resolve_url(self, url: str) -> str | None:
+        """Resolve ``${ENV_VAR}`` references in URLs.
+
+        Returns ``None`` when a referenced key env var is unset/empty —
+        keyed endpoints without credentials are excluded entirely so we
+        never health-check or call a broken half-resolved URL.
+        """
+
+        class _MissingKey(Exception):
+            pass
+
+        def _sub(m: re.Match[str]) -> str:
+            val = os.getenv(m.group(1), "")
+            if not val:
+                raise _MissingKey(m.group(1))
+            return val
+
+        try:
+            return re.sub(r"\$\{(\w+)\}", _sub, url)
+        except _MissingKey:
+            return None
+
+    def _raw_endpoints(self, chain: str) -> list[str]:
+        """Raw endpoint templates for a chain (before key resolution)."""
+        if chain == "solana":
+            return list(SOLANA_RPC_ENDPOINTS)
+        return list(EVM_RPC_ENDPOINTS.get(chain, []))
+
+    def _split_tiers(self, chain: str) -> tuple[list[str], list[str]]:
+        """Split a chain's endpoints into resolved (free, freemium) lists.
+
+        Endpoints whose API-key env var is missing are dropped entirely.
+        """
+        free: list[str] = []
+        freemium: list[str] = []
+        for raw in self._raw_endpoints(chain):
+            resolved = self._resolve_url(raw)
+            if resolved is None:
+                continue
+            if self._tier_of_template(raw) == "freemium":
+                freemium.append(resolved)
+            else:
+                free.append(resolved)
+        return free, freemium
 
     def _get_endpoints(self, chain: str) -> list[str]:
-        """Get the list of RPC endpoints for a chain (with env vars resolved)."""
-        if chain == "solana":
-            return [self._resolve_url(u) for u in SOLANA_RPC_ENDPOINTS]
-        urls = EVM_RPC_ENDPOINTS.get(chain, [])
-        return [self._resolve_url(u) for u in urls]
+        """All usable (resolved) endpoints for a chain, free tier first."""
+        free, freemium = self._split_tiers(chain)
+        return free + freemium
 
-    def _get_health(self, chain: str, url: str) -> EndpointHealth:
+    def _get_health(self, chain: str, url: str, tier: str = "free") -> EndpointHealth:
         """Get or create an EndpointHealth for a URL."""
         if chain == "solana":
             if url not in self._solana_health:
-                self._solana_health[url] = EndpointHealth(url=url, chain=chain)
+                self._solana_health[url] = EndpointHealth(url=url, chain=chain, tier=tier)
             return self._solana_health[url]
         if url not in self._evm_health[chain]:
-            self._evm_health[chain][url] = EndpointHealth(url=url, chain=chain)
+            self._evm_health[chain][url] = EndpointHealth(url=url, chain=chain, tier=tier)
         return self._evm_health[chain][url]
 
-    def get_available_endpoints(self, chain: str) -> list[tuple[str, EndpointHealth]]:
-        """
-        Get all available (non-dead) endpoints for a chain,
-        sorted by health score (lowest failures first).
-        """
-        endpoints = self._get_endpoints(chain)
-        available = []
-        for url in endpoints:
-            health = self._get_health(chain, url)
-            if health.alive:
-                available.append((url, health))
-        # Sort: healthy endpoints first, then by latency (lower is better)
-        available.sort(
+    # ─── Quota ledger (freemium providers) ─────────────────────────
+
+    def _record_quota(self, url: str) -> None:
+        """Record a call against the provider host's hourly quota window."""
+        from urllib.parse import urlparse
+
+        now = time.time()
+        q = self._quota[urlparse(url).netloc]
+        q[:] = [t for t in q if now - t < 3600]
+        q.append(now)
+
+    def _quota_usage(self, url: str) -> int:
+        """Calls made to this provider host in the last hour."""
+        from urllib.parse import urlparse
+
+        now = time.time()
+        return sum(1 for t in self._quota.get(urlparse(url).netloc, []) if now - t < 3600)
+
+    def _record_escalation(self, chain: str) -> None:
+        """Count + throttled-log a free→freemium escalation for a chain."""
+        self.freemium_escalations += 1
+        now = time.time()
+        if now - self._last_escalation_log.get(chain, 0.0) > 300:
+            logger.warning(
+                "rpc_freemium_escalation",
+                chain=chain,
+                note="free tier exhausted; falling back to keyed providers",
+            )
+            self._last_escalation_log[chain] = now
+
+    # ─── Availability ──────────────────────────────────────────────
+
+    def _rank(self, pairs: list[tuple[str, EndpointHealth]]) -> list[tuple[str, EndpointHealth]]:
+        """Sort by health: clean first, then lowest latency."""
+        return sorted(
+            pairs,
             key=lambda x: (
                 0 if x[1].consecutive_failures == 0 else 1,
                 x[1].avg_latency_ms if x[1].avg_latency_ms > 0 else 999,
             ),
         )
-        return available
+
+    def _spread(self, ranked: list[tuple[str, EndpointHealth]], chain: str) -> list[tuple[str, EndpointHealth]]:
+        """Round-robin the top-3 healthy endpoints across consecutive calls.
+
+        Keeps quality ordering (best-first within the rotation window) but
+        distributes load so one low-latency winner doesn't absorb every
+        request and trip its rate limit.
+        """
+        head, tail = ranked[:3], ranked[3:]
+        if len(head) > 1:
+            k = self._rr_offset[chain] % len(head)
+            self._rr_offset[chain] += 1
+            head = head[k:] + head[:k]
+        return head + tail
+
+    def get_available_endpoints(self, chain: str) -> list[tuple[str, EndpointHealth]]:
+        """
+        Get callable endpoints for a chain, tier-aware:
+
+        1. Free tier alive → round-robin spread over its healthiest.
+        2. Free tier exhausted (all dead/rate-limited) → ESCALATE to the
+           freemium keyed pool, least-quota-used provider first.
+        3. Nothing alive → empty list.
+        """
+        free_urls, freemium_urls = self._split_tiers(chain)
+
+        free_alive = [(u, self._get_health(chain, u)) for u in free_urls if self._get_health(chain, u).alive]
+        if free_alive:
+            return self._spread(self._rank(free_alive), chain)
+
+        # Free pool exhausted → escalate into keyed providers.
+        fremium_alive = [
+            (u, self._get_health(chain, u, tier="freemium"))
+            for u in freemium_urls
+            if self._get_health(chain, u, tier="freemium").alive
+        ]
+        if fremium_alive:
+            self._record_escalation(chain)
+            fremium_alive.sort(
+                key=lambda x: (
+                    self._quota_usage(x[0]),  # least-used provider first
+                    x[1].consecutive_failures,
+                    x[1].avg_latency_ms if x[1].avg_latency_ms > 0 else 999,
+                )
+            )
+            return fremium_alive
+
+        return []
 
     # ─── Health Check ──────────────────────────────────────────────
 
@@ -445,27 +618,34 @@ class RpcRouter:
         Get and verify healthy endpoints for a chain.
         Lazily checks endpoints that haven't been checked recently.
         Returns list of (url, health) tuples that are confirmed healthy.
+
+        Tier-aware: only the ACTIVE tier (free while it has living
+        endpoints, freemium after escalation) is health-checked — we never
+        burn keyed-provider quota on probes while the free pool is fine.
         """
-        all_endpoints = self._get_endpoints(chain)
-        if not all_endpoints:
+        free_urls, fremium_urls = self._split_tiers(chain)
+        if not free_urls and not fremium_urls:
             logger.warning("no_rpc_endpoints_configured", chain=chain)
             return []
 
-        # Quick check: return already-healthy endpoints first
+        # Quick check: tier-aware availability without network I/O
         available = self.get_available_endpoints(chain)
         if available:
-            # Verify the first one hasn't gone stale (check if >60s since last check)
+            # Verify the first one hasn't gone stale (check if >30s since last check)
             _, health = available[0]
             if time.time() - health.last_check < 30:
                 return available
 
-        # Need to validate: check all endpoints with expired health
+        # Validate: check stale/dead endpoints within the ACTIVE tier only.
+        active_tier = available[0][1].tier if available else "free"
+        active_urls = free_urls if active_tier == "free" else fremium_urls
+
         healthy = []
         check_tasks = []
         urls_to_check = []
 
-        for url in all_endpoints:
-            health = self._get_health(chain, url)
+        for url in active_urls:
+            health = self._get_health(chain, url, tier=active_tier)
             # Only check endpoints that haven't been verified recently, or are dead
             if (time.time() - health.last_check > 30) or health.is_dead:
                 check_tasks.append(self.check_endpoint(chain, url, health))
@@ -478,13 +658,13 @@ class RpcRouter:
             for url, is_healthy in zip(urls_to_check, results, strict=False):
                 if isinstance(is_healthy, Exception):
                     logger.debug("rpc_check_exception", url=url, error=str(is_healthy))
-                    health = self._get_health(chain, url)
+                    health = self._get_health(chain, url, tier=active_tier)
                     health.record_failure()
                 elif is_healthy:
-                    healthy.append((url, self._get_health(chain, url)))
+                    healthy.append((url, self._get_health(chain, url, tier=active_tier)))
 
-        # Sort healthy: by latency then failures
-        healthy.sort(key=lambda x: (x[1].consecutive_failures, x[1].avg_latency_ms if x[1].avg_latency_ms > 0 else 999))
+        # Sort healthy: by latency then failures; spread load across top-3
+        healthy = self._spread(self._rank(healthy), chain)
         return healthy
 
     # ─── Primary Call Method ───────────────────────────────────────
@@ -529,6 +709,8 @@ class RpcRouter:
         client = await self._get_client()
 
         for url, health in endpoints:
+            if health.tier == "freemium":
+                self._record_quota(url)  # keyed provider: count against hourly window
             try:
                 t0 = time.monotonic()
                 resp = await client.post(
@@ -705,23 +887,29 @@ class RpcRouter:
                 "dead": 0,
                 "total_calls": 0,
                 "total_failures": 0,
+                "freemium_escalations": self.freemium_escalations,
+                "freemium_calls_last_hour": sum(
+                    sum(1 for t in q if time.time() - t < 3600) for q in self._quota.values()
+                ),
             },
         }
+
+        def _entry(health: EndpointHealth) -> dict[str, Any]:
+            return {
+                "url": health.url,
+                "tier": health.tier,
+                "alive": health.alive,
+                "consecutive_failures": health.consecutive_failures,
+                "total_calls": health.total_calls,
+                "total_failures": health.total_failures,
+                "avg_latency_ms": round(health.avg_latency_ms, 1),
+                "is_dead": health.is_dead,
+            }
 
         for chain, endpoints in self._evm_health.items():
             chain_report = []
             for url, health in endpoints.items():
-                chain_report.append(
-                    {
-                        "url": url,
-                        "alive": health.alive,
-                        "consecutive_failures": health.consecutive_failures,
-                        "total_calls": health.total_calls,
-                        "total_failures": health.total_failures,
-                        "avg_latency_ms": round(health.avg_latency_ms, 1),
-                        "is_dead": health.is_dead,
-                    }
-                )
+                chain_report.append(_entry(health))
                 report["summary"]["total_endpoints"] += 1
                 if health.alive:
                     report["summary"]["alive"] += 1
@@ -732,14 +920,7 @@ class RpcRouter:
             report["evm_chains"][chain] = chain_report
 
         for url, health in self._solana_health.items():
-            report["solana"][url] = {
-                "alive": health.alive,
-                "consecutive_failures": health.consecutive_failures,
-                "total_calls": health.total_calls,
-                "total_failures": health.total_failures,
-                "avg_latency_ms": round(health.avg_latency_ms, 1),
-                "is_dead": health.is_dead,
-            }
+            report["solana"][url] = _entry(health)
             report["summary"]["total_endpoints"] += 1
             if health.alive:
                 report["summary"]["alive"] += 1

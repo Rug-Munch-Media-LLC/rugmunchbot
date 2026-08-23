@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/_common.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/_common.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Shared utilities for scanner engines — ClickHouse, Redis, caching, results.
@@ -40,8 +40,8 @@ from typing import Any
 
 from redis.exceptions import RedisError
 
-from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
 from rugmunchbot._vendor.logging_shim import get_logger
+from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
 
 logger = get_logger(__name__)
 

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/deployer_profiles.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/deployer_profiles.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -64,11 +64,11 @@ try:
 except ImportError:  # pragma: no cover
     CHDriverError = Exception
 
+from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.lite_chain_indexer import (
     _get_ch_client,
     _normalize_chain,
 )
-from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.scanner_engines._common import (
     clear_cache as _common_clear_cache,
     get_cache_stats as _common_get_cache_stats,

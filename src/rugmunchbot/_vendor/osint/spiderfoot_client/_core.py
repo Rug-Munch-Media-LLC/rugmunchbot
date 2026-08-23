@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/osint/spiderfoot_client/_core.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/osint/spiderfoot_client/_core.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """SpiderFoot OSINT automation engine client.

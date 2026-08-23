@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/tools.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/rag/tools.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Real-time tool registry for the agentic RAG graph.
@@ -211,7 +211,7 @@ async def scan_token(query: str, chain: str = "ethereum") -> dict[str, Any]:
 #: Post-rerank results returned by ``get_news``.
 _NEWS_TOP_K: int = 5
 #: Pre-rerank candidate pool handed to the cross-encoder (wider than the
-#: final answer so llama.cpp qwen3 bge-reranker ranks ~2x more candidates).
+#: final answer so Infinity bge-reranker ranks ~2x more candidates).
 _NEWS_CANDIDATE_K: int = 10
 
 
@@ -242,7 +242,7 @@ def _news_canonical_url(metadata: dict[str, Any] | None) -> str | None:
 async def get_news(query: str, top_k: int = _NEWS_TOP_K) -> dict[str, Any]:
     """Search the RAG ``news_v2`` collection for recent articles.
 
-    Retrieves a wider pre-rerank pool (``candidate_k=10``) so the llama.cpp qwen3
+    Retrieves a wider pre-rerank pool (``candidate_k=10``) so the Infinity
     cross-encoder ranks ~2x the candidates before the final ``top_k``
     slice. Results are deduped by canonical URL (same story from multiple
     chunks/sources collapses to the highest-scoring hit). Fails open to an

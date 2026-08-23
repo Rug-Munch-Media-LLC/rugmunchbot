@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/services/pryscraper_client.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/services/pryscraper_client.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Pryscraper Client — async HTTP client for the Pry web intelligence API.
@@ -46,10 +46,10 @@ class ScrapeRequest(BaseModel):
 
     url: str
     formats: list[str] | None = None
-    onlyMainContent: bool = True  # noqa: N815
+    onlyMainContent: bool = True
     timeout: int = 30
-    bypassCloudflare: bool = True  # noqa: N815
-    jsRender: bool = False  # noqa: N815
+    bypassCloudflare: bool = True
+    jsRender: bool = False
 
 
 class ScrapeResult(BaseModel):

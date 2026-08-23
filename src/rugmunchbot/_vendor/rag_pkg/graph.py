@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/graph.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/rag/graph.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Agentic RAG for crypto intelligence.
@@ -33,19 +33,8 @@ from langgraph.graph import END, StateGraph
 
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg.rerank import reorder_by_relevance, rerank_results
-from rugmunchbot._vendor.rag_pkg.retrieval import (
-    ContextBuilder,
-    HybridRetriever,
-    ScoredHit,
-    apply_news_boosts,
-)
-from rugmunchbot._vendor.rag_pkg.tools import (
-    get_gas_price,
-    get_news,
-    get_token_price,
-    get_wallet_balance,
-    scan_token,
-)
+from rugmunchbot._vendor.rag_pkg.retrieval import ContextBuilder, HybridRetriever, ScoredHit, apply_news_boosts
+from rugmunchbot._vendor.rag_pkg.tools import get_gas_price, get_news, get_token_price, get_wallet_balance, scan_token
 
 log = get_logger(__name__)
 
@@ -232,7 +221,7 @@ async def retrieve_news(state: ResearchState) -> dict[str, Any]:
 
 
 async def rerank_documents(state: ResearchState) -> dict[str, Any]:
-    """Cross-encoder rerank (BGE reranker v2 m3 via llama.cpp qwen3). Fail-open.
+    """Cross-encoder rerank (BGE reranker v2 m3 via Infinity). Fail-open.
 
     Reorders ``documents`` by relevance and drops low-confidence hits.
     On reranker failure the pre-rerank order is kept.

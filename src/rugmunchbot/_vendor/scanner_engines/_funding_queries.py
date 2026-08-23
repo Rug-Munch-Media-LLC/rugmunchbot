@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/_funding_queries.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/_funding_queries.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """ClickHouse query layer for funding_analysis (Batch 13 degodding).
@@ -17,8 +17,8 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from datetime import datetime
 
-from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
 from rugmunchbot._vendor.logging_shim import get_logger
+from rugmunchbot._vendor.lite_chain_indexer import _get_ch_client
 
 logger = get_logger(__name__)
 

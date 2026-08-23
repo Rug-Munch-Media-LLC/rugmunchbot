@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/__init__.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/__init__.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Scanner engines — data sources and detection modules.
@@ -44,10 +44,7 @@ from rugmunchbot._vendor.scanner_engines.own_deployer_reputation import get_own_
 from rugmunchbot._vendor.scanner_engines.own_deployer_timeline import get_own_deployer_timeline
 from rugmunchbot._vendor.scanner_engines.own_dex_data import check_data_freshness, get_own_dex_data
 from rugmunchbot._vendor.scanner_engines.own_holder_age import get_own_holder_age
-from rugmunchbot._vendor.scanner_engines.own_holder_analysis import (
-    get_holder_count,
-    get_own_holder_analysis,
-)
+from rugmunchbot._vendor.scanner_engines.own_holder_analysis import get_holder_count, get_own_holder_analysis
 from rugmunchbot._vendor.scanner_engines.own_price_oracle import get_batch_prices, get_token_price
 from rugmunchbot._vendor.scanner_engines.own_security_analysis import get_own_security
 from rugmunchbot._vendor.scanner_engines.own_volume_authenticity import get_own_volume_authenticity

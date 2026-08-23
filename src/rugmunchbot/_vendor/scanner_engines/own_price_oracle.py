@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/engines/own_price_oracle.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/own_price_oracle.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -246,10 +246,7 @@ async def _get_own_price(
 
     Returns None if insufficient swap data.
     """
-    from rugmunchbot._vendor.scanner_engines.own_dex_data import (
-        _query_dex_swaps,
-        get_token_price_simple,
-    )
+    from rugmunchbot._vendor.scanner_engines.own_dex_data import _query_dex_swaps, get_token_price_simple
 
     # Get VWAP from recent swaps (1 hour window for fresh price)
     vwap_result = await get_token_price_simple(

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/osint/face/face_recognition_engine.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/osint/face/face_recognition_engine.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Engine 3: face_recognition (dlib) detection + 128-d encodings."""

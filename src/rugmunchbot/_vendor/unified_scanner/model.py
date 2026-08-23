@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/model.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/unified/model.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """ScanResult dataclass — data model for token scan results."""
@@ -12,11 +12,11 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from rugmunchbot._vendor.rag_pkg.intelligence import RAGContext
 
-# RugBrain (rmi-rag) base URL — shared by scanner.py and market_context.py.
+# RugBrain (rugbrain-api) base URL — shared by scanner.py and market_context.py.
 # Lives here (the shared types module) to break the scanner <-> market_context
 # import cycle: market_context imports these at module load, scanner imports
 # them back from model.py instead of the reverse.
-RUG_BRAIN_API_URL = os.getenv("RAG_API_URL", "http://rmi-rag-api:8012").rstrip("/")
+RUG_BRAIN_API_URL = os.getenv("RAG_API_URL", "http://rugbrain-api:8012").rstrip("/")
 MARKET_CONTEXT_CACHE_TTL = int(os.getenv("MARKET_CONTEXT_CACHE_TTL", "300"))  # 5 min
 
 

@@ -1,18 +1,12 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/__init__.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/rag/__init__.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
-"""RAG domain - v3 M3 engine surface.
+"""RAG domain — all operations now route through rugbrain HTTP API.
 
-Public API (per v3 unfuck guide §M3):
-- RAGService, init_rag
-- SearchRequest, SearchResponse, SearchHit
-- IngestRequest, IngestResult
-- FeedbackRecord
-- EmbeddingProvider, COLLECTIONS
-- config: RAG_INGESTION_BATCH_SIZE, RAG_CHUNK_SIZE, RAG_COLLECTIONS, ...
-- ingestion: DocumentProcessor, QualityFilter, RateLimiter, BatchIngestor,
-  IngestionScheduler, get_ingestor, ingest_scan_result, ...
-- retrieval: HybridRetriever, ContextBuilder, RelevanceScorer, QueryExpander
+This module is kept for backward import compatibility. All actual
+RAG functionality lives in rugbrain (rmi-rag repo). Thin wrappers
+in ``app.rag.compat``, ``app.rag.intelligence``, ``app.rag.service``,
+etc. route through ``app.integrations.rugbrain_client``.
 """
 
 from __future__ import annotations
@@ -22,19 +16,23 @@ from rugmunchbot._vendor.health import DomainHealth
 
 
 async def _health_check() -> DomainHealth:
-    """RAG health: v3 engine present + Redis reachable."""
+    """RAG health: rugbrain HTTP API reachable."""
     try:
-        from rugmunchbot._vendor.rag_pkg.engine import get_stats
+        import os
 
-        stats = get_stats()
+        import httpx
+
+        api_key = os.getenv("RMI_RAG_API_KEY", "")
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get(
+                "http://rugbrain-api:8012/api/v1/health",
+                headers={"X-API-Key": api_key} if api_key else {},
+            )
+            healthy = r.status_code == 200
         return DomainHealth(
             name="rag",
-            healthy=True,
-            details={
-                "engine": "v3-m3",
-                "backend": stats.get("backend", "unknown"),
-                "total_docs": stats.get("total_docs", 0),
-            },
+            healthy=healthy,
+            details={"backend": "rugbrain-http", "status_code": r.status_code},
         )
     except Exception as e:
         return DomainHealth(name="rag", healthy=False, error=str(e))
@@ -42,41 +40,11 @@ async def _health_check() -> DomainHealth:
 
 health_mod.register_health_check("rag", _health_check)
 
-# Public API
-# ── New pipeline exports ─────────────────────────────────────────────
-# Config
-from rugmunchbot._vendor.rag_pkg.config import (  # noqa: E402 — module docstring precedes import block
-    RAG_CHUNK_OVERLAP,
-    RAG_CHUNK_SIZE,
-    RAG_COLLECTIONS as PIPELINE_COLLECTIONS,
-    RAG_INGESTION_BATCH_SIZE,
-    RAG_INGESTION_MAX_PER_MINUTE,
-    RAG_MIN_CHUNK_CHARS,
-    RAG_MIN_DOC_LENGTH,
-    RAG_SCHEDULER_INTERVAL,
-    RAG_SPAM_REPETITION_THRESHOLD,
-)
+# ── Backward-compatible exports ──────────────────────────────────────────
+# These are re-exported for callers that do ``from app.rag import X``.
+# The actual implementations are in the submodules below.
 
-# Ingestion pipeline
-from rugmunchbot._vendor.rag_pkg.ingestion import (  # noqa: E402 — module docstring precedes import block
-    BatchIngestor,
-    DocumentProcessor,
-    IngestionScheduler,
-    IngestionStatus,
-    IngestReport,
-    QualityFilter,
-    RateLimiter,
-    get_ingestor,
-    get_processor,
-    get_rate_limiter,
-    get_scheduler,
-    ingest_news_article,
-    ingest_research_post,
-    ingest_scam_pattern,
-    ingest_scan_result,
-    ingest_wallet_profile,
-)
-from rugmunchbot._vendor.rag_pkg.models import (  # noqa: E402 — module docstring precedes import block
+from rugmunchbot._vendor.rag_pkg.models import (  # noqa: E402
     COLLECTIONS,
     EmbeddingProvider,
     FeedbackRecord,
@@ -86,82 +54,17 @@ from rugmunchbot._vendor.rag_pkg.models import (  # noqa: E402 — module docstr
     SearchRequest,
     SearchResponse,
 )
-
-# Retrieval
-from rugmunchbot._vendor.rag_pkg.retrieval import (  # noqa: E402 — module docstring precedes import block
-    ContextBuilder,
-    ContextWindow,
-    HybridRetriever,
-    QueryExpander,
-    RelevanceScorer,
-    ScoredHit,
-    build_context,
-    expand_query,
-    search as hybrid_search,
-)
-from rugmunchbot._vendor.rag_pkg.service import (  # noqa: E402 — module docstring precedes import block
-    RAGService,
-    init_rag,
-)
-
-# Story fetch + ingest glue (bot story_fetch chain + RAG ingest_url)
-from rugmunchbot._vendor.rag_pkg.story_ingest import (  # noqa: E402 — module docstring precedes import block
-    StoryFetch,
-    StoryFetchError,
-    fetch_story,
-    ingest_url,
-)
+from rugmunchbot._vendor.rag_pkg.service import RAGService, init_rag  # noqa: E402
 
 __all__ = [
     "COLLECTIONS",
-    # Config
-    "PIPELINE_COLLECTIONS",
-    "RAG_CHUNK_OVERLAP",
-    "RAG_CHUNK_SIZE",
-    "RAG_INGESTION_BATCH_SIZE",
-    "RAG_INGESTION_MAX_PER_MINUTE",
-    "RAG_MIN_CHUNK_CHARS",
-    "RAG_MIN_DOC_LENGTH",
-    "RAG_SCHEDULER_INTERVAL",
-    "RAG_SPAM_REPETITION_THRESHOLD",
-    # Ingestion
-    "BatchIngestor",
-    # Retrieval
-    "ContextBuilder",
-    "ContextWindow",
-    "DocumentProcessor",
     "EmbeddingProvider",
     "FeedbackRecord",
-    "HybridRetriever",
-    "IngestReport",
     "IngestRequest",
     "IngestResult",
-    "IngestionScheduler",
-    "IngestionStatus",
-    "QualityFilter",
-    "QueryExpander",
     "RAGService",
-    "RateLimiter",
-    "RelevanceScorer",
-    "ScoredHit",
     "SearchHit",
     "SearchRequest",
     "SearchResponse",
-    "StoryFetch",
-    "StoryFetchError",
-    "build_context",
-    "expand_query",
-    "fetch_story",
-    "get_ingestor",
-    "get_processor",
-    "get_rate_limiter",
-    "get_scheduler",
-    "hybrid_search",
-    "ingest_news_article",
-    "ingest_research_post",
-    "ingest_scam_pattern",
-    "ingest_scan_result",
-    "ingest_url",
-    "ingest_wallet_profile",
     "init_rag",
 ]

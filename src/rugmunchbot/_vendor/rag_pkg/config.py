@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/config.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/rag/config.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """RAG pipeline configuration constants.
@@ -24,24 +24,45 @@ from __future__ import annotations
 RAG_INGESTION_BATCH_SIZE: int = 50
 
 # Hard cap on ingestions per minute (across all collections).
-# Prevents the embedding backend (llama.cpp qwen3 / OpenRouter) from being
+# Prevents the embedding backend (Infinity / OpenRouter) from being
 # overwhelmed during bulk backfills or flash crowds.
 RAG_INGESTION_MAX_PER_MINUTE: int = 200
 
 # ── Chunking ──────────────────────────────────────────────────────────
 
 # Target chunk size in characters (not tokens — we use char-level for
-# simpler deterministic splitting; 512 chars ≈ 128-200 tokens for most
+# simpler deterministic splitting; 512 chars ≈ 128–200 tokens for most
 # crypto/English text).
 RAG_CHUNK_SIZE: int = 512
 
 # Overlap between consecutive chunks to preserve cross-chunk context.
-# 50 chars ≈ 2-3 words of sliding context.
+# 50 chars ≈ 2–3 words of sliding context.
 RAG_CHUNK_OVERLAP: int = 50
 
 # Minimum chunk length in characters. Shorter chunks are discarded as
 # likely noise (headers, fragments, boilerplate).
 RAG_MIN_CHUNK_CHARS: int = 32
+
+# Adaptive chunking thresholds (character counts).
+# Text below SHORT_THRESHOLD → single chunk (no split).
+# Text between SHORT and MEDIUM → 2 chunks with 50% overlap.
+# Text above MEDIUM_THRESHOLD → chunked at FULL_CHUNK_SIZE tokens.
+RAG_CHUNK_SHORT_THRESHOLD: int = 300
+RAG_CHUNK_MEDIUM_THRESHOLD: int = 1000
+
+# Token-based chunk sizes for the "full" adaptive tier.
+# Default: 256 tokens per chunk with 32 token overlap.
+# Tokens are converted to chars at ~4 chars/token for the char-based splitter.
+RAG_CHUNK_FULL_TOKENS: int = 256
+RAG_CHUNK_FULL_OVERLAP_TOKENS: int = 32
+
+# News-specific token-based chunking.
+# 256 tokens per chunk (≈1024 chars), 32 tokens overlap (≈128 chars).
+RAG_NEWS_CHUNK_TOKENS: int = 256
+RAG_NEWS_CHUNK_OVERLAP_TOKENS: int = 32
+
+# Word count threshold for "long article" summary-first strategy.
+RAG_NEWS_LONG_ARTICLE_WORDS: int = 1000
 
 # ── Collections ───────────────────────────────────────────────────────
 

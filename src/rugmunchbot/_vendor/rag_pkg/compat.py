@@ -1,20 +1,13 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/compat.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/rag/compat.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
-"""Deprecated-compat shims for ``app.rag_service`` consumers (REMOVAL 2026-08-15).
+"""Compat shims — all RAG ops now route through rugbrain HTTP API.
 
-These functions preserve the OLD ``app.rag_service`` call signatures and
-return shapes so existing callers can migrate off ``app.rag_service``
-without changing their call sites. They are thin wrappers over the
-v3 M3 engine (``app.rag``).
+All function signatures preserved for backward compatibility.
+Underlying implementation uses ``app.integrations.rugbrain_client``.
 
-⚠️  DEPRECATED — do not use in new code. Prefer the native ``app.rag`` API:
-    - ``three_pillar_search``  → ``app.rag.engine.three_pillar_search()``
-    - ``search_similar``       → ``app.rag.hybrid_search()``
-    - ``search_multi_collection`` → ``app.rag.HybridRetriever().retrieve_multi()``
-    - ``detect_scam_patterns`` → ``app.rag.intelligence.RAGIntelligenceEnricher()``
-    - ``ingest_document``      → ``app.rag.engine.ingest_document()``
-    - ``get_embedder``         → ``app.rag.embedder.get_default_embedder()``
+REMOVAL 2026-08-15: delete this file after all callers migrate to
+``app.integrations.rugbrain_client`` directly.
 """
 
 from __future__ import annotations
@@ -26,191 +19,103 @@ from rugmunchbot._vendor.logging_shim import get_logger
 
 logger = get_logger(__name__)
 
-# ── Redis (async) — mirrors old app.rag_service.cache._get_redis ──────────
+
+# ── Redis utility ──────────────────────────────────────────────────────────
 
 _redis_pool: Any = None
 
 
 async def _get_redis() -> Any:
-    """Get or create a shared async Redis connection (singleton)."""
-    global _redis_pool
-    import redis.asyncio as redis
+    """Get async Redis connection (preserved stub)."""
+    import redis.asyncio as aioredis
 
-    if _redis_pool is not None:
-        try:
-            await _redis_pool.ping()
-        except (ConnectionError, OSError):
-            _redis_pool = None
+    global _redis_pool
     if _redis_pool is None:
-        _redis_pool = redis.Redis(
-            host=os.getenv("REDIS_HOST", "127.0.0.1"),
-            port=int(os.getenv("REDIS_PORT", "6379")),
-            password=os.getenv("REDIS_PASSWORD", "") or None,
-            db=0,
+        _redis_pool = aioredis.from_url(
+            os.getenv("REDIS_URL", "redis://rmi-redis:6379/0"),
             decode_responses=True,
         )
     return _redis_pool
 
 
-# ── Embedder — re-export the active crypto embedder (not deprecated) ─────
-
-from rugmunchbot._vendor.crypto_embeddings import (  # noqa: E402
-    get_embedder,
-)
-
-# ── Search shims ───────────────────────────────────────────────────────────
-
-_DEFAULT_COLLECTIONS: list[str] = [
-    "scam_intel",
-    "deployer_history",
-    "wallet_labels",
-    "contract_audit",
-    "phishing_db",
-]
-
-
-def _hit_to_dict(hit: Any, collection: str = "") -> dict[str, Any]:
-    """Convert a new-engine ScoredHit (or engine hit dict) to old shape."""
-    if isinstance(hit, dict):
-        return {
-            "doc_id": hit.get("doc_id", ""),
-            "content": hit.get("text", hit.get("content", "")),
-            "text": hit.get("text", hit.get("content", "")),
-            "similarity": float(hit.get("score", hit.get("similarity", 0.0)) or 0.0),
-            "score": float(hit.get("score", hit.get("similarity", 0.0)) or 0.0),
-            "collection": hit.get("collection", collection),
-            "metadata": hit.get("metadata", {}),
-        }
-    # ScoredHit dataclass
-    return {
-        "doc_id": getattr(hit, "doc_id", ""),
-        "content": getattr(hit, "content", ""),
-        "text": getattr(hit, "content", ""),
-        "similarity": float(getattr(hit, "final_score", getattr(hit, "score", 0.0)) or 0.0),
-        "score": float(getattr(hit, "final_score", getattr(hit, "score", 0.0)) or 0.0),
-        "collection": getattr(hit, "collection", collection),
-        "metadata": getattr(hit, "metadata", {}),
-    }
+# ── Search functions ───────────────────────────────────────────────────────
 
 
 async def search_similar(
     query: str,
-    collection: str = "wallet_profiles",
+    collection: str,
     limit: int = 10,
-    min_similarity: float = 0.0,
+    **kwargs: Any,
 ) -> list[dict[str, Any]]:
-    """DEPRECATED — semantic search across one collection (old API shape)."""
-    from rugmunchbot._vendor.rag_pkg.retrieval import HybridRetriever
+    """Search a single collection via rugbrain HTTP API."""
+    from rugmunchbot._vendor.rugbrain_client import rugbrain_search
 
-    try:
-        hits = await HybridRetriever().retrieve(
-            query=query,
-            collection=collection,
-            top_k=limit,
-            min_similarity=min_similarity,
-            expand=False,
-        )
-        return [_hit_to_dict(h, collection) for h in hits]
-    except Exception as e:  # fail-open, like the old service
-        logger.debug("search_similar_failed collection=%s err=%s", collection, str(e)[:120])
-        return []
+    return await rugbrain_search(query=query, collections=[collection], limit=limit)
 
 
 async def search_multi_collection(
     query: str,
-    collections: list[str] | None = None,
+    collections: list[str],
     limit: int = 10,
-    min_similarity: float = 0.5,
+    min_similarity: float = 0.0,
+    **kwargs: Any,
 ) -> list[dict[str, Any]]:
-    """DEPRECATED — search across multiple collections, merged (old API shape)."""
-    from rugmunchbot._vendor.rag_pkg.retrieval import HybridRetriever
+    """Search multiple collections via rugbrain HTTP API.
 
-    targets = collections or _DEFAULT_COLLECTIONS
-    try:
-        by_collection = await HybridRetriever().retrieve_multi(
-            query=query,
-            collections=targets,
-            top_k=limit,
-            min_similarity=min_similarity,
-        )
-        merged: list[dict[str, Any]] = []
-        for coll, hits in by_collection.items():
-            merged.extend(_hit_to_dict(h, coll) for h in hits)
-        merged.sort(key=lambda r: r["similarity"], reverse=True)
-        return merged[:limit]
-    except Exception as e:  # fail-open
-        logger.debug("search_multi_collection_failed err=%s", str(e)[:120])
-        return []
+    Returns results list (same shape as old compat layer).
+    """
+    from rugmunchbot._vendor.rugbrain_client import rugbrain_search
+
+    return await rugbrain_search(query=query, collections=collections, limit=limit)
 
 
 async def three_pillar_search(
     query: str,
     collections: list[str] | None = None,
+    collection: str = "",
     limit: int = 10,
-    min_similarity: float = 0.5,
-    entity_boost: float = 1.5,
-    use_mmr: bool = True,
-    mmr_lambda: float = 0.6,
-    use_kg: bool = True,
-    use_parent_child: bool = True,
-) -> dict[str, Any]:
-    """DEPRECATED — three-pillar search with old dict return shape.
+    top_k: int = 5,
+    min_similarity: float = 0.0,
+    **kwargs: Any,
+) -> dict[str, Any] | list[dict[str, Any]]:
+    """Legacy three-pillar search — routes through rugbrain HTTP API.
 
-    Returns ``{"results": [...], "confidence": ...}`` exactly like the old
-    ``app.rag_service.three_pillar_search`` so callers keep working.
-
-    Cross-encoder rerank (BAAI/bge-reranker-v2-m3) is MANDATORY: the engine
-    facade reranks every result list and applies the context-token budget
-    internally, so the legacy ``use_reranker`` switch is gone.
+    Accepts both ``collection`` (singular, old style) and ``collections``
+    (list, new style). Returns ``{"results": [...]}`` dict for callers
+    that expect the old shape, or plain list for callers that expect a list.
     """
-    from rugmunchbot._vendor.rag_pkg.engine import three_pillar_search as _engine_search
+    from rugmunchbot._vendor.rugbrain_client import rugbrain_search
 
-    targets = collections or _DEFAULT_COLLECTIONS
-    results: list[dict[str, Any]] = []
-    for coll in targets:
-        try:
-            raw = await _engine_search(
-                query=query,
-                collection=coll,
-                top_k=limit,
-                min_similarity=min_similarity,
-            )
-            results.extend(_hit_to_dict(h, coll) for h in raw)
-        except Exception as e:
-            logger.debug("three_pillar_collection_failed coll=%s err=%s", coll, str(e)[:100])
-    results.sort(key=lambda r: r["similarity"], reverse=True)
-    results = results[:limit]
-    confidence = _estimate_confidence(results)
-    return {"results": results, "confidence": confidence}
+    colls: list[str] = collections or ([collection] if collection else ["threat_intel_v2"])
+    results = await rugbrain_search(query=query, collections=colls, limit=max(limit, top_k))
+    # Return dict shape for callers that expect .get("results")
+    return {"results": results}
 
 
-def _estimate_confidence(results: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Best-effort confidence block matching the old service's shape."""
-    if not results:
-        return None
-    top = results[0].get("similarity", 0.0)
-    return {
-        "score": round(top, 4),
-        "label": "high" if top >= 0.7 else "medium" if top >= 0.4 else "low",
-        "result_count": len(results),
-    }
+async def search_documents(
+    collection: str,
+    query: str,
+    limit: int = 5,
+    **kwargs: Any,
+) -> list[dict[str, Any]]:
+    """Search documents in a single collection (old signature)."""
+    from rugmunchbot._vendor.rugbrain_client import rugbrain_search
 
-
-# ── Scam detection shim ────────────────────────────────────────────────────
+    return await rugbrain_search(query=query, collections=[collection], limit=limit)
 
 
 async def detect_scam_patterns(token_data: dict[str, Any], threshold: float = 0.65) -> dict[str, Any]:
-    """DEPRECATED — compare token against known scam patterns (old API shape).
+    """Compare token against known scam patterns via rugbrain + keyword matching.
 
-    Backed by the new engine's ``RAGIntelligenceEnricher`` plus the
-    ``app.crypto_embeddings`` known-pattern corpus. Returns the old dict
-    shape: ``quick_matches`` / ``deep_matches`` / ``highest_threat`` /
-    ``threat_severity``.
+    Preserves the old return shape: ``quick_matches`` / ``deep_matches`` /
+    ``highest_threat`` / ``threat_severity``.
     """
+    from rugmunchbot._vendor.rugbrain_client import rugbrain_search
+
     quick_matches: list[dict[str, Any]] = []
     deep_matches: list[dict[str, Any]] = []
 
-    # 1. Quick code-snippet keyword matches (same corpus as old service)
+    # 1. Quick code-snippet keyword matches
     try:
         from rugmunchbot._vendor.crypto_embeddings import KNOWN_SCAM_PATTERNS
 
@@ -232,25 +137,21 @@ async def detect_scam_patterns(token_data: dict[str, Any], threshold: float = 0.
     except Exception as e:
         logger.debug("detect_scam_quick_failed err=%s", str(e)[:120])
 
-    # 2. Deep semantic matches via the new engine
+    # 2. Deep semantic matches via rugbrain search
     try:
-        from rugmunchbot._vendor.rag_pkg.intelligence import RAGIntelligenceEnricher
-
-        enricher = RAGIntelligenceEnricher(top_k=5)
-        hits = await enricher.find_similar_scams(
-            token_address=token_data.get("address", ""),
-            chain=token_data.get("chain", ""),
-            symbol=token_data.get("symbol", ""),
-            name=token_data.get("name", ""),
+        query = f"{token_data.get('address', '')} {token_data.get('symbol', '')} {token_data.get('name', '')} scam pattern".strip()
+        hits = await rugbrain_search(
+            query=query, collections=["known_scams", "scam_patterns", "defi_exploits"], limit=5
         )
         for h in hits:
-            score = float(getattr(h, "final_score", getattr(h, "score", 0.0)) or 0.0)
-            if score >= threshold:
+            score = float(h.get("rrf_score", 0) or 0)
+            meta = h.get("metadata", {}) or {}
+            if score >= 0.005:  # RRF scores are ~0.01-0.02, so 0.005 catches anything meaningful
                 deep_matches.append(
                     {
-                        "pattern": (h.metadata or {}).get("pattern_name", h.metadata.get("name", "")),
-                        "severity": (h.metadata or {}).get("severity", "high"),
-                        "description": h.content[:300],
+                        "pattern": meta.get("pattern_name", meta.get("name", "")),
+                        "severity": meta.get("severity", "high"),
+                        "description": (h.get("content") or h.get("text") or "")[:300],
                         "similarity": round(score, 4),
                     }
                 )
@@ -266,7 +167,7 @@ async def detect_scam_patterns(token_data: dict[str, Any], threshold: float = 0.
     }
 
 
-# ── Ingestion shims ────────────────────────────────────────────────────────
+# ── Ingestion functions ────────────────────────────────────────────────────
 
 
 async def ingest_document(
@@ -274,27 +175,18 @@ async def ingest_document(
     content: str,
     metadata: dict[str, Any] | None = None,
     doc_id: str | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
-    """DEPRECATED — ingest one document (old positional API)."""
-    from rugmunchbot._vendor.rag_pkg.engine import ingest_document as _engine_ingest
+    """Ingest a document via rugbrain HTTP API."""
+    from rugmunchbot._vendor.rugbrain_client import rugbrain_ingest
 
-    if doc_id is None:
-        import hashlib
-        from datetime import UTC, datetime
-
-        doc_id = hashlib.sha256(f"{collection}:{content[:100]}:{datetime.now(UTC).isoformat()}".encode()).hexdigest()[
-            :16
-        ]
-    try:
-        return await _engine_ingest(
-            collection=collection,
-            doc_id=doc_id,
-            content=content,
-            metadata=metadata or None,
-        )
-    except Exception as e:
-        logger.debug("ingest_document_failed coll=%s err=%s", collection, str(e)[:120])
-        return {"status": "error", "error": str(e)}
+    ok = await rugbrain_ingest(
+        content=content,
+        collection=collection,
+        doc_id=doc_id,
+        metadata=metadata or {},
+    )
+    return {"status": "ok" if ok else "failed", "doc_id": doc_id or ""}
 
 
 async def index_document(
@@ -302,40 +194,7 @@ async def index_document(
     doc_id: str,
     text: str,
     metadata: dict[str, Any] | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
-    """DEPRECATED — index a document (was a no-op in rag_service)."""
-    return await ingest_document(collection=collection, content=text, metadata=metadata, doc_id=doc_id)
-
-
-async def search_documents(
-    collection: str,
-    text: str,
-    limit: int = 3,
-) -> list[dict[str, Any]]:
-    """DEPRECATED — search a single collection for docs (was a no-op in rag_service)."""
-    from rugmunchbot._vendor.rag_pkg.retrieval import HybridRetriever
-
-    try:
-        hits = await HybridRetriever().retrieve(
-            query=text,
-            collection=collection,
-            top_k=limit,
-            expand=False,
-        )
-        return [_hit_to_dict(h, collection) for h in hits]
-    except Exception as e:
-        logger.debug("search_documents_failed coll=%s err=%s", collection, str(e)[:120])
-        return []
-
-
-__all__ = [
-    "_get_redis",
-    "detect_scam_patterns",
-    "get_embedder",
-    "index_document",
-    "ingest_document",
-    "search_documents",
-    "search_multi_collection",
-    "search_similar",
-    "three_pillar_search",
-]
+    """Index a document via rugbrain HTTP API (alias for ingest)."""
+    return await ingest_document(collection=collection, content=text, doc_id=doc_id, metadata=metadata)

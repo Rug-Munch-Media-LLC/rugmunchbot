@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/databus/providers/chains/lite_chain_indexer.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/databus/providers/chains/lite_chain_indexer.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -248,7 +248,7 @@ async def _lite_chain_indexer_token_transfers(**kwargs: Any) -> dict[str, Any] |
                 WHERE {where_clause}
                 ORDER BY et.block_number DESC, et.log_index DESC
                 LIMIT %(limit)s
-                """,  # noqa: S608
+                """,  # noqa: S608 - verified bound/allowlisted SQL construction  # nosec B608 - where_parts are code literals; values bound via %(name)s params
                 params,
             )
         except (ValueError, RuntimeError, OSError) as exc:
@@ -437,7 +437,7 @@ async def _lite_chain_indexer_deployer_history(**kwargs: Any) -> dict[str, Any] 
                 WHERE {where_clause}
                 ORDER BY block_number DESC
                 LIMIT %(limit)s
-                """,  # noqa: S608
+                """,  # noqa: S608 - verified bound/allowlisted SQL construction  # nosec B608 - where_parts are code literals; values bound via %(name)s params
                 params,
             )
         except (ValueError, RuntimeError, OSError) as exc:

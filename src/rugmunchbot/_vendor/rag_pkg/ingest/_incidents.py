@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/ingest/_incidents.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/rag/ingest/_incidents.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Public scam/rug/exploit incident source registry, normalization + ingest.

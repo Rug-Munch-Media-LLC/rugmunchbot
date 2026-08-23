@@ -1,19 +1,19 @@
-# VENDORED 2026-08-17 from rmi-backend/app/crypto_embeddings/providers.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/crypto_embeddings/providers.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
-"""Embedding providers: Local BGE, llama.cpp qwen3 qwen3-embedding-4b, OpenRouter, HuggingFace."""
+"""Embedding providers: Local BGE, Qwen3-4B, OpenRouter, HuggingFace."""
 
 from __future__ import annotations
 
 import os
 from typing import TYPE_CHECKING, Any
 
+from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.crypto_embeddings.features import extract_contract_features
 from rugmunchbot._vendor.crypto_embeddings.models import (
     OR_FALLBACK_EMBED,
     OR_PRIMARY_EMBED,
 )
-from rugmunchbot._vendor.logging_shim import get_logger
 
 if TYPE_CHECKING:
     import numpy as np
@@ -30,7 +30,7 @@ class LocalBGEEmbedder:
     The in-process sentence-transformers/torch path (~300MB resident in the bot
     process, never unloaded) was the direct cause of memory pressure. This class
     now fails fast and can NEVER load a local model or touch torch. Use the
-    remote embedders (llama.cpp qwen3 primary, OpenRouter, HuggingFace) or the hash
+    remote embedders (Qwen3 primary, OpenRouter, HuggingFace) or the hash
     fallback instead.
     """
 
@@ -41,7 +41,7 @@ class LocalBGEEmbedder:
         raise RuntimeError(
             "LocalBGEEmbedder disabled: in-process sentence-transformers/torch model "
             "loading removed for memory safety. Use remote embedders "
-            "(llama.cpp qwen3/OpenRouter/HuggingFace) or the hash fallback instead."
+            "(Infinity/OpenRouter/HuggingFace) or the hash fallback instead."
         )
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
@@ -53,15 +53,15 @@ class LocalBGEEmbedder:
         return results[0]
 
 
-class Qwen3CryptoEmbedder:
-    """BAAI/qwen3-embedding-4b via the llama.cpp qwen3 server (OpenAI-compatible /embeddings). 1024d, zero cost."""
+class Qwen3Embedder:
+    """Qwen3-Embedding-4B via llama.cpp (OpenAI-compatible /v1/embeddings). 2560d, zero cost."""
 
-    QWEN_EMBED_URL = os.getenv("QWEN_EMBED_URL", "http://172.22.0.1:8004/v1")
-    MODEL = "BAAI/qwen3-embedding-4b"
+    EMBEDDER_URL = os.getenv("EMBEDDER_URL", "http://172.22.0.1:8004/v1")
+    MODEL = "qwen3-embedding-4b"
     DIMS = 1024
 
-    def __init__(self, qwen_embed_url: str | None = None) -> None:
-        self.url = qwen_embed_url or self.QWEN_EMBED_URL
+    def __init__(self, qwen3_url: str | None = None) -> None:
+        self.url = qwen3_url or os.getenv("EMBEDDER_URL", self.EMBEDDER_URL)
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         import httpx
@@ -92,7 +92,7 @@ class Qwen3CryptoEmbedder:
 
 
 class OpenRouterEmbedder:
-    """OpenRouter embedding API - NVIDIA Nemotron primary, qwen3-embedding-4b fallback."""
+    """OpenRouter embedding API - NVIDIA Nemotron primary, qwen3 fallback."""
 
     BASE = "https://openrouter.ai/api/v1/embeddings"
     MODEL = OR_PRIMARY_EMBED
@@ -136,7 +136,7 @@ class HuggingFaceEmbedder:
     """HuggingFace Inference API - free tier fallback."""
 
     BASE = "https://api-inference.huggingface.co/models"
-    MODEL = "BAAI/qwen3-embedding-4b"
+    MODEL = "qwen3-embedding-4b"
 
     def __init__(self, token: str | None = None) -> None:
         self.token = token or HF_TOKEN
@@ -166,7 +166,7 @@ class HuggingFaceEmbedder:
                 data = resp.json()
                 if isinstance(data, list) and len(data) > 0:
                     if isinstance(data[0], list):
-                        results.append(data[0])
+                        results.append(data[0] if len(data) == 1 else data[0])
                     else:
                         results.append(data)
                 else:

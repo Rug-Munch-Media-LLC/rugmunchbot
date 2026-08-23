@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/_data_sources.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/unified/_data_sources.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Shared data-source getters — single source of truth per data type.
@@ -121,9 +121,7 @@ async def get_token_holders(token_address: str, chain: str) -> dict[str, Any]:
     (``holder_count`` / ``top_holders`` / ``concentration_pct`` /
     ``gini_coefficient`` / ... ) with ``source == "own"``.
     """
-    from rugmunchbot._vendor.scanner_engines.own_holder_analysis import (
-        get_own_holder_analysis as _canonical,
-    )
+    from rugmunchbot._vendor.scanner_engines.own_holder_analysis import get_own_holder_analysis as _canonical
 
     return await _canonical(token_address, chain)
 

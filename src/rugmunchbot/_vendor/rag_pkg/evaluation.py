@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/rag/evaluation.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/rag/evaluation.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """
@@ -476,9 +476,7 @@ async def _evaluate_with_ragas(
         # venv). Types are version-dependent, so cast to a loose callable.
         from typing import cast
 
-        from ragas import (
-            evaluate as ragas_evaluate_raw,  # pyright: ignore[reportUnknownVariableType]
-        )
+        from ragas import evaluate as ragas_evaluate_raw  # pyright: ignore[reportUnknownVariableType]
         from ragas.metrics import (
             answer_relevancy,
             context_precision,

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/persistence.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/unified/persistence.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Persistence — Postgres save, Redis cache, RAG publishing, deployer labeling."""
@@ -206,8 +206,9 @@ async def _maybe_upsert_token(session: Any, result: ScanResult) -> None:
     if not result.symbol:
         return
     try:
-        from app.models.token import Token
         from sqlalchemy import select
+
+        from app.models.token import Token
 
         stmt = select(Token).where(
             Token.chain == result.chain,

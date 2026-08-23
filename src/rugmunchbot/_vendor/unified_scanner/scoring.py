@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/scoring.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/unified/scoring.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Token safety scoring — multi-dimensional, explainable risk scoring.
@@ -55,10 +55,7 @@ if TYPE_CHECKING:
 
 from rugmunchbot._vendor.scanner_engines.news_sentiment import HIGH_MEDIA_ATTENTION_THRESHOLD
 from rugmunchbot._vendor.unified_scanner._evidence import build_evidence
-from rugmunchbot._vendor.unified_scanner._score_helpers import (
-    apply_sentinel_scoring,
-    build_breakdown,
-)
+from rugmunchbot._vendor.unified_scanner._score_helpers import apply_sentinel_scoring, build_breakdown
 
 # Dimension weights — the maximum points each dimension can contribute
 # toward the safety score. 35 + 25 + 15 + 15 + 10 = 100.
@@ -582,7 +579,10 @@ def apply_market_scoring(r: ScanResult) -> None:
 
     # Recent exploits in the same category → higher risk (bounded).
     if exploits > 0:
-        penalty = min(-5.0 * min(exploits, 2), -10.0)
+        # TOP-100 #19: max() not min() — min() of two negatives always yields
+        # the cap (-10) even for a single exploit; contract is -5 per exploit
+        # capped at -10.
+        penalty = max(-5.0 * min(exploits, 2), -10.0)
         _apply_market_delta(r, penalty, "MARKET_RECENT_EXPLOITS", risk=True)
 
     # Chain volume (TVL) direction.

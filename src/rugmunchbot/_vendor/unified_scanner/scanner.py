@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/domains/scanner/unified/scanner.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/unified/scanner.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """UnifiedTokenScanner — main scan orchestration.
@@ -31,16 +31,9 @@ from rugmunchbot._vendor.unified_scanner._finalize_helpers import (
     get_news_card,
     run_news_sentiment,
 )
-from rugmunchbot._vendor.unified_scanner._legacy import (
-    _from_legacy_dict,
-    _to_legacy_dict,
-    scan_token_unified,
-)
+from rugmunchbot._vendor.unified_scanner._legacy import _from_legacy_dict, _to_legacy_dict, scan_token_unified
 from rugmunchbot._vendor.unified_scanner._merge_helpers import merge_core
-from rugmunchbot._vendor.unified_scanner._phase_helpers import (
-    run_bundle_analysis,
-    run_wallet_analysis,
-)
+from rugmunchbot._vendor.unified_scanner._phase_helpers import run_bundle_analysis, run_wallet_analysis
 from rugmunchbot._vendor.unified_scanner.deep_profile import collect_deep_profile
 from rugmunchbot._vendor.unified_scanner.model import ScanResult
 from rugmunchbot._vendor.unified_scanner.persistence import read_stability
@@ -472,10 +465,7 @@ class UnifiedTokenScanner:
         alert is gated off); the caller awaits it with a bounded shield.
         """
         try:
-            from app.domains.telegram.alert_hooks import (
-                send_scanner_alert,
-                should_send_scanner_alert,
-            )
+            from app.domains.telegram.alert_hooks import send_scanner_alert, should_send_scanner_alert
 
             if not should_send_scanner_alert(result.risk_level, list(result.risk_flags)):
                 return None
@@ -708,9 +698,7 @@ class UnifiedTokenScanner:
         to empty events when news/price data is unavailable.
         """
         try:
-            from rugmunchbot._vendor.scanner_engines.event_correlation import (
-                correlate_news_with_price,
-            )
+            from rugmunchbot._vendor.scanner_engines.event_correlation import correlate_news_with_price
 
             correlation = await correlate_news_with_price(address, chain, lookback_hours=24)
             if not isinstance(correlation, dict):

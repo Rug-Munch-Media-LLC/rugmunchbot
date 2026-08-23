@@ -1,4 +1,4 @@
-# VENDORED 2026-08-17 from rmi-backend/app/deep_scan.py (frozen copy; do not edit).
+# VENDORED 2026-08-23 from rmi-backend/app/deep_scan.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Deep-scan orchestrator — run the platform's ML + contract modules in one call.
@@ -61,6 +61,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from rugmunchbot._vendor.chain_registry import get_rpc_urls, is_evm
+from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.deep_scan_runners import (
     _run_decompile,
     _run_fraud_gnn,
@@ -70,7 +71,6 @@ from rugmunchbot._vendor.deep_scan_runners import (
     _run_sell_sim,
     _run_slither,
 )
-from rugmunchbot._vendor.logging_shim import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
