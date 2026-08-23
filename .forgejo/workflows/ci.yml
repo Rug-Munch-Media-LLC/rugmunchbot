@@ -35,6 +35,15 @@ jobs:
           fi
 
   # ── Lint (ruff) ───────────────────────────────────────────────
+  # Vendor drift guard: vendored modules must match rmi-backend canon.
+  # Fails when a facade regrows or imports go stale (see scripts/refresh-vendors.sh).
+  vendor-drift-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Verify vendor invariants
+        run: bash scripts/refresh-vendors.sh --check
+
   lint:
     runs-on: docker-x64
     container:
