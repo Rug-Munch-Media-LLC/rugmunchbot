@@ -245,6 +245,54 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=gnosis&dkey=${DRPC_API_KEY}",
     ],
+    # ── Expanded free-tier chains (Ankr Freemium probed live 2026-08-23) ──
+    "flare": [
+        "https://flare-rpc.publicnode.com",
+        "https://rpc.ankr.com/flare/${ANKR_API_KEY}",
+    ],
+    "taiko": [
+        "https://rpc.mainnet.taiko.xyz",
+        "https://rpc.ankr.com/taiko/${ANKR_API_KEY}",
+    ],
+    "core": [
+        "https://rpc.coredao.org",
+        "https://rpc.ankr.com/core/${ANKR_API_KEY}",
+    ],
+    "filecoin": [
+        "https://api.node.glif.io",
+        "https://rpc.ankr.com/filecoin/${ANKR_API_KEY}",
+    ],
+    "iotex": [
+        "https://api.iotex.one",
+        "https://rpc.ankr.com/iotex/${ANKR_API_KEY}",
+    ],
+    "chiliz": [
+        "https://rpc.ankr.com/chiliz/${ANKR_API_KEY}",
+    ],
+    "gravity": [
+        "https://rpc.gravitychain.io",
+        "https://rpc.ankr.com/gravity/${ANKR_API_KEY}",
+    ],
+    "syscoin": [
+        "https://rpc.syscoin.org",
+        "https://rpc.ankr.com/syscoin/${ANKR_API_KEY}",
+    ],
+    "xdc": [
+        "https://rpc.xinfin.network",
+        "https://rpc.ankr.com/xdc/${ANKR_API_KEY}",
+    ],
+    "celo": [
+        "https://forno.celo.org",
+        "https://rpc.ankr.com/celo/${ANKR_API_KEY}",
+    ],
+    "klaytn": [
+        "https://public-en-kairos.node.kaia.io",
+        "https://rpc.ankr.com/klaytn/${ANKR_API_KEY}",
+    ],
+    "harmony": [
+        "https://api.harmony.one",
+        "https://rpc.ankr.com/harmony/${ANKR_API_KEY}",
+    ],
 }
 
 # ─── Solana ─────────────────────────────────────────────────────────
