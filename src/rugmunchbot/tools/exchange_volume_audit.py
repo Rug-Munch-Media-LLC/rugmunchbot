@@ -155,10 +155,10 @@ async def exchange_volume_audit(*, token_id: str = "", symbol: str = "") -> Tool
     """ToolResult: venue-level wash-trading audit for one token."""
     tid = token_id or (symbol.lower() if symbol else "")
     if not tid:
-        return ToolResult(ok=False, data={"error": "token_id or symbol required"})
+        return ToolResult(tool="exchange_volume_audit", ok=False, data={"error": "token_id or symbol required"})
     tickers = await _fetch_tickers(tid)
     if not tickers:
-        return ToolResult(ok=False, data={"error": "no ticker data available"})
+        return ToolResult(tool="exchange_volume_audit", ok=False, data={"error": "no ticker data available"})
     report = audit_venues(tickers)
     report["token"] = tid
     wash_risk = [v for v in report["venues"] if v["verdict"] == "WASH_RISK"]
@@ -166,4 +166,4 @@ async def exchange_volume_audit(*, token_id: str = "", symbol: str = "") -> Tool
         f"{len(wash_risk)}/{report['exchanges_audited']} venues flagged WASH_RISK"
         if wash_risk else "no venue-level wash signals"
     )
-    return ToolResult(ok=True, data=report)
+    return ToolResult(tool="exchange_volume_audit", ok=True, data=report)

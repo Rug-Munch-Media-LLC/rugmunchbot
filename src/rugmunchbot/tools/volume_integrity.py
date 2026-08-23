@@ -137,10 +137,10 @@ def analyze(pair: dict[str, Any]) -> dict[str, Any]:
 async def volume_integrity(*, address: str = "", chain: str = "") -> ToolResult:
     """ToolResult: composite volume-integrity report for a token address."""
     if not address:
-        return ToolResult(ok=False, data={"error": "address required"})
+        return ToolResult(tool="volume_integrity", ok=False, data={"error": "address required"})
     pairs = await _get_pairs(address=address, chain=chain)
     if not pairs:
-        return ToolResult(ok=False, data={"error": "no dexscreener pairs found"})
+        return ToolResult(tool="volume_integrity", ok=False, data={"error": "no dexscreener pairs found"})
     primary = _pick_primary(pairs)
     report = analyze(primary)
     report.update({
@@ -151,4 +151,4 @@ async def volume_integrity(*, address: str = "", chain: str = "") -> ToolResult:
         "volume24_usd": _f((primary.get("volume") or {}).get("h24")),
         "pairs_analyzed": len(pairs),
     })
-    return ToolResult(ok=True, data=report)
+    return ToolResult(tool="volume_integrity", ok=True, data=report)
