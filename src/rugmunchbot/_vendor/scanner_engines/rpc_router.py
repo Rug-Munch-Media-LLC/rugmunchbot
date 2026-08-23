@@ -307,10 +307,12 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
 # ─── Solana ─────────────────────────────────────────────────────────
 
 SOLANA_RPC_ENDPOINTS: list[str] = [
+    "https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY_2}",  # Helius acct 2 (live)
+    "https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY_3}",  # Helius acct 3 (live)
     "https://api.mainnet-beta.solana.com",  # Solana official public
     "https://solana-rpc.publicnode.com",  # PublicNode Solana
     "https://solana.drpc.org",  # dRPC Solana
-    "https://rpc.ankr.com/solana",  # Ankr Solana
+    "https://rpc.ankr.com/solana/${ANKR_API_KEY}",  # Ankr Solana keyed
     "https://solana.meowrpc.com",  # MeowRPC Solana
     "https://solana.blockpi.network/v1/rpc/public",  # BlockPI Solana
     "https://solana-api.projectserum.com",  # Project Serum — long-standing free
