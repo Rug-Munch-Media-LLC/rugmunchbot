@@ -41,7 +41,7 @@ class LocalBGEEmbedder:
         raise RuntimeError(
             "LocalBGEEmbedder disabled: in-process sentence-transformers/torch model "
             "loading removed for memory safety. Use remote embedders "
-            "(Infinity/OpenRouter/HuggingFace) or the hash fallback instead."
+            "(Qwen3/OpenRouter/HuggingFace) or the hash fallback instead."
         )
 
     async def embed(self, texts: list[str]) -> list[list[float]]:

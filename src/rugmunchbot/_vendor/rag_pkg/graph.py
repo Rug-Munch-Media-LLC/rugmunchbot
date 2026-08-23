@@ -221,7 +221,7 @@ async def retrieve_news(state: ResearchState) -> dict[str, Any]:
 
 
 async def rerank_documents(state: ResearchState) -> dict[str, Any]:
-    """Cross-encoder rerank (BGE reranker v2 m3 via Infinity). Fail-open.
+    """Cross-encoder rerank (BGE reranker v2 m3 via Qwen3 llama.cpp server). Fail-open.
 
     Reorders ``documents`` by relevance and drops low-confidence hits.
     On reranker failure the pre-rerank order is kept.

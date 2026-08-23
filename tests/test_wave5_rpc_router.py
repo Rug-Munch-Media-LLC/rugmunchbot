@@ -20,7 +20,11 @@ def test_get_rpc_router_is_singleton() -> None:
 
 def test_endpoint_inventory_nonempty() -> None:
     assert len(SOLANA_RPC_ENDPOINTS) >= 1
-    assert all(isinstance(u, str) and u.startswith("http") for u in SOLANA_RPC_ENDPOINTS)
+    # Entries are either full URLs or ${ENV_VAR} templates (resolved lazily;
+    # templates whose key is unset are dropped before any network I/O).
+    assert all(
+        isinstance(u, str) and (u.startswith("http") or "${" in u) for u in SOLANA_RPC_ENDPOINTS
+    )
     assert len(EVM_RPC_ENDPOINTS) >= 1
 
 
@@ -37,13 +41,15 @@ def test_get_available_endpoints_solana() -> None:
     router = get_rpc_router()
     available = router.get_available_endpoints("solana")
     assert isinstance(available, list)
-    assert len(available) == len(SOLANA_RPC_ENDPOINTS)
-    # Router inventory is broader than the module constant: it also
-    # includes operator-configured endpoints (e.g. Alchemy via env).
+    # Tier semantics: without API keys set, keyed (freemium) endpoints are
+    # excluded entirely — availability == the free pool, never a broken
+    # half-resolved URL.
     for url, health in available:
         assert url.startswith("http")
+        assert "${" not in url  # no unresolved key placeholders leak through
         assert health.url == url
         assert health.chain == "solana"
+        assert health.tier == "free"
         assert health.is_dead is False
 
 

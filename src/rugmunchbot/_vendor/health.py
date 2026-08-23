@@ -23,11 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 import httpx
-
-try:
-    from fastapi.responses import JSONResponse
-except ImportError:  # bot runtime has no fastapi — degrade to plain dicts
-    JSONResponse = None
+from fastapi.responses import JSONResponse
 
 from rugmunchbot._vendor.settings_shim import settings
 
@@ -145,8 +141,6 @@ async def readyz() -> JSONResponse:
     """Readiness: aggregate dependency state; 503 when degraded."""
     readiness = await get_readiness()
     code = 200 if readiness["status"] == "healthy" else 503
-    if JSONResponse is None:  # bot runtime: plain dict, no fastapi
-        return readiness
     return JSONResponse(status_code=code, content=readiness)
 
 
