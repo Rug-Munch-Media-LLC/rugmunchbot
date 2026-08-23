@@ -120,17 +120,20 @@ _OUR_SOURCE_TYPES = ("rag", "scanner", "market", "backend")
 def _dedupe_sources(sources: list[dict[str, str]]) -> list[dict[str, str]]:
     """De-duplicate sources by normalized domain (URL-bearing only — a source
     without a URL is never deduped). First occurrence per domain wins."""
-    seen_domains: set[str] = set()
+    seen_keys: set[str] = set()
     deduped: list[dict[str, str]] = []
     for s in sources:
         if not isinstance(s, dict):
             continue
         url = str(s.get("url") or "").strip()
         domain = _normalize_source_domain(url) if url else ""
-        if domain and domain in seen_domains:
+        # Dedupe key: domain when URL-bearing; display name otherwise so the
+        # "RMI market intel" x5 class of dupes collapses too.
+        key = domain or _source_display_name(s).lower()
+        if key and key in seen_keys:
             continue
-        if domain:
-            seen_domains.add(domain)
+        if key:
+            seen_keys.add(key)
         deduped.append(s)
     return deduped
 

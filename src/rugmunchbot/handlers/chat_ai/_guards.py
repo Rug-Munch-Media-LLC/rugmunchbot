@@ -181,6 +181,19 @@ def _verify_numeric_claims(answer: str, known_nums: list[float]) -> tuple[str, l
 
     answer = _USD_CLAIM_RE.sub(lambda m: _flag(m, _claim_value(m.group(1), m.group(2))), answer)
     answer = _PERCENT_CLAIM_RE.sub(lambda m: _flag(m, _claim_value(m.group(1), None)), answer)
+
+    # Readability doctrine: >3 inline flags means the datum set is partial and
+    # the prose drowns in warnings. Collapse to one honest footnote instead.
+    inline = answer.count(" ⚠ unverified")
+    if inline > 3:
+        answer = answer.replace(" ⚠ unverified", "")
+        flagged = list(dict.fromkeys(flagged))
+        footer = (
+            "\n\n⚠ Some figures above could not be verified against live "
+            f"sources ({len(flagged)} unchecked). Treat them as indicative."
+        )
+        if "⚠" not in answer:
+            answer += footer
     return answer, flagged
 
 
