@@ -172,6 +172,24 @@ async def scan_token(
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
         result["errors"].append(f"DexScreener: {e}")
 
+    # Jupiter price fallback (keyless): when DexScreener has no pair/price
+    # for a Solana mint (brand-new pump.fun launches), Jupiter's aggregated
+    # price fills the hole. Fail-open; 6s cap.
+    if result.get("price") is None and result.get("chain") == "solana":
+        try:
+            from rugmunchbot.tools.scanner._market import jupiter_price
+
+            jup = await jupiter_price(client, address)
+            if jup:
+                result["price"] = jup["price_usd"]
+                if jup.get("change_24h") is not None:
+                    result["price_change_24h"] = jup["change_24h"]
+                if jup.get("liquidity"):
+                    result.setdefault("jup_liquidity", jup["liquidity"])
+                result["threats"].append("Price via Jupiter (no DexScreener pair yet)")
+        except Exception as exc:  # noqa: BLE001 — fallback must fail open
+            result["errors"].append(f"Jupiter: {exc}")
+
     # Independent providers run CONCURRENTLY (8s per-provider cap, fail-open):
     # the EVM security chain (GoPlus → honeypot.is fallback, kept sequential
     # inside the coroutine so the fallback gate stays exact) + the RMI

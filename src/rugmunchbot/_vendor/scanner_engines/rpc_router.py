@@ -247,7 +247,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
     ],
     # ── Expanded free-tier chains (Ankr Freemium probed live 2026-08-23) ──
     "flare": [
-        "https://flare-rpc.publicnode.com",
+        # publicnode 404 + official unreachable from host (2026-08-23 probe);
+        # Ankr keyed is the primary until a free mirror verifies.
         "https://rpc.ankr.com/flare/${ANKR_API_KEY}",
     ],
     "taiko": [

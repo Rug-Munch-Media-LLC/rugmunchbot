@@ -132,3 +132,48 @@ def _merge_market_snapshot(result: dict[str, Any], snap: dict[str, Any]) -> None
         result["pair_address"] = snap["pair_address"]
     if not result.get("dex") and snap.get("dex"):
         result["dex"] = snap["dex"]
+
+
+# ── Jupiter price fallback (keyless, Solana-first) ────────────────────
+# lite-api.jup.ag/price/v3 — no API key, generous limits. Fills ``price``
+# + 24h change when DexScreener has no pair/price for a token (common for
+# brand-new pump.fun launches seconds after migration).
+
+_JUPITER_PRICE_URL = "https://lite-api.jup.ag/price/v3"
+
+
+async def jupiter_price(client: Any, mint: str) -> dict[str, Any] | None:
+    """Fetch {price_usd, liquidity, change_24h} from Jupiter. Fail-open.
+
+    Args:
+        client: shared httpx client (``get_shared_client`` product).
+        mint: Solana mint address.
+
+    Returns:
+        Dict with ``price_usd``, ``liquidity``, ``change_24h`` or None.
+    """
+    if not mint:
+        return None
+    try:
+        r = await client.get(_JUPITER_PRICE_URL, params={"ids": mint}, timeout=6.0)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        entry = (data or {}).get(mint) if isinstance(data, dict) else None
+        if not isinstance(entry, dict):
+            return None
+        price = _safe_float(entry.get("usdPrice"))
+        if not price or price <= 0:
+            return None
+        return {
+            "price_usd": price,
+            "liquidity": _safe_float(entry.get("liquidity")),
+            "change_24h": _safe_float(entry.get("priceChange24h")),
+        }
+    except Exception as exc:  # noqa: BLE001 — keyless fallback must fail open
+        from rugmunchbot.support.logging import get_logger
+
+        get_logger("rmi_bot.scanner.market").debug(
+            "jupiter_price_failed %s: %s", mint[:10], exc
+        )
+        return None
