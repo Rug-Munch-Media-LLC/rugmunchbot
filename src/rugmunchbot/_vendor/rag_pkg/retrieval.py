@@ -595,6 +595,7 @@ class HybridRetriever:
         expand: bool = True,
         rerank: bool = True,
         candidate_k: int | None = None,
+        rerank_tier: str = "deep",
     ) -> list[ScoredHit]:
         """Run hybrid retrieval with optional query expansion.
 
@@ -691,7 +692,7 @@ class HybridRetriever:
             # query. Graph-enriched hits added in step 3b ride along on the
             # engine rerank order (they carry an entity-match boost).
             if rerank and not engine_reranked and len(scored) > 1:
-                scored = await self._apply_rerank(query, scored, top_k)
+                scored = await self._apply_rerank(query, scored, top_k, tier=rerank_tier)
 
             # 4a. When a wider pre-rerank pool was requested, truncate to
             # the post-rerank ``top_k`` here — the reranker (engine or
@@ -721,18 +722,26 @@ class HybridRetriever:
 
         return scored
 
-    async def _apply_rerank(self, query: str, scored: list[ScoredHit], top_n: int) -> list[ScoredHit]:
+    async def _apply_rerank(
+        self,
+        query: str,
+        scored: list[ScoredHit],
+        top_n: int,
+        tier: str = "deep",
+    ) -> list[ScoredHit]:
         """Rerank *scored* hits with the Qwen3 cross-encoder.
 
         Reorders hits by Qwen3 relevance (updating ``final_score``) and
         truncates to *top_n*. Fail-open: on any error or empty response the
-        original ordering is returned unchanged.
+        original ordering is returned unchanged. ``tier="live"`` routes
+        through the 0.6B fast server with a candidate cap (consumer paths);
+        ``"deep"`` uses the 4B server (background quality path).
         """
         if len(scored) < 2:
             return scored
         try:
             docs = [(h.content or "")[:2000] for h in scored]
-            reranked = await rerank_results(query, docs, top_n=len(scored))
+            reranked = await rerank_results(query, docs, top_n=len(scored), tier=tier)
             if not reranked:
                 return scored
             ordered = reorder_by_relevance(scored, reranked, top_n)

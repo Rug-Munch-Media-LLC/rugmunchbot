@@ -257,6 +257,7 @@ async def get_news(query: str, top_k: int = _NEWS_TOP_K) -> dict[str, Any]:
             top_k=top_k,
             candidate_k=_NEWS_CANDIDATE_K,
             rerank=True,
+            rerank_tier="live",  # consumer-facing: 0.6B fast tier w/ strain ladder
         )
         # Dedup by canonical URL — a story clustered from N sources (or a
         # multi-chunk doc) can surface several hits for the same article;

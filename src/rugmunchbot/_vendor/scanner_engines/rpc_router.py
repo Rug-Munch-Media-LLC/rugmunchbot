@@ -908,7 +908,7 @@ class RpcRouter:
 
         for chain, endpoints in self._evm_health.items():
             chain_report = []
-            for url, health in endpoints.items():
+            for _url, health in endpoints.items():
                 chain_report.append(_entry(health))
                 report["summary"]["total_endpoints"] += 1
                 if health.alive:
