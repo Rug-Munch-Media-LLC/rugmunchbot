@@ -12,6 +12,7 @@ from __future__ import annotations
 
 EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
     "ethereum": [
+        "https://ethereum.blockpi.network/v1/rpc/1b0e56635142347bae8b77c148a652705055329c",  # BlockPI keyed (probed live 2026-08-23)
         "https://eth.llamarpc.com",  # LlamaNodes — fast, free, no key
         "https://rpc.ankr.com/eth",  # Ankr — free tier, reliable
         "https://eth.drpc.org",  # dRPC — distributed, free tier
@@ -36,6 +37,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "${QUICKNODE_ETH_HTTP}",  # QuickNode dedicated endpoint (full URL via env)
     ],
     "bsc": [
+        "https://bsc.blockpi.network/v1/rpc/dda061f196261a9ab6c3079f80a9a5095063256c",  # BlockPI keyed (probed live 2026-08-23)
         "https://binance.llamarpc.com",  # LlamaNodes BSC
         "https://rpc.ankr.com/bsc",  # Ankr BSC
         "https://bsc.drpc.org",  # dRPC BSC
@@ -61,6 +63,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "${QUICKNODE_BSC_HTTP}",
     ],
     "polygon": [
+        "https://polygon.blockpi.network/v1/rpc/4aa39c18c29b7ac4ef0b58ab65069a27c342f81c",  # BlockPI keyed (probed live 2026-08-23)
         "https://polygon.llamarpc.com",  # LlamaNodes Polygon
         "https://rpc.ankr.com/polygon",  # Ankr Polygon
         "https://polygon.drpc.org",  # dRPC Polygon
@@ -78,6 +81,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "${QUICKNODE_POLYGON_HTTP}",
     ],
     "arbitrum": [
+        "https://arbitrum.blockpi.network/v1/rpc/f91d8f7601e1a4b34e79335cf92c2515d79a12d5",  # BlockPI keyed (probed live 2026-08-23)
         "https://arbitrum.llamarpc.com",  # LlamaNodes Arbitrum
         "https://rpc.ankr.com/arbitrum",  # Ankr Arbitrum
         "https://arbitrum.drpc.org",  # dRPC Arbitrum
@@ -109,6 +113,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://rpc.ankr.com/base/${ANKR_API_KEY}",
     ],
     "optimism": [
+        "https://optimism.blockpi.network/v1/rpc/c6e456de5f16b57f545310fef4657fb2ab2be75c",  # BlockPI keyed (probed live 2026-08-23)
         "https://optimism.llamarpc.com",  # LlamaNodes Optimism
         "https://rpc.ankr.com/optimism",  # Ankr Optimism
         "https://optimism.drpc.org",  # dRPC Optimism
@@ -123,6 +128,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://lb.drpc.org/ogrpc?network=optimism&dkey=${DRPC_API_KEY}",
     ],
     "avalanche": [
+        "https://avalanche.blockpi.network/v1/rpc/9cbc011e7f9b0f8e72eb22377fa6016dea085b72",  # BlockPI keyed (probed live 2026-08-23)
         "https://avalanche.llamarpc.com",  # LlamaNodes Avalanche
         "https://rpc.ankr.com/avalanche",  # Ankr Avalanche
         "https://avalanche.drpc.org",  # dRPC Avalanche
@@ -136,6 +142,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://lb.drpc.org/ogrpc?network=avalanche&dkey=${DRPC_API_KEY}",
     ],
     "fantom": [
+        "https://fantom.blockpi.network/v1/rpc/439ef758515123721ba658ed78220c20d63efba5",  # BlockPI keyed (probed live 2026-08-23)
         "https://rpc.ankr.com/fantom",  # Ankr Fantom
         "https://fantom.drpc.org",  # dRPC Fantom
         "https://fantom-rpc.publicnode.com",  # PublicNode Fantom
@@ -148,6 +155,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://lb.drpc.org/ogrpc?network=fantom&dkey=${DRPC_API_KEY}",
     ],
     "linea": [
+        "https://linea.blockpi.network/v1/rpc/21b331fd54d06c8641e0396b2e50f62af6dc9276",  # BlockPI keyed (probed live 2026-08-23)
         "https://rpc.linea.build",  # Linea official
         "https://linea-rpc.publicnode.com",  # PublicNode Linea
         "https://linea.drpc.org",  # dRPC Linea
@@ -159,6 +167,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://lb.drpc.org/ogrpc?network=linea&dkey=${DRPC_API_KEY}",
     ],
     "zksync": [
+        "https://zksync-era.blockpi.network/v1/rpc/853cc3247856ee3a291d4eea7ff13a8eb67c39af",  # BlockPI keyed (probed live 2026-08-23)
         "https://mainnet.era.zksync.io",  # zkSync official
         "https://zksync-era.blockpi.network/v1/rpc/public",  # BlockPI zkSync
         "https://zksync.drpc.org",  # dRPC zkSync
@@ -192,6 +201,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://lb.drpc.org/ogrpc?network=mantle&dkey=${DRPC_API_KEY}",
     ],
     "gnosis": [
+        "https://gnosis.blockpi.network/v1/rpc/89c1511fa988fc944cf35b237a58ed8b8af8cf67",  # BlockPI keyed (probed live 2026-08-23)
         "https://gnosis.drpc.org",  # dRPC Gnosis
         "https://rpc.gnosischain.com",  # Gnosis official
         "https://gnosis-rpc.publicnode.com",  # probe-verified 2026-08-23 (fallback-only for getLogs; fine for call/balance)
@@ -206,6 +216,7 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://rpc.ankr.com/flare/${ANKR_API_KEY}",
     ],
     "taiko": [
+        "https://taiko.blockpi.network/v1/rpc/4795cef3a23e019566442c0681d15d9227987578",  # BlockPI keyed (probed live 2026-08-23)
         "https://rpc.mainnet.taiko.xyz",
         "https://rpc.ankr.com/taiko/${ANKR_API_KEY}",
     ],

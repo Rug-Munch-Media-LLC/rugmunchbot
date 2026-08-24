@@ -195,48 +195,54 @@ async def _router_getlogs(
         return []
     head = int(latest["result"], 16)
     frm = max(0, head - window)
-    pad = hex(frm)[2:].rjust(64, "0")
-    topic_addr = lambda a: a.lower().rjust(64, "0")  # noqa: E731
     # Heavy call: prefer keyed BlockPI endpoint directly (most free-pool
     # providers lack eth_getLogs or cap ranges); fall back to the router.
+    # Keyed = has a secret segment; skip /rpc/public (dead) explicitly.
     keyed = [
         u for u in EVM_RPC_ENDPOINTS.get(router_chain, [])
-        if "blockpi" in u and "${" not in u
+        if "blockpi" in u and "${" not in u and "/rpc/public" not in u
     ]
-    logs = None
     attempts: list[Any] = []
     attempts.extend(keyed)
     attempts.append("__router__")
+
+    chunk_size = 200  # blocks per request — keeps payloads under provider caps
+
+    async def _fetch_range(attempt: Any, start: int, end: int) -> list[dict[str, Any]]:
+        flt = {
+            "fromBlock": hex(start),
+            "toBlock": hex(end),
+            "address": contract,
+            "topics": [_TRANSFER_TOPIC, None, None],
+        }
+        if attempt == "__router__":
+            res = await router.call(router_chain, "eth_getLogs", [flt], timeout=30)
+            return (res or {}).get("result") if isinstance(res, dict) else []
+        async with httpx.AsyncClient(timeout=60) as c2:
+            r2 = await c2.post(
+                attempt,
+                json={"jsonrpc": "2.0", "method": "eth_getLogs", "params": [flt], "id": 1},
+            )
+            if r2.status_code != 200:
+                raise RuntimeError(f"getlogs HTTP {r2.status_code}")
+            out = r2.json().get("result")
+            return out if isinstance(out, list) else []
+
+    logs: list[dict[str, Any]] = []
     for attempt in attempts:
         try:
-            if attempt == "__router__":
-                res = await router.call(
-                    router_chain,
-                    "eth_getLogs",
-                    [{
-                        "fromBlock": hex(frm),
-                        "toBlock": "latest",
-                        "address": contract,
-                        "topics": [_TRANSFER_TOPIC, None, None],
-                    }],
-                    timeout=25,
-                )
-                logs = (res or {}).get("result") if isinstance(res, dict) else None
-            else:
-                async with httpx.AsyncClient(timeout=30) as c2:
-                    r2 = await c2.post(
-                        attempt,
-                        json={"jsonrpc": "2.0", "method": "eth_getLogs",
-                              "params": [{"fromBlock": hex(frm), "toBlock": "latest",
-                                          "address": contract,
-                                          "topics": [_TRANSFER_TOPIC, None, None]}],
-                              "id": 1},
-                        )
-                    logs = r2.json().get("result") if r2.status_code == 200 else None
-            if logs:
-                break
+            start = frm
+            while start <= head:
+                end = min(start + chunk_size - 1, head)
+                logs.extend(await _fetch_range(attempt, start, end))
+                start = end + 1
+            break  # this attempt served every chunk successfully
         except Exception as exc:
-            logger.debug("getlogs via %s failed: %s", str(attempt)[:40], str(exc)[:60])
+            logger.debug(
+                "getlogs via %s failed at block ~%s: %s",
+                str(attempt)[:40], start, str(exc)[:60],
+            )
+            logs = []  # discard partial; next attempt starts clean
             continue
     out: list[dict[str, Any]] = []
     for lg in logs or []:
@@ -256,7 +262,7 @@ async def _router_getlogs(
 
 
 async def discover_flow_participants(
-    contract_address: str, chain: str, *, window_blocks: int = 500, cap: int = 400
+    contract_address: str, chain: str, *, window_blocks: int = 600, chunk: int = 200, cap: int = 400
 ) -> dict[str, Any]:
     # 500-block window: USDT alone yields ~60k transfers — plenty of flow
     # signal without blowing provider response limits.
