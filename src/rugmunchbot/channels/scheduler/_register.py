@@ -50,13 +50,19 @@ from rugmunchbot.channels.scheduler._posts_dislocation import (
 from rugmunchbot.channels.scheduler._posts_lp_expiry import (
     build_lp_expiry_post,
 )
-from rugmunchbot.channels.scheduler._content_rotation import CONTENT_SLOTS
 from rugmunchbot.channels.scheduler._posts_news import (
     post_alert_update,
 )
 from rugmunchbot.channels.scheduler._posts_scan import (
     post_alpha_update,
     post_scan_update,
+)
+
+# 2026-08-25 P0 fix: build_social_spike_post was CALLED by _social_tick but
+# never imported → NameError on every social-spike tick (caught + logged as
+# a warning, so the job silently never worked since registration).
+from rugmunchbot.channels.scheduler._posts_social_spikes import (
+    build_social_spike_post,
 )
 from rugmunchbot.channels.scheduler._tick import (
     _load_channel_state,
@@ -100,6 +106,7 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
     #     )
     # Funding-dislocation monitor (win 32): EXTREME cross-venue basis finds.
     if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
+
         async def _dislo_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             try:
                 text = await build_dislocation_post()
@@ -127,7 +134,10 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
         from rugmunchbot.channels.scheduler._posts_rag import post_rag_drafts
 
         job_queue.run_repeating(
-            _tick_wrapper("channel_rag", post_rag_drafts),
+            # envelope=True: successful ticks emit the channels:tick line with
+            # items_posted — without it only FAILURES are visible in logs
+            # (2026-08-25 fix; success was indistinguishable from silence).
+            _tick_wrapper("channel_rag", post_rag_drafts, envelope=True),
             interval=int(os.getenv("RMI_RAG_POSTS_INTERVAL_MIN", "45")) * 60,
             first=900,
             name="channel_rag",
@@ -135,6 +145,7 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
 
     # Social-velocity spike monitor (win 36): narrative formation detection.
     if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
+
         async def _social_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             try:
                 text = await build_social_spike_post()
@@ -154,6 +165,7 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
 
     # LP-expiry monitor (win 35): warn before liquidity unlocks.
     if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
+
         async def _lp_expiry_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             try:
                 text = await build_lp_expiry_post()
@@ -171,26 +183,10 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_lp_expiry",
         )
 
-    # Content rotation: multiple premium content types to main daily (win 32+)
-    for slot in CONTENT_SLOTS:
-        slot_type = slot["type"]
-        hour = int(slot["time_utc"].split(":")[0])
-        minute = int(slot["time_utc"].split(":")[1]) if ":" in slot["time_utc"] else 0
-
-        async def _content_tick(ctx: ContextTypes.DEFAULT_TYPE, _type=slot_type) -> None:
-            try:
-                logger.info("content_rotation_tick type=%s", _type)
-                # Each content type has its own generator; wire them here
-                # as they're implemented. Fail-open per type.
-            except Exception as exc:
-                logger.warning("content_rotation %s failed: %s", _type, str(exc)[:120])
-
-        job_queue.run_repeating(
-            _content_tick,
-            interval=86400,  # daily
-            first=hour * 3600 + minute * 60,
-            name=f"content_{slot_type}",
-        )
+    # Content rotation slots (win 32+): NOT registered — the per-type
+    # generators were never wired, so these jobs fired daily and did nothing
+    # except log noise (removed 2026-08-25). Re-register when a generator
+    # actually exists; CONTENT_SLOTS stays in _content_rotation as the spec.
 
     if ALERTS_CHANNEL_ENABLED and _chat_id("alerts"):
         job_queue.run_repeating(

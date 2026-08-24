@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
 from rugmunchbot.channels.scheduler._core import (
     _chat_id,
+    _release,
     _remember,
     _safe_send,
     logger,
@@ -71,25 +72,47 @@ def _mirror_to_feed(item: dict[str, Any]) -> str | None:
 
 
 async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    """Route RAG-ranked drafts to their channels. Returns posted count."""
+    """Route RAG-ranked drafts to their channels. Returns posted count.
+
+    2026-08-25 P0 fix — ordering: the dedupe mark (``_remember``) used to be
+    taken BEFORE the chat-id check and BEFORE the send, so any draft that hit
+    a missing chat id or a single failed send was permanently burned (marked
+    seen, never posted, never retried — a silent blackhole). Now: chat id is
+    resolved first, the send must succeed, and only then is the story marked.
+    Cost: a send that fails in two overlapping ticks could double-post; at a
+    45-min interval with in-tick sequencing that risk is negligible next to
+    losing drafts forever.
+    """
     posted_total = 0
 
-    for channel in ("alerts", "news", "main"):
+    # main FIRST: when rugbrain queues the same story for several channels,
+    # the global dedupe (_remember strips one lane prefix) keeps only the
+    # first lane to claim it — the flagship channel + feed mirror must win.
+    for channel in ("main", "news", "alerts"):
         drafts = await fetch_rag_drafts(channel, limit=MAX_PER_CHANNEL_PER_TICK + 2)
+        chat_id = _chat_id(channel)
+        if not chat_id:
+            logger.debug("rag_drafts_skipped channel=%s reason=no_chat_id", channel)
+            continue
         sent_this_channel = 0
         for item in drafts:
             if sent_this_channel >= MAX_PER_CHANNEL_PER_TICK:
                 break
             ref = item.get("story_ref") or item.get("text", "")[:60]
-            dedupe_key = f"rag:{channel}:{ref}"
+            # SINGLE lane prefix ("rag:") — _remember's global namespace
+            # strips exactly one "x:" segment, so "rag:<ref>" dedupes the
+            # bare <ref> across channels. The old "rag:<channel>:<ref>" left
+            # the channel inside the bare key → cross-channel dedupe never
+            # fired and one story could post to every channel.
+            dedupe_key = f"rag:{ref}"
             if not _remember(f"rag_{channel}", dedupe_key):
                 continue
 
-            chat_id = _chat_id(channel)
-            if not chat_id:
-                continue
             ok = await _safe_send(ctx.bot, chat_id, item.get("text", ""))
             if not ok:
+                # Release the dedupe mark so the next tick retries this draft
+                # instead of black-holing it (see docstring).
+                _release(f"rag_{channel}", dedupe_key)
                 continue
 
             sent_this_channel += 1

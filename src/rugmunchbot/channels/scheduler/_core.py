@@ -28,9 +28,6 @@ if TYPE_CHECKING:
 
     from rugmunchbot.channels.formatters import NewsPost
 
-logger = get_logger(__name__)
-
-
 logger = get_logger("rmi_bot.channels")
 
 
@@ -123,6 +120,20 @@ def _remember(channel: str, key: str) -> bool:
     if scheduler_state.is_available():
         scheduler_state.spawn_persist(channel, key)
     return True
+
+
+def _release(channel: str, key: str) -> None:
+    """Undo one ``_remember`` mark (send failed — let the next tick retry).
+
+    2026-08-25 companion to the rag-posting ordering fix: a draft whose send
+    failed must not stay in the global seen-set or it is black-holed forever.
+    In-memory only; the durable Redis copy (if it landed) expires with the
+    set TTL and only widens the restart window by one interval.
+    """
+    bare = key.split(":", 1)[-1] if ":" in key else key
+    seen = _posted_keys.get("__global__")
+    if seen is not None:
+        seen.discard(bare)
 
 
 def _dedupe_key(prefix: str, item: dict[str, Any]) -> str:

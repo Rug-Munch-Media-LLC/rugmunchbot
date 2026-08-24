@@ -8,9 +8,6 @@ from rugmunchbot.channels import scheduler_state
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
-
-from typing import TYPE_CHECKING
-
 from rugmunchbot.channels.scheduler._core import (  # noqa: F401
     _FIRST_RUN_SECONDS,
     _elapsed_ms,

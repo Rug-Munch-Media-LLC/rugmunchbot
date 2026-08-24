@@ -30,10 +30,25 @@ logger = logging.getLogger(__name__)
 CONTENT_SLOTS = [
     {"time_utc": "06:00", "type": "daily_rug", "label": "The Daily Rug", "priority": "high"},
     {"time_utc": "08:00", "type": "whale_watch", "label": "Whale Watch", "priority": "medium"},
-    {"time_utc": "10:00", "type": "security_spotlight", "label": "Security Spotlight", "priority": "high"},
-    {"time_utc": "12:00", "type": "market_pulse", "label": "Midday Market Pulse", "priority": "medium"},
+    {
+        "time_utc": "10:00",
+        "type": "security_spotlight",
+        "label": "Security Spotlight",
+        "priority": "high",
+    },
+    {
+        "time_utc": "12:00",
+        "type": "market_pulse",
+        "label": "Midday Market Pulse",
+        "priority": "medium",
+    },
     {"time_utc": "14:00", "type": "cascade_alert", "label": "Cascade Alert", "priority": "high"},
-    {"time_utc": "16:00", "type": "smart_money_report", "label": "Smart Money Report", "priority": "medium"},
+    {
+        "time_utc": "16:00",
+        "type": "smart_money_report",
+        "label": "Smart Money Report",
+        "priority": "medium",
+    },
     {"time_utc": "19:00", "type": "scam_exposure", "label": "Scam Exposure", "priority": "high"},
     {"time_utc": "21:00", "type": "evening_wrap", "label": "Evening Wrap", "priority": "medium"},
 ]
@@ -44,7 +59,6 @@ _posted_slots: set[str] = set()
 def get_pending_slot(utc_hour: int) -> dict[str, Any] | None:
     for slot in CONTENT_SLOTS:
         hour = int(slot["time_utc"].split(":")[0])
-        key = f"{slot['type']}:{utc_hour // 24}"
         if hour <= utc_hour and slot["type"] not in _posted_slots:
             return slot
     return None
