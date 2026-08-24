@@ -19,6 +19,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import httpx
+
 from rugmunchbot.tools.registry import ToolResult
 
 logger = logging.getLogger(__name__)
@@ -33,14 +35,17 @@ def _f(v: Any) -> float | None:
 
 
 async def _get_pairs(address: str, chain: str) -> list[dict[str, Any]]:
-    """DexScreener pairs via the vendored unified_scanner data source."""
+    """DexScreener pairs via direct API call (no sqlalchemy dependency)."""
     try:
-        from rugmunchbot._vendor.unified_scanner._data_sources import (
-            get_dexscreener_pairs,
-        )
-
-        pairs = await get_dexscreener_pairs(address=address, chain=chain)
-        return [p for p in (pairs or []) if isinstance(p, dict)]
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(
+                f"https://api.dexscreener.com/latest/dex/tokens/{address}"
+            )
+            if r.status_code != 200:
+                return []
+            data = r.json()
+        pairs = data.get("pairs") or []
+        return [p for p in pairs if isinstance(p, dict)]
     except Exception as exc:
         logger.warning("volume_integrity:pairs_failed err=%s", str(exc)[:120])
         return []
