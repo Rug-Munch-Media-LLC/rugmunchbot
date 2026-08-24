@@ -102,13 +102,22 @@ def _route_chat_id(destination: str) -> str | None:
 
 
 def _remember(channel: str, key: str) -> bool:
-    """Return True when ``key`` is new for ``channel`` (and record it)."""
-    seen = _posted_keys.setdefault(channel, set())
-    if key in seen:
+    """Return True when ``key`` is new (and record it).
+
+    2026-08-24 P0 fix: dedupe is now GLOBAL across channels. The old
+    per-channel sets let the same story post once per lane (tgnews/tgmain/
+    tgalpha each had their own namespace), and restarts amplified it.
+    Story identity = the key itself (URL or title) -- lane prefixes are
+    stripped so a CoinJournal story can never post twice anywhere.
+    """
+    # Global story namespace: strip any legacy lane prefix from the key.
+    bare = key.split(":", 1)[-1] if ":" in key else key
+    seen = _posted_keys.setdefault("__global__", set())
+    if bare in seen:
         return False
-    seen.add(key)
+    seen.add(bare)
     if len(seen) > _MAX_POSTED:
-        _posted_keys[channel] = set(list(seen)[-_MAX_POSTED // 2 :])
+        _posted_keys["__global__"] = set(list(seen)[-_MAX_POSTED // 2 :])
     # Durability: best-effort background persist so a restart does not
     # re-post/re-ingest this key (fail-open when Redis is down).
     if scheduler_state.is_available():
