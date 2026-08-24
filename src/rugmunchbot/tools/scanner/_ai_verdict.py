@@ -39,6 +39,8 @@ _AI_VERDICT_SYSTEM = (
     "When bundle_cluster_score >= 70, call the launch coordinated. "
     "When flow_concentrated is true, warn that one wallet dominates recent "
     "transfers (flow_top_mover_share_pct) — classic accumulation-or-dump setup. "
+    "When rug_prediction is present, lead with it: 'Rug prediction: N/100 "
+    "(BAND)' then explain the top drivers. "
     "End with a one-line 'What to watch:' pointing at the riskiest signal or, "
     "when the scan is clean, at liquidity/holder concentration."
 )
@@ -119,6 +121,8 @@ def _verdict_facts(result: dict[str, Any]) -> dict[str, Any]:
         "flow_participants": ((result.get("flow_analysis") or {}).get("participants")),
         "flow_top_mover_share_pct": ((result.get("flow_analysis") or {}).get("top_mover_share_pct")),
         "flow_concentrated": ((result.get("flow_analysis") or {}).get("concentrated_flow")),
+        "rug_prediction": (result.get("rug_prediction") or {}).get("rug_probability"),
+        "rug_prediction_band": (result.get("rug_prediction") or {}).get("band"),
         "bundle_detected": result.get("bundle_detected"),
         "fresh_wallet_pct": result.get("fresh_wallet_pct"),
         "exchange_funded_pct": result.get("exchange_funded_pct"),

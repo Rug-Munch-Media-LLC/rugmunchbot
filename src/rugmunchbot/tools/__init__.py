@@ -98,6 +98,8 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     registry_.register("social_intel", social_intel, timeout=20.0, ttl=300.0)
     from rugmunchbot.tools.funding_dislocation import funding_dislocation
     registry_.register("funding_dislocation", funding_dislocation, timeout=25.0, ttl=300.0)
+    from rugmunchbot.tools.rug_prediction import rug_prediction
+    registry_.register("rug_prediction", rug_prediction, timeout=5.0, ttl=120.0)
     registry_.register("wallet_analysis", wallet_analysis, timeout=20.0, ttl=60.0)
     # web_search timeout is generous (75s): when the bridge + SearXNG are
     # down the tool synthesizes a knowledge answer through the remote LLM

@@ -23,6 +23,7 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 # Resolve like tools/web.py: settings shim (SEARXNG_BASE_URL, canon :8889).
 # Do NOT read SEARXNG_URL — stale shell exports point at a dead tailnet port.
 from rugmunchbot._vendor.settings_shim import settings as _settings
+
 SEARXNG = _settings.searxng_base_url.rstrip("/")
 
 

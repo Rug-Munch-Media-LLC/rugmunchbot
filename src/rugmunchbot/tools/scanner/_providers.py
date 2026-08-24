@@ -146,7 +146,7 @@ async def _scan_evm_security_provider(
                 if isinstance(scan.get("risk_score"), (int, float)) and scan["risk_score"] > 0:
                     result["risk_score"] += min(int(scan["risk_score"]), 30)
                     result.setdefault("databus_risk_contributed", True)
-        except Exception as exc:  # noqa: BLE001 — final rung must fail open
+        except Exception as exc:
             logger.debug("databus_security_fallback failed %s: %s", address[:10], exc)
 
 
