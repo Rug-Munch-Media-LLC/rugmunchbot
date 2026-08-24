@@ -7,11 +7,13 @@ handlers own presentation. Fail-open with honest error cards.
 from __future__ import annotations
 
 import html
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
+
+if TYPE_CHECKING:
+    from telegram import Update
 
 from rugmunchbot.tools import get_registry
 
@@ -52,6 +54,10 @@ async def cmd_volume(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         f"<i>{_e(d.get('pair', ''))} · liq ${d.get('liquidity_usd') or 0:,.0f} · vol24 ${d.get('volume24_usd') or 0:,.0f}</i>",
         "",
     ]
+    pairs_n = d.get("pairs_analyzed")
+    if pairs_n:
+        lines.append(f"<i>Sampled {pairs_n} pair markets</i>")
+        lines.append("")
     for c in d.get("checks", []):
         mark = {"OK": "·", "WARN": "⚠", "CRITICAL": "🚨"}.get(c.get("flag", ""), "·")
         lines.append(f"{mark} <b>{_e(c['check'])}</b> {_e(c.get('value', ''))} — {_e(c.get('note', ''))}")

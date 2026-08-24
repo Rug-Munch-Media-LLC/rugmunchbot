@@ -387,6 +387,11 @@ def _what_to_watch_line(r: dict[str, Any]) -> str:
     lp = _lp_lock_pct(r)
     if lp is not None and lp < 50:
         return f"LP only {lp:.0f}% locked \u2014 a pull drains liquidity fast."
+    fa = r.get("flow_analysis")
+    if isinstance(fa, dict) and fa.get("concentrated_flow"):
+        share = fa.get("top_mover_share_pct")
+        share_s = f" ({share:.0f}% one wallet)" if isinstance(share, (int, float)) else ""
+        return f"Flow concentrated{share_s} \u2014 one wallet dominates recent transfers; accumulation-or-dump setup."
     ba = r.get("bundle_analysis")
     if isinstance(ba, dict) and ba.get("is_bundled"):
         return "Bundled launch \u2014 volume/concentration may be fabricated; don't trust momentum."
