@@ -74,9 +74,26 @@ def _is_placeholder(value: object) -> bool:
 
 
 def _clip(text: str, limit: int = _MAX_BODY_CHARS) -> str:
+    """Clip to ``limit`` WITHOUT cutting mid-word/mid-sentence.
+
+    Prefers the last sentence end inside the budget; falls back to the
+    last word boundary; only hard-cuts when a single word exceeds the
+    whole budget. The ellipsis always lands on clean text.
+    """
     if len(text) <= limit:
         return text
-    return f"{text[: limit - 1]}…"
+    budget = limit - 1  # room for the ellipsis
+    window = text[:budget]
+    # Best: last complete sentence inside the window.
+    for delim in (". ", "! ", "? "):
+        idx = window.rfind(delim)
+        if idx > budget // 2:
+            return f"{window[: idx + 1].rstrip()}…"
+    # Fallback: last whitespace (never split a word).
+    sp = window.rfind(" ")
+    if sp > budget // 2:
+        return f"{window[:sp].rstrip()}…"
+    return f"{window.rstrip()}…"
 
 
 def _strip_markup(text: object) -> str:
@@ -97,6 +114,8 @@ def _strip_markup(text: object) -> str:
     value = _MARKDOWN_BULLET_RE.sub("", value)
     value = _MARKDOWN_EMPH_RE.sub("", value)
     value = _WHITESPACE_RE.sub(" ", value)
+    value = _strip_junk_prefixes(value)
+    value = _collapse_repeated_sentences(value)
     return value.strip()
 
 
@@ -161,3 +180,49 @@ def _scan_channel_shill() -> str:
         '\U0001f40b <a href="https://t.me/rmialpha">@rmialpha</a> \u2014 Whale moves &amp; alpha\n'
         '\U0001f4e1 <a href="https://t.me/cryptorugmuncher">@cryptorugmuncher</a> \u2014 Curated daily'
     )
+
+
+# ── Feed-junk cleanup (added 2026-08-24) ──────────────────────────────
+# Incident: Coinjournal summaries ship "Key takeaways" bullets glued to
+# body text AND duplicated wholesale, producing posts like
+# "Key takeawaysBitcoin trades … Key takeawaysBitcoin trades …".
+_JUNK_PREFIXES = ("key takeaways", "tl;dr", "tl dr", "summary:", "in brief")
+
+_WHITESPACE_RE_COMPILED = None
+
+
+def _strip_junk_prefixes(text: str) -> str:
+    """Drop leading 'Key takeaways'-style labels glued to the first word."""
+    lowered = text.lower().lstrip()
+    for prefix in _JUNK_PREFIXES:
+        if lowered.startswith(prefix):
+            rest = text[len(prefix):]
+            # Glued case ("Key takeawaysBitcoin") → drop the label entirely.
+            if rest and not rest[0].isspace():
+                text = rest.lstrip()
+                lowered = text.lower().lstrip()
+            else:
+                text = rest.lstrip(" :–-")
+                break
+    return text
+
+
+def _collapse_repeated_sentences(text: str, min_len: int = 40) -> str:
+    """Collapse repeated sentences (feeds duplicate blocks wholesale) and
+    strip junk labels ("Key takeaways") wherever they appear — not just at
+    position 0. Short repeats like "No." are legitimate and kept.
+    """
+    import re as _re
+
+    parts = _re.split(r"(?<=[.!?])\s+", text)
+    seen: set[str] = set()
+    out: list[str] = []
+    for part in parts:
+        cleaned = _strip_junk_prefixes(part.strip())
+        key = cleaned.lower()
+        if len(key) >= min_len and key in seen:
+            continue
+        if len(key) >= min_len:
+            seen.add(key)
+        out.append(cleaned)
+    return " ".join(out)
