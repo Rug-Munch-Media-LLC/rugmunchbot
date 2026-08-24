@@ -297,6 +297,7 @@ def _spawn(coro: Coroutine[Any, Any, None]) -> None:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
+        coro.close()  # no loop: close explicitly, silence never-awaited warn
         return
     task = loop.create_task(coro)
     task.add_done_callback(_consume_task_result)
