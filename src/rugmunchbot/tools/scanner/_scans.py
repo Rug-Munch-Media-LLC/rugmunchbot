@@ -138,7 +138,21 @@ async def scan_token(
                 # zero liquidity — pick the pair with the most liquidity and
                 # surface every real market field (see _ds_market_snapshot).
                 snap = _ds_market_snapshot(pairs)
-                p = pairs[0]
+                # Identity + price MUST come from the BEST pair, not pairs[0]
+                # — index 0 is often a $0-liquidity bonding-curve pair whose
+                # price is garbage (the exact bug _ds_market_snapshot fixed
+                # for market fields; price/name/symbol had the same disease).
+                best_idx = 0
+                best_score = (-1.0, 0.0)
+                for i, pair in enumerate(pairs):
+                    if not isinstance(pair, dict):
+                        continue
+                    liq = _safe_float((pair.get("liquidity") or {}).get("usd"))
+                    vol = _safe_float((pair.get("volume") or {}).get("h24"))
+                    if (liq, vol) > best_score:
+                        best_score = (liq, vol)
+                        best_idx = i
+                p = pairs[best_idx]
                 result["name"] = p.get("baseToken", {}).get("name", "Unknown")
                 result["symbol"] = snap.get("symbol") or p.get("baseToken", {}).get("symbol", "???")
                 # Null-safe numeric coercion: a null priceUsd (delisted /

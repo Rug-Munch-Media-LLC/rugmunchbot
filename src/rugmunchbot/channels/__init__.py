@@ -39,7 +39,6 @@ from rugmunchbot.channels.personal_channel import (
 from rugmunchbot.channels.scheduler import (
     post_alert_update,
     post_alpha_update,
-    post_news_update,
     post_scan_update,
     register_channel_jobs,
 )
@@ -50,7 +49,6 @@ __all__ = [
     "PERSONAL_CHANNEL_THRESHOLD",
     "post_alert_update",
     "post_alpha_update",
-    "post_news_update",
     "post_personal_channel",
     "post_scan_update",
     "register_channel_jobs",

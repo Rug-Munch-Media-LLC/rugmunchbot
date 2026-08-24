@@ -45,9 +45,8 @@ from rugmunchbot.channels.scheduler._core import (  # noqa: F401
     _posted_keys,
     logger,
 )
-from rugmunchbot.channels.scheduler._posts_news import (  # noqa: F401
+from rugmunchbot.channels.scheduler._posts_news import (
     post_alert_update,
-    post_news_update,
 )
 from rugmunchbot.channels.scheduler._posts_scan import (
     post_alpha_update,

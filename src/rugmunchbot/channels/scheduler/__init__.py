@@ -38,7 +38,6 @@ from rugmunchbot.channels.scheduler._core import (
 )
 from rugmunchbot.channels.scheduler._posts_news import (
     post_alert_update as post_alert_update,
-    post_news_update as post_news_update,
 )
 from rugmunchbot.channels.scheduler._posts_scan import (
     post_alpha_update as post_alpha_update,
@@ -55,7 +54,6 @@ from rugmunchbot.channels.scheduler._tick import (
 __all__ = [
     "post_alert_update",
     "post_alpha_update",
-    "post_news_update",
     "post_scan_update",
     "register_channel_jobs",
 ]
