@@ -135,6 +135,7 @@ from rugmunchbot.handlers.scanning import (
 )
 from rugmunchbot.handlers.sentiment import cmd_sentiment
 from rugmunchbot.handlers.status import register_status
+from rugmunchbot.handlers.portfolio import register_portfolio
 from rugmunchbot.handlers.trace import cmd_trace, register_trace_commands
 from rugmunchbot.handlers.watchlist import (
     cmd_monitor,
@@ -211,6 +212,7 @@ def main() -> None:
     register_hlwhales(app)  # /hlwhales
     register_dislocation(app)  # /dislocation
     register_status(app)  # /status
+    register_portfolio(app)  # /portfolio
     register_prediction(app)  # /polymarket /election /odds
     register_defi(app)  # /yield /lpcheck /defi
     _reg(app, "news", cmd_news)
