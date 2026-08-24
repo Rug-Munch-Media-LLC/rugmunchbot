@@ -38,6 +38,18 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("start", "Welcome & quick start"),
         ],
     ),
+    (
+        "Security Forensics",
+        [
+            ("volume", "Wash-trading / fake-volume check on a token"),
+            ("exchangeaudit", "Rank exchanges by wash-trading risk"),
+            ("liqmap", "Cross-exchange liquidation pressure map (7 venues)"),
+            ("hlwhales", "Hyperliquid whale flow + squeeze watch"),
+            ("dislocation", "Cross-venue funding dislocation monitor"),
+            ("dune", "On-chain analytics from Dune"),
+            ("status", "Live data-source tier health"),
+        ],
+    ),
 ]
 
 
