@@ -79,3 +79,33 @@ def test_fresh_wallet_pct_reads_holder_analysis():
 
     r = {"holder_analysis": {"new_wallets_pct": 41.2}}
     assert _fresh_wallet_pct(r) == 41.2
+
+
+# ── Bundle enrichment + Gini fallback (production audit 2026-08-24) ────
+def test_bundle_verdict_shows_cluster_details():
+    from rugmunchbot.formatters._scan_report_common._layout import (
+        _bundle_verdict_row,
+    )
+
+    r = {
+        "bundle_analysis": {
+            "is_bundled": True,
+            "launch_cluster_score": 87,
+            "common_funder_score": 74,
+            "deployer_funded_pct": 38.5,
+        }
+    }
+    row = _bundle_verdict_row(r)
+    assert "launch 87" in row
+    assert "funder 74" in row
+    assert "deployer-funded 38%" in row
+
+
+def test_bundle_verdict_clean_when_no_subscores():
+    from rugmunchbot.formatters._scan_report_common._layout import (
+        _bundle_verdict_row,
+    )
+
+    r = {"bundle_analysis": {"is_bundled": True}}
+    row = _bundle_verdict_row(r)
+    assert "unknown conf" in row  # honest when no data

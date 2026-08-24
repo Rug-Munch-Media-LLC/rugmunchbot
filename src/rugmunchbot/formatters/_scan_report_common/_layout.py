@@ -116,9 +116,20 @@ def _bundle_verdict_row(r: dict[str, Any]) -> str | None:
         risk = html.escape(str(ba.get("risk_label") or "")).upper()
         if not risk and conf is not None:
             risk = "HIGH" if conf >= 70 else "ELEVATED" if conf >= 40 else "LOW"
+        # Enrich with cluster subscore detail when available
+        details = []
+        for k, label in (("launch_cluster_score", "launch"), ("common_funder_score", "funder"),
+                         ("similar_amount_score", "amount")):
+            v = _float_or_none(ba.get(k))
+            if v is not None and v >= 50:
+                details.append(f"{label} {v:.0f}")
+        dfp = _float_or_none(ba.get("deployer_funded_pct"))
+        if dfp is not None and dfp >= 30:
+            details.append(f"deployer-funded {dfp:.0f}%")
         conf_str = f"{conf:.0f}% conf" if conf is not None else "unknown conf"
         count = f" <b>{n}</b> wallets" if n is not None else ""
-        return f"\U0001f534 Bundle detected:{count} \u00b7 {conf_str} \u00b7 {risk}"
+        detail_str = f" ({', '.join(details)})" if details else ""
+        return f"\U0001f534 Bundle detected:{count} \u00b7 {conf_str} \u00b7 {risk}{detail_str}"
     if str(ba.get("result") or "").lower() == "scanned":
         return "\U0001f7e2 No bundle detected"
     return "\u2014"
