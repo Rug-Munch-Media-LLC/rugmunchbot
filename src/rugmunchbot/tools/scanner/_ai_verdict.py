@@ -41,6 +41,9 @@ _AI_VERDICT_SYSTEM = (
     "transfers (flow_top_mover_share_pct) — classic accumulation-or-dump setup. "
     "When rug_prediction is present, lead with it: 'Rug prediction: N/100 "
     "(BAND)' then explain the top drivers. "
+    "When deployer_tokens_launched > 1 and deployer_rugged_pct >= 40, call "
+    "out the repeat-rug deployer explicitly ('this deployer shipped N tokens, "
+    "X% rugged'). "
     "End with a one-line 'What to watch:' pointing at the riskiest signal or, "
     "when the scan is clean, at liquidity/holder concentration."
 )
@@ -123,6 +126,9 @@ def _verdict_facts(result: dict[str, Any]) -> dict[str, Any]:
         "flow_concentrated": ((result.get("flow_analysis") or {}).get("concentrated_flow")),
         "rug_prediction": (result.get("rug_prediction") or {}).get("rug_probability"),
         "rug_prediction_band": (result.get("rug_prediction") or {}).get("band"),
+        # Deployer track record (repeat-deployer engine)
+        "deployer_tokens_launched": ((result.get("deployer_profile") or {}).get("total_tokens_launched")),
+        "deployer_rugged_pct": ((result.get("deployer_profile") or {}).get("rugged_pct")),
         "bundle_detected": result.get("bundle_detected"),
         "fresh_wallet_pct": result.get("fresh_wallet_pct"),
         "exchange_funded_pct": result.get("exchange_funded_pct"),
