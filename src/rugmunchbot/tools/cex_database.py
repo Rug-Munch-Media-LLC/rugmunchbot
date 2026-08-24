@@ -12,24 +12,35 @@ from __future__ import annotations
 import json
 import logging
 import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # ── Curated known CEX addresses (EVM) ──────────────────────────────────────
 # This is a starting set. Load additional from cex_addresses.json.
-CEX_ADDRESSES: dict[str, dict[str, str]] = {
-    # ── ON-CHAIN VERIFIED 2026-08-24 ──
-    # Each address confirmed via eth_getBalance + eth_getTransactionCount
-    # against live blockchain. Only addresses with >100 txs kept.
-    "0xdfd5293d8e347dfe59e90efd55b2956a1343963d": {"exchange": "OKX", "type": "hot"},
-    "0xf89d7b9c864f589bbf53a82105107622b35eaa40": {"exchange": "Bybit", "type": "hot"},
-    "0x5a52e96bacdabb82fd05763e25335261b270efcb": {"exchange": "Binance", "type": "hot"},
-    "0x3cd751e6b0078be393132286c442345e5dc49699": {"exchange": "Coinbase", "type": "hot"},
-    "0xddfabcdc4d8ffc6d5beaf154f18b778f892a0740": {"exchange": "Coinbase", "type": "cold"},
-    "0x71660c4005ba85c37ccec55d0c4493e66fe775d3": {"exchange": "Coinbase", "type": "hot"},
-    "0x503828976d22510aad0201ac7ec88293211d23da": {"exchange": "Coinbase", "type": "hot"},
-    "0x564286362092d8e7936f0549571a803b203aaced": {"exchange": "Binance", "type": "hot"},
-}
+CEX_ADDRESSES: dict[str, dict[str, Any]] = {}
+
+# Load the verified dataset (376 addresses across 20 exchanges)
+# Source: DataDr69/labeled_ethereum_addresses_dataset (Etherscan labels)
+_DATASET_PATH = os.path.join(
+    os.path.dirname(__file__), "cex_addresses_verified.json"
+)
+
+
+def _load_cex_database() -> None:
+    """Load CEX addresses from the verified JSON dataset."""
+    try:
+        with open(_DATASET_PATH) as f:
+            data = json.load(f)
+        for addr, info in data.items():
+            CEX_ADDRESSES[addr.lower()] = info
+    except FileNotFoundError:
+        logger.warning("cex_database file not found: %s", _DATASET_PATH)
+    except json.JSONDecodeError as e:
+        logger.warning("cex_database JSON parse error: %s", str(e)[:100])
+
+
+_load_cex_database()
 
 # Load additional addresses from JSON file if present
 _EXTRA_FILE = os.getenv("CEX_ADDRESSES_FILE", "")

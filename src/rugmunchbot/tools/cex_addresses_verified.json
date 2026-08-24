@@ -1,0 +1,2634 @@
+{
+  "0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance",
+    "tx_count": 17017385,
+    "balance_eth": "0.20403752 ETH"
+  },
+  "0x85b931a32a0725be14285b66f1a22178c672d69b": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 10",
+    "tx_count": 1221122,
+    "balance_eth": "0.07044718 ETH"
+  },
+  "0x708396f17127c42383e3b9014072679b2f60b82f": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 11",
+    "tx_count": 1239495,
+    "balance_eth": "0.56399191 ETH"
+  },
+  "0xe0f0cfde7ee664943906f17f7f14342e76a5cec7": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 12",
+    "tx_count": 551806,
+    "balance_eth": "0.02997637 ETH"
+  },
+  "0x8f22f2063d253846b53609231ed80fa571bc0c8f": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 13",
+    "tx_count": 545213,
+    "balance_eth": "0.08512119 ETH"
+  },
+  "0x28c6c06298d514db089934071355e5743bf21d60": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 14",
+    "tx_count": 13682977,
+    "balance_eth": "74,746.2802662 ETH"
+  },
+  "0x21a31ee1afc51d94c2efccaa2092ad1028285549": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 15",
+    "tx_count": 6628872,
+    "balance_eth": "30,529.44862392 ETH"
+  },
+  "0xdfd5293d8e347dfe59e90efd55b2956a1343963d": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 16",
+    "tx_count": 6289307,
+    "balance_eth": "31,430.30021801 ETH"
+  },
+  "0x56eddb7aa87536c09ccc2793473599fd21a8b17f": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 17",
+    "tx_count": 4970568,
+    "balance_eth": "67,097.71515945 ETH"
+  },
+  "0x9696f59e4d72e237be84ffd425dcad154bf96976": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 18",
+    "tx_count": 4628600,
+    "balance_eth": "29,601.47869201 ETH"
+  },
+  "0x4d9ff50ef4da947364bb9650892b2554e7be5e2b": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 19",
+    "tx_count": 1800552,
+    "balance_eth": "95.16515317 ETH"
+  },
+  "0xd551234ae421e3bcba99a0da6d736074f22192ff": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 2",
+    "tx_count": 4976495,
+    "balance_eth": "0.01668168 ETH"
+  },
+  "0x4976a4a02f38326660d17bf34b431dc6e2eb2327": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 20",
+    "tx_count": 2784167,
+    "balance_eth": "71,373.65204786 ETH"
+  },
+  "0xd88b55467f58af508dbfdc597e8ebd2ad2de49b3": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 21",
+    "tx_count": 38,
+    "balance_eth": "0.00781037 ETH"
+  },
+  "0x7dfe9a368b6cf0c0309b763bb8d16da326e8f46e": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 22",
+    "tx_count": 472,
+    "balance_eth": "0.02075358 ETH"
+  },
+  "0x345d8e3a1f62ee6b1d483890976fd66168e390f2": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 23",
+    "tx_count": 31351,
+    "balance_eth": "0.01318451 ETH"
+  },
+  "0xc3c8e0a39769e2308869f7461364ca48155d1d9e": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 24",
+    "tx_count": 4386,
+    "balance_eth": "0.00778611 ETH"
+  },
+  "0x2e581a5ae722207aa59acd3939771e7c7052dd3d": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 25",
+    "tx_count": 120,
+    "balance_eth": "0.01450284 ETH"
+  },
+  "0x44592b81c05b4c35efb8424eb9d62538b949ebbf": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 26",
+    "tx_count": 141,
+    "balance_eth": "0.02862319 ETH"
+  },
+  "0xa344c7ada83113b3b56941f6e85bf2eb425949f3": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 27",
+    "tx_count": 18,
+    "balance_eth": "0.10527616 ETH"
+  },
+  "0x5a52e96bacdabb82fd05763e25335261b270efcb": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 28",
+    "tx_count": 1073,
+    "balance_eth": "159,999.10181981 ETH"
+  },
+  "0x06a0048079ec6571cd1b537418869cde6191d42d": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 29",
+    "tx_count": 6,
+    "balance_eth": "37,913.56194792 ETH"
+  },
+  "0x564286362092d8e7936f0549571a803b203aaced": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 3",
+    "tx_count": 4864447,
+    "balance_eth": "2.01946911 ETH"
+  },
+  "0x892e9e24aea3f27f4c6e9360e312cce93cc98ebe": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 30",
+    "tx_count": 42737,
+    "balance_eth": "0.0102665 ETH"
+  },
+  "0x00799bbc833d5b168f0410312d2a8fd9e0e3079c": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 31",
+    "tx_count": 8352,
+    "balance_eth": "0.00010971 ETH"
+  },
+  "0x141fef8cd8397a390afe94846c8bd6f4ab981c48": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 32",
+    "tx_count": 11428,
+    "balance_eth": "0.95166614 ETH"
+  },
+  "0x50d669f43b484166680ecc3670e4766cdb0945ce": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 33",
+    "tx_count": 36,
+    "balance_eth": "0.47190408 ETH"
+  },
+  "0x2f7e209e0f5f645c7612d7610193fe268f118b28": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 34",
+    "tx_count": 34,
+    "balance_eth": "0.01843803 ETH"
+  },
+  "0xd9d93951896b4ef97d251334ef2a0e39f6f6d7d7": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 35",
+    "tx_count": 39,
+    "balance_eth": "0.06968318 ETH"
+  },
+  "0x19184ab45c40c2920b0e0e31413b9434abd243ed": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 39",
+    "tx_count": 365,
+    "balance_eth": "34,235.13828596 ETH"
+  },
+  "0x0681d8db095565fe8a346fa0277bffde9c0edbbf": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 4",
+    "tx_count": 4946298,
+    "balance_eth": "0.02617033 ETH"
+  },
+  "0x294b9b133ca7bc8ed2cdd03ba661a4c6d3a834d9": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 41",
+    "tx_count": 1534,
+    "balance_eth": "151.43878267 ETH"
+  },
+  "0x5d7f34372fa8708e09689d400a613eee67f75543": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 42",
+    "tx_count": 1093,
+    "balance_eth": "74.29097567 ETH"
+  },
+  "0xfe9e8709d3215310075d67e3ed32a380ccf451c8": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 5",
+    "tx_count": 13406,
+    "balance_eth": "0.08193346 ETH"
+  },
+  "0x4e9ce36e442e55ecd9025b9a6e0d88485d628a67": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 6",
+    "tx_count": 399,
+    "balance_eth": "0.10391024 ETH"
+  },
+  "0xbe0eb53f46cd790cd13851d5eff43d12404d33e8": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 7",
+    "tx_count": 1157,
+    "balance_eth": "1,996,008.35576895 ETH"
+  },
+  "0xf977814e90da44bfa03b6295a0616a897441acec": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 8",
+    "tx_count": 11030,
+    "balance_eth": "1,170,353.95470601 ETH"
+  },
+  "0x001866ae5b3de6caa5a51543fd9fb64f524f5478": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance 9",
+    "tx_count": 3862,
+    "balance_eth": "0.12358904 ETH"
+  },
+  "0x8b99f3660622e21f2910ecca7fbe51d654a1517d": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance Charity",
+    "tx_count": 152,
+    "balance_eth": "42.41349573 ETH"
+  },
+  "0xab83d182f3485cf1d6ccdd34c7cfef95b4c08da4": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance JEX",
+    "tx_count": 18314,
+    "balance_eth": "51.43847589 ETH"
+  },
+  "0xc365c3315cf926351ccaf13fa7d19c8c4058c8e1": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance Pool",
+    "tx_count": 151,
+    "balance_eth": "0.01985003 ETH"
+  },
+  "0x61189da79177950a7272c88c6058b96d4bcd6be2": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance US",
+    "tx_count": 315137,
+    "balance_eth": "7.54049231 ETH"
+  },
+  "0x4fabb145d64652a948d72533023f6e7a623c7c53": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance USD",
+    "tx_count": 1527402,
+    "balance_eth": "0 ETH"
+  },
+  "0xc9a2c4868f0f96faaa739b59934dc9cb304112ec": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: BGBP Token",
+    "tx_count": 465,
+    "balance_eth": "0 ETH"
+  },
+  "0xb8c77482e45f1f44de1745f52c74426c631bdd52": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: BNB Token",
+    "tx_count": 932680,
+    "balance_eth": "13.11431734 ETH"
+  },
+  "0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: Binance-Peg Tokens",
+    "tx_count": 58,
+    "balance_eth": "584,999.06367536 ETH"
+  },
+  "0x0b95993a39a363d99280ac950f5e4536ab5c5566": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: Contract",
+    "tx_count": 3193456,
+    "balance_eth": "0.00162508 ETH"
+  },
+  "0x1074253202528777561f83817d413e91bfa671d4": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: Deployer 3",
+    "tx_count": 674,
+    "balance_eth": "0.05302627 ETH"
+  },
+  "0x170c7c38419767816cc7ec519da67d1a4dc43826": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: Deposit 1",
+    "tx_count": 49,
+    "balance_eth": "0.01677909 ETH"
+  },
+  "0x9430801ebaf509ad49202aabc5f5bc6fd8a3daf8": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: Deposit Funder",
+    "tx_count": 794590,
+    "balance_eth": "27.38686496 ETH"
+  },
+  "0x8f80c66c70cbc52009babb04c1cadf9b40109289": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: Deposit Funder 2",
+    "tx_count": 103618,
+    "balance_eth": "97.23583862 ETH"
+  },
+  "0x15ece0d7de25436bcfcf3d62a9085ddc7838aee9": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: Deposit Funder 3",
+    "tx_count": 48653,
+    "balance_eth": "70.44424302 ETH"
+  },
+  "0x2f47a1c2db4a3b78cda44eade915c3b19107ddcc": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: Eth2 Depositor",
+    "tx_count": 1004,
+    "balance_eth": "0 ETH"
+  },
+  "0xbdd75a97c29294ff805fb2fee65abd99492b32a8": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: Eth2 Depositor 2",
+    "tx_count": 20403,
+    "balance_eth": "14.90231714 ETH"
+  },
+  "0x043a80999cee3711d372fb878768909fbe7f71e6": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Binance: Industry Recovery Initiative",
+    "tx_count": 49,
+    "balance_eth": "0.05188584 ETH"
+  },
+  "0xb3f923eabaf178fc1bd8e13902fc5c61d3ddef5b": {
+    "exchange": "Binance",
+    "type": "hot",
+    "name_tag": "Wintermute: Binance Deposit",
+    "tx_count": 65507,
+    "balance_eth": "0.00836845 ETH"
+  },
+  "0x1151314c646ce4e0efd76d1af4760ae66a9fe30f": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 1",
+    "tx_count": 391319,
+    "balance_eth": "9.9617374 ETH"
+  },
+  "0x36a85757645e8e8aec062a1dee289c7d615901ca": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 10",
+    "tx_count": 27,
+    "balance_eth": "177,328.30766824 ETH"
+  },
+  "0xc56fefd1028b0534bfadcdb580d3519b5586246e": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 11",
+    "tx_count": 1,
+    "balance_eth": "95,263.26323519 ETH"
+  },
+  "0x0b73f67a49273fc4b9a65dbd25d7d0918e734e63": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 12",
+    "tx_count": 1,
+    "balance_eth": "34,740.37540505 ETH"
+  },
+  "0x482f02e8bc15b5eabc52c6497b425b3ca3c821e8": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 13",
+    "tx_count": 2,
+    "balance_eth": "0.26199736 ETH"
+  },
+  "0xe92d1a43df510f82c66382592a047d288f85226f": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 19",
+    "tx_count": 92,
+    "balance_eth": "450,118.32638218 ETH"
+  },
+  "0x742d35cc6634c0532925a3b844bc454e4438f44e": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 2",
+    "tx_count": 18351,
+    "balance_eth": "57,708.19559883 ETH"
+  },
+  "0x8103683202aa8da10536036edef04cdd865c225e": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 20",
+    "tx_count": 38,
+    "balance_eth": "275,000.02811646 ETH"
+  },
+  "0x876eabf441b2ee5b5b0554fd502a8e0600950cfa": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 3",
+    "tx_count": 2277362,
+    "balance_eth": "3.72615716 ETH"
+  },
+  "0xdcd0272462140d0a3ced6c4bf970c7641f08cd2c": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 4",
+    "tx_count": 11,
+    "balance_eth": "0.09011851 ETH"
+  },
+  "0x4fdd5eb2fb260149a3903859043e962ab89d8ed4": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 5",
+    "tx_count": 25,
+    "balance_eth": "100,116.88988392 ETH"
+  },
+  "0x1b29dd8ff0eb3240238bf97cafd6edea05d5ba82": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 6",
+    "tx_count": 13,
+    "balance_eth": "1.37340398 ETH"
+  },
+  "0x30a2ebf10f34c6c4874b0bdd5740690fd2f3b70c": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 7",
+    "tx_count": 4,
+    "balance_eth": "2.10290367 ETH"
+  },
+  "0x3f7e77b627676763997344a1ad71acb765fc8ac5": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 8",
+    "tx_count": 11,
+    "balance_eth": "23,594.74684404 ETH"
+  },
+  "0x59448fe20378357f206880c58068f095ae63d5a5": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex 9",
+    "tx_count": 33,
+    "balance_eth": "0.0003728 ETH"
+  },
+  "0x7727e5113d1d161373623e5f49fd568b4f543a9e": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Contract 1",
+    "tx_count": 513181,
+    "balance_eth": "0 ETH"
+  },
+  "0x0e55c54249f25f70d519b7fb1c20e3331e7ba76d": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Contract 2",
+    "tx_count": 496,
+    "balance_eth": "0 ETH"
+  },
+  "0x5dbdebcae07cc958ba5290ff9deaae554e29e7b4": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Deployer 1",
+    "tx_count": 4,
+    "balance_eth": "11.08707483 ETH"
+  },
+  "0x2ee3b2df6534abc759ffe994f7b8dcdfaa02cd31": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Deployer 2",
+    "tx_count": 7,
+    "balance_eth": "0.986238 ETH"
+  },
+  "0xe1f3c653248de6894d683cb2f10de7ca2253046f": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Deployer 3",
+    "tx_count": 1890,
+    "balance_eth": "0.17336492 ETH"
+  },
+  "0x2903cadbe271e057edef157340b52a5898d7424f": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Deployer 4",
+    "tx_count": 60,
+    "balance_eth": "1.75231945 ETH"
+  },
+  "0x36928500bc1dcd7af6a2b4008875cc336b927d57": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Deployer 5",
+    "tx_count": 144,
+    "balance_eth": "0.00724325 ETH"
+  },
+  "0x14d06788090769f669427b6aea1c0240d2321f34": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Deployer 6",
+    "tx_count": 633,
+    "balance_eth": "0.00000218 ETH"
+  },
+  "0x77134cbc06cb00b66f4c7e623d5fdbf6777635ec": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Hot Wallet",
+    "tx_count": 132068,
+    "balance_eth": "54,995.49375941 ETH"
+  },
+  "0x2af5d2ad76741191d15dfe7bf6ac92d4bd912ca3": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: LEO Token",
+    "tx_count": 47850,
+    "balance_eth": "0 ETH"
+  },
+  "0xab7c74abc0c4d48d1bdad5dcb26153fc8780f83e": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: MultiSig 1",
+    "tx_count": 530,
+    "balance_eth": "0.01470426 ETH"
+  },
+  "0xc6cde7c39eb2f0f0095f41570af89efc2c1ea828": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: MultiSig 2",
+    "tx_count": 6471,
+    "balance_eth": "0.14412363 ETH"
+  },
+  "0xc61b9bb3a7a0767e3179713f3a5c7a9aedce193c": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: MultiSig 3",
+    "tx_count": 118,
+    "balance_eth": "408,033.76046368 ETH"
+  },
+  "0xcafb10ee663f465f9d10588ac44ed20ed608c11e": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Old Address 1",
+    "tx_count": 8169,
+    "balance_eth": "0.09138507 ETH"
+  },
+  "0x7180eb39a6264938fdb3effd7341c4727c382153": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Old Address 2",
+    "tx_count": 38271,
+    "balance_eth": "0.0035395 ETH"
+  },
+  "0x69c6dcc8f83b196605fa1076897af0e7e2b6b044": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Old Contract 1",
+    "tx_count": 13,
+    "balance_eth": "0 ETH"
+  },
+  "0x8d5a41e85f4ce2433beef476305d307b9205d98d": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Bitfinex: Old Contract 2",
+    "tx_count": 737,
+    "balance_eth": "0 ETH"
+  },
+  "0xabdf147870235fcfc34153828c769a70b3fae01f": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "EURT:undefined",
+    "tx_count": 134,
+    "balance_eth": "0 ETH"
+  },
+  "0xc581b735a1688071a1746c968e0798d642ede491": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Euro Tether: EURT Token",
+    "tx_count": 10200,
+    "balance_eth": "0 ETH"
+  },
+  "0x4922a015c4407f87432b179bb209e125432e4a2a": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Tether Gold: Old XAUt Token",
+    "tx_count": 4793,
+    "balance_eth": "0 ETH"
+  },
+  "0x68749665ff8d2d112fa859aa293f07a622782f38": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Tether Gold: XAUt Token",
+    "tx_count": 5471,
+    "balance_eth": "0 ETH"
+  },
+  "0x6e109e9dd7fa1a58bc3eff667e8e41fc3cc07aef": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Tether: CNHT Token",
+    "tx_count": 760,
+    "balance_eth": "0 ETH"
+  },
+  "0xed03ed872159e199065401b6d0d487d78d9464aa": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Tether: MXNt Token",
+    "tx_count": 14,
+    "balance_eth": "0 ETH"
+  },
+  "0x5754284f345afc66a98fbb0a0afe71e0f007b949": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Tether: Treasury",
+    "tx_count": 3797,
+    "balance_eth": "0.59616138 ETH"
+  },
+  "0xdac17f958d2ee523a2206206994597c13d831ec7": {
+    "exchange": "Bitfinex",
+    "type": "hot",
+    "name_tag": "Tether: USDT Stablecoin",
+    "tx_count": 164569549,
+    "balance_eth": "1 wei"
+  },
+  "0x88d34944cf554e9cccf4a24292d891f620e9c94f": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 1",
+    "tx_count": 133163,
+    "balance_eth": "0 ETH"
+  },
+  "0x186549a4ae594fc1f70ba4cffdac714b405be3f9": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 10",
+    "tx_count": 11,
+    "balance_eth": "0 ETH"
+  },
+  "0xd273bd546b11bd60214a2f9d71f22a088aafe31b": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 11",
+    "tx_count": 9,
+    "balance_eth": "0 ETH"
+  },
+  "0x558553d54183a8542f7832742e7b4ba9c33aa1e6": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 12",
+    "tx_count": 55,
+    "balance_eth": "170,000.75408265 ETH"
+  },
+  "0x3052cd6bf951449a984fe4b5a38b46aef9455c8e": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 2",
+    "tx_count": 207792,
+    "balance_eth": "0.02023213 ETH"
+  },
+  "0x2140efd7ba31169c69dfff6cdc66c542f0211825": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 3",
+    "tx_count": 109473,
+    "balance_eth": "0.0029 ETH"
+  },
+  "0xa0ff1e0f30b5dda2dc01e7e828290bc72b71e57d": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 4",
+    "tx_count": 22,
+    "balance_eth": "0 ETH"
+  },
+  "0xc1da8f69e4881efe341600620268934ef01a3e63": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 5",
+    "tx_count": 1275,
+    "balance_eth": "0 ETH"
+  },
+  "0xb4460b75254ce0563bb68ec219208344c7ea838c": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 6",
+    "tx_count": 881,
+    "balance_eth": "0 ETH"
+  },
+  "0x15878e87c685f866edfaf454be6dc06fa517b35b": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 7",
+    "tx_count": 1700,
+    "balance_eth": "0 ETH"
+  },
+  "0x31d03f07178bcd74f9099afebd23b0ae30184ab5": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 8",
+    "tx_count": 1315,
+    "balance_eth": "0 ETH"
+  },
+  "0xed48dc0628789c2956b1e41726d062a86ec45bff": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb 9",
+    "tx_count": 1493,
+    "balance_eth": "0 ETH"
+  },
+  "0x3fbe1f8fc5ddb27d428aa60f661eaaab0d2000ce": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb: Contract 1",
+    "tx_count": 83834,
+    "balance_eth": "16.59320371 ETH"
+  },
+  "0x03599a2429871e6be1b154fb9c24691f9d301865": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb: Deposit Funder",
+    "tx_count": 693694,
+    "balance_eth": "244.18062264 ETH"
+  },
+  "0xbb5a0408fa54287b9074a2f47ab54c855e95ef82": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb: Old Address 1",
+    "tx_count": 29443,
+    "balance_eth": "0.0133561 ETH"
+  },
+  "0x5521a68d4f8253fc44bfb1490249369b3e299a4a": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb: Old Address 2",
+    "tx_count": 145921,
+    "balance_eth": "0.69955324 ETH"
+  },
+  "0x8fa8af91c675452200e49b4683a33ca2e1a34e42": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb: Old Address 3",
+    "tx_count": 43387,
+    "balance_eth": "0.00957999 ETH"
+  },
+  "0x3b83cd1a8e516b6eb9f1af992e9354b15a6f9672": {
+    "exchange": "Bithumb",
+    "type": "hot",
+    "name_tag": "Bithumb: Old Address 4",
+    "tx_count": 23798,
+    "balance_eth": "0.15244776 ETH"
+  },
+  "0xeea81c4416d71cef071224611359f6f99a4c4294": {
+    "exchange": "Bitmex",
+    "type": "hot",
+    "name_tag": "BitMEX 1",
+    "tx_count": 199,
+    "balance_eth": "12,084.17348196 ETH"
+  },
+  "0xfb8131c260749c7835a08ccbdb64728de432858e": {
+    "exchange": "Bitmex",
+    "type": "hot",
+    "name_tag": "BitMEX 2",
+    "tx_count": 34185,
+    "balance_eth": "1,741.72444001 ETH"
+  },
+  "0x00bdb5699745f5b860228c8f939abf1b9ae374ed": {
+    "exchange": "Bitstamp",
+    "type": "hot",
+    "name_tag": "Bitstamp 1",
+    "tx_count": 1640805,
+    "balance_eth": "47.86921281 ETH"
+  },
+  "0x1522900b6dafac587d499a862861c0869be6e428": {
+    "exchange": "Bitstamp",
+    "type": "hot",
+    "name_tag": "Bitstamp 2",
+    "tx_count": 1607109,
+    "balance_eth": "1,205.47282692 ETH"
+  },
+  "0x9a9bed3eb03e386d66f8a29dc67dc29bbb1ccb72": {
+    "exchange": "Bitstamp",
+    "type": "hot",
+    "name_tag": "Bitstamp 3",
+    "tx_count": 41,
+    "balance_eth": "0.02 ETH"
+  },
+  "0x059799f2261d37b829c2850cee67b5b975432271": {
+    "exchange": "Bitstamp",
+    "type": "hot",
+    "name_tag": "Bitstamp 4",
+    "tx_count": 24,
+    "balance_eth": "0.38287 ETH"
+  },
+  "0x4c766def136f59f6494f0969b1355882080cf8e0": {
+    "exchange": "Bitstamp",
+    "type": "hot",
+    "name_tag": "Bitstamp 5",
+    "tx_count": 41,
+    "balance_eth": "1,950.00057762 ETH"
+  },
+  "0xc5b611f502a0dcf6c3188fd494061ae29b2baa4f": {
+    "exchange": "Bitstamp",
+    "type": "hot",
+    "name_tag": "Bitstamp 6",
+    "tx_count": 17,
+    "balance_eth": "1.5 ETH"
+  },
+  "0x964771f6df31eea2d927fa71d7bd78e81bcdce05": {
+    "exchange": "Bitstamp",
+    "type": "hot",
+    "name_tag": "Bitstamp: Contract 1",
+    "tx_count": 14,
+    "balance_eth": "0 ETH"
+  },
+  "0x538d72ded42a76a30f730292da939e0577f22f57": {
+    "exchange": "Bitstamp",
+    "type": "hot",
+    "name_tag": "Bitstamp: Deployer",
+    "tx_count": 63091,
+    "balance_eth": "70.27018437 ETH"
+  },
+  "0xfca70e67b3f93f679992cd36323eeb5a5370c8e4": {
+    "exchange": "Bitstamp",
+    "type": "hot",
+    "name_tag": "Bitstamp: Old Address 1",
+    "tx_count": 66,
+    "balance_eth": "0.05614274 ETH"
+  },
+  "0xfbb1b73c4f0bda4f67dca266ce6ef42f520fbb98": {
+    "exchange": "Bittrex",
+    "type": "hot",
+    "name_tag": "Bittrex",
+    "tx_count": 11598672,
+    "balance_eth": "8,700.66841802 ETH"
+  },
+  "0xe94b04a0fed112f3664e45adb2b8915693dd5ff3": {
+    "exchange": "Bittrex",
+    "type": "hot",
+    "name_tag": "Bittrex 2",
+    "tx_count": 1653546,
+    "balance_eth": "0 ETH"
+  },
+  "0x66f820a414680b5bcda5eeca5dea238543f42054": {
+    "exchange": "Bittrex",
+    "type": "hot",
+    "name_tag": "Bittrex 3",
+    "tx_count": 199,
+    "balance_eth": "60,000.02770592 ETH"
+  },
+  "0xa3c1e324ca1ce40db73ed6026c4a177f099b5770": {
+    "exchange": "Bittrex",
+    "type": "hot",
+    "name_tag": "Bittrex: Controller",
+    "tx_count": 1586444,
+    "balance_eth": "0 ETH"
+  },
+  "0x71660c4005ba85c37ccec55d0c4493e66fe775d3": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 1",
+    "tx_count": 1561169,
+    "balance_eth": "65.42905204 ETH"
+  },
+  "0xa9d1e08c7793af67e9d92fe308d5697fb81d3e43": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 10",
+    "tx_count": 2221814,
+    "balance_eth": "0.00000107 ETH"
+  },
+  "0x77696bb39917c91a0c3908d577d5e322095425ca": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 11",
+    "tx_count": 675598,
+    "balance_eth": "149.21572043 ETH"
+  },
+  "0x7c195d981abfdc3ddecd2ca0fed0958430488e34": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 12",
+    "tx_count": 396045,
+    "balance_eth": "84.33320756 ETH"
+  },
+  "0x95a9bd206ae52c4ba8eecfc93d18eacdd41c88cc": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 13",
+    "tx_count": 1530232,
+    "balance_eth": "147.12878934 ETH"
+  },
+  "0xb739d0895772dbb71a89a3754a160269068f0d45": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 14",
+    "tx_count": 780382,
+    "balance_eth": "128.06779293 ETH"
+  },
+  "0x503828976d22510aad0201ac7ec88293211d23da": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 2",
+    "tx_count": 2099362,
+    "balance_eth": "69.7096304 ETH"
+  },
+  "0xddfabcdc4d8ffc6d5beaf154f18b778f892a0740": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 3",
+    "tx_count": 8373026,
+    "balance_eth": "327.84358054 ETH"
+  },
+  "0x3cd751e6b0078be393132286c442345e5dc49699": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 4",
+    "tx_count": 10029660,
+    "balance_eth": "10,974.83613067 ETH"
+  },
+  "0xb5d85cbf7cb3ee0d56b3bb207d5fc4b82f43f511": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 5",
+    "tx_count": 9518497,
+    "balance_eth": "17,354.12151377 ETH"
+  },
+  "0xeb2629a2734e272bcc07bda959863f316f4bd4cf": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 6",
+    "tx_count": 7806502,
+    "balance_eth": "112.51478291 ETH"
+  },
+  "0xd688aea8f7d450909ade10c47faa95707b0682d9": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 7",
+    "tx_count": 3,
+    "balance_eth": "0.00004046 ETH"
+  },
+  "0x02466e547bfdab679fc49e96bbfc62b9747d997c": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 8",
+    "tx_count": 4,
+    "balance_eth": "0.00003565 ETH"
+  },
+  "0x6b76f8b1e9e59913bfe758821887311ba1805cab": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase 9",
+    "tx_count": 5,
+    "balance_eth": "0 ETH"
+  },
+  "0xbe3c68821d585cf1552214897a1c091014b1eb0a": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Account Blacklister",
+    "tx_count": 211,
+    "balance_eth": "0.34428961 ETH"
+  },
+  "0xf6874c88757721a02f47592140905c4336dfbc61": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Coinbase Commerce",
+    "tx_count": 839273,
+    "balance_eth": "0 ETH"
+  },
+  "0x881d4032abe4188e2237efcd27ab435e81fc6bb1": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Commerce",
+    "tx_count": 1171058,
+    "balance_eth": "0 ETH"
+  },
+  "0x6c8dd0e9cc58c07429e065178d88444b60e60b80": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Commerce Fee",
+    "tx_count": 16932,
+    "balance_eth": "0.14675241 ETH"
+  },
+  "0xbc8ec259e3026ae0d87bc442d034d6882ce4a35c": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Commerce Fee 2",
+    "tx_count": 20029,
+    "balance_eth": "0.07134934 ETH"
+  },
+  "0x02d24cab4f2c3bf6e6eb07ea07e45f96baccffe7": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Commerce Fee 3",
+    "tx_count": 19767,
+    "balance_eth": "0.17050783 ETH"
+  },
+  "0xce352e98934499be70f641353f16a47d9e1e3abd": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Commerce Fee 4",
+    "tx_count": 15040,
+    "balance_eth": "0.04378215 ETH"
+  },
+  "0x90e18a6920985dbacc3d76cf27a3f2131923c720": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Commerce Fee 5",
+    "tx_count": 23779,
+    "balance_eth": "0.13800755 ETH"
+  },
+  "0x4b23d52eff7c67f5992c2ab6d3f69b13a6a33561": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Commerce Fee 6",
+    "tx_count": 20709,
+    "balance_eth": "0.04749492 ETH"
+  },
+  "0xd2276af80582cac230edc4c42e9a9c096f3c09aa": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Deposit 1",
+    "tx_count": 6,
+    "balance_eth": "0 ETH"
+  },
+  "0xa090e606e30bd747d4e6245a1517ebe430f0057e": {
+    "exchange": "Coinbase",
+    "type": "hot",
+    "name_tag": "Coinbase: Miscellaneous",
+    "tx_count": 26134933,
+    "balance_eth": "0.00042848 ETH"
+  },
+  "0x497baef294c11a5f0f5bea3f2adb3073db448b56": {
+    "exchange": "Coinbit",
+    "type": "hot",
+    "name_tag": "Coinbit: DEX Token",
+    "tx_count": 4212,
+    "balance_eth": "0 ETH"
+  },
+  "0xfff3ada5a2555a2b59bff4f44dfad90146cce8cb": {
+    "exchange": "Coinbit",
+    "type": "hot",
+    "name_tag": "Coinbit: DEXTER Token",
+    "tx_count": 18,
+    "balance_eth": "0 ETH"
+  },
+  "0x4571f3a386d1bd18e25d70d117e7067fa0bd9d08": {
+    "exchange": "Coinbit",
+    "type": "hot",
+    "name_tag": "Coinbit: DEXTERG Token",
+    "tx_count": 969,
+    "balance_eth": "0 ETH"
+  },
+  "0xf29226914595052a04f5afbe6410d0c3ed707548": {
+    "exchange": "Coinbit",
+    "type": "hot",
+    "name_tag": "Coinbit: NEXT Token",
+    "tx_count": 461,
+    "balance_eth": "0 ETH"
+  },
+  "0x167a9333bf582556f35bd4d16a7e80e191aa6476": {
+    "exchange": "Coinone",
+    "type": "hot",
+    "name_tag": "Coinone",
+    "tx_count": 1035976,
+    "balance_eth": "2,712.94554541 ETH"
+  },
+  "0x1e2fcfd26d36183f1a5d90f0e6296915b02bcb40": {
+    "exchange": "Coinone",
+    "type": "hot",
+    "name_tag": "Coinone 2",
+    "tx_count": 95,
+    "balance_eth": "86,004.88766666 ETH"
+  },
+  "0x7a1ba53c0e2d218df39e76e4efbf0455978cc23e": {
+    "exchange": "Coinone",
+    "type": "hot",
+    "name_tag": "Coinone: Deposit Funder",
+    "tx_count": 41811,
+    "balance_eth": "12.59629077 ETH"
+  },
+  "0x35da6abcb08f2b6164fe380bb6c47bd8f2304d55": {
+    "exchange": "Coinone",
+    "type": "hot",
+    "name_tag": "Coinone: Old Address 1",
+    "tx_count": 28,
+    "balance_eth": "0 ETH"
+  },
+  "0xa0b73e1ff0b80914ab6fe0444e65848c4c34450b": {
+    "exchange": "Cryptocom",
+    "type": "hot",
+    "name_tag": "Cronos Coin: CRO Token",
+    "tx_count": 1469513,
+    "balance_eth": "0 ETH"
+  },
+  "0x6262998ced04146fa42253a5c0af90ca02dfd2a3": {
+    "exchange": "Cryptocom",
+    "type": "hot",
+    "name_tag": "Crypto.com",
+    "tx_count": 1183099,
+    "balance_eth": "109,576.75939316 ETH"
+  },
+  "0x46340b20830761efd32832a74d7169b29feb9758": {
+    "exchange": "Cryptocom",
+    "type": "hot",
+    "name_tag": "Crypto.com 2",
+    "tx_count": 8912018,
+    "balance_eth": "14,705.64153034 ETH"
+  },
+  "0x72a53cdbbcc1b9efa39c834a540550e23463aacb": {
+    "exchange": "Cryptocom",
+    "type": "hot",
+    "name_tag": "Crypto.com 3",
+    "tx_count": 4075,
+    "balance_eth": "8,846.44514463 ETH"
+  },
+  "0x7758e507850da48cd47df1fb5f875c23e3340c50": {
+    "exchange": "Cryptocom",
+    "type": "hot",
+    "name_tag": "Crypto.com 4",
+    "tx_count": 116954,
+    "balance_eth": "6,609.70747631 ETH"
+  },
+  "0xcffad3200574698b78f32232aa9d63eabd290703": {
+    "exchange": "Cryptocom",
+    "type": "hot",
+    "name_tag": "Crypto.com 5",
+    "tx_count": 822912,
+    "balance_eth": "114,028.6929162 ETH"
+  },
+  "0xb63b606ac810a52cca15e44bb630fd42d8d1d83d": {
+    "exchange": "Cryptocom",
+    "type": "hot",
+    "name_tag": "Crypto.com: MCO Token",
+    "tx_count": 454234,
+    "balance_eth": "0 ETH"
+  },
+  "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2": {
+    "exchange": "Ftx",
+    "type": "hot",
+    "name_tag": "FTX Exchange",
+    "tx_count": 5452989,
+    "balance_eth": "0.23432172 ETH"
+  },
+  "0xc098b2a3aa256d2140208c3de6543aaef5cd3a94": {
+    "exchange": "Ftx",
+    "type": "hot",
+    "name_tag": "FTX Exchange 2",
+    "tx_count": 4106290,
+    "balance_eth": "0.00062639 ETH"
+  },
+  "0x68eb95dc9934e19b86687a10df8e364423240e94": {
+    "exchange": "Ftx",
+    "type": "hot",
+    "name_tag": "FTX: 3X Long Bitcoin Token",
+    "tx_count": 48566,
+    "balance_eth": "0 ETH"
+  },
+  "0x871baed4088b863fd6407159f3672d70cd34837d": {
+    "exchange": "Ftx",
+    "type": "hot",
+    "name_tag": "FTX: 3X Long Ethereum Token",
+    "tx_count": 34305,
+    "balance_eth": "0 ETH"
+  },
+  "0x016ee7373248a80bde1fd6baa001311d233b3cfa": {
+    "exchange": "Ftx",
+    "type": "hot",
+    "name_tag": "FTX: 3X Short Bitcoin Token",
+    "tx_count": 53372,
+    "balance_eth": "0 ETH"
+  },
+  "0x2f5e2c9002c058c063d21a06b6cabb50950130c8": {
+    "exchange": "Ftx",
+    "type": "hot",
+    "name_tag": "FTX: 3X Short Ethereum Token",
+    "tx_count": 23281,
+    "balance_eth": "0 ETH"
+  },
+  "0x50d1c9771902476076ecfc8b2a83ad6b9355a4c9": {
+    "exchange": "Ftx",
+    "type": "hot",
+    "name_tag": "FTX: FTT Token",
+    "tx_count": 373904,
+    "balance_eth": "0 ETH"
+  },
+  "0x0d0707963952f2fba59dd06f2b425ace40b492fe": {
+    "exchange": "Gate.io",
+    "type": "hot",
+    "name_tag": "Gate.io",
+    "tx_count": 6341972,
+    "balance_eth": "1,630.99895616 ETH"
+  },
+  "0x7793cd85c11a924478d358d49b05b37e91b5810f": {
+    "exchange": "Gate.io",
+    "type": "hot",
+    "name_tag": "Gate.io 2",
+    "tx_count": 11113,
+    "balance_eth": "237.90332846 ETH"
+  },
+  "0x1c4b70a3968436b9a0a9cf5205c787eb81bb558c": {
+    "exchange": "Gate.io",
+    "type": "hot",
+    "name_tag": "Gate.io 3",
+    "tx_count": 38075,
+    "balance_eth": "20,027.30137425 ETH"
+  },
+  "0x234ee9e35f8e9749a002fc42970d570db716453b": {
+    "exchange": "Gate.io",
+    "type": "hot",
+    "name_tag": "Gate.io 4",
+    "tx_count": 1192,
+    "balance_eth": "0.43406865 ETH"
+  },
+  "0xc882b111a75c0c657fc507c04fbfcd2cc984f071": {
+    "exchange": "Gate.io",
+    "type": "hot",
+    "name_tag": "Gate.io 5",
+    "tx_count": 139,
+    "balance_eth": "103,394.39914074 ETH"
+  },
+  "0xd793281182a0e3e023116004778f45c29fc14f19": {
+    "exchange": "Gate.io",
+    "type": "hot",
+    "name_tag": "Gate.io: Contract",
+    "tx_count": 216,
+    "balance_eth": "1,828.78872651 ETH"
+  },
+  "0x6596da8b65995d5feacff8c2936f0b7a2051b0d0": {
+    "exchange": "Gate.io",
+    "type": "hot",
+    "name_tag": "Gate.io: Deposit Funder",
+    "tx_count": 430039,
+    "balance_eth": "36.28804441 ETH"
+  },
+  "0xd24400ae8bfebb18ca49be86258a3c749cf46853": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini",
+    "tx_count": 4002243,
+    "balance_eth": "23,069.68718696 ETH"
+  },
+  "0x6fc82a5fe25a5cdb58bc74600a40a69c065263f8": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini 2",
+    "tx_count": 324740,
+    "balance_eth": "0 ETH"
+  },
+  "0x61edcdf5bb737adffe5043706e7c5bb1f1a56eea": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini 3",
+    "tx_count": 364,
+    "balance_eth": "399,498.96466904 ETH"
+  },
+  "0x5f65f7b609678448494de4c87521cdf6cef1e932": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini 4",
+    "tx_count": 1996766,
+    "balance_eth": "0 ETH"
+  },
+  "0xb302bfe9c246c6e150af70b1caaa5e3df60dac05": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini 5",
+    "tx_count": 24,
+    "balance_eth": "0 ETH"
+  },
+  "0x8d6f396d210d385033b348bcae9e4f9ea4e045bd": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini 6",
+    "tx_count": 436,
+    "balance_eth": "0 ETH"
+  },
+  "0xd69b0089d9ca950640f5dc9931a41a5965f00303": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini 7",
+    "tx_count": 149,
+    "balance_eth": "46,569.83908867 ETH"
+  },
+  "0x07ee55aa48bb72dcc6e9d78256648910de513eca": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini: Contract 1",
+    "tx_count": 1691,
+    "balance_eth": "0 ETH"
+  },
+  "0xdd51f01d9fc0fd084c1a4737bbfa5becb6ced9bc": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini: Deployer 1",
+    "tx_count": 11,
+    "balance_eth": "0.32674476 ETH"
+  },
+  "0x4c2f150fc90fed3d8281114c2349f1906cde5346": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini: Deployer 2",
+    "tx_count": 29877,
+    "balance_eth": "3.95597929 ETH"
+  },
+  "0x056fd409e1d7a124bd7017459dfea2f387b6d5cd": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini: GUSD Token",
+    "tx_count": 208186,
+    "balance_eth": "0 ETH"
+  },
+  "0xdec042a90de005b22754e94a8a979c4b8c67fde5": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini: Old Contract 1",
+    "tx_count": 93,
+    "balance_eth": "0 ETH"
+  },
+  "0x4b7ee45f30767f36f06f79b32bf1fca6f726deda": {
+    "exchange": "Gemini",
+    "type": "hot",
+    "name_tag": "Gemini: eFIL Token",
+    "tx_count": 189,
+    "balance_eth": "0 ETH"
+  },
+  "0x274f3c32c90517975e29dfc209a23f315c1e5fc7": {
+    "exchange": "Hotbit",
+    "type": "hot",
+    "name_tag": "Hotbit",
+    "tx_count": 1094621,
+    "balance_eth": "1.77063956 ETH"
+  },
+  "0x8533a0bd9310eb63e7cc8e1116c18a3d67b1976a": {
+    "exchange": "Hotbit",
+    "type": "hot",
+    "name_tag": "Hotbit 2",
+    "tx_count": 574,
+    "balance_eth": "1.27768931 ETH"
+  },
+  "0x562680a4dc50ed2f14d75bf31f494cfe0b8d10a1": {
+    "exchange": "Hotbit",
+    "type": "hot",
+    "name_tag": "Hotbit 3",
+    "tx_count": 446357,
+    "balance_eth": "610.58323531 ETH"
+  },
+  "0x6be61833fc4381990e82d7d4a9f4c9b3f67ea941": {
+    "exchange": "Hotbit",
+    "type": "hot",
+    "name_tag": "Hotbit Token",
+    "tx_count": 10334,
+    "balance_eth": "0 ETH"
+  },
+  "0xab5c66752a9e8167967685f1450532fb96d5d24f": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 1",
+    "tx_count": 1949566,
+    "balance_eth": "162.8564006 ETH"
+  },
+  "0xe93381fb4c4f14bda253907b18fad305d799241a": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 10",
+    "tx_count": 2818125,
+    "balance_eth": "1.05228434 ETH"
+  },
+  "0xfa4b5be3f2f84f56703c42eb22142744e95a2c58": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 11",
+    "tx_count": 208991,
+    "balance_eth": "178.59626753 ETH"
+  },
+  "0x46705dfff24256421a05d056c29e81bdc09723b8": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 12",
+    "tx_count": 1946042,
+    "balance_eth": "72.98618896 ETH"
+  },
+  "0x32598293906b5b17c27d657db3ad2c9b3f3e4265": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 13",
+    "tx_count": 92,
+    "balance_eth": "4.5649119 ETH"
+  },
+  "0x5861b8446a2f6e19a067874c133f04c578928727": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 14",
+    "tx_count": 307803,
+    "balance_eth": "0.00071363 ETH"
+  },
+  "0x926fc576b7facf6ae2d08ee2d4734c134a743988": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 15",
+    "tx_count": 250862,
+    "balance_eth": "0.0010559 ETH"
+  },
+  "0xeec606a66edb6f497662ea31b5eb1610da87ab5f": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 16",
+    "tx_count": 660407,
+    "balance_eth": "9.52922714 ETH"
+  },
+  "0x7ef35bb398e0416b81b019fea395219b65c52164": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 17",
+    "tx_count": 202655,
+    "balance_eth": "15.98998987 ETH"
+  },
+  "0x229b5c097f9b35009ca1321ad2034d4b3d5070f6": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 18",
+    "tx_count": 46,
+    "balance_eth": "0.13569696 ETH"
+  },
+  "0xd8a83b72377476d0a66683cde20a8aad0b628713": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 19",
+    "tx_count": 284434,
+    "balance_eth": "0.72401994 ETH"
+  },
+  "0x6748f50f686bfbca6fe8ad62b22228b87f31ff2b": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 2",
+    "tx_count": 1970046,
+    "balance_eth": "108.80718939 ETH"
+  },
+  "0x90e9ddd9d8d5ae4e3763d0cf856c97594dea7325": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 20",
+    "tx_count": 157892,
+    "balance_eth": "2.13287651 ETH"
+  },
+  "0x30741289523c2e4d2a62c7d6722686d14e723851": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 21",
+    "tx_count": 118670,
+    "balance_eth": "87.63373451 ETH"
+  },
+  "0x6f48a3e70f0251d1e83a989e62aaa2281a6d5380": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 22",
+    "tx_count": 195981,
+    "balance_eth": "1.14906112 ETH"
+  },
+  "0xf056f435ba0cc4fcd2f1b17e3766549ffc404b94": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 23",
+    "tx_count": 491279,
+    "balance_eth": "54.06083172 ETH"
+  },
+  "0x137ad9c4777e1d36e4b605e745e8f37b2b62e9c5": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 24",
+    "tx_count": 251074,
+    "balance_eth": "0.02125744 ETH"
+  },
+  "0x5401dbf7da53e1c9dbf484e3d69505815f2f5e6e": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 25",
+    "tx_count": 138968,
+    "balance_eth": "23.55360528 ETH"
+  },
+  "0x034f854b44d28e26386c1bc37ff9b20c6380b00d": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 26",
+    "tx_count": 360235,
+    "balance_eth": "0.00523343 ETH"
+  },
+  "0x0577a79cfc63bbc0df38833ff4c4a3bf2095b404": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 27",
+    "tx_count": 437039,
+    "balance_eth": "0.093139 ETH"
+  },
+  "0x0c6c34cdd915845376fb5407e0895196c9dd4eec": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 28",
+    "tx_count": 80290,
+    "balance_eth": "0.00394566 ETH"
+  },
+  "0x794d28ac31bcb136294761a556b68d2634094153": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 29",
+    "tx_count": 462765,
+    "balance_eth": "8.02602153 ETH"
+  },
+  "0xfdb16996831753d5331ff813c29a93c76834a0ad": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 3",
+    "tx_count": 1808560,
+    "balance_eth": "133.97197766 ETH"
+  },
+  "0x34189c75cbb13bdb4f5953cda6c3045cfca84a9e": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 30",
+    "tx_count": 62672,
+    "balance_eth": "79.47234311 ETH"
+  },
+  "0xb4cd0386d2db86f30c1a11c2b8c4f4185c1dade9": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 31",
+    "tx_count": 953,
+    "balance_eth": "0.59095858 ETH"
+  },
+  "0x4d77a1144dc74f26838b69391a6d3b1e403d0990": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 32",
+    "tx_count": 107,
+    "balance_eth": "7.3836079 ETH"
+  },
+  "0x28ffe35688ffffd0659aee2e34778b0ae4e193ad": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 33",
+    "tx_count": 716914,
+    "balance_eth": "0.61887891 ETH"
+  },
+  "0xcac725bef4f114f728cbcfd744a731c2a463c3fc": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 34",
+    "tx_count": 873483,
+    "balance_eth": "1.45389965 ETH"
+  },
+  "0x73f8fc2e74302eb2efda125a326655acf0dc2d1b": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 35",
+    "tx_count": 427360,
+    "balance_eth": "0.24131065 ETH"
+  },
+  "0x0a98fb70939162725ae66e626fe4b52cff62c2e5": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 36",
+    "tx_count": 1682836,
+    "balance_eth": "143.61175657 ETH"
+  },
+  "0xf66852bc122fd40bfecc63cd48217e88bda12109": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 37",
+    "tx_count": 368979,
+    "balance_eth": "2.65027798 ETH"
+  },
+  "0x49517ca7b7a50f592886d4c74175f4c07d460a70": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 38",
+    "tx_count": 21,
+    "balance_eth": "0.1003465 ETH"
+  },
+  "0x58c2cb4a6bee98c309215d0d2a38d7f8aa71211c": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 39",
+    "tx_count": 355577,
+    "balance_eth": "6.23840046 ETH"
+  },
+  "0xeee28d484628d41a82d01e21d12e2e78d69920da": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 4",
+    "tx_count": 1805687,
+    "balance_eth": "120.72073241 ETH"
+  },
+  "0x39d9f4640b98189540a9c0edcfa95c5e657706aa": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 40",
+    "tx_count": 270059,
+    "balance_eth": "0.5439561 ETH"
+  },
+  "0x5c985e89dde482efe97ea9f1950ad149eb73829b": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 5",
+    "tx_count": 418881,
+    "balance_eth": "173.99505676 ETH"
+  },
+  "0xdc76cd25977e0a5ae17155770273ad58648900d3": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 6",
+    "tx_count": 789,
+    "balance_eth": "0.00008399 ETH"
+  },
+  "0xadb2b42f6bd96f5c65920b9ac88619dce4166f94": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 7",
+    "tx_count": 1770577,
+    "balance_eth": "121.44169163 ETH"
+  },
+  "0xa8660c8ffd6d578f657b72c0c811284aef0b735e": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 8",
+    "tx_count": 155930,
+    "balance_eth": "0 ETH"
+  },
+  "0x1062a747393198f70f71ec65a582423dba7e5ab3": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi 9",
+    "tx_count": 1974931,
+    "balance_eth": "163.70912378 ETH"
+  },
+  "0x9d6d492bd500da5b33cf95a5d610a73360fcaaa0": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi Mining Pool",
+    "tx_count": 24757,
+    "balance_eth": "0 ETH"
+  },
+  "0xa66daa57432024023db65477ba87d4e7f5f95213": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi Pool Token",
+    "tx_count": 12639,
+    "balance_eth": "0 ETH"
+  },
+  "0x6f259637dcd74c767781e37bc6133cd6a68aa161": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi Token",
+    "tx_count": 635338,
+    "balance_eth": "0 ETH"
+  },
+  "0x63155828e949aeba75038a5e8a5f4edd5038d9a6": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Deployer",
+    "tx_count": 42,
+    "balance_eth": "0.00006798 ETH"
+  },
+  "0xe0d513cf39b52a09aefcef25e91dda3a2636329a": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Deposit",
+    "tx_count": 2,
+    "balance_eth": "0.00763664 ETH"
+  },
+  "0xfd54078badd5653571726c3370afb127351a6f26": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Deposit Funder",
+    "tx_count": 2460636,
+    "balance_eth": "74.55042833 ETH"
+  },
+  "0x18916e1a2933cb349145a280473a5de8eb6630cb": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Deposit Funder 2",
+    "tx_count": 1571814,
+    "balance_eth": "96.33081795 ETH"
+  },
+  "0xdb0e89a9b003a28a4055ef772e345e8089987bfd": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Deposit Funder 3",
+    "tx_count": 148549,
+    "balance_eth": "127.32619697 ETH"
+  },
+  "0xf0458aaaf6d49192d3b4711960635d5fa2114e71": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Deposit Funder 4",
+    "tx_count": 77434,
+    "balance_eth": "52.16836166 ETH"
+  },
+  "0x07ef60deca209ea0f3f3f08c1ad21a6db5ef9d33": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Deposit Funder 5",
+    "tx_count": 70057,
+    "balance_eth": "58.38468033 ETH"
+  },
+  "0x0316eb71485b0ab14103307bf65a021042c6d380": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: HBTC Token",
+    "tx_count": 31523,
+    "balance_eth": "0 ETH"
+  },
+  "0x1d1e10e8c66b67692f4c002c0cb334de5d485e41": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 1",
+    "tx_count": 52902,
+    "balance_eth": "0.59642315 ETH"
+  },
+  "0xea0cfef143182d7b9208fbfeda9d172c2aced972": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 10",
+    "tx_count": 5294,
+    "balance_eth": "0.0072881 ETH"
+  },
+  "0x0c92efa186074ba716d0e2156a6ffabd579f8035": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 11",
+    "tx_count": 31580,
+    "balance_eth": "0.36602776 ETH"
+  },
+  "0x91dfa9d9e062a50d2f351bfba0d35a9604993dac": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 12",
+    "tx_count": 16879,
+    "balance_eth": "0.00741679 ETH"
+  },
+  "0x8e8bc99b79488c276d6f3ca11901e9abd77efea4": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 13",
+    "tx_count": 7894,
+    "balance_eth": "0.09285214 ETH"
+  },
+  "0xb9a4873d8d2c22e56b8574e8605644d08e047549": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 14",
+    "tx_count": 389617,
+    "balance_eth": "1.76241538 ETH"
+  },
+  "0x170af0a02339743687afd3dc8d48cffd1f660728": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 15",
+    "tx_count": 25927,
+    "balance_eth": "0.01497941 ETH"
+  },
+  "0xf775a9a0ad44807bc15936df0ee68902af1a0eee": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 16",
+    "tx_count": 351919,
+    "balance_eth": "0.93018063 ETH"
+  },
+  "0x75a83599de596cbc91a1821ffa618c40e22ac8ca": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 17",
+    "tx_count": 16090,
+    "balance_eth": "0.08889401 ETH"
+  },
+  "0x48ab9f29795dfb44b36587c50da4b30c0e84d3ed": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 18",
+    "tx_count": 5411,
+    "balance_eth": "0.00782398 ETH"
+  },
+  "0x90f49e24a9554126f591d28174e157ca267194ba": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 19",
+    "tx_count": 7643,
+    "balance_eth": "0.858231 ETH"
+  },
+  "0x1b93129f05cc2e840135aab154223c75097b69bf": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 2",
+    "tx_count": 57388,
+    "balance_eth": "0.88663946 ETH"
+  },
+  "0xe3314bbf3334228b257779e28228cfb86fa4261b": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 20",
+    "tx_count": 64332,
+    "balance_eth": "0.10351912 ETH"
+  },
+  "0x6edb9d6547befc3397801c94bb8c97d2e8087e2f": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 21",
+    "tx_count": 26488,
+    "balance_eth": "2.00679056 ETH"
+  },
+  "0x8aabba0077f1565df73e9d15dd3784a2b0033dad": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 22",
+    "tx_count": 22889,
+    "balance_eth": "1.86833376 ETH"
+  },
+  "0xd3a2f775e973c1671f2047e620448b8662dcd3ca": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 23",
+    "tx_count": 33153,
+    "balance_eth": "0.00608524 ETH"
+  },
+  "0x1c515eaa87568c850043a89c2d2c2e8187adb056": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 24",
+    "tx_count": 23610,
+    "balance_eth": "0.31858874 ETH"
+  },
+  "0x60b45f993223dcb8bdf05e3391f7630e5a51d787": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 25",
+    "tx_count": 13898,
+    "balance_eth": "0.62699368 ETH"
+  },
+  "0xa23d7dd4b8a1060344caf18a29b42350852af481": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 26",
+    "tx_count": 2360,
+    "balance_eth": "0.00807431 ETH"
+  },
+  "0x9eebb2815dba2166d8287afa9a2c89336ba9deaa": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 27",
+    "tx_count": 5080,
+    "balance_eth": "0.00260726 ETH"
+  },
+  "0xd10e08325c0e95d59c607a693483680fe5b755b3": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 28",
+    "tx_count": 16337,
+    "balance_eth": "2.14958458 ETH"
+  },
+  "0xc837f51a0efa33f8eca03570e3d01a4b2cf97ffd": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 29",
+    "tx_count": 46548,
+    "balance_eth": "0.02660492 ETH"
+  },
+  "0xeb6d43fe241fb2320b5a3c9be9cdfd4dd8226451": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 3",
+    "tx_count": 121671,
+    "balance_eth": "1.12279746 ETH"
+  },
+  "0xf7a8af16acb302351d7ea26ffc380575b741724c": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 30",
+    "tx_count": 54983,
+    "balance_eth": "2.35180204 ETH"
+  },
+  "0x636b76ae213358b9867591299e5c62b8d014e372": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 31",
+    "tx_count": 20098,
+    "balance_eth": "0.09762918 ETH"
+  },
+  "0x9a755332d874c893111207b0b220ce2615cd036f": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 32",
+    "tx_count": 65307,
+    "balance_eth": "4.98377442 ETH"
+  },
+  "0xecd8b3877d8e7cd0739de18a5b545bc0b3538566": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 33",
+    "tx_count": 43557,
+    "balance_eth": "2.16534499 ETH"
+  },
+  "0xef54f559b5e3b55b783c7bc59850f83514b6149c": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 34",
+    "tx_count": 29578,
+    "balance_eth": "0.96986284 ETH"
+  },
+  "0x956e0dbecc0e873d34a5e39b25f364b2ca036730": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 4",
+    "tx_count": 29439,
+    "balance_eth": "0.57068836 ETH"
+  },
+  "0x6f50c6bff08ec925232937b204b0ae23c488402a": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 5",
+    "tx_count": 416906,
+    "balance_eth": "1.03246805 ETH"
+  },
+  "0xdf95de30cdff4381b69f9e4fa8dddce31a0128df": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 6",
+    "tx_count": 331780,
+    "balance_eth": "0.99897091 ETH"
+  },
+  "0x25c6459e5c5b01694f6453e8961420ccd1edf3b1": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 7",
+    "tx_count": 40201,
+    "balance_eth": "1.33256186 ETH"
+  },
+  "0x04645af26b54bd85dc02ac65054e87362a72cb22": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 8",
+    "tx_count": 65858,
+    "balance_eth": "2.07507473 ETH"
+  },
+  "0xb2a48f542dc56b89b24c04076cbe565b3dc58e7b": {
+    "exchange": "HTX",
+    "type": "hot",
+    "name_tag": "Huobi: Old Address 9",
+    "tx_count": 611989,
+    "balance_eth": "1.46424626 ETH"
+  },
+  "0x0c01089aedc45ab0f43467cceca6b4d3e4170bea": {
+    "exchange": "Korbit",
+    "type": "hot",
+    "name_tag": "Korbit 1",
+    "tx_count": 14194,
+    "balance_eth": "317.512801 ETH"
+  },
+  "0x2864de013415b6c2c7a96333183b20f0f9cc7532": {
+    "exchange": "Korbit",
+    "type": "hot",
+    "name_tag": "Korbit 2",
+    "tx_count": 71,
+    "balance_eth": "375.83599347 ETH"
+  },
+  "0x8550e644d74536f1df38b17d5f69aa1bfe28ae86": {
+    "exchange": "Korbit",
+    "type": "hot",
+    "name_tag": "Korbit 3",
+    "tx_count": 349,
+    "balance_eth": "98.44384635 ETH"
+  },
+  "0xd03be958e6b8da2d28ac8231a2291d6e4f0a7ea7": {
+    "exchange": "Korbit",
+    "type": "hot",
+    "name_tag": "Korbit 4",
+    "tx_count": 22,
+    "balance_eth": "54,044.0584093 ETH"
+  },
+  "0xd6e0f7da4480b3ad7a2c8b31bc5a19325355ca15": {
+    "exchange": "Korbit",
+    "type": "hot",
+    "name_tag": "Korbit 5",
+    "tx_count": 1002,
+    "balance_eth": "18.77923623 ETH"
+  },
+  "0xe5d7ccc5fc3b3216c4dff3a59442f1d83038468c": {
+    "exchange": "Korbit",
+    "type": "hot",
+    "name_tag": "Korbit 6",
+    "tx_count": 55601,
+    "balance_eth": "1.20110466 ETH"
+  },
+  "0xe83a48cae4d7120e8ba1c2e0409568ffba532e87": {
+    "exchange": "Korbit",
+    "type": "hot",
+    "name_tag": "Korbit 7",
+    "tx_count": 92,
+    "balance_eth": "0.57182347 ETH"
+  },
+  "0xf0bc8fddb1f358cef470d63f96ae65b1d7914953": {
+    "exchange": "Korbit",
+    "type": "hot",
+    "name_tag": "Korbit 8",
+    "tx_count": 8844,
+    "balance_eth": "5,921.16610682 ETH"
+  },
+  "0x2910543af39aba0cd09dbb2d50200b3e800a63d2": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken",
+    "tx_count": 54801,
+    "balance_eth": "1.11166307 ETH"
+  },
+  "0xae2d4617c862309a3d75a0ffb358c7a5009c673f": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 10",
+    "tx_count": 724896,
+    "balance_eth": "190.19955269 ETH"
+  },
+  "0x43984d578803891dfa9706bdeee6078d80cfc79e": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 11",
+    "tx_count": 10627,
+    "balance_eth": "45.98880656 ETH"
+  },
+  "0x66c57bf505a85a74609d2c83e94aabb26d691e1f": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 12",
+    "tx_count": 102250,
+    "balance_eth": "175.21010483 ETH"
+  },
+  "0xda9dfa130df4de4673b89022ee50ff26f6ea73cf": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 13",
+    "tx_count": 122,
+    "balance_eth": "1,690,839.97041356 ETH"
+  },
+  "0xa83b11093c858c86321fbc4c20fe82cdbd58e09e": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 14",
+    "tx_count": 91520,
+    "balance_eth": "196.79834404 ETH"
+  },
+  "0x0a869d79a7052c7f1b55a8ebabbea3420f0d1e13": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 2",
+    "tx_count": 12218,
+    "balance_eth": "1.02444389 ETH"
+  },
+  "0xe853c56864a2ebe4576a807d26fdc4a0ada51919": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 3",
+    "tx_count": 223,
+    "balance_eth": "1.58345962 ETH"
+  },
+  "0x267be1c1d684f78cb4f6a176c4911b741e4ffdc0": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 4",
+    "tx_count": 3167334,
+    "balance_eth": "44,497.15657905 ETH"
+  },
+  "0xfa52274dd61e1643d2205169732f29114bc240b3": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 5",
+    "tx_count": 2749007,
+    "balance_eth": "0 ETH"
+  },
+  "0x53d284357ec70ce289d6d64134dfac8e511c8a3d": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 6",
+    "tx_count": 15008,
+    "balance_eth": "1.04696842 ETH"
+  },
+  "0x89e51fa8ca5d66cd220baed62ed01e8951aa7c40": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 7",
+    "tx_count": 1569897,
+    "balance_eth": "160.90610146 ETH"
+  },
+  "0xc6bed363b30df7f35b601a5547fe56cd31ec63da": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 8",
+    "tx_count": 189738,
+    "balance_eth": "257.16494317 ETH"
+  },
+  "0x29728d0efd284d85187362faa2d4d76c2cfc2612": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken 9",
+    "tx_count": 41134,
+    "balance_eth": "250.17352523 ETH"
+  },
+  "0x2e7542ec36df6429d8c397f88c4cf0c925948f44": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken: Deployer 1",
+    "tx_count": 43,
+    "balance_eth": "0 ETH"
+  },
+  "0xa24787320ede4cc19d800bf87b41ab9539c4da9d": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken: Deployer 2",
+    "tx_count": 1475775,
+    "balance_eth": "0 ETH"
+  },
+  "0xe9f7ecae3a53d2a67105292894676b00d1fab785": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken: Hot Wallet",
+    "tx_count": 29357,
+    "balance_eth": "372.37453149 ETH"
+  },
+  "0xe1498a9ef5c6aa51790a642f70c31238326b1724": {
+    "exchange": "Kraken",
+    "type": "hot",
+    "name_tag": "Kraken: MANA Token Wallet",
+    "tx_count": 35794,
+    "balance_eth": "318.41285762 ETH"
+  },
+  "0x2b5634c42055806a59e9107ed44d43c426e58258": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin",
+    "tx_count": 2828292,
+    "balance_eth": "1.48137761 ETH"
+  },
+  "0xcad621da75a66c7a8f4ff86d30a2bf981bfc8fdd": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 10",
+    "tx_count": 2875109,
+    "balance_eth": "430.46846076 ETH"
+  },
+  "0xec30d02f10353f8efc9601371f56e808751f396f": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 11",
+    "tx_count": 609164,
+    "balance_eth": "94.03428507 ETH"
+  },
+  "0x738cf6903e6c4e699d1c2dd9ab8b67fcdb3121ea": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 12",
+    "tx_count": 59783,
+    "balance_eth": "95.26479163 ETH"
+  },
+  "0xd89350284c7732163765b23338f2ff27449e0bf5": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 13",
+    "tx_count": 175803,
+    "balance_eth": "1,689.46047787 ETH"
+  },
+  "0x88bd4d3e2997371bceefe8d9386c6b5b4de60346": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 14",
+    "tx_count": 13030,
+    "balance_eth": "248.76015623 ETH"
+  },
+  "0xb8e6d31e7b212b2b7250ee9c26c56cebbfbe6b23": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 15",
+    "tx_count": 86,
+    "balance_eth": "10,638.90619999 ETH"
+  },
+  "0x689c56aef474df92d44a1b70850f808488f9769c": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 2",
+    "tx_count": 1005519,
+    "balance_eth": "0.23239497 ETH"
+  },
+  "0xa1d8d972560c2f8144af871db508f0b0b10a3fbf": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 3",
+    "tx_count": 2750098,
+    "balance_eth": "13.88519801 ETH"
+  },
+  "0x4ad64983349c49defe8d7a4686202d24b25d0ce8": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 4",
+    "tx_count": 1876309,
+    "balance_eth": "2.06457509 ETH"
+  },
+  "0x1692e170361cefd1eb7240ec13d048fd9af6d667": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 5",
+    "tx_count": 4306,
+    "balance_eth": "10,597.34315029 ETH"
+  },
+  "0xd6216fc19db775df9774a6e33526131da7d19a2c": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 6",
+    "tx_count": 7476,
+    "balance_eth": "129,801.3517388 ETH"
+  },
+  "0x899b5d52671830f567bf43a14684eb14e1f945fe": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 8",
+    "tx_count": 216,
+    "balance_eth": "0.04504431 ETH"
+  },
+  "0xf16e9b0d03470827a95cdfd0cb8a8a3b46969b91": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin 9",
+    "tx_count": 1881890,
+    "balance_eth": "372.58426881 ETH"
+  },
+  "0x2602669a92fccf44e5319ff51b0f453aab9db021": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin Contract",
+    "tx_count": 90849,
+    "balance_eth": "0.00009897 ETH"
+  },
+  "0xf2b16510270a214130c6b17ff0e9bf87585126bd": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin: Deployer",
+    "tx_count": 27,
+    "balance_eth": "6.04359017 ETH"
+  },
+  "0x061f7937b7b2bc7596539959804f86538b6368dc": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin: Deposit Funder",
+    "tx_count": 778553,
+    "balance_eth": "93.36265188 ETH"
+  },
+  "0xf34960d9d60be18cc1d5afc1a6f012a723a28811": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin: KCS Token",
+    "tx_count": 36595,
+    "balance_eth": "0 ETH"
+  },
+  "0x039b5649a59967e3e936d7471f9c3700100ee1ab": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "KuCoin: Old KCS Token",
+    "tx_count": 174866,
+    "balance_eth": "0 ETH"
+  },
+  "0xe59cd29be3be4461d79c0881d238cbe87d64595a": {
+    "exchange": "KuCoin",
+    "type": "hot",
+    "name_tag": "Kucoin 7",
+    "tx_count": 424519,
+    "balance_eth": "0.09572619 ETH"
+  },
+  "0x6cc5f688a315f3dc28a7781717a9a798a59fda7b": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX",
+    "tx_count": 3220611,
+    "balance_eth": "210.831336 ETH"
+  },
+  "0xc5451b523d5fffe1351337a221688a62806ad91a": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 10",
+    "tx_count": 1,
+    "balance_eth": "0.0055 ETH"
+  },
+  "0x42436286a9c8d63aafc2eebbca193064d68068f2": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 11",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0x69a722f0b5da3af02b4a205d6f0c285f4ed8f396": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 12",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0xc708a1c712ba26dc618f972ad7a187f76c8596fd": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 13",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0x6fb624b48d9299674022a23d92515e76ba880113": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 14",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0xf59869753f41db720127ceb8dbb8afaf89030de4": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 15",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0x65a0947ba5175359bb457d3b34491edf4cbf7997": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 16",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0x4d19c0a5357bc48be0017095d3c871d9afc3f21d": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 17",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0x5c52cc7c96bde8594e5b77d5b76d042cb5fae5f2": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 18",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0xe9172daf64b05b26eb18f07ac8d6d723acb48f99": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 19",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0x236f9f97e0e62388479bf9e5ba4889e46b0273c3": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 2",
+    "tx_count": 868652,
+    "balance_eth": "0.78826628 ETH"
+  },
+  "0x7eb6c83ab7d8d9b8618c0ed973cbef71d1921ef2": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 20",
+    "tx_count": 62815,
+    "balance_eth": "16.28363689 ETH"
+  },
+  "0xa7efae728d2936e78bda97dc267687568dd593f3": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 3",
+    "tx_count": 2036634,
+    "balance_eth": "4,383.62423272 ETH"
+  },
+  "0x2c8fbb630289363ac80705a1a61273f76fd5a161": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 4",
+    "tx_count": 396,
+    "balance_eth": "7,439.10862646 ETH"
+  },
+  "0x59fae149a8f8ec74d5bc038f8b76d25b136b9573": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 5",
+    "tx_count": 31,
+    "balance_eth": "0.02496448 ETH"
+  },
+  "0x98ec059dc3adfbdd63429454aeb0c990fba4a128": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 6",
+    "tx_count": 45,
+    "balance_eth": "250,000.10818897 ETH"
+  },
+  "0x5041ed759dd4afc3a72b8192c143f72f4724081a": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 7",
+    "tx_count": 1400839,
+    "balance_eth": "16.76605289 ETH"
+  },
+  "0xcba38020cd7b6f51df6afaf507685add148f6ab6": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 8",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0x461249076b88189f8ac9418de28b365859e46bfd": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX 9",
+    "tx_count": 0,
+    "balance_eth": "0.0035 ETH"
+  },
+  "0xc5a93444cc4da6efb9e6fc6e5d3cb55a53b52396": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX: Deposit Funder",
+    "tx_count": 1337710,
+    "balance_eth": "104.29578862 ETH"
+  },
+  "0x89fd00b8d2dcee0f40d8699970115bb861241a54": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX: Deposit Funder 3",
+    "tx_count": 45211,
+    "balance_eth": "0.01979 ETH"
+  },
+  "0xaad8ad7dfa05bc354e011890dd61636842c2cb96": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX: Deposit Funder 4",
+    "tx_count": 13847,
+    "balance_eth": "0.01979 ETH"
+  },
+  "0x24c654f6b143dc5cae3c02fbb527ca63aa555dbc": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX: Deposit Supplier",
+    "tx_count": 186811,
+    "balance_eth": "0.01588234 ETH"
+  },
+  "0x75231f58b43240c9718dd58b4967c5114342a86c": {
+    "exchange": "OKX",
+    "type": "hot",
+    "name_tag": "OKX: OKB Token",
+    "tx_count": 124439,
+    "balance_eth": "0 ETH"
+  },
+  "0x32be343b94f860124dc4fee278fdcbd38c102d88": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex",
+    "tx_count": 2777126,
+    "balance_eth": "69.01143703 ETH"
+  },
+  "0x209c4784ab1e8183cf58ca33cb740efbf3fc18ef": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex 2",
+    "tx_count": 1814558,
+    "balance_eth": "0 ETH"
+  },
+  "0xb794f5ea0ba39494ce839613fffba74279579268": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex 3",
+    "tx_count": 488,
+    "balance_eth": "0.44659632 ETH"
+  },
+  "0xa910f92acdaf488fa6ef02174fb86208ad7722ba": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex 4",
+    "tx_count": 1334370,
+    "balance_eth": "7,577.83150821 ETH"
+  },
+  "0xaa9fa73dfe17ecaa2c89b39f0bb2779613c5fc3b": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: BAT",
+    "tx_count": 5363,
+    "balance_eth": "0 ETH"
+  },
+  "0x2fa2bc2ce6a4f92952921a4caa46b3727d24a1ec": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: BNT",
+    "tx_count": 1960,
+    "balance_eth": "0 ETH"
+  },
+  "0x31a2feb9b5d3b5f4e76c71d6c92fc46ebb3cb1c1": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: CVC",
+    "tx_count": 30212,
+    "balance_eth": "0.00577295 ETH"
+  },
+  "0x6b71834d65c5c4d8ed158d54b47e6ea4ff4e5437": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: FOAM",
+    "tx_count": 1315,
+    "balance_eth": "0 ETH"
+  },
+  "0x48d466b7c0d32b61e8a82cd2bcf060f7c3f966df": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: GNO",
+    "tx_count": 44196,
+    "balance_eth": "0.0116446 ETH"
+  },
+  "0x0536806df512d6cdde913cf95c9886f65b1d3462": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: GNT",
+    "tx_count": 164350,
+    "balance_eth": "0.01136652 ETH"
+  },
+  "0x8d451ae5ee8f557a9ce7a9d7be8a8cb40002d5cb": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: KNC",
+    "tx_count": 2262,
+    "balance_eth": "5.15003829 ETH"
+  },
+  "0xbd2ec7c608a06fe975dbdca729e84dedb34ecc21": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: LOOM",
+    "tx_count": 2441,
+    "balance_eth": "0 ETH"
+  },
+  "0xc0e30823e5e628df8bc9bf2636a347e1512f0ecb": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: MANA",
+    "tx_count": 2001,
+    "balance_eth": "4.6544304 ETH"
+  },
+  "0x65f9b2e4d7aaeb40ffea8c6f5844d5ad7da257e0": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: NXC",
+    "tx_count": 26887,
+    "balance_eth": "0.0116446 ETH"
+  },
+  "0x36b01066b7fa4a0fdb2968ea0256c848e9135674": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: OMG",
+    "tx_count": 48958,
+    "balance_eth": "0 ETH"
+  },
+  "0xab11204cfeaccffa63c2d23aef2ea9accdb0a0d5": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: REP",
+    "tx_count": 94608,
+    "balance_eth": "0.0116446 ETH"
+  },
+  "0x6795cf8eb25585eadc356ae32ac6641016c550f2": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: SNT",
+    "tx_count": 1821,
+    "balance_eth": "0 ETH"
+  },
+  "0xfbf2173154f7625713be22e0504404ebfe021eae": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: STORJ",
+    "tx_count": 25663,
+    "balance_eth": "2.94429233 ETH"
+  },
+  "0x6f803466bcd17f44fa18975bf7c509ba64bf3825": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: USDC",
+    "tx_count": 22160,
+    "balance_eth": "22.00573743 ETH"
+  },
+  "0xead6be34ce315940264519f250d8160f369fa5cd": {
+    "exchange": "Poloniex",
+    "type": "hot",
+    "name_tag": "Poloniex: ZRX",
+    "tx_count": 83832,
+    "balance_eth": "2.12186683 ETH"
+  }
+}
