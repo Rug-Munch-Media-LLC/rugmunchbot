@@ -76,9 +76,23 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "",
         "<b>Fallback Doctrine</b>",
         "  own index → free pool → keyed freemium → proxy → paid",
-        "",
-        "via @rugmunchbot · rugmunch.io",
     ]
+    try:
+        from rugmunchbot.tools import get_registry
+
+        reg = get_registry()
+        rows = []
+        for tool, st in sorted(reg.stats.items()):
+            if st.get("calls"):
+                rows.append(
+                    f"  · {_e(tool)}: {st['calls']} calls, "
+                    f"{st['ok']} ok, {st['errors']} err, {st['cached']} cached"
+                )
+        if rows:
+            lines.extend(["", "<b>Tool Metrics (this process)</b>", *rows])
+    except Exception:
+        pass
+    lines.extend(["", "via @rugmunchbot · rugmunch.io"])
     await wait.edit_text("\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
 

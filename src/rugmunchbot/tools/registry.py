@@ -120,6 +120,8 @@ class ToolRegistry:
         self._timeouts: dict[str, float] = {}
         self._ttls: dict[str, float] = {}
         self._cache: TTLCache[ToolResult] = TTLCache()
+        # Win 44: lightweight per-tool counters (win 44 metrics)
+        self.stats: dict[str, dict[str, int]] = {}
 
     def register(
         self,
@@ -156,8 +158,11 @@ class ToolRegistry:
     async def run(self, name: str, **kwargs: Any) -> ToolResult:
         """Execute ``name`` with kwargs. Never raises: returns ok=False on
         failure so callers degrade to the "no live data" message."""
+        st = self.stats.setdefault(name, {"calls": 0, "ok": 0, "errors": 0, "cached": 0})
+        st["calls"] += 1
         handler = self._handlers.get(name)
         if handler is None:
+            st["errors"] += 1
             return ToolResult(tool=name, ok=False, error=f"unknown tool: {name}")
         timeout = self._timeouts.get(name, DEFAULT_TOOL_TIMEOUT)
         ttl = self._ttls.get(name, DEFAULT_TOOL_TTL)
@@ -172,9 +177,14 @@ class ToolRegistry:
                 cached = self._cache.get(_negative_namespace(name), key)
             if cached is not None:
                 cached.cached = True
+                self.stats.setdefault(name, {"calls": 0, "ok": 0, "errors": 0, "cached": 0})["cached"] += 1
                 return cached
 
         result = await self._run_with_retry(name, handler, timeout, **kwargs)
+        if result.ok:
+            st["ok"] += 1
+        else:
+            st["errors"] += 1
         if ttl > 0:
             if result.ok:
                 self._cache.set(name, key, result, ttl)
