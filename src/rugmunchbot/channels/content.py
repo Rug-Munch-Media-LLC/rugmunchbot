@@ -577,3 +577,45 @@ __all__ = [
     "fetch_scan_notes",
     "fetch_trending_news",
 ]
+
+
+# ── RugBrain content-distribution drafts (2026-08-24) ──────────────────────
+#
+# The RAG side (rugbrain /api/v1/content/drafts) reranks stories by type and
+# produces ready-to-post copy per channel: main (full analysis, mirrored to
+# feed.rugmunch.io), alerts (critical/high only), news, scans (real scanner
+# output + ref links). This fetcher surfaces those drafts to the channel
+# scheduler through the same fail-open pattern as every other source here.
+
+
+async def fetch_rag_drafts(channel: str, limit: int = 3) -> list[dict[str, Any]]:
+    """Pull ready-to-post drafts from rugbrain's content-distribution API.
+
+    Args:
+        channel: main | alerts | news | scans
+        limit: max drafts to return
+
+    Returns normalized items:
+        ``{"text": str, "story_ref": str, "mirror": bool, "kind": str}``
+    """
+    import os
+
+    base = os.getenv("RAG_API_URL", "http://127.0.0.1:8012/api/v1").rstrip("/")
+    key = os.getenv("RMI_RAG_API_KEY", "")
+    if not key:
+        logger.debug("rag_drafts_skipped reason=no_api_key")
+        return []
+    try:
+        async def _get() -> list[dict[str, Any]]:
+            from rugmunchbot.tools._client import http_get_json as _g
+
+            data = await _g(
+                f"{base}/content/drafts?channel={channel}",
+                headers={"X-API-Key": key},
+            )
+            return (data or {}).get("channels", {}).get(channel, [])[:limit]
+
+        return await asyncio.wait_for(_get(), timeout=20.0)
+    except Exception as e:
+        logger.debug("rag_drafts_failed channel=%s err=%s", channel, str(e)[:100])
+        return []
