@@ -34,6 +34,9 @@ _AI_VERDICT_SYSTEM = (
     "You are the RugMunch scan analyst. Write a SHORT, plain-English risk "
     "verdict for a token scan. Use ONLY the facts provided — never invent "
     "numbers. 2-4 sentences, trader voice, no hype, no markdown, no emojis. "
+    "When holder_sample_size is present, cite it as analysis depth (e.g. "
+    "'across 300 sampled wallets') and weight concentration findings by it. "
+    "When bundle_cluster_score >= 70, call the launch coordinated. "
     "End with a one-line 'What to watch:' pointing at the riskiest signal or, "
     "when the scan is clean, at liquidity/holder concentration."
 )
@@ -107,6 +110,10 @@ def _verdict_facts(result: dict[str, Any]) -> dict[str, Any]:
         "lp_locked": lp_locked,
         "total_holders": total_holders,
         "top_10_holder_pct": top10,
+        "top5_holder_pct": (result.get("holder_analysis") or {}).get("top5_pct"),
+        "holder_sample_size": (result.get("holder_analysis") or {}).get("sample_size"),
+        "holder_data_source": (result.get("holder_analysis") or {}).get("source"),
+        "bundle_cluster_score": ((result.get("bundle_analysis") or {}).get("launch_cluster_score")),
         "bundle_detected": result.get("bundle_detected"),
         "fresh_wallet_pct": result.get("fresh_wallet_pct"),
         "exchange_funded_pct": result.get("exchange_funded_pct"),
