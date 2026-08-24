@@ -40,6 +40,23 @@ from rugmunchbot.tools.registry import ToolResult, backend_json_get
 logger = get_logger("rmi_bot.tools.prediction_markets")
 
 GAMMA_MARKETS = "https://gamma-api.polymarket.com/markets"
+
+# Crypto-relevant keywords: if a market title matches ANY of these, it's
+# relevant to our users. Everything else (sports, entertainment) is noise.
+_CRYPTO_KEYWORDS = [
+    "bitcoin", "btc", "ethereum", "eth", "solana", "sol", "crypto",
+    "fed", "interest rate", "rate cut", "rate hike", "fomc",
+    "etf", "sec", "regulation", "stablecoin", "defi", "token",
+    "inflation", "cpi", "gdp", "recession", "treasury",
+    "binance", "coinbase", "sec lawsuit", "xrp", "doge",
+]
+_MIN_VOLUME_USD = 100_000  # only show markets with real money
+
+
+def _is_crypto_relevant(title: str) -> bool:
+    """True when the market title matches crypto/macro keywords."""
+    t = title.lower()
+    return any(kw in t for kw in _CRYPTO_KEYWORDS)
 KALSHI_MARKETS = "https://api.elections.kalshi.com/trade-api/v2/markets"
 
 # Real field names returned by Gamma markets payload (verified by probe).
@@ -305,13 +322,36 @@ async def prediction_markets(*, limit: int = 8, venue: str = "all") -> ToolResul
             error="no live prediction-market data (backend provider, Gamma and Kalshi all unreachable)",
         )
 
+    # Crypto-relevance filter: drop sports/entertainment noise, keep only
+    # markets our degens care about (Fed rates, ETF, regulation, BTC price).
+    relevant = [
+        m for m in markets
+        if _is_crypto_relevant(m.get("title", ""))
+        and (_to_float(m.get("volume") or m.get("volume_24h")) or 0) >= _MIN_VOLUME_USD
+    ]
+    # If no crypto-specific markets, fall back to highest-volume non-sports
+    if not relevant:
+        relevant = sorted(
+            [m for m in markets if _to_float(m.get("volume") or m.get("volume_24h"))],
+            key=lambda m: _to_float(m.get("volume") or m.get("volume_24h")) or 0,
+            reverse=True,
+        )[:limit_i]
+
+    # Sort by volume descending — biggest money = most conviction
+    relevant.sort(
+        key=lambda m: _to_float(m.get("volume") or m.get("volume_24h")) or 0,
+        reverse=True,
+    )
+
     return ToolResult(
         tool="prediction_markets",
         ok=True,
         data={
             "limit": limit_i,
-            "count": len(markets),
-            "markets": markets,
+            "count": len(relevant),
+            "total_before_filter": len(markets),
+            "crypto_relevant": True,
+            "markets": relevant[:limit_i],
             "venues": venues,
             "note": "change_24h is null because no source exposes a 24h price delta; "
             "Polymarket Gamma provides oneWeekPriceChange/oneMonthPriceChange instead.",
