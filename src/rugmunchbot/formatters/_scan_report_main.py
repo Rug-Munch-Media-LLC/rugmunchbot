@@ -211,6 +211,25 @@ def _format_scan_report(
         # metrics table so the two never run together.
         lines.extend(["", *key_metrics])
 
+    # Win 40: $1k entry simulation — gated by volume integrity (wash
+    # tokens make backtests misleading by design).
+    try:
+        from rugmunchbot.tools.simulated_entry import (
+            render_simulated_line,
+            simulate_entry,
+        )
+
+        price = r.get("price")
+        changes = {k: r.get(k) for k in
+                   ("price_change_1h", "price_change_6h", "price_change_24h")}
+        wash_v = ((r.get("wash_trading") or {}).get("verdict"))
+        sim = simulate_entry(float(price), changes) if price else {}
+        sim_line = render_simulated_line(sim, wash_verdict=wash_v)
+        if sim_line:
+            lines.extend(["", sim_line])
+    except Exception as _sim_exc:  # fail-open, never blocks the report
+        logger.debug("simulated_entry skipped: %s", str(_sim_exc)[:80])
+
     # ── 2. Security Assessment (risk bar + contract checks + taxes / LP lock) ──
     lines.extend(["", "\U0001f512 <b>Security Assessment</b>", d, risk_bar(risk)])
     checks = []
