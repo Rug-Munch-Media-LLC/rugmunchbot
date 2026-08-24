@@ -5,12 +5,8 @@
 
 from __future__ import annotations
 
-import os
-from datetime import datetime, timezone
-from rugmunchbot._vendor.scanner_engines._common import (
-    clear_cache as _common_clear_cache,
-    get_cache_stats as _common_get_cache_stats,
-)
+from datetime import datetime
+
 _WALLET_MAP_CACHE_TTL = 300  # 5 minutes — holder data changes slowly
 
 _WALLET_MAP_CACHE_MAX = 100

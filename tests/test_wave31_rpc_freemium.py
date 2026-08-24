@@ -106,6 +106,17 @@ def test_free_tier_served_exclusively_while_alive(monkeypatch) -> None:
 
 
 def test_escalation_only_when_free_exhausted(monkeypatch) -> None:
+    # Hermetic: strip ambient provider keys so escalation has nothing to
+    # escalate into (the dev box legitimately exports real keys now).
+    for var in (
+        "ALCHEMY_KEY",
+        "ALCHEMY_KEY_2",
+        "ANKR_API_KEY",
+        "DRPC_API_KEY",
+        "INFURA_PROJECT_ID",
+        "QUICKNODE_ETH_HTTP",
+    ):
+        monkeypatch.delenv(var, raising=False)
     router = _fresh_router(monkeypatch)
     _kill_free_tier(router, "ethereum")
     # No keys set → nothing to escalate into → empty, no crash.

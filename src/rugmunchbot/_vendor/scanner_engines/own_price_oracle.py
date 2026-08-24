@@ -246,7 +246,10 @@ async def _get_own_price(
 
     Returns None if insufficient swap data.
     """
-    from rugmunchbot._vendor.scanner_engines.own_dex_data import _query_dex_swaps, get_token_price_simple
+    from rugmunchbot._vendor.scanner_engines.own_dex_data import (
+        _query_dex_swaps,
+        get_token_price_simple,
+    )
 
     # Get VWAP from recent swaps (1 hour window for fresh price)
     vwap_result = await get_token_price_simple(

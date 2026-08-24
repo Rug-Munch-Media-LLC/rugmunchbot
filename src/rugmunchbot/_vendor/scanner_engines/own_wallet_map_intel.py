@@ -4,10 +4,10 @@
 """intel"""
 
 from __future__ import annotations
+
 """Holder/funder classification + CEX-funding intel (de-godding 2026-08-23)."""
 
 
-from rugmunchbot._vendor.logging_shim import get_logger
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -16,11 +16,12 @@ from rugmunchbot._vendor.scanner_engines.own_wallet_map_support import (
     _FISH_PCT,
     _FRESH_WALLET_DAYS,
     _KNOWN_ROUTER_WALLETS,
-    ROLE_EMOJI,
     _WHALE_PCT,
+    ROLE_EMOJI,
     _is_fresh,
     _to_iso,
 )
+
 
 def _cex_display_name(key: str | None) -> str:
     """Human display name for a CEX registry key (binance -> Binance)."""

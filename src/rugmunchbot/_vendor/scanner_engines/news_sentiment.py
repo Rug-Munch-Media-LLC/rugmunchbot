@@ -44,7 +44,7 @@ from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rag_pkg.embeddings import RAGUnavailableError
 
 if TYPE_CHECKING:
-    from app.utils.retrieval import ScoredHit, hybrid_retrieve
+    from app.utils.retrieval import ScoredHit
 
 logger = get_logger(__name__)
 

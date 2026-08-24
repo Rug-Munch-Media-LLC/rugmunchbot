@@ -75,18 +75,14 @@ Data Sources:
 from __future__ import annotations
 
 import time
-from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.scanner_engines._common import (
-    clear_cache as _common_clear_cache,
-    get_cache_stats as _common_get_cache_stats,
     run_sync,
 )
 from rugmunchbot._vendor.scanner_engines._funding_queries import (
     _query_first_funders,
-    _query_funder_tx_counts,
     _query_holder_first_buy,
     _query_holder_first_tx,
     _query_top_holders,
@@ -125,35 +121,34 @@ logger = get_logger(__name__)
 
 
 from rugmunchbot._vendor.scanner_engines.own_wallet_map_intel import (  # noqa: E402,F401
-    _bundle_funders,
     _build_cex_funding_line,
+    _bundle_funders,
     _cex_display_name,
     _classify_funder_cex,
     _classify_funder_mixer,
     _classify_holders,
     _compute_cex_funding,
 )
-from rugmunchbot._vendor.scanner_engines.own_wallet_map_time import (  # noqa: E402,F401
-    _build_timing_lines,
-    _compute_buyer_timing,
-    _is_fresh_funder,
-    _WALLET_MAP_CACHE,
-    clear_cache,
-    get_cache_stats,
-)
 from rugmunchbot._vendor.scanner_engines.own_wallet_map_support import (  # noqa: E402,F401
-    _to_naive_dt,
-    ROLE_EMOJI,
     _FRESH_WALLET_HOURS,
     _MAX_HOLDERS,
     _RECENT_FUNDED_HOURS,
     _ROLE_ORDER,
     _WALLET_MAP_CACHE_MAX,
     _WALLET_MAP_CACHE_TTL,
+    ROLE_EMOJI,
     _is_fresh,
     _normalize_chain,
+    _to_naive_dt,
 )
-
+from rugmunchbot._vendor.scanner_engines.own_wallet_map_time import (  # noqa: E402,F401
+    _WALLET_MAP_CACHE,
+    _build_timing_lines,
+    _compute_buyer_timing,
+    _is_fresh_funder,
+    clear_cache,
+    get_cache_stats,
+)
 
 
 async def get_own_wallet_map(

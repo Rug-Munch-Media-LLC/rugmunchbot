@@ -18,15 +18,13 @@ from rugmunchbot._vendor.scanner_engines._common import (
 )
 from rugmunchbot._vendor.scanner_engines._funding_queries import _query_funder_tx_counts
 from rugmunchbot._vendor.scanner_engines.own_wallet_map_support import (
-    _to_iso,
     _FRESH_WALLET_HOURS,
     _MAX_HOLDERS,
     _RECENT_FUNDED_HOURS,
-    _ROLE_ORDER,
     _WALLET_MAP_CACHE_MAX,
     _WALLET_MAP_CACHE_TTL,
     _hours_between,
-    _is_fresh,
+    _to_iso,
     _to_naive_dt,
 )
 

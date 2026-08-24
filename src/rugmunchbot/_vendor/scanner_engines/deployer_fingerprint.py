@@ -84,7 +84,6 @@ try:
 except ImportError:  # pragma: no cover
     CHDriverError = Exception
 
-from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.lite_chain_indexer import (
     # ``as`` alias marks the re-export so mypy strict (implicit_reexport=False)
     # keeps treating ``deployer_fingerprint._get_ch_client`` as exportable —
@@ -92,6 +91,7 @@ from rugmunchbot._vendor.lite_chain_indexer import (
     _get_ch_client as _get_ch_client,
     _normalize_chain,
 )
+from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.scanner_engines._common import (
     clear_cache as _common_clear_cache,
     get_cache_stats as _common_get_cache_stats,
