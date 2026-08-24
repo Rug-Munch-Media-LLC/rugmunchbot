@@ -169,3 +169,116 @@ async def sample_holders(
             f"{len(holders_out)}x deeper than typical free explorer views"
         ),
     }
+
+
+# ── Source 3: raw Transfer-log discovery via our own RPC router ────────────
+# Ankr-independent: uses the multi-provider fallback chain (BlockPI keyed,
+# Alchemy x2, dRPC, public pool). Scans a recent block window for Transfer
+# events and collects participating addresses — fresh-wallet + flow signal
+# even when every indexed provider is down.
+
+_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+
+
+async def _router_getlogs(
+    contract: str, chain: str, window: int
+) -> list[dict[str, Any]]:
+    """Recent Transfer events via rpc_router. Returns [{from,to,value}]."""
+    from rugmunchbot._vendor.scanner_engines.rpc_router import get_rpc_router
+    from rugmunchbot.config.rpc_chains import EVM_RPC_ENDPOINTS
+
+    # Router uses full chain names; Ankr slugs differ (eth vs ethereum).
+    router_chain = {"eth": "ethereum", "bsc": "bsc"}.get(chain, chain)
+    router = get_rpc_router()
+    latest = await router.call(router_chain, "eth_blockNumber", [])
+    if not latest or "result" not in (latest or {}):
+        return []
+    head = int(latest["result"], 16)
+    frm = max(0, head - window)
+    pad = hex(frm)[2:].rjust(64, "0")
+    topic_addr = lambda a: a.lower().rjust(64, "0")  # noqa: E731
+    # Heavy call: prefer keyed BlockPI endpoint directly (most free-pool
+    # providers lack eth_getLogs or cap ranges); fall back to the router.
+    keyed = [
+        u for u in EVM_RPC_ENDPOINTS.get(router_chain, [])
+        if "blockpi" in u and "${" not in u
+    ]
+    logs = None
+    attempts: list[Any] = []
+    attempts.extend(keyed)
+    attempts.append("__router__")
+    for attempt in attempts:
+        try:
+            if attempt == "__router__":
+                res = await router.call(
+                    router_chain,
+                    "eth_getLogs",
+                    [{
+                        "fromBlock": hex(frm),
+                        "toBlock": "latest",
+                        "address": contract,
+                        "topics": [_TRANSFER_TOPIC, None, None],
+                    }],
+                    timeout=25,
+                )
+                logs = (res or {}).get("result") if isinstance(res, dict) else None
+            else:
+                async with httpx.AsyncClient(timeout=30) as c2:
+                    r2 = await c2.post(
+                        attempt,
+                        json={"jsonrpc": "2.0", "method": "eth_getLogs",
+                              "params": [{"fromBlock": hex(frm), "toBlock": "latest",
+                                          "address": contract,
+                                          "topics": [_TRANSFER_TOPIC, None, None]}],
+                              "id": 1},
+                        )
+                    logs = r2.json().get("result") if r2.status_code == 200 else None
+            if logs:
+                break
+        except Exception as exc:
+            logger.debug("getlogs via %s failed: %s", str(attempt)[:40], str(exc)[:60])
+            continue
+    out: list[dict[str, Any]] = []
+    for lg in logs or []:
+        topics = lg.get("topics") or []
+        if len(topics) < 3:
+            continue
+        try:
+            value = int(lg.get("data", "0x0"), 16)
+        except ValueError:
+            value = 0
+        out.append({
+            "from": "0x" + topics[1][-40:],
+            "to": "0x" + topics[2][-40:],
+            "value": value,
+        })
+    return out
+
+
+async def discover_flow_participants(
+    contract_address: str, chain: str, *, window_blocks: int = 500, cap: int = 400
+) -> dict[str, Any]:
+    # 500-block window: USDT alone yields ~60k transfers — plenty of flow
+    # signal without blowing provider response limits.
+    """Addresses actively moving the token in the recent window.
+
+    Ankr-independent (uses our own multi-provider router). Returns
+    {"participants": {addr: moved_total}, "blocks_scanned": window, "transfers": n}.
+    """
+    try:
+        transfers = await _router_getlogs(contract_address, chain, window_blocks)
+    except Exception as exc:
+        logger.warning("flow_discovery failed: %s", str(exc)[:100])
+        return {"participants": {}, "blocks_scanned": window_blocks, "transfers": 0}
+    participants: dict[str, float] = {}
+    for t in transfers:
+        for side in ("from", "to"):
+            a = (t.get(side) or "").lower()
+            if a and a != "0x" + "0" * 40:
+                participants[a] = participants.get(a, 0.0) + float(t.get("value") or 0)
+    trimmed = dict(sorted(participants.items(), key=lambda kv: kv[1], reverse=True)[:cap])
+    return {
+        "participants": trimmed,
+        "blocks_scanned": window_blocks,
+        "transfers": len(transfers),
+    }
