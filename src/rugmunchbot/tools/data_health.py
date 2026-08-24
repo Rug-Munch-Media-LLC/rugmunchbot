@@ -11,6 +11,7 @@ proxy → paid. Every tier's health is independently visible.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any
 
@@ -43,14 +44,16 @@ async def probe_all() -> dict[str, Any]:
     """Probe every data source and return aggregated health."""
     import asyncio
 
+    backend = os.getenv("BACKEND_URL", "http://localhost:8000")
+    host = os.getenv("MODEL_SERVICES_HOST", "172.22.0.1")
     checks = {
-        "backend": ("http://localhost:8000/api/v1/market/hyperliquid-liquidations?limit=5",
+        "backend": (f"{backend}/api/v1/market/hyperliquid-liquidations?limit=5",
                     backend_headers(), None),
-        "gateway": ("http://172.22.0.1:8010/health", {}, None),
-        "deep_embed": ("http://172.22.0.1:8004/health", {}, None),
-        "speed_embed": ("http://172.22.0.1:8007/health", {}, None),
-        "reranker": ("http://172.22.0.1:8003/health", {}, None),
-        "chat": ("http://172.22.0.1:8009/health", {}, None),
+        "gateway": (f"http://{host}:8010/health", {}, None),
+        "deep_embed": (f"http://{host}:8004/health", {}, None),
+        "speed_embed": (f"http://{host}:8007/health", {}, None),
+        "reranker": (f"http://{host}:8003/health", {}, None),
+        "chat": (f"http://{host}:8009/health", {}, None),
         "rag_api": ("http://127.0.0.1:8012/health", {}, None),
         "qdrant": ("http://localhost:6333/collections", {}, None),
     }
