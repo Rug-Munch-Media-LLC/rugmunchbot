@@ -16,7 +16,6 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 if TYPE_CHECKING:
     from telegram import Update
 
-from typing import TYPE_CHECKING
 
 from rugmunchbot.tools import get_registry
 
