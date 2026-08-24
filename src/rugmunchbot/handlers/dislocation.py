@@ -8,7 +8,7 @@ cash-and-carry setups, or crowding about to unwind.
 from __future__ import annotations
 
 import html
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
