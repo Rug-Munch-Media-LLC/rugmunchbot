@@ -70,13 +70,13 @@ from rugmunchbot.handlers.alerts import (
     cmd_alerts,
 )
 from rugmunchbot.handlers.api_access import cmd_api
-from rugmunchbot.handlers.owner import cmd_rpcstats
 from rugmunchbot.handlers.ask import cmd_ask
 from rugmunchbot.handlers.callback import handle_callback
 from rugmunchbot.handlers.chat import cmd_chat
 from rugmunchbot.handlers.chat_ai import register_chat_ai
 from rugmunchbot.handlers.deepscan import cmd_deepscan
 from rugmunchbot.handlers.defi import cmd_lpcheck, register_defi
+from rugmunchbot.handlers.dislocation import register_dislocation
 from rugmunchbot.handlers.error import error_handler
 from rugmunchbot.handlers.groups import (
     cmd_banuser,
@@ -84,13 +84,11 @@ from rugmunchbot.handlers.groups import (
     cmd_mygroup,
     cmd_voicechat,
 )
+from rugmunchbot.handlers.hlwhales import register_hlwhales
 from rugmunchbot.handlers.holders import cmd_holders
 from rugmunchbot.handlers.inline import handle_inline
 from rugmunchbot.handlers.integrity_handlers import register_integrity
 from rugmunchbot.handlers.liqmap import register_liqmap
-from rugmunchbot.handlers.hlwhales import register_hlwhales
-from rugmunchbot.handlers.dislocation import register_dislocation
-from rugmunchbot.handlers.status import register_status
 from rugmunchbot.handlers.market import cmd_news, cmd_rugcheck, register_market
 from rugmunchbot.handlers.osint import (
     cmd_email,
@@ -114,6 +112,7 @@ from rugmunchbot.handlers.owner import (
     cmd_admin_unban,
     cmd_admin_user,
     cmd_admin_users,
+    cmd_rpcstats,
 )
 from rugmunchbot.handlers.payments import precheckout, successful_payment
 from rugmunchbot.handlers.prediction import register_prediction
@@ -135,6 +134,7 @@ from rugmunchbot.handlers.scanning import (
     sentinel_scan,
 )
 from rugmunchbot.handlers.sentiment import cmd_sentiment
+from rugmunchbot.handlers.status import register_status
 from rugmunchbot.handlers.trace import cmd_trace, register_trace_commands
 from rugmunchbot.handlers.watchlist import (
     cmd_monitor,
@@ -339,9 +339,31 @@ def main() -> None:
         set_scheduler_running(True)
 
     # Startup
+
+    async def assert_command_menu(
+        app: Application[Any, Any, Any, Any, Any, Any],
+    ) -> None:
+        """Win 72: re-assert the command menu on every startup.
+
+        Restarts and concurrent setMyCommands calls had silently regressed
+        the menu from 18 to 12 commands. This makes the desired state
+        declarative — whatever is in the bot process IS the menu.
+        """
+        commands = [
+            {"command": c.command, "description": c.description}
+            for c in _BOT_COMMANDS
+        ]
+        try:
+            await app.bot.set_my_commands(commands)
+            logger.info("command_menu_asserted count=%d", len(commands))
+        except Exception as exc:
+            logger.warning("command_menu_assert_failed err=%s", str(exc)[:120])
+
+
     async def startup(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
         await check_backend_health()
         await setup_bot_profile(app)
+        await assert_command_menu(app)
         # Override PTB's default stop-signal handlers (must run on the loop).
         install_sigterm_shutdown(app)
 
