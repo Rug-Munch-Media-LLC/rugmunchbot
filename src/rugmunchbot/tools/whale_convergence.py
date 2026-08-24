@@ -15,7 +15,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from rugmunchbot.tools.scanner._smart_money_token import fetch_token_smart_money
+# Lazy import to avoid circular dep (scanner imports tools.__init__)
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +112,8 @@ async def whale_convergence(*, address: str = "", chain: str = "eth") -> dict[st
     """Tool entry: convergence analysis for one token."""
     if not address:
         return {"error": "token address required"}
+    from rugmunchbot.tools.scanner._smart_money_token import fetch_token_smart_money
+
     data = await fetch_token_smart_money(address, chain)
     if not data:
         return {"error": "smart-money data unavailable", "address": address}
