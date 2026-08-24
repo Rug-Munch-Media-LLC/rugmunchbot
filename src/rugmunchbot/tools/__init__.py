@@ -108,6 +108,8 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     registry_.register("lp_expiry", check_lp_expiry, timeout=15.0, ttl=600.0)
     from rugmunchbot.tools.whale_convergence import whale_convergence
     registry_.register("whale_convergence", whale_convergence, timeout=15.0, ttl=300.0)
+    from rugmunchbot.tools.whale_profiler import profile_whale
+    registry_.register("whale_profiler", profile_whale, timeout=20.0, ttl=120.0)
     from rugmunchbot.tools.portfolio_risk import audit_portfolio
     registry_.register("portfolio_risk", audit_portfolio, timeout=60.0, ttl=120.0)
     from rugmunchbot.tools.token_dna import analyze_token_dna
