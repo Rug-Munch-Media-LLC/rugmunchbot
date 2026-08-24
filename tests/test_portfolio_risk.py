@@ -1,13 +1,12 @@
 """Portfolio risk auditor tests."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 from rugmunchbot.tools.portfolio_risk import audit_portfolio
 
 
 def _mock_vi(verdict, score):
-    return {"verdict": verdict, "score": score, "pair": "TEST/WETH",
-            "liquidity_usd": 500_000}
+    return {"verdict": verdict, "score": score, "pair": "TEST/WETH", "liquidity_usd": 500_000}
 
 
 async def _mock_scan(addr):
@@ -21,6 +20,7 @@ async def _mock_scan(addr):
 def test_grading():
     with patch("rugmunchbot.tools.portfolio_risk._scan_one", side_effect=_mock_scan):
         import asyncio
+
         from rugmunchbot.tools.portfolio_risk import audit_portfolio
 
         # 2 clean + 1 washed = 33% risky → grade B or C
@@ -32,6 +32,7 @@ def test_grading():
 def test_all_washed_critical():
     with patch("rugmunchbot.tools.portfolio_risk._scan_one", side_effect=_mock_scan):
         import asyncio
+
         from rugmunchbot.tools.portfolio_risk import audit_portfolio
 
         r = asyncio.run(audit_portfolio(["washed1", "washed2", "washed3"]))
@@ -41,7 +42,6 @@ def test_all_washed_critical():
 
 def test_empty_addresses():
     import asyncio
-    from rugmunchbot.tools.portfolio_risk import audit_portfolio
 
     r = asyncio.run(audit_portfolio([]))
     assert "error" in r
