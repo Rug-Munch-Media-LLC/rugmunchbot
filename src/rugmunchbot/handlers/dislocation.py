@@ -10,9 +10,13 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
+
+if TYPE_CHECKING:
+    from telegram import Update
+
+from typing import TYPE_CHECKING
 
 from rugmunchbot.tools import get_registry
 
