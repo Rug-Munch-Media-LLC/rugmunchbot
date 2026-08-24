@@ -612,6 +612,7 @@ async def fetch_rag_drafts(channel: str, limit: int = 3) -> list[dict[str, Any]]
             data = await _g(
                 f"{base}/content/drafts?channel={channel}",
                 headers={"X-API-Key": key},
+                timeout=75.0,  # cold-cache generation can take ~30s+ server-side
             )
             return (data or {}).get("channels", {}).get(channel, [])[:limit]
 
