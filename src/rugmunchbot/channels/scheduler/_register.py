@@ -47,15 +47,15 @@ from rugmunchbot.channels.scheduler._core import (  # noqa: F401
 from rugmunchbot.channels.scheduler._posts_dislocation import (
     build_dislocation_post,
 )
+from rugmunchbot.channels.scheduler._posts_lp_expiry import (
+    build_lp_expiry_post,
+)
 from rugmunchbot.channels.scheduler._posts_news import (
     post_alert_update,
 )
 from rugmunchbot.channels.scheduler._posts_scan import (
     post_alpha_update,
     post_scan_update,
-)
-from rugmunchbot.channels.scheduler._posts_social_spikes import (
-    build_social_spike_post,
 )
 from rugmunchbot.channels.scheduler._tick import (
     _load_channel_state,
@@ -133,6 +133,25 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             interval=int(os.getenv("SOCIAL_SPIKE_INTERVAL_MIN", "90")) * 60,
             first=900,
             name="channel_social_spikes",
+        )
+
+    # LP-expiry monitor (win 35): warn before liquidity unlocks.
+    if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
+        async def _lp_expiry_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            try:
+                text = await build_lp_expiry_post()
+                if text and _chat_id("alerts"):
+                    from rugmunchbot.channels.scheduler._core import _safe_send
+
+                    await _safe_send(ctx.bot, _chat_id("alerts"), text)
+            except Exception as exc:
+                logger.warning("lp_expiry_tick failed: %s", str(exc)[:120])
+
+        job_queue.run_repeating(
+            _lp_expiry_tick,
+            interval=int(os.getenv("LP_EXPIRY_INTERVAL_H", "6")) * 3600,
+            first=1800,
+            name="channel_lp_expiry",
         )
 
     if ALERTS_CHANNEL_ENABLED and _chat_id("alerts"):
