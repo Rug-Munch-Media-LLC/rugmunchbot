@@ -253,6 +253,11 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     except Exception as exc:  # fail-open — a broken LLM never crashes the tick
         logger.warning("daily_market_summary:llm_failed err=%s", str(exc)[:160])
         raw = ""
+    # Strip prompt scaffolding the model may echo verbatim (meta-instruction
+    # headers like "AI DISCLOSURE:" are voice guidance, never output).
+    for marker in ("AI DISCLOSURE:", "OUTPUT FORMAT", "MASTHEAD ("):
+        if marker in raw:
+            raw = raw.split(marker, 1)[0].rstrip()
     if not raw or not raw.strip():
         logger.info("daily_market_summary:llm_empty_skipped sources=%s", context.get("sources"))
         return 0
