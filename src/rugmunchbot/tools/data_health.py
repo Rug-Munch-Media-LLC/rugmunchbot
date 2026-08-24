@@ -97,10 +97,16 @@ async def probe_all() -> dict[str, Any]:
         })
 
     healthy_count = sum(1 for s in sources if s["healthy"])
-    return {
-        "sources": sources,
-        "healthy": healthy_count,
-        "total": len(sources),
-        "all_healthy": healthy_count == len(sources),
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
+    from rugmunchbot.tools.registry import ToolResult
+
+    return ToolResult(
+        tool="data_health",
+        ok=True,
+        data={
+            "sources": sources,
+            "healthy": healthy_count,
+            "total": len(sources),
+            "all_healthy": healthy_count == len(sources),
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        },
+    )

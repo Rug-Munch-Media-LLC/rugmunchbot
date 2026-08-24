@@ -17,7 +17,6 @@ price level that triggers the cascade.
 from __future__ import annotations
 
 import logging
-import math
 import os
 from typing import Any
 
@@ -120,14 +119,20 @@ async def cascade_watch(*, limit: int = 10) -> dict[str, Any]:
         return {"error": "no liquidation data"}
     ranked = analyze(rows)[:limit]
     imminent = [r for r in ranked if r["band"] in ("IMMINENT", "DANGER")]
-    return {
-        "watchlist": ranked,
-        "imminent_count": len(imminent),
-        "venues_online": body.get("venues_online"),
-        "total_oi_usd": body.get("total_open_interest_usd"),
-        "headline": (
-            f"{len(imminent)} assets in cascade-danger zone"
-            if imminent
-            else "no assets within cascade-danger distance"
-        ),
-    }
+    from rugmunchbot.tools.registry import ToolResult
+
+    return ToolResult(
+        tool="cascade_watch",
+        ok=True,
+        data={
+            "watchlist": ranked,
+            "imminent_count": len(imminent),
+            "venues_online": body.get("venues_online"),
+            "total_oi_usd": body.get("total_open_interest_usd"),
+            "headline": (
+                f"{len(imminent)} assets in cascade-danger zone"
+                if imminent
+                else "no assets within cascade-danger distance"
+            ),
+        },
+    )
