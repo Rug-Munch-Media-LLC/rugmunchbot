@@ -313,6 +313,14 @@ def _key_metrics_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
             if fresh is not None
             else "  Fresh Wallets  <b>\u2014</b>"
         )
+        gini = (r.get("holder_analysis") or {}).get("gini_coefficient")
+        if gini is not None:
+            try:
+                gini_val = float(gini)
+                gini_label = "EXTREME" if gini_val >= 0.8 else "HIGH" if gini_val >= 0.6 else "MODERATE"
+                rows.append(f"  Gini Coeff     \U0001f4ca <b>{gini_val:.2f}</b> ({gini_label})")
+            except (TypeError, ValueError):
+                pass
         gmgn_holders = (
             (r.get("gmgn") or {}).get("holders") if isinstance(r.get("gmgn"), dict) else None
         )
