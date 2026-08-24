@@ -54,6 +54,9 @@ from rugmunchbot.channels.scheduler._posts_scan import (
     post_alpha_update,
     post_scan_update,
 )
+from rugmunchbot.channels.scheduler._posts_social_spikes import (
+    build_social_spike_post,
+)
 from rugmunchbot.channels.scheduler._tick import (
     _load_channel_state,
     _tick_wrapper,
@@ -111,6 +114,25 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             interval=int(os.getenv("DISLOCATION_ALERT_INTERVAL_H", "2")) * 3600,
             first=600,
             name="channel_dislocation",
+        )
+
+    # Social-velocity spike monitor (win 36): narrative formation detection.
+    if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
+        async def _social_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            try:
+                text = await build_social_spike_post()
+                if text and _chat_id("alerts"):
+                    from rugmunchbot.channels.scheduler._core import _safe_send
+
+                    await _safe_send(ctx.bot, _chat_id("alerts"), text)
+            except Exception as exc:
+                logger.warning("social_spike_tick failed: %s", str(exc)[:120])
+
+        job_queue.run_repeating(
+            _social_tick,
+            interval=int(os.getenv("SOCIAL_SPIKE_INTERVAL_MIN", "90")) * 60,
+            first=900,
+            name="channel_social_spikes",
         )
 
     if ALERTS_CHANNEL_ENABLED and _chat_id("alerts"):
