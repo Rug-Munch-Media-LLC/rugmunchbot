@@ -388,6 +388,32 @@ async def sentinel_scan(address: str, chain: str | None = None) -> dict[str, Any
         # scans get the same always-available facts as regular scans.
         data = await _scanner.enrich_scan_solana(data, address, chain_norm)
         data = await _scanner.enrich_scan_smart_money(data, address, chain_norm)
+
+        # Raw-chain flow forensics (Ankr-independent): who is actively moving
+        # the token right now. Fail-open; adds flow_analysis to the result so
+        # the AI verdict can reason about live participant concentration.
+        try:
+            from rugmunchbot._vendor.holder_mega_sampler import (
+                discover_flow_participants,
+            )
+
+            flow = await discover_flow_participants(
+                address, chain_norm, window_blocks=600, cap=100
+            )
+            participants = flow.get("participants") or {}
+            if participants:
+                moved_total = sum(participants.values()) or 1.0
+                top_mover = max(participants.values())
+                data["flow_analysis"] = {
+                    "participants": len(participants),
+                    "transfers_scanned": flow.get("transfers", 0),
+                    "window_blocks": flow.get("blocks_scanned", 600),
+                    "top_mover_share_pct": round(top_mover / moved_total * 100, 2),
+                    "concentrated_flow": (top_mover / moved_total) > 0.5,
+                }
+        except Exception as exc:
+            logger.debug("flow_forensics_failed %s: %s", address[:16], str(exc)[:100])
+
         # Scan-to-RAG memory (background, fail-open)
         _scanner.schedule_scan_memory_index(data, source="deepscan")
         return data

@@ -37,6 +37,8 @@ _AI_VERDICT_SYSTEM = (
     "When holder_sample_size is present, cite it as analysis depth (e.g. "
     "'across 300 sampled wallets') and weight concentration findings by it. "
     "When bundle_cluster_score >= 70, call the launch coordinated. "
+    "When flow_concentrated is true, warn that one wallet dominates recent "
+    "transfers (flow_top_mover_share_pct) — classic accumulation-or-dump setup. "
     "End with a one-line 'What to watch:' pointing at the riskiest signal or, "
     "when the scan is clean, at liquidity/holder concentration."
 )
@@ -114,6 +116,9 @@ def _verdict_facts(result: dict[str, Any]) -> dict[str, Any]:
         "holder_sample_size": (result.get("holder_analysis") or {}).get("sample_size"),
         "holder_data_source": (result.get("holder_analysis") or {}).get("source"),
         "bundle_cluster_score": ((result.get("bundle_analysis") or {}).get("launch_cluster_score")),
+        "flow_participants": ((result.get("flow_analysis") or {}).get("participants")),
+        "flow_top_mover_share_pct": ((result.get("flow_analysis") or {}).get("top_mover_share_pct")),
+        "flow_concentrated": ((result.get("flow_analysis") or {}).get("concentrated_flow")),
         "bundle_detected": result.get("bundle_detected"),
         "fresh_wallet_pct": result.get("fresh_wallet_pct"),
         "exchange_funded_pct": result.get("exchange_funded_pct"),
