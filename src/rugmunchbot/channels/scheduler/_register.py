@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
 
 from rugmunchbot.channels.daily_market_summary import (
@@ -33,10 +34,8 @@ from rugmunchbot.config import (
 )
 
 if TYPE_CHECKING:
+    from telegram.ext import Application, ContextTypes
 
-    from telegram.ext import Application
-
-from typing import TYPE_CHECKING
 
 from rugmunchbot.channels.scheduler._core import (  # noqa: F401
     _FIRST_RUN_SECONDS,
@@ -44,6 +43,9 @@ from rugmunchbot.channels.scheduler._core import (  # noqa: F401
     _chat_id,
     _posted_keys,
     logger,
+)
+from rugmunchbot.channels.scheduler._posts_dislocation import (
+    build_dislocation_post,
 )
 from rugmunchbot.channels.scheduler._posts_news import (
     post_alert_update,
@@ -92,6 +94,25 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
     #         first=_FIRST_RUN_SECONDS["news"],
     #         name="channel_news",
     #     )
+    # Funding-dislocation monitor (win 32): EXTREME cross-venue basis finds.
+    if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
+        async def _dislo_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            try:
+                text = await build_dislocation_post()
+                if text and _chat_id("alerts"):
+                    from rugmunchbot.channels.scheduler._core import _safe_send
+
+                    await _safe_send(ctx.bot, _chat_id("alerts"), text)
+            except Exception as exc:
+                logger.warning("dislocation_tick failed: %s", str(exc)[:120])
+
+        job_queue.run_repeating(
+            _dislo_tick,
+            interval=int(os.getenv("DISLOCATION_ALERT_INTERVAL_H", "2")) * 3600,
+            first=600,
+            name="channel_dislocation",
+        )
+
     if ALERTS_CHANNEL_ENABLED and _chat_id("alerts"):
         job_queue.run_repeating(
             _tick_wrapper("channel_alerts", post_alert_update),
