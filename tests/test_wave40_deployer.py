@@ -62,4 +62,5 @@ def test_junk_tolerated_never_fabricates():
 
 def test_empty_pair_empty_results():
     creator, socials = _extract_pair_intel({})
-    assert creator == "" and socials == {}
+    assert creator == ""
+    assert socials == {}
