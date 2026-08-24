@@ -50,6 +50,7 @@ from rugmunchbot.channels.scheduler._posts_dislocation import (
 from rugmunchbot.channels.scheduler._posts_lp_expiry import (
     build_lp_expiry_post,
 )
+from rugmunchbot.channels.scheduler._content_rotation import CONTENT_SLOTS
 from rugmunchbot.channels.scheduler._posts_news import (
     post_alert_update,
 )
@@ -168,6 +169,27 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             interval=int(os.getenv("LP_EXPIRY_INTERVAL_H", "6")) * 3600,
             first=1800,
             name="channel_lp_expiry",
+        )
+
+    # Content rotation: multiple premium content types to main daily (win 32+)
+    for slot in CONTENT_SLOTS:
+        slot_type = slot["type"]
+        hour = int(slot["time_utc"].split(":")[0])
+        minute = int(slot["time_utc"].split(":")[1]) if ":" in slot["time_utc"] else 0
+
+        async def _content_tick(ctx: ContextTypes.DEFAULT_TYPE, _type=slot_type) -> None:
+            try:
+                logger.info("content_rotation_tick type=%s", _type)
+                # Each content type has its own generator; wire them here
+                # as they're implemented. Fail-open per type.
+            except Exception as exc:
+                logger.warning("content_rotation %s failed: %s", _type, str(exc)[:120])
+
+        job_queue.run_repeating(
+            _content_tick,
+            interval=86400,  # daily
+            first=hour * 3600 + minute * 60,
+            name=f"content_{slot_type}",
         )
 
     if ALERTS_CHANNEL_ENABLED and _chat_id("alerts"):
