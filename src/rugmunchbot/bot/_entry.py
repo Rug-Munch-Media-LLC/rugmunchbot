@@ -90,6 +90,7 @@ from rugmunchbot.handlers.integrity_handlers import register_integrity
 from rugmunchbot.handlers.liqmap import register_liqmap
 from rugmunchbot.handlers.hlwhales import register_hlwhales
 from rugmunchbot.handlers.dislocation import register_dislocation
+from rugmunchbot.handlers.status import register_status
 from rugmunchbot.handlers.market import cmd_news, cmd_rugcheck, register_market
 from rugmunchbot.handlers.osint import (
     cmd_email,
@@ -209,6 +210,7 @@ def main() -> None:
     register_liqmap(app)  # /liqmap
     register_hlwhales(app)  # /hlwhales
     register_dislocation(app)  # /dislocation
+    register_status(app)  # /status
     register_prediction(app)  # /polymarket /election /odds
     register_defi(app)  # /yield /lpcheck /defi
     _reg(app, "news", cmd_news)
