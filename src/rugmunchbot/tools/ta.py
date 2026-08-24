@@ -387,9 +387,33 @@ def _verdict(analysis: dict[str, Any]) -> dict[str, Any]:
             reasons.append(f"RSI {rsi_value:.1f} neutral")
 
     bias = "bullish" if score >= 2 else "bearish" if score <= -2 else "neutral"
+
+    # Confidence: how many independent signals agree with the bias.
+    # Max raw score is ±5 (EMA ±2, cross ±1, MACD ±1, RSI ±1).
+    # Agreement = |score| / 5 → 0% (all disagree) to 100% (max conviction).
+    max_score = 5.0
+    agreement = min(abs(score) / max_score, 1.0)
+    n_signals = len([r for r in reasons if "flat" not in r.lower() and "neutral" not in r.lower()])
+    confidence = round(agreement * 60 + min(n_signals, 4) / 4 * 40, 0)
+    confidence = int(min(confidence, 95))  # never 100% — always uncertainty
+
+    conviction = (
+        "STRONG" if confidence >= 75 and abs(score) >= 3
+        else "MODERATE" if confidence >= 50
+        else "WEAK"
+    )
+
     lead = reasons[0] if reasons else "no signal"
-    one_liner = f"{bias.upper()} (score {score:+.0f}) — {lead}"
-    return {"bias": bias, "score": round(score, 1), "reasons": reasons, "one_liner": one_liner}
+    one_liner = f"{bias.upper()} (score {score:+.0f}, {conviction.lower()} conviction) — {lead}"
+    return {
+        "bias": bias,
+        "score": round(score, 1),
+        "confidence": confidence,
+        "conviction": conviction,
+        "n_signals": n_signals,
+        "reasons": reasons,
+        "one_liner": one_liner,
+    }
 
 
 def _prediction_read(analysis: dict[str, Any], verdict: dict[str, Any]) -> dict[str, Any]:
