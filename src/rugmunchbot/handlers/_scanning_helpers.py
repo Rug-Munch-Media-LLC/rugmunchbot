@@ -117,6 +117,19 @@ def format_ta_card(analysis: dict[str, Any], meta: dict[str, Any]) -> str:
     support = analysis.get("support")
     resistance = analysis.get("resistance")
 
+    # TA confidence scoring
+    try:
+        from rugmunchbot.tools.ta import _verdict as _ta_verdict
+
+        ta_v = _ta_verdict(analysis)
+        ta_confidence = ta_v.get("confidence")
+        ta_conviction = ta_v.get("conviction", "WEAK")
+        ta_bias = ta_v.get("bias", "neutral").upper()
+    except Exception:
+        ta_confidence = None
+        ta_conviction = None
+        ta_bias = None
+
     # Price header
     price_line = f"\U0001f4b0 Price: <b>{fmt_number(price)}</b>" if price is not None else ""
     if change_24h is not None:
@@ -134,6 +147,14 @@ def format_ta_card(analysis: dict[str, Any], meta: dict[str, Any]) -> str:
         thin_sep(),
         price_line,
     ]
+
+    # TA conviction (analytical depth)
+    if ta_confidence is not None:
+        conv_emoji = "💪" if ta_conviction == "STRONG" else "📊" if ta_conviction == "MODERATE" else "💤"
+        lines.append(
+            f"  {conv_emoji} <b>{ta_bias}</b> — {ta_conviction.lower()} conviction "
+            f"({ta_confidence}% confidence)"
+        )
 
     # Indicators
     if rsi_val is not None:

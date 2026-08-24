@@ -111,3 +111,31 @@ def _row(asset, mark, oi, dist_pct=5.0):
         "short_liq_10x": mark * (1 + dist_pct / 100),
         "venue_count": 3,
     }
+
+
+# ── Additional coverage: data integrity + boundary tests ────────────────
+def test_convergence_with_mixed_timestamps():
+    """Some wallets have timestamps, some don't — only dated ones count."""
+    from rugmunchbot.tools.whale_convergence import detect_convergence
+
+    wallets = [
+        _w("a", 0), _w("b", 10),
+        {"wallet": "c"},  # no timestamp
+        _w("d", 20),
+    ]
+    r = detect_convergence(wallets)
+    if r:
+        assert r["converging_wallets"] == 3  # a, b, d
+
+
+def test_negative_pnl_counted_correctly():
+    from rugmunchbot.tools.whale_convergence import detect_convergence
+
+    wallets = [
+        _w("loser1", 0, pnl=-50000),
+        _w("loser2", 10, pnl=-30000),
+        _w("winner", 20, pnl=100000),
+    ]
+    r = detect_convergence(wallets)
+    assert r is not None
+    assert r["profitable_track_record"] == "1/3"

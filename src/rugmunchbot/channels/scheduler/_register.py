@@ -116,6 +116,22 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_dislocation",
         )
 
+    # RugBrain content-distribution (2026-08-24): RAG-ranked stories ->
+    # quality-written posts routed to main/news/alerts (+ scans via its own
+    # lane). Drafts come from rugbrain /api/v1/content/drafts; dedupe via
+    # _remember("rag", ...); main posts mirror to feed.rugmunch.io.
+    if os.getenv("RMI_RAG_POSTS_ENABLED", "true").lower() in ("1", "true", "yes") and hasattr(
+        job_queue, "run_repeating"
+    ):
+        from rugmunchbot.channels.scheduler._posts_rag import post_rag_drafts
+
+        job_queue.run_repeating(
+            _tick_wrapper("channel_rag", post_rag_drafts),
+            interval=int(os.getenv("RMI_RAG_POSTS_INTERVAL_MIN", "45")) * 60,
+            first=900,
+            name="channel_rag",
+        )
+
     # Social-velocity spike monitor (win 36): narrative formation detection.
     if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
         async def _social_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
