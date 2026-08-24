@@ -68,18 +68,16 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://ethereum.blockpi.network/v1/rpc/public",  # BlockPI — free public tier
         "https://cloudflare-eth.com",  # Cloudflare — free, reliable
         "https://eth-mainnet.public.blastapi.io",  # BlastAPI — free public
-        "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy — free tier (key)
-        "https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}",  # Infura — free tier (key)
         "https://virginia.rpc.blxrbdn.com",  # BloXroute — free tier
         "https://uk.rpc.blxrbdn.com",  # BloXroute — EU
         "https://singapore.rpc.blxrbdn.com",  # BloXroute — Asia
         "https://rpc.mevblocker.io",  # MevBlocker — free, MEV-protecting
-        "https://eth.nownodes.io/${NOWNODES_API_KEY}",  # NOWNodes (verified 2026-08-23)
         "https://gateway.tenderly.co/public/mainnet",  # Tenderly public gateway
-        # ── Freemium (keyed) — used ONLY when the free pool is exhausted ──
+        "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy — free tier (key)
+        "https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}",  # Infura — free tier (key)
+        "https://eth.nownodes.io/${NOWNODES_API_KEY}",  # NOWNodes (verified 2026-08-23)
         "https://lb.drpc.org/ogrpc?network=ethereum&dkey=${DRPC_API_KEY}",  # dRPC load balancer
         "https://rpc.ankr.com/eth/${ANKR_API_KEY}",  # Ankr keyed (higher rate)
-        "${QUICKNODE_ETH_HTTP}",  # QuickNode dedicated endpoint (full URL via env)
     ],
     "bsc": [
         "https://binance.llamarpc.com",  # LlamaNodes BSC
@@ -101,11 +99,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://bsc-dataseed2.bnbchain.org",  # BNB Chain official 2
         "https://bsc-mainnet.public.blastapi.io",  # probe-verified 2026-08-23 (fallback-only for getLogs; fine for call/balance)
         "https://rpc-bsc.48.club",  # 48 Club — free public
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=bsc&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/bsc/${ANKR_API_KEY}",
-        "${QUICKNODE_BSC_HTTP}",
-        "${GETBLOCK_BSC_URL}",  # GetBlock shared (verified 2026-08-23)
     ],
     "polygon": [
         "https://polygon.llamarpc.com",  # LlamaNodes Polygon
@@ -118,10 +113,8 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://polygon-bor-rpc.publicnode.com",  # PublicNode Polygon
         "https://polygon-mainnet.public.blastapi.io",  # BlastAPI Polygon
         "https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Polygon (key)
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=polygon&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/polygon/${ANKR_API_KEY}",
-        "${QUICKNODE_POLYGON_HTTP}",
     ],
     "arbitrum": [
         "https://arbitrum.llamarpc.com",  # LlamaNodes Arbitrum
@@ -133,7 +126,6 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://arbitrum.blockpi.network/v1/rpc/public",  # BlockPI Arbitrum
         "https://arb1.arbitrum.io/rpc",  # Offchain Labs official
         "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Arbitrum (key)
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=arbitrum&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/arbitrum/${ANKR_API_KEY}",
     ],
@@ -148,7 +140,6 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://mainnet.base.org",  # Base official public
         "https://base-mainnet.public.blastapi.io",  # probe-verified 2026-08-23 (fallback-only for getLogs; fine for call/balance)
         "https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Base (key)
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=base&dkey=${DRPC_API_KEY}",
         "https://rpc.ankr.com/base/${ANKR_API_KEY}",
     ],
@@ -162,7 +153,6 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://optimism.blockpi.network/v1/rpc/public",  # BlockPI Optimism
         "https://mainnet.optimism.io",  # Optimism official
         "https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Optimism (key)
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=optimism&dkey=${DRPC_API_KEY}",
     ],
     "avalanche": [
@@ -175,7 +165,6 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://avalanche.blockpi.network/v1/rpc/public",  # BlockPI Avalanche
         "https://api.avax.network/ext/bc/C/rpc",  # Avalanche official
         "https://avalanche-mainnet.infura.io/v3/${INFURA_PROJECT_ID}",  # Infura (key)
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=avalanche&dkey=${DRPC_API_KEY}",
     ],
     "fantom": [
@@ -187,7 +176,6 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://rpc.fantom.network",  # Fantom official public
         "https://fantom-mainnet.public.blastapi.io",  # BlastAPI Fantom
         "https://fantom.blockpi.network/v1/rpc/public",  # BlockPI Fantom
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=fantom&dkey=${DRPC_API_KEY}",
     ],
     "linea": [
@@ -198,7 +186,6 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://linea.blockpi.network/v1/rpc/public",  # BlockPI Linea
         "https://linea.meowrpc.com",  # MeowRPC Linea
         "https://linea-mainnet.infura.io/v3/${INFURA_PROJECT_ID}",  # Infura (key)
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=linea&dkey=${DRPC_API_KEY}",
     ],
     "zksync": [
@@ -208,7 +195,6 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://1rpc.io/zksync-era",  # 1RPC zkSync Era
         "https://zksync.meowrpc.com",  # MeowRPC zkSync
         "https://zksync-era.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy zkSync (key)
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=zksync&dkey=${DRPC_API_KEY}",
     ],
     "scroll": [
@@ -218,7 +204,6 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://1rpc.io/scroll",  # 1RPC Scroll
         "https://scroll.blockpi.network/v1/rpc/public",  # BlockPI Scroll
         "https://scroll-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Scroll (key)
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=scroll&dkey=${DRPC_API_KEY}",
     ],
     "mantle": [
@@ -228,7 +213,6 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://1rpc.io/mantle",  # 1RPC Mantle
         "https://mantle.blockpi.network/v1/rpc/public",  # BlockPI Mantle
         "https://mantle-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}",  # Alchemy Mantle (key)
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=mantle&dkey=${DRPC_API_KEY}",
     ],
     "gnosis": [
@@ -236,7 +220,6 @@ EVM_RPC_ENDPOINTS: dict[str, list[str]] = {
         "https://rpc.gnosischain.com",  # Gnosis official
         "https://gnosis-rpc.publicnode.com",  # probe-verified 2026-08-23 (fallback-only for getLogs; fine for call/balance)
         "https://1rpc.io/gnosis",  # 1RPC Gnosis
-        # ── Freemium (keyed) ──
         "https://lb.drpc.org/ogrpc?network=gnosis&dkey=${DRPC_API_KEY}",
     ],
 }
