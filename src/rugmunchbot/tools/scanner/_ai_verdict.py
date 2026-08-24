@@ -107,8 +107,15 @@ def _verdict_facts(result: dict[str, Any]) -> dict[str, Any]:
         "chain": result.get("chain"),
         "risk_score": risk_f,
         "risk_level": result.get("risk_level"),
-        "honeypot": result.get("honeypot") or status("HP01") or status("HP04"),
-        "mintable": result.get("mintable") or status("CR03"),
+        # Explicit is-not-None checks: a meaningful False ("not a
+        # honeypot") must survive — `or` chains erase it to None and the
+        # LLM loses the distinction between "clean" and "unknown".
+        "honeypot": result.get("honeypot")
+        if result.get("honeypot") is not None
+        else (status("HP01") or status("HP04")),
+        "mintable": result.get("mintable")
+        if result.get("mintable") is not None
+        else status("CR03"),
         "can_blacklist": result.get("can_blacklist"),
         "owner_renounced": result.get("owner_renounced"),
         "contract_verified": result.get("contract_verified"),
