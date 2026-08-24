@@ -103,7 +103,19 @@ def _bundle_verdict_row(r: dict[str, Any]) -> str | None:
     if ba.get("is_bundled"):
         n = _bundle_wallet_count(ba)
         conf = _float_or_none(ba.get("confidence"))
-        risk = html.escape(str(ba.get("risk_label") or "unknown")).upper()
+        if conf is None:
+            # Engine exposes cluster subscores, not a single confidence --
+            # derive one from the strongest coordination signal.
+            subscores = [
+                _float_or_none(ba.get(k))
+                for k in ("launch_cluster_score", "common_funder_score",
+                          "similar_amount_score")
+            ]
+            present = [v for v in subscores if v is not None]
+            conf = max(present) if present else None
+        risk = html.escape(str(ba.get("risk_label") or "")).upper()
+        if not risk and conf is not None:
+            risk = "HIGH" if conf >= 70 else "ELEVATED" if conf >= 40 else "LOW"
         conf_str = f"{conf:.0f}% conf" if conf is not None else "unknown conf"
         count = f" <b>{n}</b> wallets" if n is not None else ""
         return f"\U0001f534 Bundle detected:{count} \u00b7 {conf_str} \u00b7 {risk}"
@@ -120,8 +132,8 @@ def _distribution_verdict(r: dict[str, Any]) -> tuple[str, str] | None:
     (≥ 3000 concentrated / ≥ 1500 moderate). Never claims a verdict when the
     scan carries no concentration data.
     """
-    ha = r.get("holder_analysis")
-    top10 = _float_or_none(ha.get("top_10_pct")) if isinstance(ha, dict) else None
+    ha = r.get("holder_analysis") if isinstance(r.get("holder_analysis"), dict) else {}
+    top10 = _float_or_none(ha.get("top_10_pct")) or _float_or_none(ha.get("top10_pct"))
     if top10 is None:
         ba = r.get("bundle_analysis")
         if isinstance(ba, dict):
@@ -283,6 +295,12 @@ def _key_metrics_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
             f"  CEX-Funded     \U0001f3e6 <b>{cex:.1f}%</b>"
             if cex is not None
             else "  CEX-Funded     <b>\u2014</b>"
+        )
+        fresh = _fresh_wallet_pct(r)
+        rows.append(
+            f"  Fresh Wallets  \U0001f195 <b>{fresh:.1f}%</b>"
+            if fresh is not None
+            else "  Fresh Wallets  <b>\u2014</b>"
         )
         gmgn_holders = (
             (r.get("gmgn") or {}).get("holders") if isinstance(r.get("gmgn"), dict) else None

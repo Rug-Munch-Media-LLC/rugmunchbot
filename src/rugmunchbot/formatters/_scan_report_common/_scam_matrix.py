@@ -1,4 +1,4 @@
-"""Consolidated Scam Signals risk matrix (16 techniques, honest "—")."""
+"""Consolidated Scam Signals risk matrix (16 techniques, honest "-")."""
 
 from __future__ import annotations
 
@@ -76,7 +76,7 @@ def _scam_signal_rows(r: dict[str, Any]) -> list[tuple[str, str, str]]:
 
     state is one of ``_SCAM_SIGNAL_RED`` / ``_SCAM_SIGNAL_GREEN`` /
     ``_SCAM_SIGNAL_UNKNOWN``. Detail is HTML-escaped by the caller. Every
-    technique is listed — a missing data source renders as "—", never as a
+    technique is listed - a missing data source renders as "-", never as a
     fabricated "clean".
     """
     sec = _evidence_security(r)
@@ -277,13 +277,13 @@ def _scam_signal_rows(r: dict[str, Any]) -> list[tuple[str, str, str]]:
 
 
 def _format_scam_signals_section(r: dict[str, Any]) -> list[str]:
-    """Render the consolidated Scam Signals risk matrix — compact, honest.
+    """Render the consolidated Scam Signals risk matrix - compact, honest.
 
     Signal-density design (2026-08 quality pass): flagged techniques render
     first WITH their evidence detail; checks that ran clean collapse into a
     single count line; techniques with no data collapse into one "no data"
     line listing their names (never claimed clean without a check). A
-    16-row wall becomes a 2–8 line block where every remaining line carries
+    16-row wall becomes a 2-8 line block where every remaining line carries
     information. Returns an empty list only for an empty report dict.
     """
     if not isinstance(r, dict) or not r:
@@ -304,5 +304,6 @@ def _format_scam_signals_section(r: dict[str, Any]) -> list[str]:
         shown = unknown[:5]
         rest = len(unknown) - len(shown)
         suffix = f" \u00b7 +{rest} more" if rest > 0 else ""
-        lines.append(f"  \u26aa No data: {html.escape(' \u00b7 '.join(shown))}{suffix}")
+        sep = " \u00b7 "
+        lines.append(f"  \u26aa No data: {html.escape(sep.join(shown))}{suffix}")
     return lines

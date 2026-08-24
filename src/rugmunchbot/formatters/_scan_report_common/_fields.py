@@ -225,6 +225,12 @@ def _fresh_wallet_pct(r: dict[str, Any]) -> float | None:
             return float(wm["fresh_wallet_pct"])
         except (TypeError, ValueError):
             return None
+    ha = r.get("holder_analysis")
+    if isinstance(ha, dict) and ha.get("new_wallets_pct") is not None:
+        try:
+            return float(ha["new_wallets_pct"])
+        except (TypeError, ValueError):
+            pass
     raw = r.get("fresh_wallet_pct")
     try:
         return float(raw) if raw is not None else None
