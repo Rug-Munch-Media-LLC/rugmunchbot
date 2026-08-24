@@ -615,7 +615,7 @@ async def fetch_rag_drafts(channel: str, limit: int = 3) -> list[dict[str, Any]]
             )
             return (data or {}).get("channels", {}).get(channel, [])[:limit]
 
-        return await asyncio.wait_for(_get(), timeout=20.0)
+        return await asyncio.wait_for(_get(), timeout=75.0)
     except Exception as e:
         logger.debug("rag_drafts_failed channel=%s err=%s", channel, str(e)[:100])
         return []

@@ -4,9 +4,9 @@ from rugmunchbot.tools.wallet_intelligence import classify_sample, classify_wall
 
 
 def test_cex_wallet_identified():
-    r = classify_wallet("0xdfd5293d8e347dfe59e90efd55b2956a1343963d", percentage=15)
+    r = classify_wallet("0x28c6c06298d514db089934071355e5743bf21d60", percentage=15)
     assert r["primary"] == "CEX"
-    assert "OKX" in (r["cex_label"] or "")
+    assert "Binance" in (r["cex_label"] or "")
 
 
 def test_whale_detected():
@@ -32,7 +32,7 @@ def test_insider_detection():
 
 def test_classify_sample_aggregates():
     holders = [
-        {"address": "0xdfd5293d8e347dfe59e90efd55b2956a1343963d", "percentage": 20},
+        {"address": "0x28c6c06298d514db089934071355e5743bf21d60", "percentage": 20},
         {"address": "0xrandom1", "percentage": 10},
         {"address": "0xrandom2", "percentage": 8},
         {"address": "0xrandom3", "percentage": 7},
@@ -40,4 +40,4 @@ def test_classify_sample_aggregates():
     result = classify_sample(holders)
     assert result["total_classified"] == 4
     assert result["profile_counts"].get("CEX", 0) >= 1
-    assert "OKX" in str(result["cex_breakdown"])
+    assert "Binance" in str(result["cex_breakdown"])
