@@ -100,7 +100,7 @@ def _vybe_payload():
         },
         {
             "address": "KOLWALLET",
-            "owner_name": "KOL Alpha",
+            "owner_name": "Coinbase Custody",
             "pct": 14.0,
             "usd_value": 700_000,
             "label": "",
