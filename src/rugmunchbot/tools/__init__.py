@@ -102,6 +102,12 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     registry_.register("rug_prediction", rug_prediction, timeout=5.0, ttl=120.0)
     from rugmunchbot.tools.cascade_predictor import cascade_watch
     registry_.register("cascade_watch", cascade_watch, timeout=25.0, ttl=180.0)
+    from rugmunchbot.tools.data_health import probe_all
+    registry_.register("data_health", probe_all, timeout=15.0, ttl=30.0)
+    from rugmunchbot.tools.lp_expiry import check_lp_expiry
+    registry_.register("lp_expiry", check_lp_expiry, timeout=15.0, ttl=600.0)
+    from rugmunchbot.tools.whale_convergence import whale_convergence
+    registry_.register("whale_convergence", whale_convergence, timeout=15.0, ttl=300.0)
     registry_.register("wallet_analysis", wallet_analysis, timeout=20.0, ttl=60.0)
     # web_search timeout is generous (75s): when the bridge + SearXNG are
     # down the tool synthesizes a knowledge answer through the remote LLM
