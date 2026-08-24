@@ -27,12 +27,10 @@ if TYPE_CHECKING:
 
 from rugmunchbot.channels.scheduler._core import (
     _chat_id,
-    _posted_keys,
     _remember,
     _safe_send,
     logger,
 )
-from rugmunchbot.channels.scheduler._tick import _tick_wrapper
 
 FEED_DIR = os.getenv("RMI_FEED_DIR", "/var/www/feed.rugmunch.io")
 FEED_DATA = os.path.join(FEED_DIR, "data")
@@ -75,7 +73,6 @@ def _mirror_to_feed(item: dict[str, Any]) -> str | None:
 async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """Route RAG-ranked drafts to their channels. Returns posted count."""
     posted_total = 0
-    posted_keys_before = set(_posted_keys("rag"))
 
     for channel in ("alerts", "news", "main"):
         drafts = await fetch_rag_drafts(channel, limit=MAX_PER_CHANNEL_PER_TICK + 2)
@@ -85,17 +82,16 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 break
             ref = item.get("story_ref") or item.get("text", "")[:60]
             dedupe_key = f"rag:{channel}:{ref}"
-            if dedupe_key in posted_keys_before or item.get("text", "") in posted_keys_before:
+            if not _remember(f"rag_{channel}", dedupe_key):
                 continue
 
             chat_id = _chat_id(channel)
             if not chat_id:
                 continue
-            ok = await _safe_send(ctx, chat_id, item.get("text", ""))
+            ok = await _safe_send(ctx.bot, chat_id, item.get("text", ""))
             if not ok:
                 continue
 
-            _remember("rag", {"key": dedupe_key, "channel": channel, "ref": ref})
             sent_this_channel += 1
             posted_total += 1
 
