@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/_deployer_fingerprint_compute.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/domains/scanner/engines/_deployer_fingerprint_compute.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Fingerprint computation for deployer_fingerprint (degodding 2026-08-14).

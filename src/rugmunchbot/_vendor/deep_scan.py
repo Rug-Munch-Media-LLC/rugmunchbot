@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/deep_scan.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/deep_scan.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Deep-scan orchestrator — run the platform's ML + contract modules in one call.

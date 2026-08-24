@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/osint/domain/__init__.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/osint/domain/__init__.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Domain OSINT investigation — WHOIS / DNS / subdomains / SSL / web archive.

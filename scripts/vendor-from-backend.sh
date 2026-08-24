@@ -58,6 +58,9 @@ declare -A MAP=(
   ["app/databus/provider_implementations/dune.py"]="_vendor/dune.py"
   ["app/databus/webshare_proxies.py"]="_vendor/webshare_proxies.py"
   ["app/databus/gmgn_provider.py"]="_vendor/gmgn_provider.py"
+  ["app/databus/gmgn_transport.py"]="_vendor/gmgn_transport.py"
+  ["app/databus/gmgn_endpoints_market.py"]="_vendor/gmgn_endpoints_market.py"
+  ["app/databus/gmgn_endpoints_wallet.py"]="_vendor/gmgn_endpoints_wallet.py"
   ["app/databus/_gmgn_fallbacks.py"]="_vendor/gmgn_fallbacks.py"
   ["app/databus/rugcharts_intel/cache.py"]="_vendor/cache.py"
   ["app/domains/scanner/_rules.py"]="_vendor/rug_risk_rules.py"
@@ -108,6 +111,10 @@ rewrite_vendor() {
     -e 's|from app\.core\.db_pool import|from rugmunchbot._vendor.db_pool import|g' \
     -e 's|from app\.databus\.webshare_proxies import|from rugmunchbot._vendor.webshare_proxies import|g' \
     -e 's|from app\.databus\.gmgn_provider import|from rugmunchbot._vendor.gmgn_provider import|g' \
+    -e 's|from app\.databus\.gmgn_transport import|from rugmunchbot._vendor.gmgn_transport import|g' \
+    -e 's|from app\.databus\.gmgn_endpoints_market import|from rugmunchbot._vendor.gmgn_endpoints_market import|g' \
+    -e 's|from app\.databus\.gmgn_endpoints_wallet import|from rugmunchbot._vendor.gmgn_endpoints_wallet import|g' \
+    -e 's|from app\.databus\.gmgn_transport import _f|from rugmunchbot._vendor.gmgn_transport import _f|g' \
     -e 's|from app\.databus\.proxy_rotator import|from rugmunchbot._vendor.proxy_rotator import|g' \
     -e 's|from app\.content_platform import|from rugmunchbot._vendor.content_platform import|g' \
     -e 's|from app\.domains\.telegram\.voice_chat import|from rugmunchbot._vendor.voice_chat import|g' \

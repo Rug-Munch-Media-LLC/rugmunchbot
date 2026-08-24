@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/rag/rerank.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/rag/rerank.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Cross-encoder reranking for the RAG pipeline (Qwen3 Reranker dual-tier).

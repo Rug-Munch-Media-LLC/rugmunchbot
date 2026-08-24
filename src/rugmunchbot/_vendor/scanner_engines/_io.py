@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/_io.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/domains/scanner/engines/_io.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """ClickHouse fetch / cache IO layer for funding_analysis (degodding wave 6).

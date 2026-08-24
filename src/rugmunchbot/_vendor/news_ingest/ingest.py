@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/domains/news_ingest/ingest.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/domains/news_ingest/ingest.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Channel-monitoring ingestion: read → normalize → dedupe → rank.

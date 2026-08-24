@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/rag/ingest/_orchestrator.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/rag/ingest/_orchestrator.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """RAG ingest orchestration: bulk-ingest client, doc sources, CLI.

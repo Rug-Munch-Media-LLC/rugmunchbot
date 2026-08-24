@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/databus/proxy_rotator.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/databus/proxy_rotator.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Residential proxy rotation + fallback for Cloudflare-blocked data providers.

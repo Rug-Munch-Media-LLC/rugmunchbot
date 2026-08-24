@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/webhooks/telegram_bridge.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/domains/scanner/webhooks/telegram_bridge.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Telegram alert bridge — routes webhook events to the RugMunchBot alert queue.

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/osint/domain/amass.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/osint/domain/amass.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Amass source — passive DNS / subdomain mapping via the ``amass`` CLI.

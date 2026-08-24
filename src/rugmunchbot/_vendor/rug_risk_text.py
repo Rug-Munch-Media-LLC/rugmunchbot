@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/_text.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/domains/scanner/_text.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Human-readable renderers for rug-risk score results.

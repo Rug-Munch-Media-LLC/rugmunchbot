@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/domains/scanner/engines/insider_detector/utils.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/domains/scanner/engines/insider_detector/utils.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Utility functions for insider detection (no circular deps with collectors)."""

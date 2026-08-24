@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/utils/dedup.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/utils/dedup.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Multi-level news deduplication for the RugBrain RAG pipeline.

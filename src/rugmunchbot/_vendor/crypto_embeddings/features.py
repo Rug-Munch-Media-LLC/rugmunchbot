@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/crypto_embeddings/features.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/crypto_embeddings/features.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Crypto-aware feature extractors for smart contracts, transactions, and wallets."""

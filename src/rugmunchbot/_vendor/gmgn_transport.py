@@ -1,28 +1,33 @@
-# Split from the vendored gmgn_provider.py during the de-godding program
-# 2026-08-22 (transport/infra seam). Method bodies moved VERBATIM — see the
-# facade ``gmgn_provider.py`` for provenance and the singleton.
-"""GMGN transport layer: constants, chain slugs, proxy-first HTTP mixin."""
+# VENDORED 2026-08-24 from rmi-backend/app/databus/gmgn_transport.py (frozen copy; do not edit).
+# Re-vendor: bash scripts/refresh-vendors.sh
+# ---
+"""GMGN transport layer — split from gmgn_provider.py (de-godding 2026-08-23).
+
+Methods operate on ``self`` state initialized by ``GMGNProvider.__init__``.
+"""
 
 from __future__ import annotations
 
+import logging
 import os
+import time
+import uuid
 from typing import Any
 
 import httpx
 
-from rugmunchbot._vendor.logging_shim import get_logger
-from rugmunchbot._vendor.proxy_rotator import get_proxy_rotator
+logger = logging.getLogger(__name__)
 
-logger = get_logger(__name__)
+
+def _normalize_chain(chain: str) -> str:
+    """Normalize chain names to GMGN slugs."""
+    return (chain or "ethereum").strip().lower()
 
 GMGN_API_KEY = os.getenv("GMGN_API_KEY", "")
+
 GMGN_BASE = "https://gmgn.ai"
-# Official GMGN Agent API (used by the gmgn-cli SDK / openapi.gmgn.ai).
-# Auth: X-APIKEY header + timestamp (unix seconds) + client_id (UUID) query
-# params — see OpenApiClient.ts / signer.ts in GMGNAI/gmgn-skills.
 GMGN_OPENAPI_BASE = "https://openapi.gmgn.ai"
 
-# Browser-like headers — GMGN's public API rejects plain curl/httpx UAs.
 _BROWSER_HEADERS = {
     "accept": "application/json, text/plain, */*",
     "accept-language": "en-US,en;q=0.9",
@@ -33,67 +38,113 @@ _BROWSER_HEADERS = {
     ),
 }
 
-# Cache TTLs (seconds)
-TRADE_CACHE_TTL = 30
-TOKEN_CACHE_TTL = 120
-HOLDER_CACHE_TTL = 300
 
+class TransportMixin:
+    def _agent_params(self, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Merge caller params with the Agent API exist-auth query params."""
+        merged = dict(params or {})
+        merged["timestamp"] = int(time.time())
+        merged["client_id"] = str(uuid.uuid4())
+        return merged
 
-def _normalize_chain(chain: str) -> str:
-    """Map chain names to GMGN's short chain slugs (sol, eth, bsc, base...)."""
-    aliases = {
-        "solana": "sol",
-        "sol": "sol",
-        "ethereum": "eth",
-        "eth": "eth",
-        "mainnet": "eth",
-        "bsc": "bsc",
-        "bnb": "bsc",
-        "binance": "bsc",
-        "base": "base",
-        "polygon": "polygon",
-        "matic": "polygon",
-        "arbitrum": "arbitrum",
-        "arb": "arbitrum",
-        "optimism": "optimism",
-        "op": "optimism",
-        "avalanche": "avax",
-        "avax": "avax",
-        "fantom": "fantom",
-        "ftm": "fantom",
-        "tron": "tron",
-        "trx": "tron",
-        "robinhood": "robinhood",
-    }
-    return aliases.get(chain.lower(), chain.lower())
+    async def _agent_get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """GET against the Agent API with exist-auth + 429-aware backoff."""
+        if not self.api_key:
+            logger.debug("GMGN Agent API: no API key configured")
+            return None
+        now = time.time()
+        if now < self._banned_until:
+            logger.debug("GMGN Agent API: banned until %s", self._banned_until)
+            return None
+        if now < self._next_allowed_at:
+            return None  # caller falls through to next source; no spam
 
+        try:
+            resp = await self._request(
+                "GET",
+                f"{GMGN_BASE}{path}",
+                headers=self.headers,
+                params=self._agent_params(params),
+            )
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
+            logger.debug("GMGN Agent API GET %s failed: %s", path, e)
+            return None
+        return self._handle_agent_response(resp, path)
 
-class _GMGNTransportMixin:
-    """Proxy-first HTTP transport + lifecycle for :class:`GMGNProvider`.
+    async def _agent_post(
+        self, path: str, params: dict[str, Any] | None, body: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        if not self.api_key:
+            logger.debug("GMGN Agent API: no API key configured")
+            return None
+        now = time.time()
+        if now < self._banned_until or now < self._next_allowed_at:
+            return None
+        try:
+            resp = await self._request(
+                "POST",
+                f"{GMGN_BASE}{path}",
+                headers=self.headers,
+                params=self._agent_params(params),
+                body=body,
+            )
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
+            logger.debug("GMGN Agent API POST %s failed: %s", path, e)
+            return None
+        return self._handle_agent_response(resp, path)
 
-    Attributes set here (``client``, ``_proxy_client``, ``headers``,
-    ``api_key``, ``_available``) are consumed verbatim by the endpoint
-    mixins; keep names stable — tests and gmgn_fallbacks bind them.
-    """
+    def _handle_agent_response(self, resp: httpx.Response, path: str) -> dict[str, Any] | None:
+        """Validate Agent API response; apply rate-limit bookkeeping."""
+        if resp.status_code == 429:
+            reset = self._parse_reset(resp)
+            if reset:
+                self._banned_until = max(self._banned_until, float(reset))
+            self._next_allowed_at = time.time() + 30
+            logger.debug("GMGN Agent API 429 on %s (reset=%s)", path, reset)
+            return None
+        if resp.status_code == 401 or resp.status_code == 403:
+            logger.debug("GMGN Agent API auth error %s on %s", resp.status_code, path)
+            self._available = False
+            return None
+        if resp.status_code != 200:
+            logger.debug("GMGN Agent API HTTP %s on %s", resp.status_code, path)
+            return None
+        try:
+            payload = resp.json()
+        except ValueError:
+            logger.debug("GMGN Agent API non-JSON on %s (Cloudflare HTML?)", path)
+            return None
+        if not isinstance(payload, dict):
+            return None
+        code = payload.get("code")
+        if code not in (0, None, 200):
+            logger.debug(
+                "GMGN Agent API error code=%s on %s: %s", code, path, payload.get("error") or payload.get("message")
+            )
+            return None
+        return payload
 
-    def __init__(self) -> None:
-        self.api_key = GMGN_API_KEY
-        self.headers = dict(_BROWSER_HEADERS)
-        if self.api_key:
-            # GMGN Agent API auth convention (official SDK: X-APIKEY header).
-            self.headers["X-APIKEY"] = self.api_key
-        # Direct client is the always-available fallback egress.
-        self.client = httpx.AsyncClient(timeout=20.0, follow_redirects=True)
-        # Proxy-first egress when residential proxies are configured.
-        self._rotator = get_proxy_rotator()
-        self._proxy_url: str | None = None
-        self._proxy_client: httpx.AsyncClient | None = None
-        if self._rotator.enabled:
-            self._proxy_url = self._rotator.get_rotating_proxy()
-            self._proxy_client = self._rotator.get_client(proxy=self._proxy_url)
-        # Public API works without a key; _available is only used to decide
-        # whether to try GMGN at all (True = always try, fallbacks cover failures).
-        self._available = True
+    @staticmethod
+    def _parse_reset(resp: httpx.Response) -> float | None:
+        """Read rate-limit reset from X-RateLimit-Reset header or body reset_at."""
+        raw = resp.headers.get("X-RateLimit-Reset")
+        if raw:
+            try:
+                return float(raw)
+            except ValueError:
+                pass
+        try:
+            body = resp.json()
+            raw = body.get("reset_at") if isinstance(body, dict) else None
+            if raw:
+                return float(raw)
+        except ValueError:
+            pass
+        return None
+
+    # ═══════════════════════════════════════════════════════════════
+    # HELPERS
+    # ═══════════════════════════════════════════════════════════════
 
     async def _request(
         self,
@@ -114,19 +165,13 @@ class _GMGNTransportMixin:
         """
         if self._proxy_client is not None:
             try:
-                proxy_resp = await self._proxy_client.request(
-                    method, url, headers=headers, params=params, json=json
-                )
+                proxy_resp = await self._proxy_client.request(method, url, headers=headers, params=params, json=json)
             except (httpx.HTTPError, ConnectionError, TimeoutError):
                 self._rotate_proxy()
-                return await self.client.request(
-                    method, url, headers=headers, params=params, json=json
-                )
+                return await self.client.request(method, url, headers=headers, params=params, json=json)
             if proxy_resp.status_code in (403, 429) or proxy_resp.status_code >= 500:
                 self._rotate_proxy()
-                return await self.client.request(
-                    method, url, headers=headers, params=params, json=json
-                )
+                return await self.client.request(method, url, headers=headers, params=params, json=json)
             return proxy_resp
         return await self.client.request(method, url, headers=headers, params=params, json=json)
 
@@ -141,3 +186,38 @@ class _GMGNTransportMixin:
         await self.client.aclose()
         if self._proxy_client is not None:
             await self._proxy_client.aclose()
+
+def _f(value: Any) -> float:
+    """Best-effort float coercion (strings from the API included)."""
+    try:
+        if value is None:
+            return 0.0
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _sum_top_pct(rows: list[dict[str, Any]], cap: int = 10) -> float | None:
+    """Sum supply % of the first ``cap`` holders (Agent API rows)."""
+    if not isinstance(rows, list):
+        return None
+    total = 0.0
+    seen = 0
+    for h in rows:
+        pct = h.get("amount_percentage")
+        try:
+            if pct is None:
+                continue
+            total += float(pct)
+            seen += 1
+            if seen >= cap:
+                break
+        except (TypeError, ValueError):
+            continue
+    return total if seen else None
+
+
+# ── Singleton ──────────────────────────────────────────────────────
+
+_gmgn_provider: GMGNProvider | None = None
+

@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/databus/_gmgn_fallbacks.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/databus/_gmgn_fallbacks.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """GMGN fallback + cache helpers — leaf module for GMGNProvider.

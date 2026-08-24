@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/deep_scan_runners.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/deep_scan_runners.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Guarded sub-module runners for :mod:`app.deep_scan`.

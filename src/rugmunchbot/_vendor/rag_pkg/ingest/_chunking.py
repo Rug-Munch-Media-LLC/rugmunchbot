@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/rag/ingest/_chunking.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/rag/ingest/_chunking.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """Heading-aware doc chunking (markdown / reST / AsciiDoc).

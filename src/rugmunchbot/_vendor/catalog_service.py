@@ -1,4 +1,4 @@
-# VENDORED 2026-08-23 from rmi-backend/app/catalog/service.py (frozen copy; do not edit).
+# VENDORED 2026-08-24 from rmi-backend/app/catalog/service.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
 """T27 CatalogService - unified read/write API for RMI.
