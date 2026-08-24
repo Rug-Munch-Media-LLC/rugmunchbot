@@ -77,6 +77,13 @@ _HELP_SECTIONS: list[tuple[str, str, str]] = [
         "Freestyle AI answers with deep research context \u2014 no commands needed.",
         "/chat <code>&lt;question&gt;</code>",
     ),
+    (
+        "🔍 Security Forensics",
+        "Wash-trading detection, exchange concentration, liquidation "
+        "cascade risk, cross-venue funding dislocation, whale "
+        "convergence — deep analysis beyond basic scans.",
+        "/volume <code>&lt;token&gt;</code> · /exchangeaudit · /liqmap · /hlwhales",
+    ),
 ]
 
 _HELP_EMOJI: dict[str, str] = {
