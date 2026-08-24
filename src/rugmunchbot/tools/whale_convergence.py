@@ -111,12 +111,15 @@ def _f(v: Any) -> float | None:
 async def whale_convergence(*, address: str = "", chain: str = "eth") -> dict[str, Any]:
     """Tool entry: convergence analysis for one token."""
     if not address:
-        return {"error": "token address required"}
+        return {"error": "token address required", "signal": "NONE",
+                "headline": "no address provided"}
     from rugmunchbot.tools.scanner._smart_money_token import fetch_token_smart_money
 
     data = await fetch_token_smart_money(address, chain)
     if not data:
-        return {"error": "smart-money data unavailable", "address": address}
+        return {"address": address, "signal": "NONE", "convergence": None,
+                "headline": "smart-money data unavailable for this token",
+                "wallets_tracked": 0}
     wallets = data.get("wallets") or data.get("top_traders") or []
     conv = detect_convergence(wallets)
     out: dict[str, Any] = {
