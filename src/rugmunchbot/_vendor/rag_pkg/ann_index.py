@@ -204,7 +204,22 @@ class ANNIndex:
             except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
                 log.debug("ann_skip doc=%s err=%s", doc_id, e)
         if vecs:
-            self._matrix = np.asarray(vecs, dtype=np.float32)
+            # Mixed-dim persisted state (1024-era + 2560 entries) cannot form
+            # a matrix — keep only vectors matching THIS index's dim and
+            # drop the rest (Qdrant holds the truth; cache rebuilds).
+            uniform = [v for v in vecs if len(v) == self.dim]
+            dropped = len(vecs) - len(uniform)
+            if dropped:
+                log.warning(
+                    "ann_load_dim_mismatch collection=%s kept=%d dropped=%d (expected dim=%d)",
+                    self.collection, len(uniform), dropped, self.dim,
+                )
+            if uniform:
+                self._matrix = np.asarray(uniform, dtype=np.float32)
+            else:
+                self._matrix = None
+                ids, id_to_idx, meta = [], {}, {}
+                vecs = []
         self._ids = ids
         self._id_to_idx = id_to_idx
         self._meta = meta
