@@ -90,6 +90,19 @@ def _pick_best_pair(pairs: list[dict[str, Any]], symbol: str) -> dict[str, Any] 
     return max(pool, key=_pair_liquidity)
 
 
+def _looks_like_address(query: str) -> bool:
+    """True when the target has contract-address SHAPE (EVM hex / Solana base58).
+
+    Mirrors ``services.pricing._looks_like_address``. Deliberately stricter
+    than ``_detect_chain`` (which answers "solana" for ANY non-0x string —
+    including tickers — and therefore cannot gate this decision).
+    """
+    q = query.strip()
+    if q.startswith(("0x", "0X")):
+        return len(q) >= 40
+    return 32 <= len(q) <= 44 and q.isalnum() and not q.isdigit()
+
+
 async def resolve_scan_target(target: str, chain: str | None = "") -> ResolvedTarget | None:
     """Resolve any /scan target to a real (address, chain).
 
@@ -103,9 +116,8 @@ async def resolve_scan_target(target: str, chain: str | None = "") -> ResolvedTa
         return None
 
     # 1. Already an address → pass through with chain detection.
-    detected = _detect_chain(raw)
-    if detected and detected != "unknown":
-        return ResolvedTarget(address=raw, chain=(chain or detected).strip())
+    if _looks_like_address(raw):
+        return ResolvedTarget(address=raw, chain=(chain or _detect_chain(raw)).strip())
 
     # 2. Ticker / free-text → DexScreener search.
     symbol = _strip_ticker(raw)
