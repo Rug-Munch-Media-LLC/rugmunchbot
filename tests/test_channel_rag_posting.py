@@ -15,6 +15,7 @@ Covers the P0 fixes from the 2026-08-25 rugmunchbot audit:
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -30,7 +31,15 @@ def _fresh_dedupe(monkeypatch):
 
 
 def _draft(ref: str, text: str = "t", mirror: bool = False) -> dict[str, Any]:
-    return {"story_ref": ref, "text": text, "kind": "story", "mirror": mirror}
+    # ts = now: the 2026-08-26 recency gate rejects undated/stale drafts,
+    # so fixtures must present as fresh (that gate has its own tests).
+    return {
+        "story_ref": ref,
+        "text": text,
+        "kind": "story",
+        "mirror": mirror,
+        "ts": datetime.now(UTC).isoformat(),
+    }
 
 
 class _Recorder:

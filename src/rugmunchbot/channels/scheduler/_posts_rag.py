@@ -19,6 +19,7 @@ import json
 import os
 import re
 import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from rugmunchbot.channels.content import fetch_rag_drafts
@@ -50,6 +51,91 @@ RMI_RAG_POST_MIN_SCORE = float(os.getenv("RMI_RAG_POST_MIN_SCORE", "0.30"))
 _TEMPLATE_SIGNATURE_RE = re.compile(
     r"^\[(?:CRITICAL|HIGH|MEDIUM|LOW)\]\s+.+\n\nSource:\s+", re.DOTALL
 )
+
+#: Recency gate (2026-08-26 stale-news incident): a draft older than this is
+#: DISCARDED, and an undated draft is discarded too — we proved undated
+#: drafts are how 2022-2024 exploits reached main. Strategy v2: silence
+#: beats stale. Override with RMI_RAG_POST_MAX_AGE_H (0 disables).
+RAG_POST_MAX_AGE_H = float(os.getenv("RMI_RAG_POST_MAX_AGE_H", "72"))
+
+#: Embedded-date probe: catches stale text even when ``ts`` lies or is
+#: missing ("… exploit on September 16, 2024 …" → 2024 → reject).
+_EMBEDDED_DATE_RE = re.compile(
+    r"\b(20\d{2})-(\d{2})-(\d{2})"
+    r"|\b(January|February|March|April|May|June|July|August|September|October|November|December)"
+    r"\s+(\d{1,2}),?\s+(20\d{2})\b",
+    re.IGNORECASE,
+)
+
+_MONTHS = {
+    m.lower(): i
+    for i, m in enumerate(
+        (
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ),
+        1,
+    )
+}
+
+
+def _draft_age_hours(item: dict[str, Any]) -> tuple[float | None, str]:
+    """Best-effort age of a draft in hours + which probe matched.
+
+    Order: explicit ``ts``/``published_at`` field → first date embedded in
+    the text. Returns ``(None, "none")`` when no date could be found.
+    """
+    raw = str(item.get("ts") or item.get("published_at") or "").strip()
+    if raw:
+        try:
+            ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            return max((datetime.now(UTC) - ts).total_seconds() / 3600.0, 0.0), "field"
+        except ValueError:
+            pass
+    m = _EMBEDDED_DATE_RE.search(str(item.get("text") or ""))
+    if m:
+        try:
+            if m.group(1):  # ISO form 2024-09-16
+                y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            else:  # "September 16, 2024"
+                y = int(m.group(6))
+                mo = _MONTHS.get((m.group(4) or "").lower(), 0)
+                d = int(m.group(5))
+            if mo and d:
+                ts = datetime(y, mo, d, tzinfo=UTC)
+                return max((datetime.now(UTC) - ts).total_seconds() / 3600.0, 0.0), "text"
+        except (ValueError, TypeError):
+            return None, "none"
+    return None, "none"
+
+
+def _recency_gate(item: dict[str, Any]) -> str:
+    """Stale-news gate. Returns "" when the draft may post, else the reason.
+
+    A draft fails when: it carries no discoverable date at all (undated =
+    unverifiable freshness), or its age exceeds RAG_POST_MAX_AGE_H. Pure —
+    never raises; unparsable dates count as undated.
+    """
+    if RAG_POST_MAX_AGE_H <= 0:
+        return ""
+    age_h, probe = _draft_age_hours(item)
+    if age_h is None:
+        return "undated"
+    if age_h > RAG_POST_MAX_AGE_H:
+        return f"stale({age_h:.0f}h via {probe})"
+    return ""
 
 
 def _quality_gate(item: dict[str, Any]) -> str:
@@ -190,6 +276,11 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             # stay retryable (the writer may be healthy next cycle), so it
             # is skipped without burning its story_ref.
             gate_reason = _quality_gate(item)
+            if not gate_reason:
+                # 2026-08-26 stale-news incident: quality alone is not
+                # freshness — a well-written 2022 exploit still must not
+                # post. Undated drafts are rejected too (fail-closed).
+                gate_reason = _recency_gate(item)
             if gate_reason:
                 logger.warning(
                     "rag_draft_gated channel=%s reason=%s ref=%s",
@@ -236,5 +327,6 @@ __all__ = [
     "_alert_mirror_failure",
     "_note_mirror_success",
     "_quality_gate",
+    "_recency_gate",
     "post_rag_drafts",
 ]
