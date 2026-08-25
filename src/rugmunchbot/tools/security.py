@@ -22,10 +22,40 @@ from rugmunchbot.tools.registry import ToolResult, backend_json_get, backend_jso
 logger = get_logger("rmi_bot.tools.security")
 
 
-async def security_scan(*, address: str = "", chain: str = "") -> ToolResult:
-    """Real scanner risk payload for a token address."""
+async def security_scan(*, address: str = "", chain: str = "", fresh: bool = False) -> ToolResult:
+    """Real scanner risk payload for a token address.
+
+    Redis-backed result cache (SCAN-QUALITY-PLAN layer 1): identical
+    re-scans within 10min return the stored verdict instantly; fresh=True
+    bypasses. Cache is best-effort — Redis down means straight-through.
+    """
     if not address:
         return ToolResult(tool="security_scan", ok=False, error="address required")
+    cache_key = f"scan:{(chain or 'eth').lower()}:{address.lower()}"
+    cached_payload: dict | None = None
+    if not fresh:
+        try:
+            from rugmunchbot._vendor.redis_client import get_redis
+
+            r = get_redis()
+            if r is not None:
+                import json as _json
+
+                raw = r.get(f"scanresult:{cache_key}")
+                if raw:
+                    cached_payload = _json.loads(raw)
+        except Exception:
+            cached_payload = None
+    if cached_payload is not None:
+        cached_payload["cached"] = True
+        return ToolResult(
+            tool="security_scan",
+            ok=True,
+            data=cached_payload,
+            symbols=[(cached_payload.get("symbol") or "")] if cached_payload.get("symbol") else [],
+            addresses=[address],
+            source="cache:scanresult",
+        )
     body = await backend_json_post(
         "/api/v1/bot/scan",
         json={"address": address, "chain": chain or ""},
@@ -51,6 +81,16 @@ async def security_scan(*, address: str = "", chain: str = "") -> ToolResult:
         "cached": bool(body.get("cached")),
         "scan_time": body.get("scan_time") or body.get("timestamp"),
     }
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis
+
+        r = get_redis()
+        if r is not None and keep.get("risk_score") is not None:
+            import json as _json
+
+            r.setex(f"scanresult:{cache_key}", 600, _json.dumps(keep))
+    except Exception as exc:
+        logger.debug("scanresult_cache_write_failed err=%s", str(exc)[:80])
     return ToolResult(
         tool="security_scan",
         ok=True,
