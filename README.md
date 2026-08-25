@@ -116,3 +116,7 @@ Conventional commits required; lint via `make lint`; types via
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## FAQ
+
+See [docs/FAQ.md](docs/FAQ.md) for frequently asked questions.
