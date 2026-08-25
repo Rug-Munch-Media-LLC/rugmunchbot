@@ -26,6 +26,8 @@ so a story seen in a previous sweep — even rephrased — is never re-read.
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import time
 from collections.abc import Awaitable, Callable
@@ -233,11 +235,18 @@ def filter_seen_articles(
             continue
         fresh.append(article)
     if skipped:
-        logger.info("news_ingest:seen_skipped collection=%s fresh=%s skipped=%s", collection, len(fresh), skipped)
+        logger.info(
+            "news_ingest:seen_skipped collection=%s fresh=%s skipped=%s",
+            collection,
+            len(fresh),
+            skipped,
+        )
     return fresh, skipped
 
 
-def mark_articles_ingested(articles: list[NewsArticle], collection: str = DEFAULT_DEDUP_COLLECTION) -> int:
+def mark_articles_ingested(
+    articles: list[NewsArticle], collection: str = DEFAULT_DEDUP_COLLECTION
+) -> int:
     """Record article dedup keys in the shared Redis sets.
 
     Best-effort (never raises): the ``app.rag.dedup`` markers are fail-open,
@@ -373,7 +382,9 @@ def lightweight_importance(article: NewsArticle, now: datetime | None = None) ->
 
     if article.posted_at is not None:
         try:
-            age_hours = (_as_utc(article.posted_at) - _as_utc(now or datetime.now(UTC))).total_seconds() / 3600.0
+            age_hours = (
+                _as_utc(article.posted_at) - _as_utc(now or datetime.now(UTC))
+            ).total_seconds() / 3600.0
             if age_hours < 1:
                 score += 0.1
             elif age_hours < 3:
@@ -461,7 +472,11 @@ def _reaction_counts(reactions: Any) -> dict[str, int] | None:
         count = int(getattr(item, "count", None) or 0)
         key: Any = None
         if reaction is not None:
-            key = getattr(reaction, "emoticon", None) or getattr(reaction, "document_id", None) or str(reaction)
+            key = (
+                getattr(reaction, "emoticon", None)
+                or getattr(reaction, "document_id", None)
+                or str(reaction)
+            )
         if key is not None:
             counts[str(key)] = count
     return counts or None
@@ -483,6 +498,53 @@ _CHANNEL_READ_FAILURES: dict[str, int] = {}
 #: channel_username -> monotonic timestamp until which the channel is skipped.
 _CHANNEL_COOLDOWN_UNTIL: dict[str, float] = {}
 
+# ── Cooldown persistence (bot-side deviation, 2026-08-25) ──────────────────
+# Upstream keeps cooldowns in memory only, so every bot restart re-probes all
+# dead channels (3 failures × ~14 dead channels × every sweep = log-noise
+# bursts and wasted Telegram RPCs after each deploy). Persist the cooldown
+# map to disk; failures-counters stay in-memory (cheap to rebuild).
+# Deviation note: upstream app/domains/news_ingest has no persistence yet —
+# refresh-vendors.sh would drop this. Re-add after refresh if reverted.
+_COOLDOWN_STATE_PATH: Final[str] = os.getenv(
+    "TG_NEWS_COOLDOWN_STATE", "/var/lib/rugmunchbot/tg_news_channel_cooldowns.json"
+)
+_cooldown_state_loaded = False
+
+
+def _load_cooldown_state() -> None:
+    """Load persisted cooldown deadlines once per process (fail-open)."""
+    global _cooldown_state_loaded
+    _cooldown_state_loaded = True
+    try:
+        with open(_COOLDOWN_STATE_PATH) as f:
+            raw = json.load(f)
+        now = time.monotonic()
+        for username, deadline in raw.items():
+            # Stored as remaining-seconds offsets from save time → rebase.
+            until = now + float(deadline)
+            if until > now:
+                _CHANNEL_COOLDOWN_UNTIL[username] = until
+    except FileNotFoundError:
+        pass
+    except Exception as e:  # noqa: BLE001 — state file is best-effort only
+        logger.debug("news_ingest_cooldown_state_load_failed err=%s", e)
+
+
+def _save_cooldown_state() -> None:
+    """Persist remaining cooldown seconds per channel atomically (best-effort)."""
+    try:
+        now = time.monotonic()
+        remaining = {
+            u: round(until - now, 1) for u, until in _CHANNEL_COOLDOWN_UNTIL.items() if until > now
+        }
+        os.makedirs(os.path.dirname(_COOLDOWN_STATE_PATH), exist_ok=True)
+        tmp = f"{_COOLDOWN_STATE_PATH}.tmp"
+        with open(tmp, "w") as f:
+            json.dump(remaining, f)
+        os.replace(tmp, _COOLDOWN_STATE_PATH)
+    except Exception as e:  # noqa: BLE001 — state file is best-effort only
+        logger.debug("news_ingest_cooldown_state_save_failed err=%s", e)
+
 
 def is_channel_cooldown(channel_username: str, now: float | None = None) -> bool:
     """True while *channel_username* is in auto-disable cooldown (skip the RPC).
@@ -491,6 +553,8 @@ def is_channel_cooldown(channel_username: str, now: float | None = None) -> bool
     """
     if not channel_username:
         return False
+    if not _cooldown_state_loaded:
+        _load_cooldown_state()
     until = _CHANNEL_COOLDOWN_UNTIL.get(channel_username)
     if until is None:
         return False
@@ -515,6 +579,7 @@ def note_channel_failure(
     if count >= max(1, threshold):
         _CHANNEL_READ_FAILURES.pop(channel_username, None)
         _CHANNEL_COOLDOWN_UNTIL[channel_username] = time.monotonic() + max(0.0, cooldown_seconds)
+        _save_cooldown_state()
         return True
     _CHANNEL_READ_FAILURES[channel_username] = count
     return False
@@ -524,9 +589,13 @@ def note_channel_success(channel_username: str) -> None:
     """Reset the failure counter — the channel resolved and read fine."""
     if channel_username:
         _CHANNEL_READ_FAILURES.pop(channel_username, None)
+        if _CHANNEL_COOLDOWN_UNTIL.pop(channel_username, None) is not None:
+            _save_cooldown_state()
 
 
-async def read_channel_messages(client: Any, channel_username: str, limit: int = 50) -> list[ChannelMessage]:
+async def read_channel_messages(
+    client: Any, channel_username: str, limit: int = 50
+) -> list[ChannelMessage]:
     """Read the last *limit* messages from a channel. Never raises.
 
     Accepts either:
@@ -589,7 +658,9 @@ def channel_username_from_config(channel: dict[str, Any]) -> str:
     return ""
 
 
-async def sweep_channels(client: Any, channels: list[dict[str, Any]], limit: int = 50) -> list[NewsArticle]:
+async def sweep_channels(
+    client: Any, channels: list[dict[str, Any]], limit: int = 50
+) -> list[NewsArticle]:
     """Read → normalize → dedupe across every configured channel.
 
     Each entry of *channels* follows the ``unified_news_sources.json`` schema

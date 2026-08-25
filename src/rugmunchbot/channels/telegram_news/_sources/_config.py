@@ -132,26 +132,31 @@ _DEFAULT_CHANNELS: tuple[str, ...] = (
     # ── Research & macro ───────────────────────────────────────────────────────
     "DelphiDigital",  # Delphi Digital — research (View)
     "alphanonce",  # Alpha Nome — research (View)
-    "ASXNResearch",  # ASXN — crypto research (View)
+    # 2026-08-25 pruned: Telegram cannot resolve these usernames ("No user has
+    # X as username" / "Nobody is using this username") — channel deleted or
+    # renamed. Auto-disable cooldown persistence now also covers runtime-
+    # discovered dead channels (e.g. wolfscryptocallz, dioralpha, sugarcalls,
+    # wulfcalls, yennidegen) without config edits.
+    # "ASXNResearch",  # ASXN — crypto research (View) — DEAD 2026-08-25
     "kryptocast",  # KryptoCast — interviews/analysis (View)
     "BanklessHQ",  # Bankless — media/analysis (View)
     "TheDeFiReport",  # DeFi Report — analysis (View)
     "CryptoCred",  # CryptoCred — trading/research (View)
-    "DoseofDeFi",  # Dose of DeFi — newsletter (View)
-    "milkroad",  # Milk Road — daily newsletter (View)
-    "defiedge",  # DeFi Edge — alpha/education (View)
+    # "DoseofDeFi",  # Dose of DeFi — newsletter (View) — DEAD 2026-08-25
+    # "milkroad",  # Milk Road — daily newsletter (View) — DEAD 2026-08-25
+    # "defiedge",  # DeFi Edge — alpha/education (View) — DEAD 2026-08-25
     # ── Trading & market analysis ─────────────────────────────────────────────
     "CryptoBubbles",  # Crypto Bubbles — market heatmap (View)
-    "Coin360",  # Coin360 — market visualization (View)
+    # "Coin360",  # Coin360 — market visualization (View) — DEAD 2026-08-25
     "MaterialIndicators",  # Material Indicators — trading (View)
-    "TheNews_Trader",  # TheNews.Trader — trade signals (View)
-    "AltcoinTrader",  # Altcoin Trader — signals/analysis (View)
+    # "TheNews_Trader",  # TheNews.Trader — trade signals (View) — DEAD 2026-08-25
+    # "AltcoinTrader",  # Altcoin Trader — signals/analysis (View) — DEAD 2026-08-25
     "TradingShot",  # Trading Shot — TA signals (View)
     "crypto_traders",  # Crypto Traders — community (View)
     "fibonacci_trading",  # Fibonacci Trading — TA (View)
     # ── News from X/Twitter personalities (cross-post channels) ───────────────
-    "wublockchain",  # Wu Blockchain — Colin Wu news (View, re-verified)
-    "Cointelegraph_",  # CoinTelegraph alt (View)
+    # "wublockchain",  # Wu Blockchain — Colin Wu news — DEAD 2026-08-25
+    # "Cointelegraph_",  # CoinTelegraph alt (View) — DEAD 2026-08-25
     "u_today",  # U.Today alt (View)
     # ── Verified from @cryptorugmunch account's follows (2026-08-18 live probe) ──
     # Major news with verified live channels
