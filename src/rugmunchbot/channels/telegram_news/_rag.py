@@ -144,7 +144,17 @@ async def ingest_into_rag(articles: list[NewsArticle]) -> dict[str, Any]:
             elif report.duplicate:
                 counts["duplicates"] += 1
             else:
-                counts["errors"] += len(report.errors or []) or 1
+                # Distinguish rejection vs failure: rejected = quality gate
+                # (expected), failed = pipeline error (needs attention).
+                if getattr(report, "rejected", 0):
+                    counts["rejected_gate"] = counts.get("rejected_gate", 0) + 1
+                else:
+                    counts["errors"] += len(report.errors or []) or 1
+                    logger.warning(
+                        "tg_news:rag_story_error status=%s errs=%s",
+                        getattr(report, "status", "?"),
+                        (report.errors or ["?"])[:2],
+                    )
                 # W-visibility: rejected/reason breakdown so mass rejections
                 # are diagnosable from the summary line alone.
                 reasons = getattr(report, "rejections", None) or {}
@@ -155,12 +165,13 @@ async def ingest_into_rag(articles: list[NewsArticle]) -> dict[str, Any]:
                         " ".join(f"{k}={v}" for k, v in top),
                     )
         logger.info(
-            "tg_news:rag_ingested articles=%s stories=%s ingested=%s duplicates=%s errors=%s",
+            "tg_news:rag_ingested articles=%s stories=%s ingested=%s duplicates=%s errors=%s rejected_gate=%s",
             len(articles),
             counts["stories"],
             counts["ingested"],
             counts["duplicates"],
             counts["errors"],
+            counts.get("rejected_gate", 0),
         )
     except Exception as exc:  # fail-open: a RAG outage never crashes the job
         logger.warning("tg_news:rag_ingest_failed err=%s", str(exc)[:200])

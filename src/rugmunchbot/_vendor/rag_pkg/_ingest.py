@@ -1,4 +1,3 @@
-import os
 # VENDORED 2026-08-17 from rmi-backend/app/rag/_ingest.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
@@ -11,6 +10,8 @@ write path), bulk ingestion and the collection/stats surface.
 """
 
 from __future__ import annotations
+
+import os
 
 import asyncio
 from datetime import UTC, datetime
