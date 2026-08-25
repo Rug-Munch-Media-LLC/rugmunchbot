@@ -53,7 +53,7 @@ async def get_embedding(text: str, model: str = "", dimensions: int | None = Non
     if dims:
         payload["dimensions"] = int(dims)
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=float(os.getenv("RAG_EMBED_TIMEOUT", "45"))) as client:
             r = await client.post(
                 f"{api_url}/embed",
                 json=payload,
