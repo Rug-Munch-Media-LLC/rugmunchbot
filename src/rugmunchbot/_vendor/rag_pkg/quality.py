@@ -74,18 +74,34 @@ class QualityFilter:
 
     @staticmethod
     def _is_spam(text: str, threshold: float = RAG_SPAM_REPETITION_THRESHOLD) -> bool:
-        """Detect spam by checking trigram repetition ratio."""
+        """Detect spam by checking trigram repetition ratio.
+
+        Length-tiered (2026-08-25): TG news stories are SHORT and carry
+        channel boilerplate ("join us", "t.me/...", pinned-promo lines)
+        whose repeats blew the flat 0.3 threshold — 100% of swept stories
+        were rejected as spam_repetitive and RAG learned nothing. Short
+        docs get a lenient ratio + boilerplate stripped first; long-form
+        keeps the strict web-article threshold.
+        """
         if len(text) < 100:
             return False
         words = text.lower().split()
         if len(words) < 10:
             return False
-        trigrams = [" ".join(words[i : i + 3]) for i in range(len(words) - 2)]
+        # Strip TG boilerplate noise before measuring: bare links/handles.
+        cleaned = [w for w in words if not (w.startswith("t.me/") or w.startswith("@") or w.startswith("http"))]
+        if len(cleaned) < 10:
+            return False
+        effective_threshold = threshold
+        if len(cleaned) < 120:
+            # short TG-scale docs: boilerplate repeats are normal speech
+            effective_threshold = max(threshold, 0.55)
+        trigrams = [" ".join(cleaned[i : i + 3]) for i in range(len(cleaned) - 2)]
         if not trigrams:
             return False
         unique = len(set(trigrams))
         ratio = 1.0 - (unique / len(trigrams))
-        return ratio > threshold
+        return ratio > effective_threshold
 
     @staticmethod
     def _is_duplicate(content_hash: str, collection: str) -> bool:
