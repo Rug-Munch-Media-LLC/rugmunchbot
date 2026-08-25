@@ -13,6 +13,7 @@ The wallet tools use the REAL convenience routes — never the bare
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from rugmunchbot.support.logging import get_logger
@@ -46,8 +47,35 @@ async def security_scan(*, address: str = "", chain: str = "", fresh: bool = Fal
                     cached_payload = _json.loads(raw)
         except Exception:
             cached_payload = None
+    # Cache observability (SCAN-QUALITY-PLAN: hit-rate target >40% within
+    # TTL). Daily INCR counters — cheap, Redis-native, readable via
+    # ``GET stats:scanresult:hits:YYYYMMDD``. fresh=True bypasses count
+    # as neither hit nor miss (explicit operator intent).
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis
+
+        r = get_redis()
+        if r is not None:
+            day = time.strftime("%Y%m%d", time.gmtime())
+            pipe = r.pipeline(transaction=False)
+            if cached_payload is not None:
+                pipe.incr(f"stats:scanresult:hits:{day}")
+            elif not fresh:
+                pipe.incr(f"stats:scanresult:misses:{day}")
+            pipe.expire(
+                f"stats:scanresult:{'hits' if cached_payload is not None else 'misses'}:{day}",
+                172800,
+            )
+            pipe.execute()
+    except Exception as exc:
+        logger.debug("scanresult_stats_failed err=%s", str(exc)[:80])
     if cached_payload is not None:
         cached_payload["cached"] = True
+        logger.info(
+            "scanresult_cache_hit key=%s risk=%s",
+            cache_key,
+            cached_payload.get("risk_score"),
+        )
         return ToolResult(
             tool="security_scan",
             ok=True,

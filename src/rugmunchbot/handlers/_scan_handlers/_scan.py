@@ -174,6 +174,9 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 result = v2_token_to_legacy(result_v2)
             else:
                 # v2 unavailable → fall back to legacy multi-source scanner
+                from rugmunchbot.tools.scanner._section_log import log_section_fallback
+
+                log_section_fallback("scan", "v2", "legacy", reason="v2_unavailable")
                 result = await scan_token(target, chain)
             # Market/deployer/socials backfill runs on BOTH paths (2026-08-25):
             # the report's Market Data / Deployer / Socials blocks must show

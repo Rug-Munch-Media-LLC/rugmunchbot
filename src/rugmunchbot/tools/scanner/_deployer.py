@@ -11,6 +11,7 @@ so tests can patch ``tools.scanner.token_meta`` (monkeypatch contract).
 
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any
 
@@ -200,6 +201,9 @@ async def _supplement_deployer_socials(
                 merged.update({k: str(v) for k, v in data["socials"].items() if v})
                 result["socials"] = merged
     except Exception:
+        from rugmunchbot.tools.scanner._section_log import log_section_fallback
+
+        log_section_fallback("enrich", "indexer", "dexscreener", reason="databus_miss")
         logger.debug("databus_supplement_miss %s", address[:12], exc_info=True)
 
     try:
@@ -226,9 +230,15 @@ async def _supplement_deployer_socials(
                 if not result.get("symbol"):
                     result["symbol"] = bt.get("symbol") or "???"
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException):
+        from rugmunchbot.tools.scanner._section_log import log_section_fallback
+
+        log_section_fallback("market", "dexscreener", "none", reason="ds_unreachable")
         logger.debug("deployer_socials_dexscreener_failed", exc_info=True)
 
     if not creator and not has_deployer and (chain_norm or "").lower() == "solana":
+        from rugmunchbot.tools.scanner._section_log import log_section_fallback
+
+        log_section_fallback("deployer", "dexscreener", "birdeye", reason="no_creator")
         creator = await _birdeye_creator(address, chain_norm)
 
     creator = (creator or "").strip()
@@ -249,9 +259,77 @@ async def _supplement_deployer_socials(
     _holders = result.get("holders")
     holders = _holders if isinstance(_holders, (int, float)) else None
     if not holders:
+        from rugmunchbot.tools.scanner._section_log import log_section_fallback
+
+        log_section_fallback("holders", "indexer", "birdeye", reason="no_count")
         count = await _birdeye_holders(address, chain_norm)
         if count is not None:
             result["holders"] = count
+
+    # ── TIER-0 indexer sections (SCAN-QUALITY-PLAN item 2, 2026-08-26) ──
+    # Our own ClickHouse engines fill what the scan payload left missing:
+    # the repeat-deployer track record and launch-bundle clustering.
+    # Indexer-first: RPC/external chains only ever ran above; these legs
+    # read OUR data. Each is time-boxed and fail-open — a slow or dead
+    # ClickHouse never blocks the card, and every miss logs a section
+    # fallback so completeness stays auditable.
+    deployer_final = str(result.get("deployer_address") or result.get("dev_wallet") or "").strip()
+    if deployer_final and not result.get("deployer_profile"):
+        try:
+            from rugmunchbot._vendor.scanner_engines.deployer_profiles import (
+                get_deployer_profile,
+            )
+
+            profile = await asyncio.wait_for(
+                get_deployer_profile(deployer_final, chain_norm), timeout=6.0
+            )
+            if profile:
+                result["deployer_profile"] = profile
+                # Formatter-facing metrics mirror (Deployer block renders
+                # tokens-deployed / rugpull-rate / honeypot-rate from here).
+                result.setdefault(
+                    "deployer_metrics",
+                    {
+                        "total_tokens_deployed": profile.get("total_tokens_launched"),
+                        "rugpull_rate": profile.get("rugged_pct"),
+                        "honeypot_rate": profile.get("honeypot_pct"),
+                    },
+                )
+            else:
+                log_section_fallback(
+                    "deployer_profile", "clickhouse", "none", reason="not_repeat_deployer"
+                )
+        except TimeoutError:
+            log_section_fallback("deployer_profile", "clickhouse", "none", reason="timeout")
+        except Exception:
+            log_section_fallback("deployer_profile", "clickhouse", "none", reason="engine_error")
+
+    if not result.get("bundle_analysis"):
+        try:
+            from rugmunchbot._vendor.scanner_engines.own_bundle_detect import (
+                get_own_bundle_analysis,
+            )
+
+            bundle = await asyncio.wait_for(
+                get_own_bundle_analysis(address.lower(), chain_norm), timeout=6.0
+            )
+            if bundle and bundle.get("source") == "own":
+                blocks = bundle.get("bundle_blocks") or []
+                result["bundle_analysis"] = {
+                    "is_bundled": bool(bundle.get("is_bundled")),
+                    "risk_label": bundle.get("risk_label"),
+                    "confidence": bundle.get("confidence"),
+                    "common_funder_score": bundle.get("common_funder_score"),
+                    "launch_buyers": sum(int(b.get("buyers") or 0) for b in blocks),
+                    "cluster_blocks": [b.get("block") for b in blocks[:5]],
+                    "common_funders": bundle.get("common_funders"),
+                }
+            else:
+                log_section_fallback("bundle", "clickhouse", "none", reason="no_own_data")
+        except TimeoutError:
+            log_section_fallback("bundle", "clickhouse", "none", reason="timeout")
+        except Exception:
+            log_section_fallback("bundle", "clickhouse", "none", reason="engine_error")
 
     return result
 
