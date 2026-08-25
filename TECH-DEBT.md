@@ -32,8 +32,8 @@
 
 ## Known contracts / follow-ups
 - ~~`TODO(ghost-admin-key)`~~ **DONE 2026-08-21** — key provisioned from
-  gopass (`rmi/local-services/ghost-admin-api-key`) to
-  `/srv/secrets/ghost_admin_key` (0600), the first path in the vendored
+  the secrets manager (ghost-admin-api-key entry) to
+  a runtime secret file (0600), the first path in the vendored
   content_platform resolution chain. Cross-posting enabled.
 - Health surface: observability thread serves `/healthz` + `/metrics` on
   :9191 (`RUGMUNCHBOT_METRICS_*`); Docker HEALTHCHECK + compose wired to it.
