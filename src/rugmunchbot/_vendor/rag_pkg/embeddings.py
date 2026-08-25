@@ -20,6 +20,20 @@ class RAGUnavailableError(Exception):
     """RAG system is unavailable."""
 
 
+def current_backend() -> str:
+    """Which embedding backend is active? For observability metadata.
+
+    Deviation note (2026-08-25): callers (_ingest, _search, engine) import
+    this, but the rmi-backend upstream this file is vendored from does not
+    define it yet — refresh-vendors.sh cannot restore it. This bot embeds
+    exclusively via the rugbrain HTTP API (never locally), so the honest
+    answer is the operator override or 'remote'.
+    """
+    import os
+
+    return os.getenv("RAG_EMBED_BACKEND") or "remote"
+
+
 async def get_embedding(text: str, model: str = "") -> list[float]:
     """Get embedding vector via rugbrain POST /api/v1/embed (Qwen3-4B)."""
     import os
