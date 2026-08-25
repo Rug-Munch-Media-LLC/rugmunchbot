@@ -70,6 +70,28 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("lpcheck", "LP health & lock check"),
         ],
     ),
+    (
+        # 2026-08-25 capability audit: 67 registered commands were
+        # menu-invisible. These are the high-value user-facing ones (admin/
+        # owner-gated and auxiliary aliases stay unadvertised deliberately).
+        "Power Tools",
+        [
+            ("rugcheck", "Quick rug-pull risk check"),
+            ("honeypot", "Honeypot simulation — can you sell?"),
+            ("deployer", "Deployer fingerprint & history"),
+            ("holders", "Holder distribution analysis"),
+            ("smartmoney", "Smart-money wallet tracking"),
+            ("sentinelscan", "SENTINEL deep forensic scan"),
+            ("investigate", "Full token investigation dossier"),
+            ("whale", "Single whale wallet deep-dive"),
+            ("mev", "MEV & sandwich exposure check"),
+            ("compare", "Compare two tokens side-by-side"),
+            ("simulate", "Simulate a buy/sell before you trade"),
+            ("research", "Deep research report on a token"),
+            ("sentiment", "Social sentiment breakdown"),
+            ("dex", "DEX pair & liquidity lookup"),
+        ],
+    ),
 ]
 
 
