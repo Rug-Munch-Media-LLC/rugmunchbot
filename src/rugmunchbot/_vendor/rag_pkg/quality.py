@@ -62,14 +62,26 @@ class QualityFilter:
 
     def filter_batch(self, docs: list[Document]) -> tuple[list[Document], list[tuple[Document, str]]]:
         """Filter a batch of documents. Returns (accepted, rejected_with_reason)."""
+        import collections as _collections
+
         accepted: list[Document] = []
         rejected: list[tuple[Document, str]] = []
+        reasons: dict[str, int] = _collections.Counter()
+        samples: dict[str, str] = {}
         for doc in docs:
             ok, reason = self.check(doc)
             if ok:
                 accepted.append(doc)
             else:
+                base = reason.split(":")[0]
+                reasons[base] += 1
+                if base not in samples:
+                    samples[base] = doc.content[:80]
                 rejected.append((doc, reason))
+        if reasons:
+            hist = " ".join(f"{k}={v}" for k, v in reasons.most_common(5))
+            sample = next(iter(samples.items()))
+            log.warning("quality_reject_histogram %s | sample[%s]=%r", hist, sample[0], sample[1])
         return accepted, rejected
 
     @staticmethod
