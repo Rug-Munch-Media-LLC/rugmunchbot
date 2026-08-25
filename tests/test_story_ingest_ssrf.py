@@ -31,7 +31,7 @@ from rugmunchbot._vendor.rag_pkg.story_ingest import (
         "192.168.1.1",
         "169.254.169.254",  # cloud metadata
         "169.254.0.1",
-        "100.64.0.1",  # CGNAT
+        "100.64.0.1",  # CGNAT (RFC 6598 doc range — gitleaks:allow)
         "100.127.255.254",
         "0.0.0.0",  # noqa: S104 — test string, not a bind
         "192.0.2.1",  # documentation

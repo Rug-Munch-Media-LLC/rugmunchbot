@@ -304,6 +304,10 @@ def _key_metrics_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
         bundle_row = _bundle_verdict_row(r)
         if bundle_row is not None:
             rows.append(f"  Bundle         {bundle_row}")
+        else:
+            # Strategy v2 completeness bar: a missing bundle payload is
+            # shown honestly — silence would read as "scanned, clean".
+            rows.append("  Bundle         ⚪ <b>N/A</b>")
         cex = _cex_funded_pct(r)
         rows.append(
             f"  CEX-Funded     \U0001f3e6 <b>{cex:.1f}%</b>"
@@ -489,7 +493,8 @@ def _first_buyers_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
                 bits.append(f"bought {_fmt_age_compact(age_s)} old")
             if b.get("bundled"):
                 bits.append("\U0001f517 bundle")
-            rows.append(f"  {rank}. <code>{_short_addr(wallet)}</code> {' \u00b7 '.join(bits)}")
+            joined = " \u00b7 ".join(bits)
+            rows.append(f"  {rank}. <code>{_short_addr(wallet)}</code> {joined}")
 
     # Aggregates line — both modes (basic renders ONLY this line).
     parts = [f"<b>{len(buyers)}</b> tracked"]

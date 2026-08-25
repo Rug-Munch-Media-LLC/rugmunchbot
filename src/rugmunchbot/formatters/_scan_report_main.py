@@ -29,8 +29,8 @@ from rugmunchbot.formatters._base import footer_links, sep, thin_sep
 from rugmunchbot.formatters._scan_report_common import (
     _clip,
     _collapse_blank_lines,
-    _fmt_market_value,
     _first_buyers_rows,
+    _fmt_market_value,
     _format_scam_signals_section,
     _holder_distribution_rows,
     _key_metrics_rows,
@@ -393,6 +393,17 @@ def _format_scan_report(
         if holder_rows:
             lines.extend(["", "\U0001f465 <b>Holder Distribution</b>", d])
             lines.extend(holder_rows)
+        else:
+            # Strategy v2 completeness bar: concentration data absent must
+            # say so — a silent section reads as "checked, fine".
+            lines.extend(
+                [
+                    "",
+                    "\U0001f465 <b>Holder Distribution</b>",
+                    d,
+                    "  \u26aa <i>unavailable</i> \u2014 no holder analytics for this token",
+                ]
+            )
 
     # ── 7c. Deep-scan enrichment sections (RugMap cluster, market snapshot,
     #        wallet composition) render INSIDE the report, before the footer ──

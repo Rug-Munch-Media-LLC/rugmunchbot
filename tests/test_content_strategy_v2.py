@@ -11,74 +11,75 @@ Covers the four gaps closed in this session:
 
 from __future__ import annotations
 
+# ── Fix 1: BETA_FREE_DEEPSCAN ───────────────────────────────────────────
+import importlib
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
-# ── Fix 1: BETA_FREE_DEEPSCAN ───────────────────────────────────────────
+import rugmunchbot.handlers._scan_handlers._deepscan as _ds_module
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_beta_flag(monkeypatch):
+    """Reload the deepscan module with a KNOWN env state per test.
+
+    BETA_FREE_DEEPSCAN is read at import time, so tests that flip it must
+    reload the module — and the module must be restored afterwards or the
+    leak poisons every later test in the session (full-suite ordering).
+    """
+    monkeypatch.delenv("BETA_FREE_DEEPSCAN", raising=False)
+    importlib.reload(_ds_module)
+    yield
+    monkeypatch.delenv("BETA_FREE_DEEPSCAN", raising=False)
+    importlib.reload(_ds_module)
 
 
 def test_beta_flag_default_off():
-    import importlib
-
-    import rugmunchbot.handlers._scan_handlers._deepscan as ds
-
-    importlib.reload(ds)
-    assert ds.BETA_FREE_DEEPSCAN is False
-    assert ds._beta_banner_line() == ""
+    assert _ds_module.BETA_FREE_DEEPSCAN is False
+    assert _ds_module._beta_banner_line() == ""
 
 
 def test_beta_banner_line_when_on(monkeypatch):
-    import importlib
-
-    import rugmunchbot.handlers._scan_handlers._deepscan as ds
-
     monkeypatch.setenv("BETA_FREE_DEEPSCAN", "1")
-    reloaded = importlib.reload(ds)
+    reloaded = importlib.reload(_ds_module)
     assert reloaded.BETA_FREE_DEEPSCAN is True
     line = reloaded._beta_banner_line()
     assert "Free during beta" in line
     assert line.startswith("\n")
-    importlib.reload(ds)  # restore default-off for other tests
 
 
 @pytest.mark.asyncio
-async def test_deepscan_paywall_skipped_when_beta_free():
+async def test_deepscan_paywall_skipped_when_beta_free(monkeypatch):
     """Rate-limited non-owner gets a scan, not a paywall, when beta-free."""
-    import importlib
+    monkeypatch.setenv("BETA_FREE_DEEPSCAN", "1")
+    ds = importlib.reload(_ds_module)
+    assert ds.BETA_FREE_DEEPSCAN is True
 
-    import rugmunchbot.handlers._scan_handlers._deepscan as ds
+    update = SimpleNamespace(
+        effective_user=SimpleNamespace(id=999, username="u", first_name="U"),
+        message=SimpleNamespace(args=["0xabc"], reply_text=None, edit_text=None),
+    )
+    # reply_text records the FIRST call; if it's the paywall text the
+    # contract is broken.
+    calls: list = []
 
-    monkeypatch_env = {"BETA_FREE_DEEPSCAN": "1"}
-    with patch.dict("os.environ", monkeypatch_env):
-        reloaded = importlib.reload(ds)
-        assert reloaded.BETA_FREE_DEEPSCAN is True
+    async def _reply(text, **_kw):
+        calls.append(text)
 
-        update = SimpleNamespace(
-            effective_user=SimpleNamespace(id=999, username="u", first_name="U"),
-            message=SimpleNamespace(args=["0xabc"], reply_text=None, edit_text=None),
-        )
-        # reply_text records the FIRST call; if it's the paywall text the
-        # contract is broken.
-        calls: list = []
+    update.message.reply_text = _reply  # type: ignore[method-assign]
 
-        async def _reply(text, **_kw):
-            calls.append(text)
-
-        update.message.reply_text = _reply  # type: ignore[method-assign]
-
-        with (
-            patch.object(ds.db, "get_or_create_user"),
-            patch.object(ds.db, "check_rate_limit", return_value=(False, 5, 5)),
-            patch.object(ds.is_owner, "__wrapped__", create=True),
-            patch.object(ds, "is_owner", lambda _uid: False),
-        ):
-            await ds.cmd_deepscan(update, SimpleNamespace(args=[]))
-        assert not any("upgrade" in str(c).lower() for c in calls), (
-            "paywall branch must be skipped while BETA_FREE_DEEPSCAN=1"
-        )
-    importlib.reload(ds)
+    with (
+        patch.object(ds.db, "get_or_create_user"),
+        patch.object(ds.db, "check_rate_limit", return_value=(False, 5, 5)),
+        patch.object(ds.is_owner, "__wrapped__", create=True),
+        patch.object(ds, "is_owner", lambda _uid: False),
+    ):
+        await ds.cmd_deepscan(update, SimpleNamespace(args=[]))
+    assert not any("upgrade" in str(c).lower() for c in calls), (
+        "paywall branch must be skipped while BETA_FREE_DEEPSCAN=1"
+    )
 
 
 # ── Fix 2: W30 mirror-failure alerting ──────────────────────────────────
