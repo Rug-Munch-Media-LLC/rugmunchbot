@@ -117,6 +117,22 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         for item in sorted(main_items, key=lambda i: i.get("importance", 0.0), reverse=True):
             if not _remember("scansmain", _dedupe_key("scansmain", item)):
                 continue
+            # Repeat-suppression (2026-08-25): the same scam-channel story
+            # surfaces under many token addresses; address-keyed dedupe alone
+            # re-escalated it to main every tick. Also key on normalized
+            # title+verdict so near-identical cards collapse for a day.
+            import hashlib as _hl
+
+            content_sig = _hl.sha256(
+                (
+                    str(item.get("title") or item.get("name") or "").strip().lower()
+                    + "|"
+                    + str(item.get("verdict") or item.get("summary") or "").strip().lower()[:120]
+                ).encode()
+            ).hexdigest()[:16]
+            if not _remember("scansmain_content", f"scansmain_content:{content_sig}"):
+                logger.info("main_repeat_suppressed title=%s", str(item.get("title"))[:60])
+                continue
             # WO-2 hard cap: ≤9/day on main; overflow drops (the scans
             # card above already carries the item natively).
             if await _main_admission("scan") != "main":
