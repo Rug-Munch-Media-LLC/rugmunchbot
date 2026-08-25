@@ -20,6 +20,7 @@ from rugmunchbot.formatters._scan_report_common._fields import (
     _token_2022_flag,
     _volume_up_price_flat_churn,
 )
+from rugmunchbot.formatters._scan_report_common._text import _short_addr
 from rugmunchbot.formatters._sentinel_helpers import _fmt_usd_amount
 from rugmunchbot.support.logging import get_logger
 
@@ -108,8 +109,7 @@ def _bundle_verdict_row(r: dict[str, Any]) -> str | None:
             # derive one from the strongest coordination signal.
             subscores = [
                 _float_or_none(ba.get(k))
-                for k in ("launch_cluster_score", "common_funder_score",
-                          "similar_amount_score")
+                for k in ("launch_cluster_score", "common_funder_score", "similar_amount_score")
             ]
             present = [v for v in subscores if v is not None]
             conf = max(present) if present else None
@@ -118,8 +118,11 @@ def _bundle_verdict_row(r: dict[str, Any]) -> str | None:
             risk = "HIGH" if conf >= 70 else "ELEVATED" if conf >= 40 else "LOW"
         # Enrich with cluster subscore detail when available
         details = []
-        for k, label in (("launch_cluster_score", "launch"), ("common_funder_score", "funder"),
-                         ("similar_amount_score", "amount")):
+        for k, label in (
+            ("launch_cluster_score", "launch"),
+            ("common_funder_score", "funder"),
+            ("similar_amount_score", "amount"),
+        ):
             v = _float_or_none(ba.get(k))
             if v is not None and v >= 50:
                 details.append(f"{label} {v:.0f}")
@@ -317,7 +320,9 @@ def _key_metrics_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
         if gini is not None:
             try:
                 gini_val = float(gini)
-                gini_label = "EXTREME" if gini_val >= 0.8 else "HIGH" if gini_val >= 0.6 else "MODERATE"
+                gini_label = (
+                    "EXTREME" if gini_val >= 0.8 else "HIGH" if gini_val >= 0.6 else "MODERATE"
+                )
                 rows.append(f"  Gini Coeff     \U0001f4ca <b>{gini_val:.2f}</b> ({gini_label})")
             except (TypeError, ValueError):
                 pass
@@ -423,3 +428,82 @@ def _what_to_watch_line(r: dict[str, Any]) -> str:
     return (
         "Standard caution \u2014 size in small and watch sell pressure on the first green candle."
     )
+
+
+# ── 🛒 First Buyers (own-indexer engine, 2026-08-25 quality push) ──
+# Wallet-age bucket labels for the per-buyer rows (buckets come from the
+# backend's analyze_first_buyers_rows: wallet age AT its first buy).
+_FB_BUCKET_LABELS = {
+    "fresh": "\U0001f195 fresh",  # 🆕 born <24h before its first buy
+    "new": "\U0001f331 <7d",  # 🌱 born <7d before its first buy
+    "established": "\U0001f3e6 est",  # 🏦 older than 7d at first buy
+    "unknown": "\u2753",  # ❓ no birth data indexed
+}
+
+
+def _fmt_age_compact(seconds: Any) -> str:
+    """Human compact duration for first-buyer ages (45s / 12m / 3h / 2d)."""
+    try:
+        s = float(seconds)
+    except (TypeError, ValueError):
+        return ""
+    if s >= 86400:
+        return f"{s / 86400:.0f}d"
+    if s >= 3600:
+        return f"{s / 3600:.0f}h"
+    if s >= 60:
+        return f"{s / 60:.0f}m"
+    return f"{s:.0f}s"
+
+
+def _first_buyers_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
+    """🛒 First Buyers block rows — earliest buyers from OUR indexer.
+
+    basic (``/scan``): one aggregates line over the top-25 earliest buyers.
+    deep (``/scandeep``): top-10 buyer rows + the aggregates over the
+    top-200. Honest-data rule: renders nothing when the scan carries no
+    ``first_buyers`` payload (older backend, ClickHouse unreachable, or a
+    token with no indexed buys yet) — never fabricates buyer data.
+    """
+    fb = r.get("first_buyers")
+    if not isinstance(fb, dict):
+        return []
+    buyers = fb.get("buyers")
+    if not isinstance(buyers, list) or not buyers:
+        return []
+    agg = fb.get("aggregates") if isinstance(fb.get("aggregates"), dict) else {}
+
+    rows: list[str] = []
+    if deep:
+        rank = 0
+        for b in buyers[:10]:
+            if not isinstance(b, dict):
+                continue
+            wallet = str(b.get("wallet") or "")
+            if not wallet:
+                continue
+            rank += 1
+            bits = [_FB_BUCKET_LABELS.get(str(b.get("wallet_age_bucket")), "\u2753")]
+            age_s = _float_or_none(b.get("age_at_buy_s"))
+            if age_s is not None and age_s > 0:
+                bits.append(f"bought {_fmt_age_compact(age_s)} old")
+            if b.get("bundled"):
+                bits.append("\U0001f517 bundle")
+            rows.append(f"  {rank}. <code>{_short_addr(wallet)}</code> {' \u00b7 '.join(bits)}")
+
+    # Aggregates line — both modes (basic renders ONLY this line).
+    parts = [f"<b>{len(buyers)}</b> tracked"]
+    fresh = _float_or_none(agg.get("fresh_wallet_pct"))
+    if fresh is not None:
+        parts.append(f"\U0001f195 {fresh:.0f}% fresh wallets")
+    established = _float_or_none(agg.get("established_pct"))
+    if established is not None:
+        parts.append(f"\U0001f3e6 {established:.0f}% established")
+    bundled = _float_or_none(agg.get("bundled_pct"))
+    if bundled is not None:
+        parts.append(f"\U0001f517 {bundled:.0f}% bundled")
+    median = _float_or_none(agg.get("median_latency_s"))
+    if median is not None and median > 0:
+        parts.append(f"\u23f1 entry wave +{_fmt_age_compact(median)}")
+    rows.append("  " + " \u00b7 ".join(parts))
+    return rows

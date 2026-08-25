@@ -30,6 +30,7 @@ from rugmunchbot.formatters._scan_report_common import (
     _clip,
     _collapse_blank_lines,
     _fmt_market_value,
+    _first_buyers_rows,
     _format_scam_signals_section,
     _holder_distribution_rows,
     _key_metrics_rows,
@@ -344,6 +345,15 @@ def _format_scan_report(
     deployer_lines = _format_deployer_section(r)
     if deployer_lines:
         lines.extend(deployer_lines)
+
+    # ── 6c. First Buyers (own-indexer engine: earliest buyers with wallet-age
+    #        buckets + same-window bundling. basic = aggregates line over the
+    #        top-25; deep = top-10 rows + aggregates over the top-200.
+    #        Renders nothing when the engine had no data — never fabricates.) ──
+    fb_rows = _first_buyers_rows(r, deep=deep)
+    if fb_rows:
+        lines.extend(["", "\U0001f6d2 <b>First Buyers</b>", d])
+        lines.extend(fb_rows)
 
     # ── 7. Advanced Analysis (single consolidated section) ──
     adv: list[str] = []
