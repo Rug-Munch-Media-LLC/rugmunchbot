@@ -8,10 +8,10 @@
 canonical · owner=crmuncher · last_updated=2026-07-06
 
 ## What This Repo Is
-rugmunchbot — orphaned component. See TRIAGE.md for disposition.
+rugmunchbot — ACTIVE product: Telegram bot for the Rug Munch Intelligence platform.
 
 ## Type
-`orphan` · decision=MERGE → `rmi-backend` then ARCHIVE
+`active-product` · owner=RugMunchMedia · featured OSS
 
 ## Where It Lives
 - Source: `https://git.rugmunch.io/RugMunchMedia/rugmunchbot`
@@ -24,12 +24,12 @@ rugmunchbot — orphaned component. See TRIAGE.md for disposition.
 
 ## 🚨 CRITICAL RULES
 
-1. **No new features.** This repo is on a merge-and-archive track. Add nothing that isn't a fix or a docs improvement.
+1. **Active development.** Feature work welcome — follow conventional commits and test coverage rules.
 2. **No nested repos.** Don't commit other complete project trees inside this one.
 3. **No secrets.** Never commit `.secrets/`, `.env`, `*.pem`, `*.key`, `*.crt`. Use gopass.
 4. **No data blobs.** Don't commit `*.zip`, `*.parquet`, model weights, sqlite files.
 5. **Coordinate merges with rmi-backend.** When the merge happens, this repo will be archived on Forgejo.
-6. **Read TRIAGE.md before doing anything non-trivial.** The decision is final unless escalated.
+6. **Check docs/ before non-trivial changes.** Coordinate via open issues.
 
 ## Commands
 
@@ -37,7 +37,7 @@ There is no live build/test/dev cycle for this repo. It exists only to preserve 
 
 ## Status
 
-See [TRIAGE.md](TRIAGE.md) for the disposition decision.
+Status: active product — see README.md.
 
 ## Owners
 - Primary: crmuncher
