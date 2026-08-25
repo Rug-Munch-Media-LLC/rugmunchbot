@@ -291,3 +291,66 @@ async def _fetch_kol_signals(trending: list[dict[str, Any]]) -> list[dict[str, A
     except Exception as exc:  # fail-open — KOL signals are optional
         logger.debug("daily_market_summary:kol_signals_failed err=%s", str(exc)[:120])
     return []
+
+
+# ── RugBrain intel lanes (2026-08-25) ───────────────────────────────────────
+# The standalone market-awareness collections (whale_transfers, hacks_v2,
+# market_health, regulation_enforcement) now flow into the brief. Each lane
+# fails open to [] — intel is additive, never gating.
+
+
+_INTEL_LANES: tuple[tuple[str, str, int], ...] = (
+    ("whales", "large whale transfers today", 4),
+    ("exploits", "latest crypto exploit post-mortem", 3),
+    ("sentiment", "market sentiment fear greed open interest today", 3),
+    ("regulation", "SEC regulation enforcement action crypto", 3),
+)
+
+
+async def _fetch_intel_lane(lane: str, query: str, top_k: int) -> list[dict[str, Any]]:
+    """One intel collection via the RAG hybrid retriever (fail-open)."""
+    try:
+        from rugmunchbot._vendor.rag_pkg.retrieval import HybridRetriever
+
+        hits = await HybridRetriever().retrieve(
+            query=query,
+            collection=lane_collection(lane),
+            top_k=top_k,
+            candidate_k=top_k * 2,
+            rerank=False,  # snapshot docs — recency order suffices
+        )
+        out: list[dict[str, Any]] = []
+        for h in hits:
+            content = (getattr(h, "content", "") or "")[:280]
+            if not content:
+                continue
+            meta = getattr(h, "metadata", None) or {}
+            out.append({"content": content, "source": meta.get("source", lane)})
+        return out
+    except Exception as exc:
+        logger.debug("daily_market_summary:intel_%s_failed err=%s", lane, str(exc)[:120])
+    return []
+
+
+def lane_collection(lane: str) -> str:
+    return {
+        "whales": "whale_transfers",
+        "exploits": "hacks_v2",
+        "sentiment": "market_health",
+        "regulation": "regulation_enforcement",
+    }[lane]
+
+
+async def _fetch_rugbrain_intel() -> dict[str, list[dict[str, Any]]]:
+    """Gather all intel lanes in parallel → {lane: [docs]} (empty lanes dropped)."""
+    results = await asyncio.gather(
+        *(_fetch_intel_lane(lane, q, k) for lane, q, k in _INTEL_LANES),
+        return_exceptions=True,
+    )
+    intel: dict[str, list[dict[str, Any]]] = {}
+    for (lane, _, _), res in zip(_INTEL_LANES, results, strict=True):
+        if isinstance(res, BaseException):
+            continue
+        if res:
+            intel[lane] = res
+    return intel

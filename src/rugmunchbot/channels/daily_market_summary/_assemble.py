@@ -71,6 +71,20 @@ async def gather_summary_data() -> dict[str, Any]:
     except Exception as exc:
         logger.debug("daily_rug:social_failed err=%s", str(exc)[:120])
 
+    # RugBrain intel lanes — whales/exploits/sentiment/regulation from the
+    # standalone market-awareness collections (2026-08-25). Fail-open.
+    rugbrain_intel: dict[str, list[dict[str, Any]]] = {}
+    try:
+        from rugmunchbot.channels.daily_market_summary._fetch import (
+            _fetch_rugbrain_intel,
+        )
+
+        rugbrain_intel = await _fetch_rugbrain_intel()
+        if rugbrain_intel:
+            active.append("rugbrain_intel")
+    except Exception as exc:
+        logger.debug("daily_rug:intel_failed err=%s", str(exc)[:120])
+
     # The Daily Rug doctrine: no lies survive to publication. Symbol-colliding
     # impostor pairs ("SOL" the $20M meme) and absurd volume prints are
     # rejected here with logged reasons.
@@ -109,7 +123,9 @@ async def gather_summary_data() -> dict[str, Any]:
             rerank_stories,
         )
 
-        candidates = [s for s in (cleaned[4] if isinstance(cleaned[4], list) else []) if isinstance(s, dict)]
+        candidates = [
+            s for s in (cleaned[4] if isinstance(cleaned[4], list) else []) if isinstance(s, dict)
+        ]
         candidates += [n for n in narratives if isinstance(n, dict)]
         fresh, _rej = enforce_freshness(candidates)
         top_stories, _ranked = await rerank_stories(fresh, top_n=6)
@@ -128,6 +144,7 @@ async def gather_summary_data() -> dict[str, Any]:
         "kol_signals": kol_signals,
         "dune_intel": dune_data,
         "social_intel": social_data,
+        "rugbrain_intel": rugbrain_intel,
         "sources": active,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
@@ -250,7 +267,6 @@ def _serialize_context(context: dict[str, Any]) -> str:
             kol_lines.append(f'{label} "{title}" ({url}) {text}'.strip())
         parts.append("X/KOL SIGNALS (web search): " + " | ".join(kol_lines))
 
-
     dune = context.get("dune_intel") or {}
     d_queries = dune.get("queries") or {}
     if d_queries:
@@ -267,8 +283,25 @@ def _serialize_context(context: dict[str, Any]) -> str:
 
     social = context.get("social_intel") or {}
     if social.get("narrative"):
-        s_bits = [f"velocity={social.get('mention_velocity')}", f"mentions24h={social.get('mentions_24h')}"]
+        s_bits = [
+            f"velocity={social.get('mention_velocity')}",
+            f"mentions24h={social.get('mentions_24h')}",
+        ]
         if social.get("sentiment_lean") is not None:
             s_bits.append(f"lean={social['sentiment_lean']:+.0f}")
         parts.append("SOCIAL PULSE (BTC): " + ", ".join(s_bits))
+
+    # RugBrain intel lanes (whales/exploits/sentiment/regulation) — cite-or-omit.
+    intel = context.get("rugbrain_intel") or {}
+    intel_lines: list[str] = []
+    for lane, label in (
+        ("whales", "WHALES"),
+        ("exploits", "EXPLOITS"),
+        ("sentiment", "SENTIMENT"),
+        ("regulation", "REGULATORS"),
+    ):
+        for item in (intel.get(lane) or [])[:3]:
+            intel_lines.append(f"[{label}] {item.get('content', '')}")
+    if intel_lines:
+        parts.append("RUGBRAIN INTEL (from live collections): " + " | ".join(intel_lines[:10]))
     return "\n".join(parts)

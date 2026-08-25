@@ -109,7 +109,9 @@ async def check_qdrant() -> dict[str, Any]:
         qdrant_url = str(getattr(settings, "qdrant_url", "") or "")
         if not qdrant_url:
             return {"ok": True, "latency_ms": 0, "error": None, "skipped": "not configured"}
-        base = qdrant_url.replace(":6334", ":6333")  # gRPC port -> HTTP port
+        # 2026-08-25: no port rewriting — host-published v2 answers HTTP on
+        # :6334 (:6333 here is the OLD qdrant container).
+        base = qdrant_url
         async with httpx.AsyncClient(timeout=PROBE_TIMEOUT_SECONDS) as client:
             r = await client.get(f"{base}/collections")
             r.raise_for_status()
