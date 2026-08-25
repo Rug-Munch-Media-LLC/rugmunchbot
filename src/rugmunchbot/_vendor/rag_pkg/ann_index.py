@@ -205,21 +205,34 @@ class ANNIndex:
                 log.debug("ann_skip doc=%s err=%s", doc_id, e)
         if vecs:
             # Mixed-dim persisted state (1024-era + 2560 entries) cannot form
-            # a matrix — keep only vectors matching THIS index's dim and
-            # drop the rest (Qdrant holds the truth; cache rebuilds).
-            uniform = [v for v in vecs if len(v) == self.dim]
-            dropped = len(vecs) - len(uniform)
+            # a matrix — keep only entries whose vector matches THIS index's
+            # dim, and drop their id/meta mappings consistently (orphaned
+            # mappings caused out-of-bounds writes on later adds).
+            kept_ids: list[str] = []
+            kept_id_to_idx: dict[str, int] = {}
+            kept_meta: dict[str, dict[str, Any]] = {}
+            kept_vecs: list[list[float]] = []
+            dropped = 0
+            for doc_id, blob in zip(ids, [raw[k] for k in ids], strict=False):
+                try:
+                    entry = json.loads(blob)
+                    v = entry.get("vector", [])
+                except Exception:
+                    v = []
+                if len(v) == self.dim:
+                    kept_id_to_idx[doc_id] = len(kept_vecs)
+                    kept_ids.append(doc_id)
+                    kept_vecs.append(v)
+                    kept_meta[doc_id] = meta[doc_id]
+                else:
+                    dropped += 1
             if dropped:
                 log.warning(
                     "ann_load_dim_mismatch collection=%s kept=%d dropped=%d (expected dim=%d)",
-                    self.collection, len(uniform), dropped, self.dim,
+                    self.collection, len(kept_vecs), dropped, self.dim,
                 )
-            if uniform:
-                self._matrix = np.asarray(uniform, dtype=np.float32)
-            else:
-                self._matrix = None
-                ids, id_to_idx, meta = [], {}, {}
-                vecs = []
+            ids, id_to_idx, meta, vecs = kept_ids, kept_id_to_idx, kept_meta, kept_vecs
+            self._matrix = np.asarray(vecs, dtype=np.float32) if vecs else None
         self._ids = ids
         self._id_to_idx = id_to_idx
         self._meta = meta
