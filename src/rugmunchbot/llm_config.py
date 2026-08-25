@@ -8,7 +8,7 @@ bot's own environment — ``OPENROUTER_BACKUP_API_KEY`` and
 Chain (canonical — updated 2026-08-19):
   snappy = ``stepfun/step-3.7-flash:free`` via KiloCode (fast chat, free)
   long   = ``nvidia/nemotron-3.5-lightning:free`` via KiloCode (deep analysis, fast)
-  paid   = ``openai/gpt-oss-20b:free`` via OpenRouter (last-resort fallback)
+  paid   = ``nvidia/nemotron-3-super-120b-a12b:free`` via OpenRouter (last-resort fallback)
 On ANY free-tier failure (429 / non-200 / timeout / empty) the call is
 retried once with the paid ``:lowest`` model so chat never dies on a
 free-tier rate-limit. Returns ``""`` when both fail — callers fail open.
@@ -51,7 +51,7 @@ def get_snappy_config() -> dict[str, Any]:
         "model": "stepfun/step-3.7-flash:free",
         "base_url": f"{KILOCODE_BASE}/chat/completions",
         "api_key": KILOCODE_API_KEY,
-        "fallback_model": "openai/gpt-oss-20b:free",
+        "fallback_model": "nvidia/nemotron-3-super-120b-a12b:free",
         "fallback_base_url": f"{OPENROUTER_BASE}/chat/completions",
         "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 2000,
@@ -131,11 +131,13 @@ def get_zen_fallback_config(tier: str) -> dict[str, Any]:
 def get_cheap_fallback_config() -> dict[str, Any]:
     """Free last-resort fallback when primary tiers fail.
 
-    Uses GPT-OSS 20B via OpenRouter free tier. Zero cost.
+    Uses Nemotron 3 Super 120B via OpenRouter free tier. Zero cost.
+    (2026-08-25: openai/gpt-oss-20b:free was retired by OpenRouter —
+    "unavailable for free" 404; slug verified live against /models.)
     30s timeout — should be fast enough for a lightweight model.
     """
     return {
-        "model": "openai/gpt-oss-20b:free",
+        "model": "nvidia/nemotron-3-super-120b-a12b:free",
         "base_url": f"{OPENROUTER_BASE}/chat/completions",
         "api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 2000,
@@ -211,7 +213,25 @@ async def _chat_once(
         # failed call so the fallback chain picks a non-reasoning model.
         if not isinstance(content, str):
             return ""
-        return content.strip()
+        content = content.strip()
+        if content:
+            return content
+        # Reasoning-starvation guard (2026-08-25): reasoning models (StepFlash,
+        # nemotron-ultra, R1-class) burn the token budget on chain-of-thought
+        # before emitting any content — empty string with completion_tokens
+        # spent means the budget was too small, not a provider failure. Retry
+        # ONCE at double budget instead of failing the whole rung.
+        usage = raw.get("usage") if isinstance(raw.get("usage"), dict) else {}
+        spent = int(usage.get("completion_tokens") or 0)
+        if spent > 0 and attempt == 0:
+            retry_cfg = dict(config)
+            retry_cfg["max_tokens"] = min(
+                max(int(retry_cfg.get("max_tokens") or 512) * 2, 1024), 4000
+            )
+            result = await _chat_once(retry_cfg, messages, int(retry_cfg["max_tokens"]))
+            if result:
+                return result
+        return ""
     return ""
 
 

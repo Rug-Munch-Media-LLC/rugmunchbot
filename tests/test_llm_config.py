@@ -20,7 +20,9 @@ def test_snappy_config_points_at_stepflash():
     assert cfg["base_url"].startswith(llm_config.KILOCODE_BASE)
     assert "/chat/completions" in cfg["base_url"]
     # Fallback leg is the OpenRouter free model, not another KiloCode route.
-    assert cfg["fallback_model"] == "openai/gpt-oss-20b:free"
+    # (2026-08-25: openai/gpt-oss-20b:free retired by OpenRouter — 404
+    # "unavailable for free"; nemotron-3-super-120b verified live.)
+    assert cfg["fallback_model"] == "nvidia/nemotron-3-super-120b-a12b:free"
 
 
 def test_long_config_points_at_nemotron_lightning():
@@ -30,9 +32,9 @@ def test_long_config_points_at_nemotron_lightning():
     assert cfg["fallback_model"] == "nvidia/nemotron-3-ultra-550b-a55b:free"
 
 
-def test_cheap_fallback_is_free_gpt_oss():
+def test_cheap_fallback_is_free_nemotron_super():
     cfg = llm_config.get_cheap_fallback_config()
-    assert cfg["model"] == "openai/gpt-oss-20b:free"
+    assert cfg["model"] == "nvidia/nemotron-3-super-120b-a12b:free"
     assert cfg["base_url"].startswith(llm_config.OPENROUTER_BASE)
 
 
