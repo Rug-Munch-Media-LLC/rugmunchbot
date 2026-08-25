@@ -7,6 +7,7 @@ from datetime import time as dtime  # noqa: F401 — used by daily_scam_tip if r
 from typing import Any
 
 import httpx
+from telegram import BotCommand
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -155,8 +156,6 @@ from rugmunchbot.observability import (
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
-
-
 
 
 def main() -> None:
@@ -353,16 +352,15 @@ def main() -> None:
         the menu from 18 to 12 commands. This makes the desired state
         declarative — whatever is in the bot process IS the menu.
         """
-        commands = [
-            {"command": c.command, "description": c.description}
-            for c in _BOT_COMMANDS
-        ]
+        # BotCommand OBJECTS, not dicts — PTB's set_my_commands does not
+        # convert dicts and fails with KeyError('0') (logged as err=0),
+        # which silently kept the menu stale on every boot until now.
+        commands = [BotCommand(command=c.command, description=c.description) for c in _BOT_COMMANDS]
         try:
             await app.bot.set_my_commands(commands)
             logger.info("command_menu_asserted count=%d", len(commands))
         except Exception as exc:
             logger.warning("command_menu_assert_failed err=%s", str(exc)[:120])
-
 
     async def startup(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
         await check_backend_health()

@@ -50,6 +50,26 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("status", "Live data-source tier health"),
         ],
     ),
+    (
+        # 2026-08-25 capability-sync: these were registered but menu-invisible
+        # (B10 audit) — users could not discover them via the BotFather menu.
+        "Markets & Discovery",
+        [
+            ("trending", "Hot tokens right now"),
+            ("movers", "Biggest 24h gainers & losers"),
+            ("launches", "New token launch feed"),
+            ("whales", "Recent whale moves feed"),
+            ("yield", "DeFi yield opportunities"),
+            ("defi", "DeFi protocol analytics"),
+            ("polymarket", "Prediction market odds"),
+            ("election", "Election odds markets"),
+            ("odds", "Sports & event odds"),
+            ("tokeninfo", "Token DNA fingerprint"),
+            ("cascadewatch", "Liquidation cascade risk for a token"),
+            ("portfolio", "Wallet holdings overview"),
+            ("lpcheck", "LP health & lock check"),
+        ],
+    ),
 ]
 
 

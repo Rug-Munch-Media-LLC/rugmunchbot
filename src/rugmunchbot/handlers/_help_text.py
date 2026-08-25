@@ -120,6 +120,8 @@ _MENU_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("deathclock", "<code>address</code> - survival prediction"),
             ("laundry", "<code>address</code> - laundering detector"),
             ("cluster", "<code>address</code> - wallet clustering"),
+            ("tokeninfo", "<code>address</code> - token DNA fingerprint"),
+            ("cascadewatch", "<code>address</code> - liquidation cascade risk"),
         ],
     ),
     (
@@ -143,6 +145,10 @@ _MENU_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("polymarket", "- prediction markets"),
             ("election", "- election odds"),
             ("odds", "- sports & event odds"),
+            ("volume", "[chain] - volume analytics & leaders"),
+            ("liqmap", "- cross-exchange liquidation pressure map"),
+            ("hlwhales", "- Hyperliquid whale action & funding squeezes"),
+            ("dislocation", "- cross-venue funding basis monitor"),
         ],
     ),
     (
@@ -190,6 +196,8 @@ _MENU_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("start", "- welcome & quick start"),
             ("help", "- full command guide"),
             ("menu", "- this menu"),
+            ("status", "- live data-source tier health"),
+            ("exchangeaudit", "- exchange reserve integrity audit"),
         ],
     ),
     (
