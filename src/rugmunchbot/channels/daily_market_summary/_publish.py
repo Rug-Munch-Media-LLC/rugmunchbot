@@ -54,6 +54,14 @@ Top-chain TVL 7d trend, total market volume, stablecoin/flow signals from GLOBAL
 ## MARKET DRIVERS
 • event — why it matters. Macro, ETF flows, unlocks, listings, hacks. Ground in data, link each: <a href="URL">headline</a>.
 
+## WHALE & EXPLOIT DESK
+From the RUGBRAIN INTEL block ONLY — cite-or-omit, never invent:
+• Whale moves: "X,XXX ETH moved" style one-liners with direction if inferable.
+• Exploits: protocol, loss size, technique — one line each. No exploit data = OMIT the whole section.
+
+## REGULATORS
+SEC/enforcement items from RUGBRAIN INTEL: who, what, why it matters to crypto. Absent = OMIT.
+
 ## TOP NEWS
 • <a href="URL">headline</a> (source) — 3-5 stories that move markets. Every bullet needs its real URL from data.
 
