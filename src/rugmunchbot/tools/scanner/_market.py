@@ -17,6 +17,9 @@ from rugmunchbot.tools.scanner._providers import _safe_float
 #: "—" unless a provider reports them.
 _DS_PRICE_CHANGE_TFS = ("m1", "m5", "h1", "h6", "h24")
 _DS_VOLUME_TFS = ("m5", "h1", "h6", "h24")
+#: Buy/sell transaction counts per timeframe (``txns``) — available on every
+#: chain DexScreener covers, so the report's trade-flow line renders for all.
+_DS_TXN_TFS = ("h1", "h6", "h24")
 
 
 def _ds_timeframe_map(raw: Any, allowed: tuple[str, ...]) -> dict[str, float | None]:
@@ -89,7 +92,33 @@ def _ds_market_snapshot(pairs: Any) -> dict[str, Any]:
         "symbol": (base.get("symbol") or "") if isinstance(base, dict) else "",
         "volume_tf": _ds_timeframe_map(best.get("volume"), _DS_VOLUME_TFS),
         "price_change_tf": _ds_timeframe_map(best.get("priceChange"), _DS_PRICE_CHANGE_TFS),
+        "txns_tf": _ds_txn_map(best.get("txns")),
     }
+
+
+def _ds_txn_map(raw: Any) -> dict[str, dict[str, int | None]]:
+    """Extract per-timeframe buy/sell counts from DexScreener ``txns``.
+
+    Every chain DexScreener covers ships ``txns`` — this is how the report
+    renders real trade flow ("buys vs sells") everywhere, not just Solana.
+    Missing sides stay None (honest), never coerced to 0.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, dict[str, int | None]] = {}
+    for tf in _DS_TXN_TFS:
+        side = raw.get(tf)
+        if not isinstance(side, dict):
+            continue
+
+        def _int(v: Any) -> int | None:
+            try:
+                return int(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        out[tf] = {"buys": _int(side.get("buys")), "sells": _int(side.get("sells"))}
+    return out
 
 
 def _merge_market_snapshot(result: dict[str, Any], snap: dict[str, Any]) -> None:
@@ -121,6 +150,9 @@ def _merge_market_snapshot(result: dict[str, Any], snap: dict[str, Any]) -> None
         pc = (snap.get("price_change_tf") or {}).get(tf)
         if pc is not None:
             result[f"price_change_{report_tf}"] = pc
+        txns = (snap.get("txns_tf") or {}).get(tf)
+        if txns is not None:
+            result[f"txns_{report_tf}"] = txns
     # m1/m5 price change is too noisy for the Market Data block — keep the
     # mapping complete under ``price_change_min`` for any consumer that wants
     # the finer windows.
@@ -173,7 +205,5 @@ async def jupiter_price(client: Any, mint: str) -> dict[str, Any] | None:
     except Exception as exc:
         from rugmunchbot.support.logging import get_logger
 
-        get_logger("rmi_bot.scanner.market").debug(
-            "jupiter_price_failed %s: %s", mint[:10], exc
-        )
+        get_logger("rmi_bot.scanner.market").debug("jupiter_price_failed %s: %s", mint[:10], exc)
         return None

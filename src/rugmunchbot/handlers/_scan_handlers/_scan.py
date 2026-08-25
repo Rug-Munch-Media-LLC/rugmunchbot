@@ -102,7 +102,7 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             return
     started = time.monotonic()
     msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        f"\U0001f50d <b>Scanning token...</b>\n<code>{target}</code>\n\n\u23f3 Running multi-source security checks...",
+        f"\U0001f504 <b>Scanning token...</b>\n<code>{target}</code>\n\n\u23f3 Running multi-source security checks...",
         parse_mode=ParseMode.HTML,
     )
     # Human-analyst feel: keep the typing bubble alive while the providers
@@ -110,6 +110,29 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     # scan is genuinely slow (see _edit_stage_if_slow gates below).
     typing_task = asyncio.create_task(_keep_typing(msg.chat))
     try:
+        # 2026-08-25 quality push: resolve $TICKER / free-text targets to a
+        # REAL contract address BEFORE scanning. The old flow passed
+        # "$smolcat" into every provider as if it were an address — all
+        # missed, yet the report still rendered a confident empty verdict.
+        from rugmunchbot.tools.scanner._resolve_target import resolve_scan_target
+
+        resolved = await resolve_scan_target(target, chain)
+        if resolved is None:
+            await msg.edit_text(
+                token_not_found_card(target, cmd="scan"),
+                parse_mode=ParseMode.HTML,
+                reply_markup=back_kb(),
+            )
+            return
+        if resolved.resolved_from == "dexscreener_search":
+            target = resolved.address
+            chain = resolved.chain or chain
+            await msg.edit_text(  # type: ignore[union-attr]
+                f"\U0001f504 <b>Scanning</b> <code>${resolved.query}</code>\n"
+                f"<code>{target}</code>\n\n"
+                "\u23f3 Resolved from live DEX data \u2014 running multi-source security checks...",
+                parse_mode=ParseMode.HTML,
+            )
         # Short-TTL scan cache: repeat /scan of the same token is instant —
         # skip the whole provider chain (v2 POST + DexScreener supplement +
         # legacy fallback) within the 30s window. Fail-open: a miss rescans.
@@ -122,17 +145,17 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             result_v2 = await scan_token_v2(target, chain)
             if result_v2 is not None:
                 result = v2_token_to_legacy(result_v2)
-                # Supplement with DexScreener data when the v2 payload left
-                # liquidity / deployer / socials unresolved (free-tier scans
-                # skip the backend deployer module, so this is what fills the
-                # report's Deployer + Socials blocks). One fetch, fail-open,
-                # real data only.
-                result = await _supplement_deployer_socials(
-                    result, target, chain or str(result.get("chain") or "")
-                )
             else:
                 # v2 unavailable → fall back to legacy multi-source scanner
                 result = await scan_token(target, chain)
+            # Market/deployer/socials backfill runs on BOTH paths (2026-08-25):
+            # the report's Market Data / Deployer / Socials blocks must show
+            # real liquidity, volume, price change, creator and links even
+            # when the v2 backend left them unresolved. Idempotent,
+            # never clobbers existing values, real data only.
+            result = await _supplement_deployer_socials(
+                result, target, chain or str(result.get("chain") or "")
+            )
             _scan_cache_set(target, chain_key, result)
         # A token is "not found" when the v2 scanner couldn't even compute a
         # safety score (no DexScreener data, no chain data at all). If safety_score

@@ -103,6 +103,42 @@ async def _birdeye_creator(address: str, chain: str) -> str:
     return ""
 
 
+async def _birdeye_holders(address: str, chain: str) -> int | None:
+    """Best-effort Birdeye ``token_overview`` holder count (key-gated).
+
+    Fills the report's Holders line when the v2 backend / GMGN enrichment
+    left it empty — real data only, ``None`` when unavailable. Never raises.
+    """
+    key = os.getenv("BIRDEYE_API_KEY", "").strip()
+    if not key:
+        return None
+    try:
+        body = await http_get_json(
+            "https://public-api.birdeye.so/defi/token_overview",
+            params={"address": address},
+            headers={"X-API-KEY": key, "x-chain": chain or "solana"},
+            timeout=6.0,
+        )
+        data = body.get("data") if isinstance(body, dict) else None
+        if isinstance(data, dict):
+            raw = data.get("holder_count") or data.get("holders")
+            if raw is not None:
+                count = int(raw)
+                if count >= 0:
+                    return count
+    except (
+        ConnectionError,
+        OSError,
+        TimeoutError,
+        httpx.HTTPError,
+        httpx.TimeoutException,
+        TypeError,
+        ValueError,
+    ):
+        logger.debug("birdeye_holders_failed", exc_info=True)
+    return None
+
+
 async def _supplement_deployer_socials(
     result: dict[str, Any],
     address: str,
@@ -130,6 +166,41 @@ async def _supplement_deployer_socials(
     chain_norm = chain or str(result.get("chain") or "") or _detect_chain(address)
     creator = ""
     pair_socials: dict[str, str] = {}
+
+    # Leg 0 — OUR OWN INDEXER first (2026-08-25 quality push): the backend
+    # DataBus aggregate (359M+ on-chain rows, 17 chains) beats external
+    # sources for holders/taxes/security fields when it has the token.
+    # Fail-open; never clobbers values the v2 scan already filled.
+    try:
+        from rugmunchbot.config import BACKEND_URL, backend_headers
+        from rugmunchbot.tools._client import get_shared_client
+
+        client = get_shared_client(8)
+        r = await client.get(
+            f"{BACKEND_URL}/api/v1/databus/token/{address}",
+            headers=backend_headers(),
+        )
+        if r.status_code == 200:
+            agg = r.json() if isinstance(r.json(), dict) else {}
+            data = agg.get("data") if isinstance(agg.get("data"), dict) else agg
+            for src_key, dst_key in (
+                ("holder_count", "holders"),
+                ("total_holders", "holders"),
+                ("holders", "holders"),
+                ("buy_tax", "buy_tax"),
+                ("sell_tax", "sell_tax"),
+                ("deployer", "deployer_address"),
+                ("creator", "deployer_address"),
+            ):
+                val = data.get(src_key)
+                if val is not None and not result.get(dst_key):
+                    result[dst_key] = val
+            if isinstance(data.get("socials"), dict) and data["socials"]:
+                merged = dict(socials)
+                merged.update({k: str(v) for k, v in data["socials"].items() if v})
+                result["socials"] = merged
+    except Exception:
+        logger.debug("databus_supplement_miss %s", address[:12], exc_info=True)
 
     try:
         body = await http_get_json(f"{DEXSCREENER}/tokens/{address}", timeout=8.0)
@@ -171,6 +242,16 @@ async def _supplement_deployer_socials(
         merged = dict(socials)
         merged.update(pair_socials)
         result["socials"] = merged
+
+    # Holders backfill (2026-08-25 quality push): the report's Holders line
+    # must show a real count when any source has one — Birdeye is the
+    # fail-open last leg when v2/GMGN left it empty.
+    _holders = result.get("holders")
+    holders = _holders if isinstance(_holders, (int, float)) else None
+    if not holders:
+        count = await _birdeye_holders(address, chain_norm)
+        if count is not None:
+            result["holders"] = count
 
     return result
 

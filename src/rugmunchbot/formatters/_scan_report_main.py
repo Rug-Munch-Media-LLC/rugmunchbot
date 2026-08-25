@@ -220,9 +220,8 @@ def _format_scan_report(
         )
 
         price = r.get("price")
-        changes = {k: r.get(k) for k in
-                   ("price_change_1h", "price_change_6h", "price_change_24h")}
-        wash_v = ((r.get("wash_trading") or {}).get("verdict"))
+        changes = {k: r.get(k) for k in ("price_change_1h", "price_change_6h", "price_change_24h")}
+        wash_v = (r.get("wash_trading") or {}).get("verdict")
         sim = simulate_entry(float(price), changes) if price else {}
         sim_line = render_simulated_line(sim, wash_verdict=wash_v)
         if sim_line:
@@ -305,6 +304,22 @@ def _format_scan_report(
     lines.append(
         f"  \U0001f504 1h: {_pct_market(pc_1h)} | 6h: {_pct_market(pc_6h)} | 24h: {_pct_market(pc_24h)} | 7d: {_pct_market(pc_7d)}"
     )
+    # Trade flow (2026-08-25 quality push): real buys-vs-sells per timeframe
+    # from DexScreener ``txns`` — every chain, wash-trading is visible as
+    # lopsided flow. Only renders timeframes the payload actually carried.
+    flow_bits: list[str] = []
+    for tf in ("1h", "6h", "24h"):
+        txns = r.get(f"txns_{tf}")
+        if isinstance(txns, dict) and (
+            txns.get("buys") is not None or txns.get("sells") is not None
+        ):
+            buys = txns.get("buys")
+            sells = txns.get("sells")
+            b = f"{buys:,}" if isinstance(buys, int) else "—"
+            s = f"{sells:,}" if isinstance(sells, int) else "—"
+            flow_bits.append(f"{tf}: {b}🟢 / {s}🔴")
+    if flow_bits:
+        lines.append(f"  \U0001f4b9 Trades  {' | '.join(flow_bits)}")
 
     # ── 4. SENTINEL Forensics ──
     sentinel_flags = _format_sentinel_pro(r)

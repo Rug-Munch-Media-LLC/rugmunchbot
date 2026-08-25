@@ -146,6 +146,22 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception:
         logger.debug("deepscan phase-1 progress edit failed", exc_info=True)
     try:
+        # 2026-08-25 quality push: resolve $TICKER / free-text targets to a
+        # REAL contract address before the deep phases run (same contract as
+        # /scan — never scan a junk string).
+        from rugmunchbot.tools.scanner._resolve_target import resolve_scan_target
+
+        resolved = await resolve_scan_target(target, chain)
+        if resolved is None:
+            await msg.edit_text(
+                token_not_found_card(target, cmd="deepscan"),
+                parse_mode=ParseMode.HTML,
+                reply_markup=back_kb(),
+            )
+            return
+        if resolved.resolved_from == "dexscreener_search":
+            target = resolved.address
+            chain = resolved.chain or chain
         result_v2 = await scan_token_v2(target, chain)
         if (
             result_v2 is not None
@@ -154,7 +170,9 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         ):
             # Deep phases still running — wait briefly so the wallet
             # composition (fresh/CEX/brand-new %) lands before we render.
-            completed = await _poll_v2_scan_completion(target, chain or result_v2.get("chain") or detect_chain(target))
+            completed = await _poll_v2_scan_completion(
+                target, chain or result_v2.get("chain") or detect_chain(target)
+            )
             if completed:
                 _merge_completed_scan(result_v2, completed)
         # Phase 2: Security + Holders complete
@@ -172,7 +190,9 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             result = v2_token_to_legacy(result_v2)
             # Fill deployer + socials (and backfill liquidity) from
             # DexScreener when the v2 payload left them unresolved.
-            result = await _supplement_deployer_socials(result, target, chain or str(result.get("chain") or ""))
+            result = await _supplement_deployer_socials(
+                result, target, chain or str(result.get("chain") or "")
+            )
         else:
             result = await scan_token(target, chain)
         if result["name"] == "Unknown" and not result["errors"]:
@@ -238,7 +258,9 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # ``token_created_ts`` (DexScreener pair creation) lets the formatter
         # suppress fresh/brand-new stats when the indexer's coverage starts
         # long after the token launched (coverage artifact, not a signal).
-        wallet_section = format_wallet_composition_section(result, token_created_ts=token_created_ts)
+        wallet_section = format_wallet_composition_section(
+            result, token_created_ts=token_created_ts
+        )
         if wallet_section:
             enrichment_lines.append(wallet_section)
 
@@ -275,7 +297,11 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         logger.debug("cmd_deepscan_error", exc_info=True)
         logger.error(f"Deep scan error: {e}")
         await msg.edit_text(
-            failure_card("Deep Scan Failed", "The deep scanner hit an unexpected error.", ACTION_CHECK_ADDRESS),
+            failure_card(
+                "Deep Scan Failed",
+                "The deep scanner hit an unexpected error.",
+                ACTION_CHECK_ADDRESS,
+            ),
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
@@ -355,7 +381,9 @@ async def sentinel_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await _stop_task(progress_task)
         if not result:
             await msg.edit_text(
-                failure_card("AEGIS Scan Failed", "Could not reach the forensic pipeline.", ACTION_TRY_AGAIN),
+                failure_card(
+                    "AEGIS Scan Failed", "Could not reach the forensic pipeline.", ACTION_TRY_AGAIN
+                ),
                 parse_mode=ParseMode.HTML,
                 reply_markup=back_kb(),
             )
@@ -377,7 +405,11 @@ async def sentinel_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         logger.debug("sentinel_scan_error", exc_info=True)
         logger.error(f"SENTINEL scan error: {e}")
         await msg.edit_text(
-            failure_card("AEGIS Scan Failed", "The forensic pipeline hit an unexpected error.", ACTION_CHECK_ADDRESS),
+            failure_card(
+                "AEGIS Scan Failed",
+                "The forensic pipeline hit an unexpected error.",
+                ACTION_CHECK_ADDRESS,
+            ),
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
