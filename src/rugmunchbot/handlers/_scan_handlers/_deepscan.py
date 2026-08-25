@@ -10,6 +10,7 @@ importers/tests keep working unchanged.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -80,6 +81,19 @@ if TYPE_CHECKING:
 
 logger = get_logger("rmi_bot")
 
+# CONTENT-STRATEGY-CANONICAL v2 — DEEPSCANS FREE DURING BETA: when
+# BETA_FREE_DEEPSCAN=1 the deep-scan rate-limit paywall branch is skipped so
+# users can test + compare freely, and a beta banner rides on every deep
+# report. Default off (normal rate limits apply).
+BETA_FREE_DEEPSCAN = os.getenv("BETA_FREE_DEEPSCAN", "0") == "1"
+
+_BETA_BANNER = "\U0001f9ea <i>Free during beta — feedback welcome.</i>"
+
+
+def _beta_banner_line() -> str:
+    """Beta banner line for deep reports (empty when beta-free is off)."""
+    return f"\n{_BETA_BANNER}" if BETA_FREE_DEEPSCAN else ""
+
 
 async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Full multi-phase deep scan (v6).
@@ -112,7 +126,10 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     target = ctx.args[0]
     chain = ctx.args[1] if len(ctx.args) > 1 else None
-    if not is_owner(user.id):
+    # Beta-free deepscans (CONTENT-STRATEGY-CANONICAL v2): the paywall
+    # branch is skipped entirely while BETA_FREE_DEEPSCAN=1 — owners keep
+    # their unlimited path either way.
+    if not (is_owner(user.id) or BETA_FREE_DEEPSCAN):
         allowed, _used, _limit = db.check_rate_limit(user.id, "scan")
         if not allowed:
             tier = db.get_user_tier(user.id)
@@ -278,6 +295,7 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # (RugMap cluster, market snapshot, wallet composition) rendered
         # INSIDE the report — before the footer, never appended after it.
         report = format_deep_scan_report(result, extra_sections=enrichment_lines)
+        report += _beta_banner_line()
         db.increment_usage(user.id, scan=True)
         db.log_scan(user.id, target, result["chain"], "deep", result["risk_score"])
         user_tier = db.get_user_tier(user.id)
@@ -343,7 +361,8 @@ async def sentinel_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     target = ctx.args[0]
     chain = ctx.args[1] if len(ctx.args) > 1 else None
-    if not is_owner(user.id):
+    # Beta-free deepscans — same contract as cmd_deepscan above.
+    if not (is_owner(user.id) or BETA_FREE_DEEPSCAN):
         allowed, _used, _limit = db.check_rate_limit(user.id, "scan")
         if not allowed:
             tier = db.get_user_tier(user.id)
@@ -395,6 +414,7 @@ async def sentinel_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         analyst_read = await render_analyst_read_block(result)
         report = format_sentinel_deepscan_section(result, analyst_read=analyst_read)
         report += f"\n\n{footer_links()}"
+        report += _beta_banner_line()
         await msg.edit_text(
             report,
             parse_mode=ParseMode.HTML,

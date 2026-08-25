@@ -45,11 +45,14 @@ _TITLE_REWRITE_TIMEOUT: Final = 5.0
 _TITLE_MAX_CHARS: Final = 120
 
 #: Rewrite instruction — output ONLY the new title, no markdown, no quotes.
+#: ``{style}`` carries the per-channel contract fragment
+#: (``channels/style_guides.py``, strategy v2 item 6) so rewrites obey the
+#: destination channel's doctrine, not just the generic headline rules.
 _REWRITE_PROMPT: Final = (
     "Rewrite the following crypto-news headline into a concise, human-sounding, "
     "non-clickbait title. Rules: no ALL-CAPS, no emoji, no quotes, no leading "
     "'BREAKING:'/'URGENT' prefix, keep the crypto tone, at most 12 words, plain "
-    "text only. Output ONLY the rewritten title.\n\nHeadline: {title}"
+    "text only.{style}\nOutput ONLY the rewritten title.\n\nHeadline: {title}"
 )
 
 #: Characters the model may wrap the title in — stripped before acceptance.
@@ -65,7 +68,7 @@ def _clean_rewritten(raw: object) -> str:
     return text[:_TITLE_MAX_CHARS].rstrip()
 
 
-async def rewrite_news_title(title: str) -> str:
+async def rewrite_news_title(title: str, *, channel: str = "news") -> str:
     """Rewrite *title* into a concise, human-sounding headline (fail-open).
 
     Returns the original *title* unchanged when:
@@ -76,11 +79,15 @@ async def rewrite_news_title(title: str) -> str:
 
         Never raises. Reuses ``_call_remote_llm`` (the bot's own remote LLM
         client), which already injects ``PERSONA_CONTEXT`` from ``prompts.py``
-        via the system prompt.
+        via the system prompt. The destination channel's style-guide fragment
+        (strategy v2 item 6) rides along when one exists.
     """
     original = (title or "").strip()
     if not original or not TITLE_REWRITE_ENABLED:
         return original
+    from rugmunchbot.channels.style_guides import style_guide
+
+    guide = style_guide(channel)
     try:
         # Lazy import keeps this module import-light (no chat_ai deps at
         # module scope) and mirrors the codebase's lazy-client pattern.
@@ -89,7 +96,13 @@ async def rewrite_news_title(title: str) -> str:
         result = await asyncio.wait_for(
             # Channel title rewrites are NOT chat calls — no history, no
             # usage counters; the client is fail-open and never raises.
-            _call_remote_llm(_REWRITE_PROMPT.format(title=original), user_id=0),
+            _call_remote_llm(
+                _REWRITE_PROMPT.format(
+                    title=original,
+                    style=f"\n{guide}" if guide else "",
+                ),
+                user_id=0,
+            ),
             timeout=_TITLE_REWRITE_TIMEOUT,
         )
     except asyncio.CancelledError:

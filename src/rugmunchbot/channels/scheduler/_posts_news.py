@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rugmunchbot.channels.content import (
     fetch_risk_alerts,
@@ -35,6 +35,35 @@ from rugmunchbot.channels.scheduler._tick import (  # noqa: F401
     _load_channel_state,
     _tick_wrapper,
 )
+
+
+def _index_alerts_to_rag(alerts: list[dict[str, Any]]) -> int:
+    """W8 (CONTENT-STRATEGY-CANONICAL v2): fire-and-forget index fresh
+    alerts into the RAG scan-memory so chat can cite live alert intel.
+
+    Alert items already match the ``scan_v1`` summary shape (address,
+    chain, risk_score, holders, liquidity); only the flag key differs
+    (``risk_flags`` vs ``threats``) and is remapped on a shallow copy.
+    Fail-open: indexing never blocks or breaks posting. Returns the
+    number of items handed to the background indexer.
+    """
+    try:
+        from rugmunchbot.tools.scanner import schedule_scan_memory_index
+
+        indexed = 0
+        for item in alerts:
+            if not item.get("address"):
+                continue
+            payload = dict(item)
+            payload.setdefault("threats", item.get("risk_flags") or [])
+            if schedule_scan_memory_index(payload, source="alert") is not None:
+                indexed += 1
+        if indexed:
+            logger.info("alerts_indexed_to_rag count=%d", indexed)
+        return indexed
+    except Exception as e:
+        logger.debug("alerts_rag_index_skipped err=%s", str(e)[:120])
+        return 0
 
 
 async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -80,6 +109,7 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     main_items, channel_items, reranker_down = await _score_and_partition(
         fresh, category="news", source="scanner"
     )
+    _index_alerts_to_rag(fresh)
     posted = 0
     if channel_items:
         ok = await _post_photo_aware(
@@ -102,7 +132,9 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
             main_text = enforce_main_link_contract(format_main_escalation(item), item)
             if main_text is None:
-                logger.warning("main_link_contract_blocked type=alert name=%s", str(item.get("name"))[:40])
+                logger.warning(
+                    "main_link_contract_blocked type=alert name=%s", str(item.get("name"))[:40]
+                )
                 continue
             ok = await _post_photo_aware(ctx.bot, main_chat_id, main_text, _safe_send)
             if ok:
