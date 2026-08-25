@@ -16,7 +16,7 @@ from rugmunchbot.handlers.chat_ai._llm._constants import (
     _WEB_FALLBACK_TIMEOUT,
     _WEB_RESULTS_MAX,
 )
-from rugmunchbot.handlers.chat_ai._llm._sources import _normalize_source_domain
+from rugmunchbot.handlers.chat_ai._llm._sources import _normalize_source_domain, _source_is_junk
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.chat_ai")
@@ -43,6 +43,11 @@ def _render_web_results(results: list[dict[str, str]]) -> tuple[str, list[dict[s
         title = str(r.get("title") or "").strip()
         snippet = str(r.get("snippet") or "").strip()
         if not url:
+            continue
+        # Junk-domain gate (2026-08-25): dictionaries, find-my-phone pages,
+        # content farms etc. never enter the context OR the sources footer —
+        # a real URL can still be a worthless citation.
+        if _source_is_junk(url):
             continue
         # One page per domain — both the context block the model reads and
         # the sources footer stay clean (first result per domain wins).

@@ -32,8 +32,25 @@ async def _fetch_scan_context(address: str) -> str | None:
 
     ``POST /api/v1/bot/scan`` is Redis-cached and fast; on any failure or
     missing data it returns ``None`` so chat never blocks on the scanner.
+
+    2026-08-25 quality push: $TICKER / free-text targets resolve to a real
+    contract address first (DexScreener search) so scan-intent questions
+    about a SYMBOL ground on our scanner forensics instead of answering
+    from thin market data.
     """
     chain = detect_chain(address)
+    if not chain or chain == "unknown":
+        # Not an address shape → try ticker resolution before giving up.
+        try:
+            from rugmunchbot.tools.scanner._resolve_target import resolve_scan_target
+
+            resolved = await resolve_scan_target(address)
+            if resolved is None:
+                return None
+            address = resolved.address
+            chain = resolved.chain or ""
+        except Exception:
+            return None
     try:
         async with httpx.AsyncClient(timeout=SCAN_TIMEOUT) as client:
             r = await client.post(

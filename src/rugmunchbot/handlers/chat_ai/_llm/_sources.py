@@ -95,6 +95,52 @@ def _source_is_primary(url: str) -> bool:
     return bool(host and any(m in host for m in _PRIMARY_SOURCE_MARKERS))
 
 
+# ── Junk-source blocklist (2026-08-25 quality push) ──────────────────────
+# Incident: /chat "give some market analysis" grounded on Merriam-Webster +
+# Dictionary.com definitions of the word "give"; "dev deployment history"
+# grounded on Azure DevOps Reddit threads and find-my-phone pages. A source
+# can be a REAL URL and still be worthless for a crypto answer — these
+# domains are banned from BOTH the model context and the Sources footer.
+_JUNK_SOURCE_MARKERS = (
+    # dictionaries / thesauri (the "dictionary citation" slop class)
+    "merriam-webster",
+    "dictionary.com",
+    "thesaurus.com",
+    "urbandictionary",
+    "vocabulary.com",
+    "lexico.com",
+    "collinsdictionary",
+    "oxfordlearnersdictionaries",
+    "cambridgedictionary",
+    "wiktionary",
+    # content farms / irrelevant wikis
+    "fandom.com",
+    "wikihow",
+    "answers.com",
+    "ask.com",
+    "byjus.com",
+    "geeksforgeeks",
+    "w3schools",
+    # consumer device pages (find-my-phone slop class)
+    "myaccount.google.com",
+    "icloud.com",
+    "android.com/find",
+    "aka.ms",
+    "support.apple.com",
+    # SEO spam surfaces
+    "pinterest.",
+    "quora.com",
+    "ehow.com",
+)
+
+
+def _source_is_junk(url: str) -> bool:
+    """True when the URL's domain is on the junk blocklist — never ground
+    on it, never cite it. Real crypto/finance/news domains are unaffected."""
+    host = _normalize_source_domain(url)
+    return bool(host and any(m in host for m in _JUNK_SOURCE_MARKERS))
+
+
 # ── Source identity: dedupe + display name + ours-vs-external classification ──
 # Shared by the message-level "Sources:" block (:func:`_append_source_block`)
 # and the "⚡ Grounded in N sources" footer (``_delivery._send_answer``) so
