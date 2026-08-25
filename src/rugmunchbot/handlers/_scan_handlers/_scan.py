@@ -10,6 +10,7 @@ importers/tests keep working unchanged.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -37,6 +38,7 @@ from rugmunchbot.handlers._scan_handlers._progress import (
     _edit_stage_if_slow,
     _stop_task,
 )
+from rugmunchbot.handlers._scanning_helpers import _merge_completed_scan
 from rugmunchbot.handlers.chat_ai._delivery import _keep_typing
 from rugmunchbot.keyboards import (
     back_kb,
@@ -65,6 +67,15 @@ if TYPE_CHECKING:
     from telegram.ext import ContextTypes
 
 logger = get_logger("rmi_bot")
+
+# 2026-08-25 quality push: how long /scan waits for the engine's background
+# phases (bundle/cluster, wallet metrics, first buyers) before rendering the
+# basic card. The engine computes these for EVERY tier — the bot just waits
+# briefly so the FIRST card already carries them. Bounded so UX stays snappy;
+# /deepscan keeps its longer budget. Env-overridable for ops.
+_BASIC_SCAN_POLL_MAX_S = float(os.getenv("RMI_SCAN_BASIC_POLL_MAX_S", "9"))
+_BASIC_SCAN_POLL_HEAD_START_S = 2.5
+_BASIC_SCAN_POLL_INTERVAL_S = 2.5
 
 
 async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -144,6 +155,22 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             result_v2 = await scan_token_v2(target, chain)
             if result_v2 is not None:
+                # 2026-08-25 quality push: bundle/cluster analysis, wallet
+                # metrics (fresh/CEX-funded %) and first-buyers complete in
+                # the engine's background phases seconds AFTER the fast-path
+                # response. Wait briefly (bounded) so the FIRST basic card
+                # already carries them — one scanner, the bot only renders.
+                # Fail-open: on timeout we render whatever the fast path had.
+                if result_v2.get("background_status") == "running":
+                    completed = await _poll_v2_scan_completion(
+                        target,
+                        chain_key,
+                        max_wait_s=_BASIC_SCAN_POLL_MAX_S,
+                        head_start_s=_BASIC_SCAN_POLL_HEAD_START_S,
+                        interval_s=_BASIC_SCAN_POLL_INTERVAL_S,
+                    )
+                    if completed:
+                        _merge_completed_scan(result_v2, completed)
                 result = v2_token_to_legacy(result_v2)
             else:
                 # v2 unavailable → fall back to legacy multi-source scanner
@@ -230,19 +257,24 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def _poll_v2_scan_completion(
-    address: str, chain: str, max_wait_s: float = 24.0
+    address: str,
+    chain: str,
+    max_wait_s: float = 24.0,
+    head_start_s: float = 4.0,
+    interval_s: float = 4.0,
 ) -> dict[str, Any] | None:
     """Poll the v2 scan status endpoint until background phases complete.
 
     The v2 scan API returns within ~25s while deep phases (wallet metrics,
     SENTINEL, news) continue in a background task. /deepscan waits a little
-    longer so the wallet-composition section has real data. Returns the
+    longer so the wallet-composition section has real data; /scan uses a
+    shorter bounded budget (see ``_BASIC_SCAN_POLL_MAX_S``). Returns the
     completed status payload (legacy serializer shape), or None on
     timeout/failure — the caller then renders whatever the fast path had.
     """
     url = f"{BACKEND_URL}/api/v2/scanner/token/scan/{chain}/{address}/status"
     deadline = time.monotonic() + max_wait_s
-    await asyncio.sleep(4)  # head start for the background phases
+    await asyncio.sleep(head_start_s)  # head start for the background phases
     while time.monotonic() < deadline:
         try:
             client = get_shared_client(10)
@@ -253,5 +285,5 @@ async def _poll_v2_scan_completion(
                     return data
         except (ConnectionError, OSError, TimeoutError, httpx.HTTPError) as exc:
             logger.debug("v2 scan status poll failed for %s: %s", address[:12], exc)
-        await asyncio.sleep(4)
+        await asyncio.sleep(interval_s)
     return None

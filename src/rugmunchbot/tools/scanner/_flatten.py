@@ -296,10 +296,12 @@ def v2_token_to_legacy(data: dict[str, Any]) -> dict[str, Any]:
     safety = _safe_float(data.get("safety_score"))
 
     # Deployer address: backend dev-reputation evidence first, then the
-    # SENTINEL metadata-fingerprint ``creator`` (Pump.fun creator — the free
-    # tier runs metadata_fingerprint even though the deployer reputation
-    # module is PRO-only, which is why /scan used to show "unknown").
-    deployer_addr = str(dev.get("deployer_address") or dev.get("address") or "").strip()
+    # canonical top-level ``deployer_address`` (2026-08-25 quality push —
+    # the engine resolves it from OUR OWN indexer now), then the SENTINEL
+    # metadata-fingerprint ``creator`` (Pump.fun creator).
+    deployer_addr = str(
+        dev.get("deployer_address") or dev.get("address") or data.get("deployer_address") or ""
+    ).strip()
     if not deployer_addr or deployer_addr.lower() in _EMPTY_ADDR:
         _sent = data.get("sentinel")
         _sfree = _sent.get("free") if isinstance(_sent, dict) else None
@@ -435,6 +437,10 @@ def v2_token_to_legacy(data: dict[str, Any]) -> dict[str, Any]:
         # these at the top level of the v2 payload; degrade gracefully when
         # absent (legacy or older backend).
         "bundle_analysis": data.get("bundle_analysis"),
+        # v2 first-buyers analysis (own indexer engine, 2026-08-25): earliest
+        # N buyers with wallet age buckets + bundling flags — the 🛒 First
+        # Buyers block on /scan (top-25) and /deepscan (top-200).
+        "first_buyers": data.get("first_buyers"),
         # v2 wash-trading verdict (own volume-authenticity engine) — the
         # dedicated 📉 Fake Volume line on /scan + /deepscan reads this block.
         "wash_trading": _wash_trading_block(mkt),
