@@ -223,6 +223,23 @@ class ANNIndex:
     ) -> None:
         self._load()
         arr = np.asarray(vector, dtype=np.float32)
+        # Stale-matrix guard (2026-08-25): the persisted matrix may predate a
+        # dim change (1024-era news_v2 vs native 2560). vstacking across
+        # mismatched column counts is the exact numpy concat error that killed
+        # every ingest. Discard the stale cache and rebuild from scratch —
+        # the ANN index is a rebuildable cache; Qdrant holds the truth.
+        if self._matrix is not None and self._matrix.shape[1] != arr.shape[0]:
+            log.warning(
+                "ann_dim_mismatch_reset collection=%s stored=%s incoming=%s — rebuilding",
+                self.collection,
+                self._matrix.shape[1],
+                arr.shape[0],
+            )
+            self._matrix = None
+            self._ids = []
+            self._id_to_idx = {}
+            self._meta = {}
+            self._dirty_ids = set()
         if arr.shape[0] != self.dim:
             # Pad or truncate
             if arr.shape[0] >= self.dim:
@@ -360,8 +377,67 @@ class ANNIndex:
 _index_cache: dict[str, ANNIndex] = {}
 
 
-def get_index(collection: str) -> ANNIndex:
-    """Get or create the ANNIndex for a collection. Cached per process."""
+class MultiDimAnnIndex:
+    """One ANN matrix PER (collection, dim) — true multi-vector awareness.
+
+    The fleet legitimately runs several vector spaces side by side
+    (qwen3-4b native 2560, MRL-truncated 1024 legacy, nemotron 2048 via
+    API). A single-matrix index either corrupts on dim change (the numpy
+    concat failure that killed every ingest) or silently discards history.
+    This wrapper keeps one ANNIndex per distinct dim, routes adds/searches
+    by the vector's own length, and can describe itself: which spaces
+    exist, how many points, which model each belongs to.
+    """
+
+    def __init__(self, collection: str) -> None:
+        self.collection = collection
+        self._spaces: dict[int, ANNIndex] = {}
+
+    def _for_dim(self, dim: int) -> ANNIndex:
+        if dim not in self._spaces:
+            self._spaces[dim] = ANNIndex(collection=self.collection, dim=dim)
+        return self._spaces[dim]
+
+    def add(
+        self,
+        doc_id: str,
+        vector: list[float],
+        metadata: dict[str, Any] | None = None,
+        text: str = "",
+    ) -> None:
+        self._for_dim(len(vector)).add(doc_id, vector, metadata, text=text)
+
+    def search(
+        self,
+        query_vector: list[float],
+        top_k: int = 10,
+        min_similarity: float = 0.0,
+    ) -> list[dict[str, Any]]:
+        # A query only matches its own space — cross-dim comparison is
+        # meaningless. Callers embed the query with the space's model.
+        idx = self._spaces.get(len(query_vector))
+        if idx is None:
+            return []
+        return idx.search(query_vector, top_k=top_k, min_similarity=min_similarity)
+
+    def describe(self) -> list[dict[str, Any]]:
+        """Self-describing inventory: what spaces exist and what they are."""
+        from rugmunchbot._vendor.rag_pkg.dim_registry import model_for_dim
+
+        out = []
+        for dim, idx in sorted(self._spaces.items()):
+            out.append(
+                {
+                    "dim": dim,
+                    "model": model_for_dim(dim),
+                    "points": len(idx._ids),
+                }
+            )
+        return out
+
+
+def get_index(collection: str) -> MultiDimAnnIndex:
+    """Get or create the multi-space ANN index for a collection."""
     if collection not in _index_cache:
-        _index_cache[collection] = ANNIndex(collection)
+        _index_cache[collection] = MultiDimAnnIndex(collection)
     return _index_cache[collection]
