@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -36,6 +37,44 @@ from rugmunchbot.channels.scheduler._core import (
 FEED_DIR = os.getenv("RMI_FEED_DIR", "/var/www/feed.rugmunch.io")
 FEED_DATA = os.path.join(FEED_DIR, "data")
 MAX_PER_CHANNEL_PER_TICK = int(os.getenv("RMI_RAG_POSTS_PER_TICK", "2"))
+
+#: WO-3 quality gate (CONTENT-POSTING-SPEC.md): a draft whose rerank score
+#: sits below this floor is DISCARDED — never posted anyway. Only drafts that
+#: actually carry a positive score are gated; a missing/zero score means "no
+#: signal" and passes (the rugbrain importance metadata is sparse today).
+RMI_RAG_POST_MIN_SCORE = float(os.getenv("RMI_RAG_POST_MIN_SCORE", "0.30"))
+
+#: Signature of the rugbrain ``_template_post`` fallback writer: "[SEV] Title"
+#: first line + "Source: …" footer. Template output = DO NOT POST (spec law):
+#: the LLM writer being down must degrade to silence, not to slop.
+_TEMPLATE_SIGNATURE_RE = re.compile(
+    r"^\[(?:CRITICAL|HIGH|MEDIUM|LOW)\]\s+.+\n\nSource:\s+", re.DOTALL
+)
+
+
+def _quality_gate(item: dict[str, Any]) -> str:
+    """WO-3 draft gate. Returns "" when the draft may post, else the reason.
+
+    Checks (in order): explicit ``writer == "template"`` marker (rugbrain
+    2026-08-25), the template signature heuristic (covers containers built
+    before the marker shipped), and the rerank-score floor. Pure — never
+    raises; unparsable scores pass.
+    """
+    writer = str(item.get("writer") or "").strip().lower()
+    if writer == "template":
+        return "template_writer"
+    text = str(item.get("text") or "")
+    if not writer and _TEMPLATE_SIGNATURE_RE.match(text.strip()):
+        return "template_signature"
+    raw_score = item.get("score", item.get("rerank_score"))
+    if raw_score is not None:
+        try:
+            score = float(raw_score)
+        except (TypeError, ValueError):
+            return ""
+        if score > 0 and score < RMI_RAG_POST_MIN_SCORE:
+            return f"below_threshold({score:.2f})"
+    return ""
 
 
 def _mirror_to_feed(item: dict[str, Any]) -> str | None:
@@ -98,6 +137,18 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         for item in drafts:
             if sent_this_channel >= MAX_PER_CHANNEL_PER_TICK:
                 break
+            # WO-3 quality gate BEFORE the dedupe mark: a gated draft must
+            # stay retryable (the writer may be healthy next cycle), so it
+            # is skipped without burning its story_ref.
+            gate_reason = _quality_gate(item)
+            if gate_reason:
+                logger.warning(
+                    "rag_draft_gated channel=%s reason=%s ref=%s",
+                    channel,
+                    gate_reason,
+                    str(item.get("story_ref") or "")[:60],
+                )
+                continue
             ref = item.get("story_ref") or item.get("text", "")[:60]
             # SINGLE lane prefix ("rag:") — _remember's global namespace
             # strips exactly one "x:" segment, so "rag:<ref>" dedupes the
@@ -128,4 +179,4 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     return posted_total
 
 
-__all__ = ["post_rag_drafts"]
+__all__ = ["_quality_gate", "post_rag_drafts"]

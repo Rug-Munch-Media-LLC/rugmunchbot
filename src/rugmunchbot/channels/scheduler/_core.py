@@ -13,6 +13,7 @@ from telegram.error import TelegramError
 from rugmunchbot._vendor.news_ingest.models import NewsArticle
 from rugmunchbot.channels import scheduler_state
 from rugmunchbot.channels._media import send_news_photo
+from rugmunchbot.channels.formatters._format_law import enforce_format_law
 from rugmunchbot.channels.importance import score_importance
 from rugmunchbot.channels.router import (
     ROUTE_NEWS_MIN_IMPORTANCE,
@@ -148,11 +149,19 @@ def _dedupe_key(prefix: str, item: dict[str, Any]) -> str:
 async def _safe_send(bot: Any, chat_id: str, text: str) -> bool:
     """Send one HTML message to a channel. Returns True on success, fails open.
 
+    WO-3 (2026-08-25): EVERY post passes through ``enforce_format_law``
+    immediately before send — this is the single chokepoint all builders
+    share, so no channel can bypass the universal format law (no walls of
+    text, no repeated blocks, no emoji spam, no >80-char headlines, no
+    mid-text truncation artifacts). Fail-open: a formatter bug returns the
+    original text unchanged.
+
     Retries failed sends up to ``_POST_RETRIES`` times with exponential
     backoff (0.5s, 1s, 2s, … capped at 8s) before logging and dropping. The
     sleeps only suspend this job's coroutine — the JobQueue loop keeps
     running other jobs. A poster never crashes the JobQueue.
     """
+    text = enforce_format_law(text)
     max_attempts = 1 + _POST_RETRIES
     attempt = 0
     while True:

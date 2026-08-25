@@ -16,6 +16,7 @@ Layout:
   * ``_news.py``       — news/breaking/feature/hybrid/themed post formatters
   * ``_alerts.py``     — alert verdicts + alerts/escalation posts
   * ``_alpha.py``      — scan cards + alpha posts
+  * ``_format_law.py`` — universal format law: the mandatory pre-send pass
 """
 
 from __future__ import annotations
@@ -39,6 +40,12 @@ from rugmunchbot.channels.formatters._alpha import (
     _launch_verdict as _launch_verdict,
     format_alpha_post as format_alpha_post,
     format_scan_card as format_scan_card,
+)
+from rugmunchbot.channels.formatters._format_law import (
+    MAX_HEADLINE_CHARS as MAX_HEADLINE_CHARS,
+    MAX_PARA_SENTENCES as MAX_PARA_SENTENCES,
+    MAX_SAME_EMOJI as MAX_SAME_EMOJI,
+    enforce_format_law as enforce_format_law,
 )
 from rugmunchbot.channels.formatters._news import (
     _story_line as _story_line,
@@ -76,8 +83,12 @@ from rugmunchbot.channels.formatters._primitives import (
 )
 
 __all__ = [
+    "MAX_HEADLINE_CHARS",
+    "MAX_PARA_SENTENCES",
+    "MAX_SAME_EMOJI",
     "NewsPost",
     "alert_verdict",
+    "enforce_format_law",
     "format_alerts_post",
     "format_alpha_post",
     "format_breaking_post",
