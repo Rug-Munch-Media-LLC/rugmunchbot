@@ -145,6 +145,15 @@ async def ingest_into_rag(articles: list[NewsArticle]) -> dict[str, Any]:
                 counts["duplicates"] += 1
             else:
                 counts["errors"] += len(report.errors or []) or 1
+                # W-visibility: rejected/reason breakdown so mass rejections
+                # are diagnosable from the summary line alone.
+                reasons = getattr(report, "rejections", None) or {}
+                if isinstance(reasons, dict) and reasons:
+                    top = sorted(reasons.items(), key=lambda kv: -kv[1])[:3]
+                    logger.info(
+                        "tg_news:rag_reject_reasons %s",
+                        " ".join(f"{k}={v}" for k, v in top),
+                    )
         logger.info(
             "tg_news:rag_ingested articles=%s stories=%s ingested=%s duplicates=%s errors=%s",
             len(articles),
