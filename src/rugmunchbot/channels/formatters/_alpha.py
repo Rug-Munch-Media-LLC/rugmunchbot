@@ -80,6 +80,52 @@ def format_scan_card(item: dict[str, Any]) -> NewsPost:
     reasons = _scan_reason_bits(item)
     if reasons:
         lines.append("\u26a0\ufe0f " + " \u00b7 ".join(_esc(r) for r in reasons))
+    # ── Deep-analysis section (CONTENT-STRATEGY-CANONICAL v2) ──
+    # Deployer / holders / bundle-clustering: render whatever the scanner
+    # populated; missing sections show honestly as unavailable.
+    dep = item.get("deployer") or {}
+    holders = item.get("holders") or {}
+    bundles = item.get("bundles") or {}
+    deep: list[str] = []
+    if isinstance(dep, dict) and dep:
+        d_addr = str(dep.get("address") or "").strip()
+        d_prev = dep.get("previous_tokens")
+        d_rug = dep.get("rug_count", dep.get("rugs"))
+        if d_addr or d_prev is not None:
+            parts = ["<b>Deployer:</b>"]
+            if d_addr:
+                parts.append(f"<code>{_esc(d_addr)}</code>")
+            if d_prev is not None:
+                parts.append(f"past tokens: {_esc(d_prev)}")
+            if d_rug is not None:
+                parts.append(f"rugs: {_esc(d_rug)}")
+            deep.append(" ".join(parts))
+    if isinstance(holders, dict) and holders:
+        h_count = holders.get("count", holders.get("total"))
+        h_top = holders.get("top10_pct", holders.get("top10"))
+        h_fresh = holders.get("fresh_pct", holders.get("fresh_wallets_pct"))
+        if h_count is not None:
+            seg = f"<b>Holders:</b> {_esc(h_count)}"
+            if h_top is not None:
+                seg += f" \u00b7 top-10 {_esc(h_top)}"
+            if h_fresh is not None:
+                seg += f" \u00b7 fresh {_esc(h_fresh)}"
+            deep.append(seg)
+    if isinstance(bundles, dict) and bundles:
+        b_pct = bundles.get("bundled_pct", bundles.get("bundled_supply_pct"))
+        b_clusters = bundles.get("clusters", bundles.get("cluster_count"))
+        if b_pct is not None or b_clusters is not None:
+            seg = "<b>Bundling:</b>"
+            if b_pct is not None:
+                seg += f" {_esc(b_pct)} supply bundled"
+            if b_clusters is not None:
+                seg += f" \u00b7 {_esc(b_clusters)} clusters"
+            deep.append(seg)
+    if deep:
+        lines.append("")
+        lines.extend(deep)
+    else:
+        lines.append("<i>Deep analysis (deployer/holders/bundles): unavailable for this scan</i>")
     commentary = str(item.get("commentary") or "").strip()
     if commentary:
         lines.append(f"\U0001f4ac \u201c{_esc(commentary)}\u201d")
