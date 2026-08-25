@@ -77,6 +77,17 @@ async def ingest_into_rag(articles: list[NewsArticle]) -> dict[str, Any]:
         )
         from rugmunchbot._vendor.rag_pkg.ingestion import BatchIngestor
 
+        # Source-quality gate (2026-08-25): bodyless channel posts (spam
+        # channels whose messages are just "URL + Source") must NOT become
+        # RAG stories — they clustered into near-identical docs that the
+        # quality gate then rejected 150+/sweep. Real news has a body.
+        substantive = [a for a in articles if len((a.body or "").strip()) >= 60]
+        skipped_bodyless = len(articles) - len(substantive)
+        if skipped_bodyless:
+            logger.info(
+                "tg_news:rag_skipped_bodyless count=%s", skipped_bodyless
+            )
+        articles = substantive
         cluster_input = [
             ClusterNewsItem(
                 id=_news_id_for(article),
