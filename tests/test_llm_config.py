@@ -7,6 +7,8 @@ tests must stay hermetic (NO live LLM calls), so both provider keys are
 blanked unless a test explicitly mocks HTTP.
 """
 
+import json
+
 import pytest
 
 from rugmunchbot import llm_config
@@ -46,8 +48,12 @@ async def test_chat_with_fallback_missing_key_fails_open(monkeypatch):
     # BOTH provider keys must be blank — the chain is KiloCode primary +
     # OpenRouter fallback; blanking only one leg would let the other make a
     # live call (and return a real answer instead of failing open).
+    # 2026-08-25: chain grew — blank ALL FOUR legs (Kilo, OpenRouter,
+    # Kilo-Nemotron rung shares KILOCODE_API_KEY, Zen last resort) or a
+    # live lane answers instead of failing open.
     monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "")
     monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "")
+    monkeypatch.setattr(llm_config, "ZEN_API_KEY", "")
     assert (
         await llm_config.chat_with_fallback([{"role": "user", "content": "hi"}], tier="snappy")
         == ""
@@ -119,7 +125,82 @@ async def test_chat_completion_wrapper_ai_router_shape(respx_mock, monkeypatch):
 @pytest.mark.asyncio
 async def test_chat_completion_wrapper_fail_open(monkeypatch):
     # Blank BOTH provider keys (see test_chat_with_fallback_missing_key_fails_open).
+    # 2026-08-25: chain grew — blank ALL FOUR legs (Kilo, OpenRouter,
+    # Kilo-Nemotron rung shares KILOCODE_API_KEY, Zen last resort) or a
+    # live lane answers instead of failing open.
     monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "")
     monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "")
+    monkeypatch.setattr(llm_config, "ZEN_API_KEY", "")
     result = await llm_config.chat_completion([{"role": "user", "content": "x"}], task_type="chat")
     assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_kilo_nemotron_rung_serves_before_zen(respx_mock, monkeypatch):
+    """2026-08-25 chain: Kilo primary + OR fallback fail → the KiloCode
+    sibling Nemotron (ultra for long tier) serves BEFORE Zen."""
+    monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "sk-or")
+    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-kilo")
+    monkeypatch.setattr(llm_config, "ZEN_API_KEY", "sk-zen")
+    import httpx
+
+    long_cfg = llm_config.get_long_config()
+    kilo_base = long_cfg["base_url"]
+    or_base = f"{llm_config.OPENROUTER_BASE}/chat/completions"
+    llm_config.get_kilo_nemotron_fallback_config("long")
+    zen = llm_config.get_zen_fallback_config("long")
+
+    # NOTE: kilo primary and kilo-nemotron rung share the KiloCode base URL.
+    # Route by model: primary Lightning 500s, sibling Ultra serves.
+    def _kilo_router(request):
+        body = json.loads(request.content)
+        if body["model"] == long_cfg["model"]:
+            return httpx.Response(500)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "kilo ultra"}}]})
+
+    respx_mock.post(kilo_base).mock(side_effect=_kilo_router)
+    respx_mock.post(or_base).mock(return_value=httpx.Response(429))
+    zen_route = respx_mock.post(zen["base_url"]).mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "zen"}}]})
+    )
+
+    answer = await llm_config.chat_with_fallback(
+        [{"role": "user", "content": "hi"}], tier="long", max_tokens=50
+    )
+    assert answer == "kilo ultra"
+    assert zen_route.call_count == 0  # zen must NOT be reached
+
+
+@pytest.mark.asyncio
+async def test_zen_last_resort_serves_when_all_else_fails(respx_mock, monkeypatch):
+    """Full outage of Kilo + OpenRouter → Zen ultra keeps chat alive."""
+    monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "sk-or")
+    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-kilo")
+    monkeypatch.setattr(llm_config, "ZEN_API_KEY", "sk-zen")
+    import httpx
+
+    long_cfg = llm_config.get_long_config()
+    kilo_base = long_cfg["base_url"]
+    or_base = f"{llm_config.OPENROUTER_BASE}/chat/completions"
+    zen = llm_config.get_zen_fallback_config("long")
+
+    # Kilo primary + sibling rung share the relay base URL; fail them all.
+    respx_mock.post(kilo_base).mock(return_value=httpx.Response(500))
+    respx_mock.post(or_base).mock(return_value=httpx.Response(429))
+    respx_mock.post(zen["base_url"]).mock(
+        return_value=httpx.Response(
+            200, json={"choices": [{"message": {"content": "zen survived"}}]}
+        )
+    )
+    answer = await llm_config.chat_with_fallback(
+        [{"role": "user", "content": "hi"}], tier="long", max_tokens=50
+    )
+    assert answer == "zen survived"
+
+
+def test_fallback_tier_model_selection():
+    """lightning = short/snappy, ultra-550b = long/reasoned — both lanes."""
+    assert "lightning" in llm_config.get_kilo_nemotron_fallback_config("snappy")["model"]
+    assert "ultra" in llm_config.get_kilo_nemotron_fallback_config("long")["model"]
+    assert "lightning" in llm_config.get_zen_fallback_config("snappy")["model"]
+    assert "ultra" in llm_config.get_zen_fallback_config("long")["model"]

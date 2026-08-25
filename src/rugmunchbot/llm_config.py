@@ -30,6 +30,12 @@ OPENROUTER_BASE = os.getenv("OPENROUTER_BASE", "https://openrouter.ai/api/v1")
 OPENROUTER_BACKUP_API_KEY = os.getenv("OPENROUTER_BACKUP_API_KEY", "")
 KILOCODE_BASE = os.getenv("KILOCODE_BASE", "http://127.0.0.1:18091/api/gateway")
 KILOCODE_API_KEY = os.getenv("KILOCODE_API_KEY", "")
+# 2026-08-25: OpenCode Zen — the only fallback lane that survives a full
+# OpenRouter outage (the old last-resort was ALSO OpenRouter, so an OR
+# outage killed every rung of the chain). lightning = short/snappy,
+# ultra-550b = long/reasoned.
+ZEN_BASE = os.getenv("OPENCODE_ZEN_BASE", "https://opencode.ai/zen/v1")
+ZEN_API_KEY = os.getenv("OPENCODE_ZEN_API_KEY", "")
 
 
 def get_snappy_config() -> dict[str, Any]:
@@ -74,6 +80,51 @@ def get_long_config() -> dict[str, Any]:
         "max_tokens": 3000,
         "temperature": 0.7,
         "timeout": 120.0,
+    }
+
+
+def get_kilo_nemotron_fallback_config(tier: str) -> dict[str, Any]:
+    """KiloCode free Nemotron rung — different MODEL than the tier primaries.
+
+    2026-08-25 decision: when the tier primary (StepFlash/Lightning) AND
+    OpenRouter both fail, try the OTHER KiloCode Nemotron before leaving
+    KiloCode entirely — a rate-limit on one model rarely affects its sibling.
+
+    ``snappy`` → ``nvidia/nemotron-3.5-lightning:free`` (short/fast)
+    ``long``   → ``nvidia/nemotron-3-ultra-550b-a55b:free`` (deep reasoned)
+    """
+    model = (
+        "nvidia/nemotron-3-ultra-550b-a55b:free"
+        if tier == "long"
+        else "nvidia/nemotron-3.5-lightning:free"
+    )
+    return {
+        "model": model,
+        "base_url": f"{KILOCODE_BASE}/chat/completions",
+        "api_key": KILOCODE_API_KEY,
+        "max_tokens": 3000 if tier == "long" else 2000,
+        "temperature": 0.5,
+        "timeout": 90.0,
+    }
+
+
+def get_zen_fallback_config(tier: str) -> dict[str, Any]:
+    """OpenCode Zen fallback — survives a full OpenRouter outage (2026-08-25).
+
+    ``snappy`` → ``nemotron-3.5-lightning-free`` (fast, short answers)
+    ``long``   → ``nemotron-3-ultra-free`` (550B, deep reasoned analysis)
+
+    Free tier, independent daily budget from OpenRouter/KiloCode. 90s
+    timeout — ultra can be slow under load but is the last resort.
+    """
+    model = "nemotron-3-ultra-free" if tier == "long" else "nemotron-3.5-lightning-free"
+    return {
+        "model": model,
+        "base_url": f"{ZEN_BASE}/chat/completions",
+        "api_key": ZEN_API_KEY,
+        "max_tokens": 3000 if tier == "long" else 2000,
+        "temperature": 0.5,
+        "timeout": 90.0,
     }
 
 
@@ -186,14 +237,16 @@ async def chat_with_fallback(
     tier: str,
     max_tokens: int | None = None,
 ) -> str:
-    """Chat via KiloCode free tier with OpenRouter fallback.
+    """Chat via KiloCode free tier with OpenRouter + Zen fallbacks.
 
     ``tier`` selects the free provider:
       ``"snappy"`` → KiloCode StepFlash 3.7:free → OR GPT-OSS 20B:free
+                     → Zen nemotron-3.5-lightning-free
       ``"long"``   → KiloCode Lightning:free → OR Nemotron Ultra:free
+                     → Zen nemotron-3-ultra-free (550B)
     On ANY failure the call is retried ONCE with the fallback free model,
-    then once more with the cheap paid-tier fallback.
-    Returns ``""`` when all fail.
+    then the Zen lane — the only rung that works when OpenRouter itself is
+    down (2026-08-25). Returns ``""`` when all fail.
     """
     if tier == "snappy":
         config = get_snappy_config()
@@ -219,5 +272,10 @@ async def chat_with_fallback(
     if answer:
         return answer
 
-    # Last resort: cheap fallback
-    return await _chat_once(get_cheap_fallback_config(), messages, max_tokens)
+    # KiloCode sibling Nemotron (lightning for short, ultra-550b for long)
+    answer = await _chat_once(get_kilo_nemotron_fallback_config(tier), messages, max_tokens)
+    if answer:
+        return answer
+
+    # Last resort: OpenCode Zen (independent of OpenRouter availability)
+    return await _chat_once(get_zen_fallback_config(tier), messages, max_tokens)
