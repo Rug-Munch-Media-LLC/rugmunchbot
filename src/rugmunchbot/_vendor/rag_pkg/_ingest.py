@@ -1,3 +1,4 @@
+import os
 # VENDORED 2026-08-17 from rmi-backend/app/rag/_ingest.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
@@ -124,7 +125,12 @@ async def ingest_document(
                 # engine-shim alias) still intercept this path.
                 from rugmunchbot._vendor.rag_pkg.embeddings import get_embedding
 
-                vec = await get_embedding(c.text)
+                # Pin to the target collection's dim — post-migration
+                # collections are native 2560; unpinned requests returned
+                # 1024 and every upsert died on the concat mismatch.
+                vec = await get_embedding(
+                    c.text, dimensions=int(os.getenv("RAG_INGEST_DIMS", "2560"))
+                )
                 chunk_doc_id = f"{doc_id}:{c.content_hash[:8]}:{c.index}"
                 chunk_meta = {
                     **metadata,

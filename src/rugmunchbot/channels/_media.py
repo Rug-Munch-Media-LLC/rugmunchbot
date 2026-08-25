@@ -51,8 +51,23 @@ async def send_news_photo(bot: Any, chat_id: str, caption: str, photo_url: str) 
             parse_mode=ParseMode.HTML,
         )
         return True
-    except (TelegramError, ValueError, TypeError, KeyError, OSError) as exc:
-        logger.warning("channels:send_photo_failed chat=%s err=%s", chat_id, exc)
+    except TelegramError as exc:
+        if "caption is too long" in str(exc):
+            # W22: never drop the post — send photo bare + full text as reply.
+            try:
+                await bot.send_photo(chat_id=chat_id, photo=photo_url)
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=caption,
+                    parse_mode=ParseMode.HTML,
+                    disable_web_page_preview=False,
+                )
+                logger.info("channels:send_photo_split_sent chat=%s", chat_id)
+                return True
+            except Exception as exc2:  # noqa: BLE001
+                logger.warning("channels:send_photo_split_failed chat=%s err=%s", chat_id, exc2)
+        else:
+            logger.warning("channels:send_photo_failed chat=%s err=%s", chat_id, exc)
     except Exception as exc:  # a poster must never crash the JobQueue
         logger.warning("channels:send_photo_unexpected chat=%s err=%s", chat_id, exc)
     return await _send_text(bot, chat_id, caption)

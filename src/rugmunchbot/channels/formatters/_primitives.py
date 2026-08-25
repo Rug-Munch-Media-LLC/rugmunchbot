@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import re
 from datetime import UTC, datetime
+from typing import Any
 
 _MAX_BODY_CHARS = 4090
 
@@ -226,3 +227,43 @@ def _collapse_repeated_sentences(text: str, min_len: int = 40) -> str:
             seen.add(key)
         out.append(cleaned)
     return " ".join(out)
+
+
+# ── W19 (2026-08-25): main-channel LINK CONTRACT ─────────────────────────
+# Every @cryptorugmuncher post MUST carry at least one link. A main post
+# without a source is exactly the "random bullshit with no links" the
+# operator banned. Enforcement: if the formatted text has no href/http,
+# append the item's scanner/dexscreener fallback; if we cannot build one,
+# the caller must NOT post to main.
+
+
+def has_link(text: str) -> bool:
+    """True when the text carries at least one link (href or bare URL)."""
+    return "href=" in text or "http://" in text or "https://" in text
+
+
+def dexscreener_fallback(item: dict[str, Any]) -> str:
+    """Best-effort link for an item: dexscreener when we have an address."""
+    addr = str(item.get("address") or item.get("token_address") or "").strip()
+    chain = str(item.get("chain") or "").strip() or "ethereum"
+    if addr:
+        return f"https://dexscreener.com/{chain}/{addr}"
+    url = str(item.get("url") or item.get("source_url") or "").strip()
+    return url
+
+
+def enforce_main_link_contract(text: str, item: dict[str, Any]) -> str | None:
+    """Return main-channel text guaranteed to carry a link, or None to block.
+
+    Appends a dexscreener/source fallback line when the formatted card lacks
+    any link. Returns None only when no link can be constructed at all —
+    the caller must skip the main post (and log) rather than ship a
+    linkless card.
+    """
+    if has_link(text):
+        return text
+    fallback = dexscreener_fallback(item)
+    if not fallback:
+        return None
+    label = str(item.get("name") or item.get("symbol") or "source").strip()
+    return f"{text}\n\n🔗 <a href=\"{html.escape(fallback, quote=True)}\">{_esc(label)}</a>"

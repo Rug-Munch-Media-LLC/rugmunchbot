@@ -6,6 +6,8 @@ callback dispatch, stats/log cards and the shared non-owner deny helper.
 
 from __future__ import annotations
 
+import html
+
 from typing import TYPE_CHECKING
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -206,6 +208,7 @@ async def _admin_logs_card(query) -> None:
     lines = ["\U0001f4dd <b>Recent Admin Actions</b>", thin_sep()]
     for entry in logs:
         ts = datetime.fromtimestamp(entry.get("created_at", 0), tz=UTC).strftime("%m-%d %H:%M")
-        details = entry.get("details") or ""
-        lines.append(f"\u2022 <code>{ts}</code> <b>{entry.get('action')}</b> {details[:50]}")
+        details = html.escape(str(entry.get("details") or ""))
+        action = html.escape(str(entry.get("action") or ""))
+        lines.append(f"\u2022 <code>{ts}</code> <b>{action}</b> {details[:50]}")
     await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=admin_kb())

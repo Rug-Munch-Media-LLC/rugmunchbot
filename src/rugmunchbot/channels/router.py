@@ -41,6 +41,19 @@ ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT: float = 0.7
 #: the ``classify_channel_category`` "alpha" bucket in ``telegram_news``).
 ROUTE_ALPHA_CATEGORY: str = "alpha"
 
+# W18 (2026-08-25): MAJOR-EVENT escalation categories. A story whose
+# category matches these goes to MAIN (@cryptorugmuncher) regardless of its
+# importance score — an active exploit or confirmed rug must never be
+# buried by the importance queue. Env-extendable, comma-separated.
+ROUTE_MAIN_ALWAYS_CATEGORIES: frozenset[str] = frozenset(
+    c.strip()
+    for c in os.getenv(
+        "RMI_ROUTE_MAIN_ALWAYS",
+        "exploit,hack,rug_confirmed,security_incident",
+    ).split(",")
+    if c.strip()
+)
+
 
 def _env_float(name: str, default: float) -> float:
     """Clamped 0..1 float env helper (same semantics as importance.py)."""
@@ -79,6 +92,10 @@ def route_news(importance: float, category: str) -> str:
     ``"main"`` always beats ``"alpha"``: an alpha-category story that also
     clears the main gate is a main-channel story, never an alpha one.
     """
+    # W18: major events escalate first — importance can't bury an active
+    # exploit or confirmed rug.
+    if category and category.lower() in ROUTE_MAIN_ALWAYS_CATEGORIES:
+        return "main"
     if importance >= ROUTE_MAIN_MIN_IMPORTANCE:
         return "main"
     if category == ROUTE_ALPHA_CATEGORY:

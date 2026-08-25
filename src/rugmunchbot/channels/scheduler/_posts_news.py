@@ -96,9 +96,15 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             # digest above already carries the item natively).
             if await _main_admission("alert") != "main":
                 continue
-            ok = await _post_photo_aware(
-                ctx.bot, main_chat_id, format_main_escalation(item), _safe_send
+            from rugmunchbot.channels.formatters._primitives import (
+                enforce_main_link_contract,
             )
+
+            main_text = enforce_main_link_contract(format_main_escalation(item), item)
+            if main_text is None:
+                logger.warning("main_link_contract_blocked type=alert name=%s", str(item.get("name"))[:40])
+                continue
+            ok = await _post_photo_aware(ctx.bot, main_chat_id, main_text, _safe_send)
             if ok:
                 posted += 1
                 await _record_main_post()

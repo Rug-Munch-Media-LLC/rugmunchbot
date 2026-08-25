@@ -34,19 +34,29 @@ def current_backend() -> str:
     return os.getenv("RAG_EMBED_BACKEND") or "remote"
 
 
-async def get_embedding(text: str, model: str = "") -> list[float]:
-    """Get embedding vector via rugbrain POST /api/v1/embed (Qwen3-4B)."""
+async def get_embedding(text: str, model: str = "", dimensions: int | None = None) -> list[float]:
+    """Get embedding vector via rugbrain POST /api/v1/embed (Qwen3-4B).
+
+    ``dimensions`` pins the output to the TARGET COLLECTION's dim (MRL
+    truncate-down server-side). Ingest callers MUST pass the collection's
+    dim — post-migration collections are native 2560 while this endpoint
+    historically returned 1024, which silently killed every upsert.
+    """
     import os
 
     import httpx
 
     api_url = os.getenv("RAG_API_URL", "http://rugbrain-api:8012/api/v1")
     api_key = os.getenv("RMI_RAG_API_KEY", "")
+    payload: dict = {"text": text[:512]}
+    dims = dimensions or os.getenv("RAG_EMBED_DIMS")
+    if dims:
+        payload["dimensions"] = int(dims)
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(
                 f"{api_url}/embed",
-                json={"text": text[:512]},
+                json=payload,
                 headers={"X-API-Key": api_key},
             )
             if r.status_code == 200:

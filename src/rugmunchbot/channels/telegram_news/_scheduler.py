@@ -258,7 +258,19 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                         if _tg.is_breaking_article(top)
                         else format_feature_post(post)
                     )
-                    ok = await _post_formatted(ctx.bot, main_chat_id, formatted, _safe_send)
+                    # W19 link contract: main posts MUST carry a link.
+                    from rugmunchbot.channels.formatters._primitives import (
+                        enforce_main_link_contract,
+                    )
+
+                    formatted = enforce_main_link_contract(formatted, post)
+                    if formatted is not None:
+                        ok = await _post_formatted(ctx.bot, main_chat_id, formatted, _safe_send)
+                    else:
+                        ok = False
+                        logger.warning(
+                            "tg_news:main_link_contract_blocked title=%s", top.title[:80]
+                        )
                     if ok:
                         from rugmunchbot.channels.scheduler import _record_main_post
 

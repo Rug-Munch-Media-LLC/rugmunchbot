@@ -44,7 +44,8 @@ class EmbeddingError(RuntimeError):
 
 # ── Known embedding dimensions ─────────────────────────────────────────
 KNOWN_DIMS: dict[str, int] = {
-    "qwen3-embedding-4b": 1024,
+    # native 2560 (registry: dim_policy.MODEL_DIMS) — a stale 1024 entry
+    # previously shadow-duplicated here and silently won/lost by position.
     "qwen3-embedding-4b": 2560,
     "llama-nemotron-embed-vl-1b-v2:free": 2048,
     "text-embedding-ada-002": 1536,
