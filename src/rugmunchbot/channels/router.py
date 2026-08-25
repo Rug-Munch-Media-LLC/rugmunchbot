@@ -54,9 +54,13 @@ def _env_float(name: str, default: float) -> float:
 
 
 #: News-band floor (env ``RMI_ROUTE_NEWS_MIN_IMPORTANCE``).
-ROUTE_NEWS_MIN_IMPORTANCE: float = _env_float("RMI_ROUTE_NEWS_MIN_IMPORTANCE", ROUTE_NEWS_MIN_IMPORTANCE_DEFAULT)
+ROUTE_NEWS_MIN_IMPORTANCE: float = _env_float(
+    "RMI_ROUTE_NEWS_MIN_IMPORTANCE", ROUTE_NEWS_MIN_IMPORTANCE_DEFAULT
+)
 #: Main-channel gate (env ``RMI_ROUTE_MAIN_MIN_IMPORTANCE``).
-ROUTE_MAIN_MIN_IMPORTANCE: float = _env_float("RMI_ROUTE_MAIN_MIN_IMPORTANCE", ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT)
+ROUTE_MAIN_MIN_IMPORTANCE: float = _env_float(
+    "RMI_ROUTE_MAIN_MIN_IMPORTANCE", ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT
+)
 
 
 def route_news(importance: float, category: str) -> str:
@@ -84,11 +88,76 @@ def route_news(importance: float, category: str) -> str:
     return "skip"
 
 
+# ── WO-2 (2026-08-25): severity/type → channel matrix + demotion ─────────
+
+
+#: Severities that may hit @rmialerts (matrix: "Severity-gated CRITICAL/HIGH,
+#: no filler"). Everything else alert-ish is skipped, never softened.
+ALERT_SEVERITIES: frozenset[str] = frozenset({"critical", "high"})
+
+#: Known item types and their native (non-main) destination. ``main`` is
+#: always ADDITIVE on top of the native channel, never a replacement.
+_NATIVE_DESTINATION: dict[str, str] = {
+    "alert": "alerts",
+    "news": "news",
+    "scan": "scans",
+    "shill": "shills",
+    "whale": "alpha",
+    "alpha": "alpha",
+}
+
+
+def route_item(item_type: str, severity: str, importance: float) -> str:
+    """Pure severity/type → channel matrix (CONTENT-STRATEGY-CANONICAL.md).
+
+    Order matters:
+
+    1. ``alert`` type is severity-gated FIRST — only CRITICAL/HIGH alerts
+       post (to ``alerts``); lower-severity alert noise is ``skip``ped no
+       matter its importance score.
+    2. importance ≥ main gate → ``main`` (additive escalation; subject to
+       the ≤9/day cap enforced at send time by ``channels.main_cap``).
+    3. otherwise the item's NATIVE channel per type (scans/shills/alpha).
+    4. news-type items below the main gate fall through the importance
+       bands (news floor → ``news``, under → ``skip``).
+
+    Unknown types are treated as news. Pure — no I/O, never raises.
+    """
+    t = str(item_type or "").strip().lower()
+    sev = str(severity or "").strip().lower()
+    if t == "alert":
+        return "alerts" if sev in ALERT_SEVERITIES else "skip"
+    if importance >= ROUTE_MAIN_MIN_IMPORTANCE:
+        return "main"
+    native = _NATIVE_DESTINATION.get(t)
+    if native is not None and t != "news":
+        return native
+    if importance >= ROUTE_NEWS_MIN_IMPORTANCE:
+        return "news"
+    return "skip"
+
+
+def demote_main(item_type: str) -> str:
+    """Overflow destination when the main cap blocks an escalation.
+
+    Per spec: "overflow demotes to news/shills per type". Items whose
+    native-channel copy ALREADY exists (alerts/scans/alpha/news digests)
+    demote to that native lane — i.e. the additive main copy is dropped,
+    nothing is lost. Returns "" only for types with no lane at all.
+    Pure — never raises.
+    """
+    t = str(item_type or "").strip().lower()
+    return _NATIVE_DESTINATION.get(t, "news")
+
+
 __all__ = [
+    "ALERT_SEVERITIES",
     "ROUTE_ALPHA_CATEGORY",
     "ROUTE_MAIN_MIN_IMPORTANCE",
     "ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT",
     "ROUTE_NEWS_MIN_IMPORTANCE",
     "ROUTE_NEWS_MIN_IMPORTANCE_DEFAULT",
+    "demote_main",
+    "route_item",
     "route_news",
 ]

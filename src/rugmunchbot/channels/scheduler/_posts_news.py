@@ -22,8 +22,10 @@ from rugmunchbot.channels.scheduler._core import (  # noqa: F401
     _chat_id,
     _dedupe_key,
     _elapsed_ms,
+    _main_admission,
     _post_photo_aware,
     _posted_keys,
+    _record_main_post,
     _remember,
     _safe_send,
     _score_and_partition,
@@ -90,11 +92,16 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         for item in sorted(main_items, key=lambda i: i.get("importance", 0.0), reverse=True):
             if not _remember("alertsmain", _dedupe_key("alertsmain", item)):
                 continue
+            # WO-2 hard cap: ≤9/day on main; overflow drops (the alerts
+            # digest above already carries the item natively).
+            if await _main_admission("alert") != "main":
+                continue
             ok = await _post_photo_aware(
                 ctx.bot, main_chat_id, format_main_escalation(item), _safe_send
             )
             if ok:
                 posted += 1
+                await _record_main_post()
     if posted:
         logger.info(
             "channels:alerts posted=%s main=%s",

@@ -203,6 +203,38 @@ def _elapsed_ms(started: float) -> float:
     return round((time.perf_counter() - started) * 1000, 1)
 
 
+async def _main_admission(item_type: str) -> str:
+    """WO-2 hard-cap check for ADDITIVE main-channel posts (@cryptorugmuncher).
+
+    Returns ``"main"`` when the ≤9/day sliding window has room; otherwise
+    the item's demotion destination per type ("" = drop). Call BEFORE the
+    send; pair with :func:`_record_main_post` after a successful one so
+    failed sends never consume budget.
+    """
+    from rugmunchbot.channels.main_cap import main_cap
+    from rugmunchbot.channels.router import demote_main
+
+    allowed, count = await main_cap.admission()
+    if allowed:
+        return "main"
+    dest = demote_main(item_type)
+    logger.warning(
+        "channels:main_capped count=%d cap=%d type=%s demote=%s",
+        count,
+        main_cap.cap,
+        item_type,
+        dest or "drop",
+    )
+    return dest
+
+
+async def _record_main_post() -> None:
+    """Count one successful main-channel post against the WO-2 cap."""
+    from rugmunchbot.channels.main_cap import main_cap
+
+    await main_cap.record()
+
+
 def _item_to_article(item: dict[str, Any], *, category: str, source: str) -> NewsArticle:
     """Adapt a normalized channel item dict into a ``NewsArticle`` for reranking.
 

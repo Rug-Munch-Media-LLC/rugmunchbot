@@ -32,8 +32,10 @@ from rugmunchbot.channels.scheduler._core import (  # noqa: F401
     _chat_id,
     _dedupe_key,
     _elapsed_ms,
+    _main_admission,
     _post_photo_aware,
     _posted_keys,
+    _record_main_post,
     _remember,
     _safe_send,
     _score_and_partition,
@@ -115,10 +117,15 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         for item in sorted(main_items, key=lambda i: i.get("importance", 0.0), reverse=True):
             if not _remember("scansmain", _dedupe_key("scansmain", item)):
                 continue
+            # WO-2 hard cap: ≤9/day on main; overflow drops (the scans
+            # card above already carries the item natively).
+            if await _main_admission("scan") != "main":
+                continue
             item = await attach_scan_commentary(item)
             ok = await _post_photo_aware(ctx.bot, main_chat_id, format_scan_card(item), _safe_send)
             if ok:
                 posted += 1
+                await _record_main_post()
     logger.info(
         "channels:tick",
         job="channel_scans",
@@ -219,11 +226,16 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         for item in escalated:
             if not _remember("alphamain", _dedupe_key("alphamain", item)):
                 continue
+            # WO-2 hard cap: ≤9/day on main; overflow drops (the alpha
+            # digest above already carries the item natively).
+            if await _main_admission("alpha") != "main":
+                continue
             ok = await _post_photo_aware(
                 ctx.bot, main_chat_id, format_main_escalation(item), _safe_send
             )
             if ok:
                 posted += 1
+                await _record_main_post()
     if posted:
         logger.info(
             "channels:alpha posted=%s whales=%s smart=%s launches=%s main=%s",

@@ -200,7 +200,9 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 # AI "why it matters" one-liner (bounded, fail-open) — the post
                 # ships with just the headline when the LLM call fails/empties.
                 _apply_commentaries([post], await _tg.attach_commentaries([post]))
-                ok = await _post_formatted(ctx.bot, news_chat_id, format_breaking_post(post), _safe_send)
+                ok = await _post_formatted(
+                    ctx.bot, news_chat_id, format_breaking_post(post), _safe_send
+                )
                 if ok:
                     logger.info("tg_news:posted_breaking title=%s", top.title[:80])
                     posted += 1
@@ -208,7 +210,9 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             fresh = [
                 scored_article.article
                 for scored_article in selected
-                if _remember("tgnews", _dedupe_key("tgnews", _article_to_post_dict(scored_article.article)))
+                if _remember(
+                    "tgnews", _dedupe_key("tgnews", _article_to_post_dict(scored_article.article))
+                )
             ]
             if fresh:
                 fresh_articles = fresh[:TG_NEWS_POST_LIMIT]
@@ -238,19 +242,36 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             top = selected_main[0].article
             post = _article_to_post_dict(top)
             if _remember("tgmain", _dedupe_key("tgmain", post)):
-                # AI "why it matters" one-liner for the main-channel card
-                # (bounded, fail-open — ships title-only when the LLM fails).
-                _apply_commentaries([post], await _tg.attach_commentaries([post]))
-                formatted = format_breaking_post(post) if _tg.is_breaking_article(top) else format_feature_post(post)
-                ok = await _post_formatted(ctx.bot, main_chat_id, formatted, _safe_send)
-                if ok:
-                    logger.info("tg_news:posted_main title=%s", top.title[:80])
-                    posted += 1
-                    # rugmunch.io (Ghost) feed publish — best-effort + fail-open:
-                    # the Telegram posts already went out; a missing Ghost API
-                    # key / session cookie never blocks them (requirement: ≥0.7
-                    # stories auto-post to news + main + ghost feed).
-                    await _tg.publish_story_to_feed(str(formatted), title=top.post_title or top.title)
+                # WO-2 hard cap: ≤9/day on main. Overflow demotes to the
+                # news lane — the story already posts there natively, so a
+                # capped main copy is skipped without losing the story.
+                from rugmunchbot.channels.scheduler import _main_admission
+
+                if await _main_admission("news") != "main":
+                    logger.info("tg_news:main_capped_demoted title=%s", top.title[:80])
+                else:
+                    # AI "why it matters" one-liner for the main-channel card
+                    # (bounded, fail-open — ships title-only when the LLM fails).
+                    _apply_commentaries([post], await _tg.attach_commentaries([post]))
+                    formatted = (
+                        format_breaking_post(post)
+                        if _tg.is_breaking_article(top)
+                        else format_feature_post(post)
+                    )
+                    ok = await _post_formatted(ctx.bot, main_chat_id, formatted, _safe_send)
+                    if ok:
+                        from rugmunchbot.channels.scheduler import _record_main_post
+
+                        await _record_main_post()
+                        logger.info("tg_news:posted_main title=%s", top.title[:80])
+                        posted += 1
+                        # rugmunch.io (Ghost) feed publish — best-effort + fail-open:
+                        # the Telegram posts already went out; a missing Ghost API
+                        # key / session cookie never blocks them (requirement: ≥0.7
+                        # stories auto-post to news + main + ghost feed).
+                        await _tg.publish_story_to_feed(
+                            str(formatted), title=top.post_title or top.title
+                        )
 
     # Route: alpha → alpha channel (additive; no alpha chat id → skip)
     if alpha_chat_id and alpha_scored:
@@ -258,17 +279,23 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         fresh_alpha = [
             scored_article.article
             for scored_article in selected_alpha
-            if _remember("tgalpha", _dedupe_key("tgalpha", _article_to_post_dict(scored_article.article)))
+            if _remember(
+                "tgalpha", _dedupe_key("tgalpha", _article_to_post_dict(scored_article.article))
+            )
         ]
         if fresh_alpha:
             ok = await _post_formatted(
                 ctx.bot,
                 alpha_chat_id,
-                format_news_post([_article_to_post_dict(a) for a in fresh_alpha[:TG_NEWS_POST_LIMIT]]),
+                format_news_post(
+                    [_article_to_post_dict(a) for a in fresh_alpha[:TG_NEWS_POST_LIMIT]]
+                ),
                 _safe_send,
             )
             if ok:
-                logger.info("tg_news:posted_alpha count=%s", min(len(fresh_alpha), TG_NEWS_POST_LIMIT))
+                logger.info(
+                    "tg_news:posted_alpha count=%s", min(len(fresh_alpha), TG_NEWS_POST_LIMIT)
+                )
                 posted += 1
 
     if not posted:
