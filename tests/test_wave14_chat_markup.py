@@ -231,5 +231,39 @@ def test_format_scan_summary_renders_real_flags() -> None:
     )
 
 
+def test_format_scan_summary_carries_market_and_funding_fields() -> None:
+    """cont12: price/vol24h/deployer_funded_by reach the grounding line."""
+    line = _format_scan_summary(
+        "0xdef",
+        {
+            "risk_score": 50,
+            "liquidity_usd": 351644.41,
+            "price_usd": 0.001222,
+            "volume_24h": 977.63,
+            "holders": 0,  # zero holders -> omitted (falsy by design)
+            "deployer_funded_by": "binance",
+        },
+    )
+    assert line == (
+        "Context: token 0xdef scan shows "
+        "risk_score=50, liquidity=$351,644, price=$0.001222, "
+        "vol24h=$978, deployer_funded_by=binance"
+    )
+
+
+def test_format_scan_summary_suppresses_noise_fields() -> None:
+    """unknown funding source / junk numerics must NOT render."""
+    line = _format_scan_summary(
+        "0x123",
+        {
+            "risk_score": 10,
+            "deployer_funded_by": "unknown",  # noise -> dropped
+            "price_usd": None,  # absent -> dropped
+            "volume_24h": "not-a-number",  # unparseable -> dropped, no crash
+        },
+    )
+    assert line == "Context: token 0x123 scan shows risk_score=10"
+
+
 def test_max_answer_chars_guardrail_constant() -> None:
     assert MAX_ANSWER_CHARS == 14000
