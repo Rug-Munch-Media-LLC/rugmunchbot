@@ -80,8 +80,6 @@ async def gather_summary_data() -> dict[str, Any]:
         )
 
         rugbrain_intel = await _fetch_rugbrain_intel()
-        if rugbrain_intel:
-            active.append("rugbrain_intel")
     except Exception as exc:
         logger.debug("daily_rug:intel_failed err=%s", str(exc)[:120])
 
@@ -113,6 +111,8 @@ async def gather_summary_data() -> dict[str, Any]:
             active.append("narratives")
         if kol_signals:
             active.append("kol_signals")
+    if rugbrain_intel:
+        active.append("rugbrain_intel")
 
     # The Daily Rug story selection: freshness gate -> 4B reranker ranking.
     # Candidates = RAG news + web narratives; only market-moving, dated,
