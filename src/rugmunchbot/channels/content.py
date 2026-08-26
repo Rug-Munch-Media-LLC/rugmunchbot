@@ -398,15 +398,11 @@ async def _fetch_pushed_webhook_alerts(limit: int) -> list[dict[str, Any]]:
         event_type = str(entry.get("event_type") or "").strip()
         if not alert_type.endswith("_webhook"):
             continue
-        # Channel doctrine: alerts carry ONLY imminent rugs/hacks/exploits.
-        # Whale moves and plain transfers route to the whales lane instead —
-        # a high-severity whale_move is alpha content, not imminent danger.
-        is_whale_event = event_type in WHALE_EVENT_TYPES
-        if is_whale_event:
-            continue
-        if event_type not in ALERT_EVENT_TYPES and (
-            event_type or str(entry.get("severity") or "").lower() not in ("high", "critical")
-        ):
+        # Channel doctrine (tightened 2026-08-26): alerts carry ONLY
+        # identified imminent rugs/hacks/exploits. The old "no event_type +
+        # high severity" fallback leaked unlabeled whale transfers onto
+        # alerts — unknown types now route to the whales/alpha lane too.
+        if event_type not in ALERT_EVENT_TYPES:
             continue
         item = _webhook_item(entry)
         if item is not None:
