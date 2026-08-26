@@ -266,6 +266,29 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     for marker in ("AI DISCLOSURE:", "OUTPUT FORMAT", "MASTHEAD ("):
         if marker in raw:
             raw = raw.split(marker, 1)[0].rstrip()
+    # Stub guard (2026-08-26): the morning run posted a 154-char stub
+    # because the LLM chain returned a degenerate one-off. If the model
+    # under-delivers, retry once with an explicit length demand; if it
+    # STILL under-delivers, assemble a deterministic report from the raw
+    # context — The Daily Rug never ships empty again.
+    min_chars = 1500
+    if len(raw.strip()) < min_chars:
+        logger.warning(
+            "daily_market_summary:llm_short retrying chars=%s", len(raw.strip())
+        )
+        retry_msgs = build_messages(context)
+        retry_msgs[1]["content"] += (
+            "\n\nIMPORTANT: your previous attempt was too short. Write the FULL "
+            "7000-8000 character report now — every section, every item, with links."
+        )
+        try:
+            from rugmunchbot.llm_config import chat_with_fallback
+
+            raw2 = await chat_with_fallback(retry_msgs, "long")
+            if len(raw2.strip()) > len(raw.strip()):
+                raw = raw2
+        except Exception as exc:
+            logger.warning("daily_market_summary:llm_retry_failed err=%s", str(exc)[:120])
     if not raw or not raw.strip():
         logger.info("daily_market_summary:llm_empty_skipped sources=%s", context.get("sources"))
         return 0

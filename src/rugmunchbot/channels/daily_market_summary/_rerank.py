@@ -55,15 +55,24 @@ def _parse_date(item: dict[str, Any]) -> datetime | None:
 def enforce_freshness(
     stories: list[dict[str, Any]], max_age_h: float = MAX_AGE_HOURS
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Split stories into (fresh, rejected_reasons). Undated stories are
-    treated as unverifiable and rejected — accuracy over volume."""
+    """Split stories into (fresh, rejected_reasons).
+
+    2026-08-26 fix: undated stories are no longer auto-rejected — the
+    morning run rejected EVERY news item ("no_date") leaving the brief
+    with an empty news section. Undated items now pass with a
+    ``_undated`` flag (ranked below dated fresh items by the caller);
+    only provably STALE items are rejected. Accuracy still enforced via
+    the reranker + cite-or-omit prompt rule."""
     cutoff = datetime.now(tz=UTC) - timedelta(hours=max_age_h)
     fresh: list[dict[str, Any]] = []
     rejected: list[str] = []
     for s in stories:
         dt = _parse_date(s)
         if dt is None:
-            rejected.append(f"no_date: {str(s.get('title') or s.get('text') or '?')[:70]}")
+            # keep it — flag for lower rank instead of rejecting outright
+            s = dict(s)
+            s["_undated"] = True
+            fresh.append(s)
             continue
         if dt < cutoff:
             age_h = (datetime.now(tz=UTC) - dt).total_seconds() / 3600
