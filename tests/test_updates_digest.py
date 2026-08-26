@@ -77,6 +77,8 @@ def test_posting_volume_maps_chat_ids_to_roles(monkeypatch):
     assert any("main: 3" in ln for ln in lines)
     assert any("alerts: 1" in ln for ln in lines)
     assert any("total: 4" in ln for ln in lines)
+    # Silent editorial channels are flagged, not omitted.
+    assert any("silent" in ln and "news" in ln for ln in lines)
     _core._POST_COUNTERS.clear()
 
 

@@ -145,7 +145,9 @@ def _feed_mirror_line() -> str:
 def _posting_volume_lines() -> list[str]:
     """Per-channel successful-send counts for today (strategy v2 silence
     visibility). Chat ids map back to role names via the config registry;
-    unknown chat ids (DMs, escalations) render as their short id."""
+    unknown chat ids (DMs, escalations) render as their short id. A channel
+    role with ZERO posts all day renders ❌ — silence must be visible, not
+    merely absent from the list."""
     try:
         from rugmunchbot.config import _resolve_channels
 
@@ -154,13 +156,22 @@ def _posting_volume_lines() -> list[str]:
         channels = {}
     id_to_role = {v: k for k, v in channels.items()}
     counters = post_counters_today()
-    if not counters:
-        return ["  (no posts counted since last restart)"]
+    role_counts: dict[str, int] = {}
+    for chat_id, count in counters.items():
+        role_counts[id_to_role.get(chat_id, chat_id[-6:])] = (
+            role_counts.get(id_to_role.get(chat_id, chat_id[-6:]), 0) + count
+        )
+    # Every editorial channel role appears — silent ones flagged.
+    watched = ("main", "news", "alerts", "alpha", "scans")
     lines: list[str] = []
     total = 0
-    for chat_id, count in sorted(counters.items(), key=lambda kv: -kv[1]):
+    for role in watched:
+        count = role_counts.pop(role, 0)
         total += count
-        label = id_to_role.get(chat_id, chat_id[-6:])
+        marker = "✅" if count else "❌ silent"
+        lines.append(f"  {marker} {role}: {count}")
+    for label, count in sorted(role_counts.items(), key=lambda kv: -kv[1]):
+        total += count
         lines.append(f"  {label}: {count}")
     lines.append(f"  total: {total}")
     return lines
