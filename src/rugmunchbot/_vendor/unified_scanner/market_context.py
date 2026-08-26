@@ -23,6 +23,7 @@ unavailable.
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -60,10 +61,18 @@ def _neutral(reason: str = "unavailable") -> MarketContext:
     )
 
 
-async def _get_json(client: httpx.AsyncClient, url: str, params: dict[str, Any] | None = None) -> dict[str, Any] | None:
+async def _get_json(
+    client: httpx.AsyncClient, url: str, params: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     """GET a JSON payload, returning None on any failure."""
     try:
-        r = await client.get(url, params=params, timeout=_HTTP_TIMEOUT)
+        # 2026-08-26: rugbrain-api requires X-API-Key — unauthenticated calls
+        # were 401-ing every scanner tick (auth_failed invalid_api_key).
+        headers: dict[str, str] = {}
+        api_key = os.getenv("RMI_RAG_API_KEY", "").split(",")[0] or os.getenv("RAG_API_KEY", "")
+        if api_key:
+            headers["X-API-Key"] = api_key
+        r = await client.get(url, params=params, headers=headers, timeout=_HTTP_TIMEOUT)
         if r.status_code != 200:
             logger.debug("market_context_http_failed", url=url, status=r.status_code)
             return None
@@ -93,7 +102,9 @@ async def _fetch_global_mood(client: httpx.AsyncClient) -> dict[str, Any]:
     return mood
 
 
-async def _fetch_token_social(client: httpx.AsyncClient, address: str, chain: str) -> dict[str, Any]:
+async def _fetch_token_social(
+    client: httpx.AsyncClient, address: str, chain: str
+) -> dict[str, Any]:
     """Fetch token-specific social signals from RugBrain market/context."""
     data = await _get_json(client, f"{_MARKET_CONTEXT_URL}/{address}", {"chain": chain})
     if not isinstance(data, dict):
