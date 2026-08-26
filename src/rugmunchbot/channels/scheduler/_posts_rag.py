@@ -349,6 +349,60 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     return posted_total
 
 
+#: Fast-lane knobs (2026-08-26): critical+fresh intel must not wait for the
+#: 45-min slow tick. The fast poster runs every RMI_RAG_FAST_LANE_MIN and
+#: only escalates severity=="critical" drafts younger than 6h — everything
+#: else stays on the slow lane. Shares the "rag:" dedupe namespace with the
+#: slow loop, so a story can never post twice.
+RAG_FAST_LANE_MIN = int(os.getenv("RMI_RAG_FAST_LANE_MIN", "10"))
+RAG_FAST_LANE_MAX_AGE_H = float(os.getenv("RMI_RAG_FAST_LANE_MAX_AGE_H", "6"))
+
+
+async def post_rag_fast_lane(ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    """Breaking-news fast lane → @rmialerts, critical+fresh only.
+
+    Returns posted count (0 or 1). All slow-lane gates apply (quality,
+    recency, source) PLUS severity=="critical" and a tighter age cap. The
+    shared dedupe key means the slow tick skips anything this already
+    delivered; a failed send releases the mark for either lane to retry.
+    """
+    chat_id = _chat_id("alerts")
+    if not chat_id:
+        return 0
+    drafts = await fetch_rag_drafts("alerts", limit=3)
+    for item in drafts:
+        if str(item.get("severity") or "").lower() != "critical":
+            continue
+        gate_reason = _quality_gate(item)
+        if not gate_reason:
+            gate_reason = _recency_gate(item)
+        if not gate_reason:
+            gate_reason = _source_gate(item)
+        age_h, probe = _draft_age_hours(item)
+        if not gate_reason and age_h is not None and age_h > RAG_FAST_LANE_MAX_AGE_H:
+            gate_reason = f"fast_lane_stale({age_h:.0f}h via {probe})"
+        if gate_reason:
+            logger.debug(
+                "rag_fast_lane_skipped reason=%s ref=%s",
+                gate_reason,
+                str(item.get("story_ref") or "")[:60],
+            )
+            continue
+        dedupe_key = f"rag:{item.get('story_ref') or item.get('text', '')[:60]}"
+        if not _remember("rag_alerts", dedupe_key):
+            return 0  # slow lane already claimed it
+        if await _safe_send(ctx.bot, chat_id, item.get("text", "")):
+            logger.info(
+                "rag_fast_lane_posted ref=%s age_h=%.1f",
+                str(item.get("story_ref") or "")[:60],
+                age_h if age_h is not None else -1.0,
+            )
+            return 1
+        _release("rag_alerts", dedupe_key)
+        return 0
+    return 0
+
+
 __all__ = [
     "_alert_mirror_failure",
     "_note_mirror_success",
@@ -356,4 +410,5 @@ __all__ = [
     "_recency_gate",
     "_source_gate",
     "post_rag_drafts",
+    "post_rag_fast_lane",
 ]

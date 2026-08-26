@@ -280,6 +280,18 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             days=tuple(range(7)),
             name="channel_updates",
         )
+    # Breaking-news fast lane (strategy v2): critical+fresh intel on a short
+    # tick. 0 disables; shares dedupe with the slow lane so no double-post.
+    from rugmunchbot.channels.scheduler._posts_rag import post_rag_fast_lane
+
+    fast_lane_min = int(os.getenv("RMI_RAG_FAST_LANE_MIN", "10"))
+    if fast_lane_min > 0 and ALERTS_CHANNEL_ENABLED and _chat_id("alerts"):
+        job_queue.run_repeating(
+            _tick_wrapper("channel_rag_fast", post_rag_fast_lane, envelope=True),
+            interval=fast_lane_min * 60,
+            first=20,
+            name="channel_rag_fast",
+        )
     logger.info(
         "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates)"
     )

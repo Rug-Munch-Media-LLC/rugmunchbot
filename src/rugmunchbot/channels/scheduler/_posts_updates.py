@@ -34,6 +34,7 @@ from rugmunchbot.channels.scheduler._core import (
     _remember,
     _safe_send,
     logger,
+    post_counters_today,
 )
 
 #: Repos whose commits surface as "shipped". Comma-separated env override.
@@ -141,6 +142,30 @@ def _feed_mirror_line() -> str:
         return "❌ feed mirror: unreadable"
 
 
+def _posting_volume_lines() -> list[str]:
+    """Per-channel successful-send counts for today (strategy v2 silence
+    visibility). Chat ids map back to role names via the config registry;
+    unknown chat ids (DMs, escalations) render as their short id."""
+    try:
+        from rugmunchbot.config import _resolve_channels
+
+        channels = _resolve_channels()
+    except Exception:
+        channels = {}
+    id_to_role = {v: k for k, v in channels.items()}
+    counters = post_counters_today()
+    if not counters:
+        return ["  (no posts counted since last restart)"]
+    lines: list[str] = []
+    total = 0
+    for chat_id, count in sorted(counters.items(), key=lambda kv: -kv[1]):
+        total += count
+        label = id_to_role.get(chat_id, chat_id[-6:])
+        lines.append(f"  {label}: {count}")
+    lines.append(f"  total: {total}")
+    return lines
+
+
 def compose_updates_digest(health_lines: list[str] | None = None) -> str:
     """Build the daily changelog text. ``health_lines`` are pre-probed service
     statuses (the async poster awaits them); ``None`` degrades that section
@@ -162,6 +187,9 @@ def compose_updates_digest(health_lines: list[str] | None = None) -> str:
         health_lines = ["(probes skipped)"]
     sections.extend(f"  {line}" for line in health_lines)
     sections.append(f"  {_feed_mirror_line()}")
+    sections.append("")
+    sections.append("<b>Posting volume (today, UTC)</b>")
+    sections.extend(_posting_volume_lines())
 
     return "\n".join(sections)
 

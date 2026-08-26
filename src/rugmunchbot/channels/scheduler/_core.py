@@ -172,6 +172,7 @@ async def _safe_send(bot: Any, chat_id: str, text: str) -> bool:
                 parse_mode=ParseMode.HTML,
                 disable_web_page_preview=True,
             )
+            _bump_post_counter(chat_id)
             return True
         except TelegramError as exc:
             logger.warning("channels:send failed chat=%s err=%s", chat_id, exc)
@@ -201,6 +202,30 @@ async def _safe_send(bot: Any, chat_id: str, text: str) -> bool:
 def _elapsed_ms(started: float) -> float:
     """Milliseconds elapsed since ``started`` (``time.perf_counter``)."""
     return round((time.perf_counter() - started) * 1000, 1)
+
+
+# ── Posting-volume counters (strategy v2 observability) ───────────────────
+# Every successful channel send bumps a per-day, per-chat counter. The
+# @rmiupdates daily digest surfaces these as "posting volume" — silence
+# becomes visible without a separate watchdog job. In-memory by design:
+# restart resets the day's counts (the digest labels them accordingly).
+
+_POST_COUNTERS: dict[str, dict[str, int]] = {}
+
+
+def _bump_post_counter(chat_id: str) -> None:
+    today = time.strftime("%Y%m%d")
+    day = _POST_COUNTERS.setdefault(today, {})
+    day[chat_id] = day.get(chat_id, 0) + 1
+    # Keep only today + yesterday.
+    for stale in [k for k in _POST_COUNTERS if k < today]:
+        del _POST_COUNTERS[stale]
+
+
+def post_counters_today() -> dict[str, int]:
+    """chat_id → successful-send count for today (UTC). Read-only copy."""
+    today = time.strftime("%Y%m%d")
+    return dict(_POST_COUNTERS.get(today, {}))
 
 
 async def _main_admission(item_type: str) -> str:

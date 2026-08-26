@@ -60,6 +60,24 @@ def test_compose_renders_all_sections(monkeypatch):
     assert "feat(rag): dual-tier embedder contracts" in text
     assert "✅ rag-api" in text
     assert "feed mirror" in text
+    assert "Posting volume" in text
+
+
+def test_posting_volume_maps_chat_ids_to_roles(monkeypatch):
+    from rugmunchbot.channels.scheduler import _core
+
+    _core._POST_COUNTERS.clear()
+    _core._POST_COUNTERS["20260826"] = {"-100main": 3, "-100alerts": 1}
+    monkeypatch.setattr(
+        "rugmunchbot.config._resolve_channels",
+        lambda: {"main": "-100main", "alerts": "-100alerts"},
+        raising=False,
+    )
+    lines = up._posting_volume_lines()
+    assert any("main: 3" in ln for ln in lines)
+    assert any("alerts: 1" in ln for ln in lines)
+    assert any("total: 4" in ln for ln in lines)
+    _core._POST_COUNTERS.clear()
 
 
 def test_render_shipped_caps_and_counts():
