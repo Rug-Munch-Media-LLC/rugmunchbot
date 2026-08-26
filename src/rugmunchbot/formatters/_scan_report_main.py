@@ -456,7 +456,18 @@ def _format_scan_report(
     if description:
         lines.append(f"  \U0001f4dd <i>{html.escape(_clip(description, 300))}</i>")
 
-    # ── 8b. What to Watch (short actionable line — the last advice before footer) ──
+    # ── 8b. AI Analyst verdict (LLM synthesis over all engines + indexer
+    #        data, judged against our scoring matrix — deeper than a human
+    #        could go through the raw numbers) ──
+    ai_verdict = r.get("ai_verdict")
+    if isinstance(ai_verdict, str) and len(ai_verdict) > 20:
+        lines.extend(["", "\U0001f916 <b>AI Analyst</b>", d])
+        for raw_line in ai_verdict.strip().splitlines():
+            line = html.escape(_clip(raw_line.strip(), 380))
+            if line:
+                lines.append(f"  {line}")
+
+    # ── 8c. What to Watch (short actionable line — the last advice before footer) ──
     watch_line = _what_to_watch_line(r)
     if watch_line:
         lines.extend(["", f"\U0001f440 <b>Watch:</b> {watch_line}"])
