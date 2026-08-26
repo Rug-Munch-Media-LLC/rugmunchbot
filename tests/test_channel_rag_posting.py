@@ -30,9 +30,13 @@ def _fresh_dedupe(monkeypatch):
     return
 
 
-def _draft(ref: str, text: str = "t", mirror: bool = False) -> dict[str, Any]:
+def _draft(
+    ref: str, text: str = "t — Source: https://example.com/x", mirror: bool = False
+) -> dict[str, Any]:
     # ts = now: the 2026-08-26 recency gate rejects undated/stale drafts,
     # so fixtures must present as fresh (that gate has its own tests).
+    # Default text carries a source link: the 2026-08-26 no-source gate
+    # rejects linkless drafts (that gate has its own tests too).
     return {
         "story_ref": ref,
         "text": text,
@@ -62,9 +66,9 @@ def _patch_env(
     """Patch the posting env. ``drafts`` may be a flat list (served to every
     channel) or a per-channel mapping like production curation."""
     if isinstance(drafts, list):
-        table = dict.fromkeys(("main", "news", "alerts"), drafts)
+        table = dict.fromkeys(("main", "news", "alerts", "scans"), drafts)
     else:
-        table = {ch: drafts.get(ch, []) for ch in ("main", "news", "alerts")}
+        table = {ch: drafts.get(ch, []) for ch in ("main", "news", "alerts", "scans")}
     monkeypatch.setattr(_posts_rag, "fetch_rag_drafts", _fake_fetch(table))
     monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: chat_id)
     monkeypatch.setattr(_posts_rag, "_safe_send", sender)
@@ -177,8 +181,8 @@ async def test_cross_channel_duplicate_posts_once_main_wins(monkeypatch):
         monkeypatch,
         chat_id="-100x",
         drafts={
-            "main": [_draft("dup-1", text="flagship")],
-            "news": [_draft("dup-1", text="dupe")],
+            "main": [_draft("dup-1", text="flagship https://example.com/a")],
+            "news": [_draft("dup-1", text="dupe https://example.com/b")],
             "alerts": [],
         },
         sender=_send,
@@ -197,7 +201,7 @@ async def test_main_mirror_writes_feed_json(monkeypatch, tmp_path):
     _patch_env(
         monkeypatch,
         chat_id="-100main",
-        drafts=[_draft("ref-m", text="hello", mirror=True)],
+        drafts=[_draft("ref-m", text="hello https://example.com/m", mirror=True)],
         sender=sender,
     )
 
@@ -207,7 +211,7 @@ async def test_main_mirror_writes_feed_json(monkeypatch, tmp_path):
     feed_file = tmp_path / "posts.json"
     assert feed_file.exists()
     data = json.loads(feed_file.read_text())
-    assert data[0]["text"] == "hello"
+    assert data[0]["text"] == "hello https://example.com/m"
 
 
 def test_social_spike_post_is_imported_into_registry():
@@ -261,3 +265,70 @@ def test_channel_rag_job_registered():
     assert "channel_rag" in names
     # No no-op content_rotation jobs may come back.
     assert not any(n.startswith("content_") for n in names)
+
+
+# ── 2026-08-26 no-source incident + scans lane wiring ─────────────────────
+
+
+def test_source_gate_rejects_linkless_draft():
+    """THE no-source regression: 'Source: (none provided)' reached @rmialerts
+    because nothing rejected a draft without any link."""
+    linkless = _draft("ref-ns", text="A contract bug allowed a $190M drain.")
+    assert _posts_rag._source_gate(linkless) == "no_source_link"
+    sourced = _draft("ref-ok", text="Drain happened. Source: https://rekt.news/x")
+    assert _posts_rag._source_gate(sourced) == ""
+
+
+@pytest.mark.asyncio
+async def test_linkless_draft_is_gated_not_posted(monkeypatch):
+    """End-to-end: a draft with no link must never reach the sender, and must
+    stay retryable (not burned by the dedupe mark)."""
+    sender = _Recorder(succeed=True)
+    _patch_env(
+        monkeypatch,
+        chat_id="-100123",
+        drafts={
+            "main": [_draft("ref-ns", text="no link here")],
+            "news": [],
+            "alerts": [],
+            "scans": [],
+        },
+        sender=sender,
+    )
+
+    posted = await _posts_rag.post_rag_drafts(_Ctx())
+
+    assert posted == 0
+    assert sender.calls == []
+    assert _core._posted_keys.get("__global__", set()) == set()
+
+
+@pytest.mark.asyncio
+async def test_scans_lane_posts_scanner_drafts(monkeypatch):
+    """Wiring regression: rugbrain generates ``scans`` drafts but the bot's
+    loop never consumed the lane — scanner reports were dead-queued."""
+    scan = {
+        "story_ref": "scanner_feedback:0xabc123",
+        "text": "[SCAN] SOL · 0xabc…def456\nRisk score: 87/100 (high)\nFull scan output: https://rugmunch.io/scan?token=0xabc",
+        "kind": "scan",
+        "mirror": False,
+        "ts": datetime.now(UTC).isoformat(),
+    }
+    seen: list[tuple[str, str]] = []
+
+    async def _send(bot: Any, chat_id: str, text: str) -> bool:
+        seen.append((chat_id, text))
+        return True
+
+    _patch_env(
+        monkeypatch,
+        chat_id="-100scans",
+        drafts={"main": [], "news": [], "alerts": [], "scans": [scan]},
+        sender=_send,
+    )
+
+    posted = await _posts_rag.post_rag_drafts(_Ctx())
+
+    assert posted == 1
+    assert len(seen) == 1
+    assert seen[0][1].startswith("[SCAN]")

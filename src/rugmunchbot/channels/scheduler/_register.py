@@ -31,6 +31,8 @@ from rugmunchbot.config import (
     CHANNEL_JOBS_ENABLED,
     SCAN_CHANNEL_ENABLED,
     SCAN_CHANNEL_INTERVAL_MINUTES,
+    UPDATES_CHANNEL_ENABLED,
+    UPDATES_POST_HOUR_UTC,
 )
 
 if TYPE_CHECKING:
@@ -247,6 +249,20 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             days=tuple(range(7)),
             name="daily_market_summary",
         )
+    # @rmiupdates changelog — daily system-progress digest (strategy v2).
+    # Fires once per day at UPDATES_POST_HOUR_UTC; the poster dedupes per
+    # calendar date, so the job no-ops when the channel id is unresolved.
+    from datetime import time as _time
+
+    from rugmunchbot.channels.scheduler._posts_updates import post_updates_digest
+
+    if UPDATES_CHANNEL_ENABLED:
+        job_queue.run_daily(
+            _tick_wrapper("channel_updates", post_updates_digest, envelope=True),
+            time=_time(hour=UPDATES_POST_HOUR_UTC, minute=0),
+            days=tuple(range(7)),
+            name="channel_updates",
+        )
     logger.info(
-        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary)"
+        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates)"
     )

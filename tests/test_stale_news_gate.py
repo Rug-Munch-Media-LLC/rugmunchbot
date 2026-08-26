@@ -126,6 +126,11 @@ class SimpleNamespaceCtx:
 
 
 # ── rugbrain layer: selection freshness ──────────────────────────────
+# These tests inspect the SIBLING repo's content engine. rugbrain is an
+# independent repo and is NOT installed in this bot's venv — skip cleanly
+# when absent (run them from the rugbrain checkout / CI job instead).
+
+pytest.importorskip("rugbrain", reason="sibling repo not installed in bot venv")
 
 
 def test_story_age_hours_parses_and_measures():

@@ -97,3 +97,20 @@ def _read_scan_channel_limit() -> int:
 
 def _read_scan_channel_tick_limit() -> int:
     return _env_int("RMI_CHANNEL_SCANS_TICK_LIMIT", 3)
+
+
+def _read_updates_channel_enabled() -> bool:
+    """@rmiupdates changelog digest (daily system progress). Default ON —
+    the job no-ops when the channel id cannot be resolved."""
+    return _env_bool("RMI_UPDATES_CHANNEL_ENABLED", True)
+
+
+def _read_updates_post_hour_utc() -> int:
+    """Hour (0-23 UTC) the daily @rmiupdates changelog fires."""
+    raw = os.getenv("RMI_UPDATES_HOUR_UTC")
+    if raw is None:
+        return 9
+    try:
+        return min(23, max(0, int(raw.strip())))
+    except (TypeError, ValueError):
+        return 9

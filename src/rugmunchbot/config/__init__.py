@@ -100,6 +100,8 @@ from ._scheduling import (
     _read_scan_channel_interval_minutes as _read_scan_channel_interval_minutes,
     _read_scan_channel_limit as _read_scan_channel_limit,
     _read_scan_channel_tick_limit as _read_scan_channel_tick_limit,
+    _read_updates_channel_enabled as _read_updates_channel_enabled,
+    _read_updates_post_hour_utc as _read_updates_post_hour_utc,
 )
 from ._secrets import (
     _RMI_AUTH_SECRET_FILES as _RMI_AUTH_SECRET_FILES,
@@ -252,6 +254,16 @@ def _resolve_scan_channel_tick_limit() -> int:
     return _read_scan_channel_tick_limit()
 
 
+@lru_cache
+def _resolve_updates_channel_enabled() -> bool:
+    return _read_updates_channel_enabled()
+
+
+@lru_cache
+def _resolve_updates_post_hour_utc() -> int:
+    return _read_updates_post_hour_utc()
+
+
 # ══════════════════════════════════════════════
 # LAZY ACCESS (PEP 562 module __getattr__)
 # ══════════════════════════════════════════════
@@ -292,6 +304,8 @@ SCAN_CHANNEL_ENABLED: bool
 SCAN_CHANNEL_INTERVAL_MINUTES: int
 SCAN_CHANNEL_LIMIT: int
 SCAN_CHANNEL_TICK_LIMIT: int
+UPDATES_CHANNEL_ENABLED: bool
+UPDATES_POST_HOUR_UTC: int
 
 _LAZY_RESOLVERS: dict[str, Callable[[], Any]] = {
     "BOT_TOKEN": _resolve_bot_token,
@@ -317,6 +331,8 @@ _LAZY_RESOLVERS: dict[str, Callable[[], Any]] = {
     "SCAN_CHANNEL_INTERVAL_MINUTES": _resolve_scan_channel_interval_minutes,
     "SCAN_CHANNEL_LIMIT": _resolve_scan_channel_limit,
     "SCAN_CHANNEL_TICK_LIMIT": _resolve_scan_channel_tick_limit,
+    "UPDATES_CHANNEL_ENABLED": _resolve_updates_channel_enabled,
+    "UPDATES_POST_HOUR_UTC": _resolve_updates_post_hour_utc,
 }
 
 

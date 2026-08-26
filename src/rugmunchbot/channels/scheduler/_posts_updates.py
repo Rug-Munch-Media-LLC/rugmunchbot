@@ -1,0 +1,204 @@
+"""@rmiupdates changelog — daily system-progress digest (strategy v2).
+
+The ``updates`` channel role existed in the registry with NO consumer
+("mapped, no consumer yet"). This module is the consumer: one post per day
+telling operators + the community what the system actually did and that it
+is healthy:
+
+* SHIPPED — conventional commits from our own product repos (rugmunchbot,
+  rugbrain) in the last 24h, grouped feat/fix/perf/security, capped.
+* PIPELINE HEALTH — rugbrain API, model gateway, deep/speed embedders and
+  the reranker probed concurrently (2s budget each); ✅/❌ per service.
+* FEED MIRROR — posts.json size + last-write age (the W30 mandatory mirror).
+
+Fail-open everywhere: git unavailable → "no commits surfaced"; a probe
+error → ❌ for that service; any compose error → no post this day. The
+digest dedupes per calendar day so an accidental double-fire cannot spam.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import subprocess
+import time
+from datetime import UTC, datetime
+from typing import Any
+
+import httpx
+
+from rugmunchbot.channels.scheduler._core import (
+    _chat_id,
+    _release,
+    _remember,
+    _safe_send,
+    logger,
+)
+
+#: Repos whose commits surface as "shipped". Comma-separated env override.
+REPO_DIRS = [
+    d.strip()
+    for d in os.getenv(
+        "RMI_CHANGELOG_REPO_DIRS",
+        "/srv/work/repos/rugmunchbot,/srv/work/repos/rugbrain",
+    ).split(",")
+    if d.strip()
+]
+
+#: Service probes: label → URL. All are local/loopback model+API services.
+SERVICE_PROBES: dict[str, str] = {
+    "rag-api": os.getenv("RAG_API_HEALTH_URL", "http://127.0.0.1:8012/health"),
+    "model-gateway": os.getenv("GATEWAY_HEALTH_URL", "http://172.22.0.1:8010/health"),
+    "embed-deep-4b": os.getenv("DEEP_EMBED_URL", "http://172.22.0.1:8004") + "/health",
+    "embed-speed-0.6b": os.getenv("SPEED_EMBED_URL", "http://172.22.0.1:8007") + "/health",
+    "rerank-0.6b": os.getenv("SPEED_RERANK_URL", "http://172.22.0.1:8008") + "/health",
+}
+
+FEED_DATA = os.path.join(os.getenv("RMI_FEED_DIR", "/var/www/feed.rugmunch.io"), "data")
+
+_MAX_COMMIT_LINES = 8
+_PROBE_TIMEOUT = 2.5
+
+
+def _git_commits_since(repo_dir: str, since: str) -> list[str]:
+    """One-line conventional commits since *since* (e.g. "24 hours ago").
+
+    Fail-open: missing repo / no git → []. Only the subject line is used;
+    scopes are preserved ("feat(rag): …").
+    """
+    try:
+        out = subprocess.run(  # noqa: S603 — fixed args, no shell, read-only log
+            ["/usr/bin/git", "-C", repo_dir, "log", "--since=" + since, "--pretty=%s"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [line.strip() for line in out.stdout.splitlines() if line.strip()]
+
+
+def _group_commits(subjects: list[str]) -> dict[str, list[str]]:
+    """Group commit subjects by conventional type; unknown → other."""
+    groups: dict[str, list[str]] = {"feat": [], "fix": [], "perf": [], "security": [], "other": []}
+    for subject in subjects:
+        lowered = subject.lower()
+        for key in ("feat", "fix", "perf", "security"):
+            if lowered.startswith((key + "(", key + ":", key + "!")):
+                groups[key].append(subject)
+                break
+        else:
+            groups["other"].append(subject)
+    return groups
+
+
+def _render_shipped(groups: dict[str, list[str]]) -> list[str]:
+    """Bounded markdown lines for the SHIPPED section."""
+    icons = {"feat": "✨", "fix": "🛠", "perf": "⚡", "security": "🔒", "other": "•"}
+    lines: list[str] = []
+    total = 0
+    for key in ("feat", "security", "fix", "perf", "other"):
+        for subject in groups[key]:
+            if total >= _MAX_COMMIT_LINES:
+                remaining = sum(len(v) for v in groups.values()) - total
+                if remaining > 0:
+                    lines.append(f"  …and {remaining} more")
+                return lines
+            lines.append(f"  {icons[key]} {subject[:90]}")
+            total += 1
+    return lines
+
+
+async def _probe_services() -> list[str]:
+    """Concurrent health probes → '✅ label' / '❌ label' lines."""
+    async with httpx.AsyncClient(timeout=_PROBE_TIMEOUT) as client:
+
+        async def _one(label: str, url: str) -> str:
+            try:
+                r = await client.get(url)
+                mark = "✅" if r.status_code < 500 else "❌"
+            except Exception:
+                mark = "❌"
+            return f"{mark} {label}"
+
+        return list(await asyncio.gather(*(_one(k, u) for k, u in SERVICE_PROBES.items())))
+
+
+def _feed_mirror_line() -> str:
+    """feed.rugmunch.io mirror status line (fail-open)."""
+    try:
+        path = os.path.join(FEED_DATA, "posts.json")
+        stat = os.stat(path)
+        age_h = max((time.time() - stat.st_mtime) / 3600.0, 0.0)
+        with open(path) as f:
+            count = len(json.load(f))
+        return (
+            f"{'✅' if age_h < 48 else '⚠️'} feed mirror: {count} posts, last write {age_h:.0f}h ago"
+        )
+    except Exception:
+        return "❌ feed mirror: unreadable"
+
+
+def compose_updates_digest(health_lines: list[str] | None = None) -> str:
+    """Build the daily changelog text. ``health_lines`` are pre-probed service
+    statuses (the async poster awaits them); ``None`` degrades that section
+    to a note (pure/test path). Individual section failures degrade to a
+    note — a broken section never kills the digest."""
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    sections: list[str] = [f"🧠 RugMunch system progress — {today}", ""]
+
+    subjects: list[str] = []
+    for repo in REPO_DIRS:
+        subjects.extend(_git_commits_since(repo, "24 hours ago"))
+    sections.append(f"<b>Shipped ({len(subjects)} commits/24h)</b>")
+    shipped_lines = _render_shipped(_group_commits(subjects))
+    sections.extend(shipped_lines if shipped_lines else ["  (no commits surfaced)"])
+    sections.append("")
+
+    sections.append("<b>Pipeline health</b>")
+    if health_lines is None:
+        health_lines = ["(probes skipped)"]
+    sections.extend(f"  {line}" for line in health_lines)
+    sections.append(f"  {_feed_mirror_line()}")
+
+    return "\n".join(sections)
+
+
+async def post_updates_digest(ctx: Any) -> int:
+    """Post the daily changelog to @rmiupdates. Returns 1 when posted.
+
+    Dedupe key includes the calendar date so re-fires the same day are
+    no-ops; a failed send releases the mark so a later retry can deliver.
+    """
+    chat_id = _chat_id("updates")
+    if not chat_id:
+        logger.info(
+            "channels:tick",
+            job="channel_updates",
+            items_swept=0,
+            items_scored=0,
+            items_posted=0,
+            items_failed=0,
+            reason="no_chat_id (set RMI_UPDATES_CHANNEL_ID or gopass CHANNEL_RMI_UPDATES)",
+        )
+        return 0
+    today = datetime.now(UTC).strftime("%Y%m%d")
+    dedupe_key = f"updates:{today}"
+    if not _remember("updates", dedupe_key):
+        return 0
+    try:
+        health_lines = await _probe_services()
+    except Exception:
+        health_lines = ["❌ probe failure"]
+    text = compose_updates_digest(health_lines)
+    ok = await _safe_send(ctx.bot, chat_id, text)
+    if not ok:
+        _release("updates", dedupe_key)
+        return 0
+    logger.info("channels:updates posted date=%s", today)
+    return 1
+
+
+__all__ = ["compose_updates_digest", "post_updates_digest"]

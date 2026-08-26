@@ -8,6 +8,9 @@ Pulls ready-to-post drafts from rugbrain's content-distribution API
 * main    → @cryptorugmuncher   (top stories, full analysis) — every main
   post with ``mirror: true`` is ALSO written to the feed.rugmunch.io
   static site (same machine; atomic file append under /var/www).
+* scans   → @rmiscans           (real scanner-feedback reports with ref
+  links; wired 2026-08-26 — rugbrain generated these drafts but the bot
+  never consumed the lane).
 
 Dedup via ``_remember("rag", story_ref)`` — a story never posts twice.
 Fail-open everywhere: RAG outage = zero posts, never a crash.
@@ -57,6 +60,13 @@ _TEMPLATE_SIGNATURE_RE = re.compile(
 #: drafts are how 2022-2024 exploits reached main. Strategy v2: silence
 #: beats stale. Override with RMI_RAG_POST_MAX_AGE_H (0 disables).
 RAG_POST_MAX_AGE_H = float(os.getenv("RMI_RAG_POST_MAX_AGE_H", "72"))
+
+#: Source-link gate (2026-08-26 no-source incident): a draft whose text
+#: carries NO http(s) link is DISCARDED — "Source: (none provided)" reached
+#: @rmialerts because the writer faithfully echoed a missing URL. Defense in
+#: depth behind rugbrain's selection-side url requirement. Scan drafts embed
+#: their ref_link in the text, so they pass naturally.
+_SOURCE_LINK_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 
 #: Embedded-date probe: catches stale text even when ``ts`` lies or is
 #: missing ("… exploit on September 16, 2024 …" → 2024 → reject).
@@ -136,6 +146,18 @@ def _recency_gate(item: dict[str, Any]) -> str:
     if age_h > RAG_POST_MAX_AGE_H:
         return f"stale({age_h:.0f}h via {probe})"
     return ""
+
+
+def _source_gate(item: dict[str, Any]) -> str:
+    """No-source gate. Returns "" when the draft may post, else the reason.
+
+    A draft fails when its text contains no http(s) link at all — an
+    unsourced intelligence post is unverifiable and must not publish
+    (silence beats slop). Pure — never raises.
+    """
+    if _SOURCE_LINK_RE.search(str(item.get("text") or "")):
+        return ""
+    return "no_source_link"
 
 
 def _quality_gate(item: dict[str, Any]) -> str:
@@ -262,7 +284,7 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # main FIRST: when rugbrain queues the same story for several channels,
     # the global dedupe (_remember strips one lane prefix) keeps only the
     # first lane to claim it — the flagship channel + feed mirror must win.
-    for channel in ("main", "news", "alerts"):
+    for channel in ("main", "news", "alerts", "scans"):
         drafts = await fetch_rag_drafts(channel, limit=MAX_PER_CHANNEL_PER_TICK + 2)
         chat_id = _chat_id(channel)
         if not chat_id:
@@ -281,6 +303,10 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 # freshness — a well-written 2022 exploit still must not
                 # post. Undated drafts are rejected too (fail-closed).
                 gate_reason = _recency_gate(item)
+            if not gate_reason:
+                # 2026-08-26 no-source incident: an unsourced post is
+                # unverifiable — rejected regardless of how well written.
+                gate_reason = _source_gate(item)
             if gate_reason:
                 logger.warning(
                     "rag_draft_gated channel=%s reason=%s ref=%s",
@@ -328,5 +354,6 @@ __all__ = [
     "_note_mirror_success",
     "_quality_gate",
     "_recency_gate",
+    "_source_gate",
     "post_rag_drafts",
 ]
