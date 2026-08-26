@@ -125,6 +125,14 @@ CHANNEL_ROLES: dict[str, ChannelRole] = {
         fallback=None,
         description="RMI Changelog — product/feature announcements (mapped, no consumer yet)",
     ),
+    "shills": ChannelRole(
+        role="shills",
+        store_path="rmi/telegram/CHANNEL_CRYPTO_SHILLS",
+        env_var="RMI_SHILLS_CHANNEL_ID",
+        public_handle="@rmishills",
+        fallback=None,
+        description="RMI Shill Watch — coordinated shill campaigns and pump group tracking",
+    ),
 }
 
 # ══════════════════════════════════════════════════════════════════════════

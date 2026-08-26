@@ -41,6 +41,7 @@ from rugmunchbot.scanner import scan_token, scan_token_v2, v2_token_to_legacy
 from rugmunchbot.states import check_spam
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.tools.rag_lookup import rag_lookup
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -250,6 +251,15 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
                 logger.warning("investigate token fetch failed: %s", e)
 
+        # ── RAG context: similar known scams ────────────────────────
+        rag_context = ""
+        try:
+            rag_result = await rag_lookup(query=f"{scan_result.get('name', '')} {scan_result.get('symbol', '')} {scan_result.get('risk_level', '')} scam pattern")
+            if rag_result and rag_result.ok:
+                rag_context = rag_result.data.get("context", "")
+        except Exception as exc:
+            logger.debug("investigate_rag_failed %s", str(exc)[:80])
+
         # Build investigation report
         verdict, verdict_desc = _determine_verdict(scan_result, wallet_data)
         verdict_emoji = _VERDICT_EMOJIS.get(verdict, "⚪")
@@ -443,6 +453,16 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             for t in adv_threats:
                 lines.append(f"  🚨 {t}")
             lines.append("")
+
+        # RAG context block (if available)
+        if rag_context:
+            lines.extend([
+                "",
+                "<b>🧠 RAG Intelligence</b>",
+                d,
+                "Similar patterns from our intel database:",
+                rag_context[:500],
+            ])
 
         # Summary bar
         total_flags = len(scan_result.get("threats", [])) + len(wallet_data.get("flags", [])) + len(adv_threats)

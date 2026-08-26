@@ -60,7 +60,7 @@ class ChannelPolicy:
 DEFAULT_CHANNELS: dict[str, ChannelPolicy] = {
     "site": ChannelPolicy(min_severity="low"),
     "alerts_channel": ChannelPolicy(min_severity="high"),
-    "rmialerts": ChannelPolicy(min_severity="high"),
+    "rmialerts": ChannelPolicy(min_severity="high", categories=frozenset({"scanner", "bulletin", "cex_flow", "security_incident", "rug_confirmed", "exploit", "hack"})),
     "rmialpha": ChannelPolicy(min_severity="high", categories=ALPHA_CATEGORIES),
     "rmicryptonews": ChannelPolicy(min_severity="low", categories=NEWS_CATEGORIES),
     "main_channel": ChannelPolicy(min_severity="critical"),

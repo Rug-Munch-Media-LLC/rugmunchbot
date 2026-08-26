@@ -44,9 +44,9 @@ EVM_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 SOL_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 
 _RESEARCH_COLLECTIONS = [
-    "threat_intel",
+    "threat_intel_v2",
     "rmi_agent_memory",
-    "scam_intel",
+    "scam_intel_v2",
     "known_scams",
 ]
 
@@ -129,9 +129,9 @@ def _format_research_result(query: str, hits: list[dict[str, Any]]) -> str:
 
         # Collection badge
         col_emoji = {
-            "threat_intel": "\U0001f6e1\ufe0f",
+            "threat_intel_v2": "\U0001f6e1\ufe0f",
             "rmi_agent_memory": "\U0001f916",
-            "scam_intel": "\U0001f50d",
+            "scam_intel_v2": "\U0001f50d",
             "known_scams": "\U0001f6ab",
         }.get(collection, "\U0001f4c4")
 
