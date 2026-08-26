@@ -151,6 +151,15 @@ async def test_gather_collects_all_blocks(monkeypatch: pytest.MonkeyPatch) -> No
         ("_fetch_global_metrics", ok_metrics),
     ]:
         monkeypatch.setattr(asm, name, fn)
+
+    # hermetic: intel lanes must not hit live qdrant in tests
+    async def fake_intel():
+        return {"whales": [{"content": "w", "source": "etherscan"}]}
+
+    monkeypatch.setattr(
+        "rugmunchbot.channels.daily_market_summary._fetch._fetch_rugbrain_intel",
+        fake_intel,
+    )
     data = await gather_summary_data()
     assert set(data["sources"]) == {
         "prices",
@@ -159,7 +168,9 @@ async def test_gather_collects_all_blocks(monkeypatch: pytest.MonkeyPatch) -> No
         "movers",
         "news",
         "global_metrics",
+        "rugbrain_intel",
     }
+    assert data["rugbrain_intel"]["whales"][0]["source"] == "etherscan"
     assert data["prices"] == {"btc_price": 1.0}
     assert data["generated_at"]  # ISO stamp present
 
@@ -177,6 +188,14 @@ async def test_gather_never_raises_on_fetcher_crash(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(asm, "_fetch_movers", empty)
     monkeypatch.setattr(asm, "_fetch_news", boom)
     monkeypatch.setattr(asm, "_fetch_global_metrics", empty)
+
+    async def boom_intel():
+        raise ConnectionError("qdrant down")
+
+    monkeypatch.setattr(
+        "rugmunchbot.channels.daily_market_summary._fetch._fetch_rugbrain_intel",
+        boom_intel,
+    )
     data = await gather_summary_data()  # must not raise
     assert data["prices"] == {}
     assert data["trending"] == []
