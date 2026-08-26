@@ -94,11 +94,20 @@ def _format_deployer_section(r: dict[str, Any]) -> list[str]:
     # prior launches + how many rugged/scam-related. Rendered whenever the
     # scan payload carries it — the strongest single signal on a card.
     profile = deployer_profile if isinstance(deployer_profile, dict) else {}
-    prior = profile.get("prior_launches") or profile.get("total_launches")
+    # Backend field names vary by engine: deep_profile uses
+    # previous_tokens_launched/previous_scam_tokens; dev_reputation uses
+    # total_launches/rugged_count/scam_related_count. Accept all.
+    prior = (
+        profile.get("prior_launches")
+        or profile.get("previous_tokens_launched")
+        or profile.get("total_launches")
+    )
     if prior:
         try:
             prior_i = int(prior)
-            rugged = int(profile.get("rugged_count") or 0)
+            rugged = int(
+                profile.get("rugged_count") or profile.get("previous_scam_tokens") or 0
+            )
             scam = int(profile.get("scam_related_count") or 0)
             bad = rugged + scam
             if bad > 0:
