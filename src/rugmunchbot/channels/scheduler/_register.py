@@ -126,6 +126,28 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_dislocation",
         )
 
+    # Whale-alerts (2026-08-26): multi-chain whale moves from the firehose's
+    # whale_transfers collection → alerts channel every 30 min. Fail-open.
+    if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
+        from rugmunchbot.channels.scheduler._posts_whales import build_whale_post
+
+        async def _whale_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            try:
+                text = await build_whale_post()
+                if text and _chat_id("alerts"):
+                    from rugmunchbot.channels.scheduler._core import _safe_send
+
+                    await _safe_send(ctx.bot, _chat_id("alerts"), text)
+            except Exception as exc:
+                logger.warning("whale_alerts_tick failed: %s", str(exc)[:120])
+
+        job_queue.run_repeating(
+            _whale_tick,
+            interval=int(os.getenv("WHALE_ALERT_INTERVAL_MIN", "30")) * 60,
+            first=180,
+            name="channel_whale_alerts",
+        )
+
     # RugBrain content-distribution (2026-08-24): RAG-ranked stories ->
     # quality-written posts routed to main/news/alerts (+ scans via its own
     # lane). Drafts come from rugbrain /api/v1/content/drafts; dedupe via
