@@ -251,6 +251,10 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
         )
         # Midday edition (2026-08-26): same pipeline, fresher data — the
         # closing block auto-labels it "Midday edition" by post hour.
+        # NOTE: _dtime alias — the function-local `from datetime import time
+        # as _time` further down makes _time unbound here (scoping).
+        from datetime import time as _dtime
+
         _midday = os.getenv("RMI_DAILY_MARKET_BRIEF_MIDDAY_TIME", "13:00")
         try:
             _mh, _mm = (int(x) for x in _midday.split(":", 1))
@@ -258,7 +262,7 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             _mh, _mm = 13, 0
         job_queue.run_daily(
             _tick_wrapper("daily_market_summary_midday", post_daily_market_summary, envelope=True),
-            time=_time(hour=_mh, minute=_mm, tzinfo=summary_run_time().tzinfo),
+            time=_dtime(hour=_mh, minute=_mm, tzinfo=summary_run_time().tzinfo),
             days=tuple(range(7)),
             name="daily_market_summary_midday",
         )
