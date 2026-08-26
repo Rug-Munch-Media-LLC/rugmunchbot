@@ -50,6 +50,7 @@ async def _get_redis() -> Any:
         port=REDIS_PORT,
         password=REDIS_PW or None,
         decode_responses=True,
+        protocol=2,  # RESP2 — DragonflyDB rejects redis-py's RESP3 HELLO
     )
 
 

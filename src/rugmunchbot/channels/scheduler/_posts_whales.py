@@ -74,6 +74,42 @@ def _fmt_doc(point_id: str, payload: dict[str, Any]) -> str | None:
     return f"{badge} <b>Whale transfer</b> ({chain})\n{amount}{route}"
 
 
+async def _fetch_webhook_whales(limit: int = 8) -> list[str]:
+    """Whale-move webhook events → formatted lines (second source).
+
+    The alerts gate (channels.content) EXCLUDES whale_move/token_transfer/
+    transfer from @rmialerts by doctrine — those events land here instead:
+    they're exactly the whales-lane genre. Fail-open to [].
+    """
+    try:
+        from rugmunchbot.channels.content import WHALE_EVENT_TYPES
+        from rugmunchbot._vendor.alert_pipeline import get_recent_alerts
+
+        entries = await get_recent_alerts(limit=limit * 2, severity="")
+    except Exception as exc:
+        logger.debug("whale_alerts:webhook_source_unavailable err=%s", str(exc)[:120])
+        return []
+
+    lines: list[str] = []
+    for entry in entries:
+        event_type = str(entry.get("event_type") or "").strip()
+        if event_type not in WHALE_EVENT_TYPES:
+            continue
+        amount = str(entry.get("amount_usd") or entry.get("amount") or "").strip()
+        token = str(entry.get("token_symbol") or entry.get("token") or "tokens").strip()
+        chain = str(entry.get("chain") or "").strip().lower()
+        badge = _CHAIN_EMOJI.get(chain, "•")
+        side = str(entry.get("attribution", {}).get("from") or "") if isinstance(
+            entry.get("attribution"), dict
+        ) else ""
+        amt_s = f"${amount}" if amount.replace(".", "").replace(",", "").isdigit() else amount
+        lines.append(f"{badge} <b>{token}</b> move{f' ({amt_s})' if amt_s else ''}"
+                     f"{f' from {side}' if side else ''}")
+        if len(lines) >= limit:
+            break
+    return lines
+
+
 async def build_whale_post() -> str | None:
     """Fresh whale moves → one formatted alert post (None = nothing to send)."""
     cutoff = datetime.now(tz=UTC) - timedelta(hours=FRESH_HOURS)
@@ -127,6 +163,11 @@ async def build_whale_post() -> str | None:
             new_ids.append(pid)
         if len(lines) >= MAX_ALERTS:
             break
+
+    # Second source: whale-move webhook events (excluded from alerts by
+    # doctrine — this is where they belong).
+    webhook_lines = await _fetch_webhook_whales()
+    lines.extend(webhook_lines[: max(0, MAX_ALERTS - len(lines))])
 
     if not lines:
         if rclient:
