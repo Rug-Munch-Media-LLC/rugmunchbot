@@ -31,7 +31,13 @@ from rugmunchbot.support.logging import get_logger
 logger = get_logger(__name__)
 
 #: HARD cap: max main-channel posts in any 24h window.
-MAIN_DAILY_CAP = int(os.getenv("RMI_MAIN_DAILY_CAP", "9"))
+MAIN_DAILY_CAP = int(os.getenv("RMI_MAIN_DAILY_CAP", "10"))
+
+#: Importance at which an item BYPASSES the cap entirely (imminent rugs,
+#: active exploits, confirmed hacks). The cap shapes the baseline rhythm —
+#: it must never silence an emergency. Such posts are still recorded so
+#: the window stays honest.
+CRITICAL_BYPASS_IMPORTANCE = float(os.getenv("RMI_MAIN_CRITICAL_BYPASS", "0.9"))
 
 #: Sliding window length in seconds.
 CAP_WINDOW_SECONDS = int(os.getenv("RMI_MAIN_CAP_WINDOW", "86400"))
@@ -96,9 +102,19 @@ class MainChannelCap:
             self._mark_down()
             return len(self._local)
 
-    async def admission(self) -> tuple[bool, int]:
-        """``(allowed, current_count)`` — call BEFORE sending to main."""
+    async def admission(
+        self, importance: float | None = None, critical: bool = False
+    ) -> tuple[bool, int]:
+        """``(allowed, current_count)`` — call BEFORE sending to main.
+
+        ``critical=True`` or ``importance >= CRITICAL_BYPASS_IMPORTANCE``
+        bypasses the cap: the budget shapes the baseline feed rhythm but
+        must never silence an imminent rug / active exploit / confirmed
+        hack. Bypassed posts are still recorded (window stays honest).
+        """
         n = await self.count()
+        if critical or (importance is not None and importance >= CRITICAL_BYPASS_IMPORTANCE):
+            return True, n
         return n < self._cap, n
 
     async def record(self) -> None:

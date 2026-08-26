@@ -228,18 +228,23 @@ def post_counters_today() -> dict[str, int]:
     return dict(_POST_COUNTERS.get(today, {}))
 
 
-async def _main_admission(item_type: str) -> str:
-    """WO-2 hard-cap check for ADDITIVE main-channel posts (@cryptorugmuncher).
+async def _main_admission(
+    item_type: str, importance: float | None = None, critical: bool = False
+) -> str:
+    """Main-cap check for ADDITIVE main-channel posts (@cryptorugmuncher).
 
-    Returns ``"main"`` when the ≤9/day sliding window has room; otherwise
-    the item's demotion destination per type ("" = drop). Call BEFORE the
-    send; pair with :func:`_record_main_post` after a successful one so
-    failed sends never consume budget.
+    Baseline budget ~10/day sliding window; CRITICAL events (imminent
+    rugs / active exploits / confirmed hacks at importance >= 0.9)
+    BYPASS the cap — the budget shapes rhythm, never silence emergencies.
+    Returns ``"main"`` when admitted; otherwise the item's demotion
+    destination per type ("" = drop). Call BEFORE the send; pair with
+    :func:`_record_main_post` after a successful one so failed sends
+    never consume budget.
     """
     from rugmunchbot.channels.main_cap import main_cap
     from rugmunchbot.channels.router import demote_main
 
-    allowed, count = await main_cap.admission()
+    allowed, count = await main_cap.admission(importance=importance, critical=critical)
     if allowed:
         return "main"
     dest = demote_main(item_type)
