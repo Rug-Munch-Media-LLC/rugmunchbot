@@ -67,9 +67,9 @@ logger = get_logger("rmi_bot.tools.rag_lookup")
 KNOWLEDGE_COLLECTIONS: list[str] = [
     "security_patterns",  # curated vuln patterns (408 pts; SWC registry, verdict/severity)
     "codebase_reference",  # secure reference snippets, reputable libs (997 pts)
-    "defi_exploits",  # historical exploit writeups / PoCs (13.6K pts)
-    "contract_security",  # verdict-labeled good/bad contract patterns (221 pts)
+    "defi_exploits",  # historical exploit writeups / PoCs (14.8K pts)
     "scam_patterns",  # scam pattern docs + rug_timeline alias (9.9K pts)
+    "contract_security",  # verdict-labeled good/bad contract patterns (221 pts)
 ]
 RAG_TOKEN_COLLECTIONS: list[str] = [
     "scanner_v2"

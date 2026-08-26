@@ -55,6 +55,7 @@ from rugmunchbot.scanner import (
 from rugmunchbot.states import check_spam
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools._client import get_shared_client
+from rugmunchbot.tools.rag_lookup import rag_lookup
 from rugmunchbot.tools.scanner import (
     _scan_cache_get,
     _scan_cache_set,
