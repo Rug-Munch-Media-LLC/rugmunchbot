@@ -54,9 +54,19 @@ _IDENTITY_ENRICH_TIMEOUT: float = 6.0
 #: ``push_alert`` → Redis ``rmi:alerts:recent`` (``alert_type`` ends with
 #: ``_webhook``) and were already gated at push time (``route_news`` skip
 #: below the news band), so merging them here is additive, never spammy.
-WEBHOOK_EVENT_TYPES: frozenset[str] = frozenset(
-    {"deployer_dump", "mint_freeze", "lp_change", "whale_move", "token_transfer", "transfer"}
+#: Imminent-rug / hack / exploit signals — the ONLY events allowed on the
+#: alerts channel (channel doctrine 2026-08-26: alerts = imminent danger,
+#: never routine transfers).
+ALERT_EVENT_TYPES: frozenset[str] = frozenset(
+    {"deployer_dump", "mint_freeze", "lp_change"}
 )
+#: Routine whale/transfer movements — belong on the whales/alpha lanes,
+#: NEVER on alerts.
+WHALE_EVENT_TYPES: frozenset[str] = frozenset(
+    {"whale_move", "token_transfer", "transfer"}
+)
+#: Legacy union kept for compatibility with existing imports.
+WEBHOOK_EVENT_TYPES: frozenset[str] = ALERT_EVENT_TYPES | WHALE_EVENT_TYPES
 
 #: Webhook event type → the existing scanner-flag needle whose one-line
 #: "why it matters" verdict (``formatters.alert_verdict``) honestly fits the
@@ -388,7 +398,13 @@ async def _fetch_pushed_webhook_alerts(limit: int) -> list[dict[str, Any]]:
         event_type = str(entry.get("event_type") or "").strip()
         if not alert_type.endswith("_webhook"):
             continue
-        if event_type not in WEBHOOK_EVENT_TYPES and (
+        # Channel doctrine: alerts carry ONLY imminent rugs/hacks/exploits.
+        # Whale moves and plain transfers route to the whales lane instead —
+        # a high-severity whale_move is alpha content, not imminent danger.
+        is_whale_event = event_type in WHALE_EVENT_TYPES
+        if is_whale_event:
+            continue
+        if event_type not in ALERT_EVENT_TYPES and (
             event_type or str(entry.get("severity") or "").lower() not in ("high", "critical")
         ):
             continue

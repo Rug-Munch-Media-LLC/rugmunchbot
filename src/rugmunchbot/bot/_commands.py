@@ -22,6 +22,14 @@ logger = get_logger("rmi_bot")
 
 _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     (
+        "Our Channels",
+        [
+            ("channels", "All RugMunch channels & what they serve"),
+            ("feed", "feed.rugmunch.io — the written digest"),
+            ("site", "rugmunch.io — full scanner platform"),
+        ],
+    ),
+    (
         "Core",
         [
             ("scan", "Scan a token for scams & risks"),
@@ -117,3 +125,43 @@ def _reg(app: Application[Any, Any, Any, Any, Any, Any], name: str, handler) -> 
         await handler(update, ctx)
 
     app.add_handler(CommandHandler(name, tracked))
+
+
+# ── Channel-shill commands (menu "Our Channels") ────────────────────────
+
+_CHANNELS_TEXT = (
+    "🥊 <b>The RugMunch Network</b>\n\n"
+    "📢 @cryptorugmuncher — main: The Daily Rug, Midday Market Report, "
+    "top signals (mirrored to feed.rugmunch.io)\n"
+    "🚨 @rmialerts — imminent rugs, hacks & exploits ONLY. If it posts, act.\n"
+    "🐋 whales — whale moves & large transfers\n"
+    "🧠 alpha — alpha-category stories under the main gate\n"
+    "🔍 @rmiscans — scanner cards for every flagged token\n"
+    "📰 news — the full firehose, reranked\n"
+    "📝 changelog — what we shipped on rugmunch.io each day\n\n"
+    "🌐 feed.rugmunch.io — every main-channel story, written long-form\n"
+    "🛡️ rugmunch.io — the full scanner: 50+ modules, AI verdicts"
+)
+
+
+async def cmd_channels(update: Any, context: Any) -> None:
+    """List every RugMunch channel and what it serves."""
+    if update.effective_message:
+        await update.effective_message.reply_text(_CHANNELS_TEXT)
+
+
+async def cmd_feed(update: Any, context: Any) -> None:
+    if update.effective_message:
+        await update.effective_message.reply_text(
+            "📖 feed.rugmunch.io — every main-channel story, written long-form.\n"
+            "The Daily Rug + Midday Market Report publish there first."
+        )
+
+
+async def cmd_site(update: Any, context: Any) -> None:
+    if update.effective_message:
+        await update.effective_message.reply_text(
+            "🛡️ rugmunch.io — the full RugMunch scanner:\n"
+            "50+ security modules, AI analyst verdicts, wallet forensics,\n"
+            "cross-chain tracing. Free to use."
+        )

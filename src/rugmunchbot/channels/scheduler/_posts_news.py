@@ -130,7 +130,18 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 enforce_main_link_contract,
             )
 
-            main_text = enforce_main_link_contract(format_main_escalation(item), item)
+            # STORY-FIRST doctrine: main gets the founder-voice narrative,
+            # not a raw alert card. AI story generated async; falls back to
+            # the standard escalation card on any failure.
+            from rugmunchbot.channels._alert_story import write_alert_story
+
+            story = await write_alert_story(item)
+            if story is not None:
+                main_text = enforce_main_link_contract(story, item)
+            else:
+                main_text = enforce_main_link_contract(
+                    format_main_escalation(item), item
+                )
             if main_text is None:
                 logger.warning(
                     "main_link_contract_blocked type=alert name=%s", str(item.get("name"))[:40]

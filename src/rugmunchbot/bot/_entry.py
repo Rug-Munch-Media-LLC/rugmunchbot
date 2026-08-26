@@ -22,6 +22,9 @@ from rugmunchbot.bot._commands import (  # noqa: F401
     _BOT_COMMANDS,
     _COMMAND_SECTIONS,
     _reg,
+    cmd_channels,
+    cmd_feed,
+    cmd_site,
 )
 from rugmunchbot.bot._gates import (
     install_ban_gate,
@@ -187,6 +190,9 @@ def main() -> None:
     # Core commands
     _reg(app, "start", cmd_start)
     _reg(app, "help", cmd_help)
+    _reg(app, "channels", cmd_channels)
+    _reg(app, "feed", cmd_feed)
+    _reg(app, "site", cmd_site)
     _reg(app, "menu", cmd_menu)
     _reg(app, "faq", cmd_faq)
     _reg(app, "price", cmd_price)
