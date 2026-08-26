@@ -90,6 +90,29 @@ def _format_deployer_section(r: dict[str, Any]) -> list[str]:
         except (TypeError, ValueError) as e:
             logger.debug("deployer wallet parse failed: %s", e)
 
+    # Indexer-backed track record (lite-chain-indexer deployer_history):
+    # prior launches + how many rugged/scam-related. Rendered whenever the
+    # scan payload carries it — the strongest single signal on a card.
+    profile = deployer_profile if isinstance(deployer_profile, dict) else {}
+    prior = profile.get("prior_launches") or profile.get("total_launches")
+    if prior:
+        try:
+            prior_i = int(prior)
+            rugged = int(profile.get("rugged_count") or 0)
+            scam = int(profile.get("scam_related_count") or 0)
+            bad = rugged + scam
+            if bad > 0:
+                lines.append(
+                    f"  \U0001f480 Track Record: <b>{prior_i}</b> prior launches · "
+                    f"<b>{bad}</b> rugged/scam \u2014 <i>serial deployer</i>"
+                )
+            else:
+                lines.append(
+                    f"  \U0001f4c4 Track Record: {prior_i} prior launches, none flagged"
+                )
+        except (TypeError, ValueError) as e:
+            logger.debug("track record parse failed: %s", e)
+
     # Deployer metrics (from own engine)
     deployer_metrics = r.get("deployer_metrics", {})
     if deployer_metrics:
