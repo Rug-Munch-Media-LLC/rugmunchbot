@@ -224,7 +224,7 @@ async def publish_to_feed(report: str, *, title: str | None = None) -> dict[str,
         return await create_post(
             content=report,
             post_type="briefing",
-            title=title or f"Daily Market Brief — {stamp}",
+            title=title or f"The Daily Rug — {stamp}",
             tags=["daily", "market-summary"],
         )
     except Exception as exc:  # fail-open — feed publish is additive
@@ -280,16 +280,69 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         context.get("sources"),
     )
 
-    ok = await _safe_send(ctx.bot, chat_id, report)
-    if not ok:
-        return 0
-    logger.info("daily_market_summary:posted_main chars=%s", len(report))
-
+    # The Daily Rug delivery doctrine (2026-08-26): Telegram readers get the
+    # FULL report — split at line boundaries into ≤3900-char parts (Telegram's
+    # 4096 limit minus formatting headroom). No trimming: free-for-all long
+    # form on TG; feed.rugmunch.io carries the most detailed edition.
+    #
+    # Feed publishes FIRST so the TG closing block can link the live article.
+    feed_url = ""
     if DAILY_MARKET_SUMMARY_FEED_ENABLED:
-        # Ghost gets the FULL editorial (untrimmed — the 50k briefing limit
-        # applies there); Telegram readers got the 3900-char trim above.
-        await publish_to_feed(raw)
+        feed_result = await publish_to_feed(raw)
+        feed_url = str(feed_result.get("url") or "") if isinstance(feed_result, dict) else ""
+        if feed_url:
+            logger.info("daily_market_summary:feed_published url=%s", feed_url)
+
+    parts = _split_for_telegram(report)
+    hour = datetime.now(UTC).hour
+    edition = "Midday edition" if 11 <= hour < 18 else "Morning edition"
+    closer = (
+        f"📖 {edition}: full write-up on feed.rugmunch.io"
+        + (f' — <a href="{feed_url}">read it here</a>.' if feed_url else ".")
+        + "\n🤖 Live token intel, scans &amp; alerts: @rugmunchbot"
+    )
+    parts[-1] = parts[-1].rstrip() + "\n\n" + closer
+
+    sent = 0
+    for idx, part in enumerate(parts, 1):
+        if await _safe_send(ctx.bot, chat_id, part):
+            sent += 1
+            logger.info(
+                "daily_market_summary:posted_part %d/%d chars=%s",
+                idx,
+                len(parts),
+                len(part),
+            )
+        else:
+            break
+    if sent == 0:
+        return 0
     return 1
+
+
+def _split_for_telegram(report: str, max_chars: int = 3900) -> list[str]:
+    """Split an HTML report into Telegram-sized parts at line boundaries.
+
+    Never cuts mid-tag or mid-line; keeps part order so the report reads
+    continuously across messages. Returns [report] when it already fits.
+    """
+    if len(report) <= max_chars:
+        return [report]
+    parts: list[str] = []
+    remaining = report
+    while len(remaining) > max_chars:
+        cut = remaining[:max_chars]
+        newline = cut.rfind("\n")
+        if newline > max_chars * 0.5:
+            cut = cut[:newline]
+        cut = cut.rstrip()
+        if cut.endswith("<"):
+            cut = cut[:-1]
+        parts.append(cut)
+        remaining = remaining[len(cut) :].lstrip()
+    if remaining:
+        parts.append(remaining)
+    return parts
 
 
 if TYPE_CHECKING:

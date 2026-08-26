@@ -249,6 +249,19 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             days=tuple(range(7)),
             name="daily_market_summary",
         )
+        # Midday edition (2026-08-26): same pipeline, fresher data — the
+        # closing block auto-labels it "Midday edition" by post hour.
+        _midday = os.getenv("RMI_DAILY_MARKET_BRIEF_MIDDAY_TIME", "13:00")
+        try:
+            _mh, _mm = (int(x) for x in _midday.split(":", 1))
+        except ValueError:
+            _mh, _mm = 13, 0
+        job_queue.run_daily(
+            _tick_wrapper("daily_market_summary_midday", post_daily_market_summary, envelope=True),
+            time=_time(hour=_mh, minute=_mm, tzinfo=summary_run_time().tzinfo),
+            days=tuple(range(7)),
+            name="daily_market_summary_midday",
+        )
     # @rmiupdates changelog — daily system-progress digest (strategy v2).
     # Fires once per day at UPDATES_POST_HOUR_UTC; the poster dedupes per
     # calendar date, so the job no-ops when the channel id is unresolved.
