@@ -1,7 +1,87 @@
 # rugmunchbot — Architecture
 
-> Last updated: 2026-08-24 · 593 files · 144K lines · 839 tests green
+> Last updated: 2026-08-27 · 593 files · 144K lines · 1174 tests green
 > The RugMunch Intelligence Telegram bot + proactive channel network.
+
+## Sequence Diagrams
+
+### Scan Flow
+
+```
+User → /scan 0xabc
+  │
+  ├─→ handlers/_scan_handlers/_scan.py::cmd_scan()
+  │     │
+  │     ├─→ tools/scanner/_scans.py::scan_token()
+  │     │     │
+  │     │     ├─→ POST /api/v1/scanner/token/scan (rmi-backend)
+  │     │     │     │
+  │     │     │     ├─→ Contract safety checks
+  │     │     │     ├─→ Liquidity analysis
+  │     │     │     ├─→ Holder distribution
+  │     │     │     ├─→ Deployer profiling
+  │     │     │     └─→ Risk scoring
+  │     │     │
+  │     │     ├─→ GMGN enrichment (smart money)
+  │     │     ├─→ Solana on-chain ground truth
+  │     │     └─→ schedule_scan_memory_index() → Qdrant (background)
+  │     │
+  │     └─→ format_scan_report() → Telegram
+  │
+  └─→ User receives formatted scan report
+```
+
+### RAG Health Check at Startup
+
+```
+bot/_entry.py::startup()
+  │
+  ├─→ check_backend_health()
+  │     └─→ GET /health → backend
+  │
+  ├─→ _check_rag_health()
+  │     │
+  │     ├─→ run_health_checks()
+  │     │     ├─→ Qdrant health probe
+  │     │     └─→ Embedder health probe
+  │     │
+  │     └─→ set_rag_available(True/False)
+  │
+  ├─→ _check_scanner_health()
+  │     └─→ get_rpc_router().get_healthy_endpoint("ethereum")
+  │
+  └─→ setup_bot_profile() → assert_command_menu()
+```
+
+### Webhook Delivery Flow
+
+```
+Event detected (price change, whale move, etc.)
+  │
+  ├─→ channels/scheduler/_posts_*.py
+  │     │
+  │     ├─→ record_webhook_event(event_type)
+  │     │
+  │     ├─→ filter_event_by_subscription()
+  │     │     ├─→ Chain filter
+  │     │     ├─→ Token address filter
+  │     │     ├─→ Wallet address filter
+  │     │     └─→ Min value filter
+  │     │
+  │     ├─→ batch_events() (if batching enabled)
+  │     │
+  │     ├─→ generate_webhook_signature(payload, secret)
+  │     │
+  │     └─→ POST subscriber_url (with retry + exponential backoff)
+  │           │
+  │           ├─→ Success → record_webhook_delivery(success=True)
+  │           │
+  │           └─→ Failure → retry (10s, 20s, 40s, 80s, 160s)
+  │                 │
+  │                 ├─→ Max retries exceeded → DeadLetterQueue.add()
+  │                 │
+  │                 └─→ record_webhook_delivery(success=False)
+```
 
 ## System Overview
 
