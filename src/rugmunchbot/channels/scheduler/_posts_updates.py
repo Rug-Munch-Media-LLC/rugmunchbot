@@ -120,7 +120,8 @@ async def _probe_services() -> list[str]:
             try:
                 r = await client.get(url)
                 mark = "✅" if r.status_code < 500 else "❌"
-            except Exception:
+            except Exception as exc:
+                logger.debug("updates:status_check_failed error=%s", str(exc)[:100])
                 mark = "❌"
             return f"{mark} {label}"
 

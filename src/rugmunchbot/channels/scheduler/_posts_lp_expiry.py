@@ -35,7 +35,8 @@ async def build_lp_expiry_post() -> str | None:
             for k in list(alert_keys)[-20:]  # check last 20
             if k.startswith("0x") or "0x" in k
         ]
-    except Exception:
+    except Exception as exc:
+        logger.warning("lp_expiry:alert_keys_failed error=%s", str(exc)[:100])
         return None
 
     if not addresses:

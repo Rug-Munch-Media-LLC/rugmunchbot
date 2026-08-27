@@ -51,10 +51,7 @@ def _evidence(item: dict[str, Any]) -> str:
 
 
 def _scanner_url(item: dict[str, Any]) -> str:
-    url = str(
-        item.get("scanner_url")
-        or ""
-    ).strip()
+    url = str(item.get("scanner_url") or "").strip()
     return url
 
 
@@ -62,18 +59,15 @@ async def write_alert_story(item: dict[str, Any]) -> str | None:
     """Story-style main-channel post for an escalated alert (None on failure)."""
     try:
         from rugmunchbot.llm_config import chat_with_fallback
-    except Exception:
+    except Exception as exc:
+        logger.warning("alert_story:llm_import_failed error=%s", str(exc)[:100])
         return None
 
     scanner = _scanner_url(item)
     prompt = (
         f"Write today's main-channel post about this alert.\n\n"
         f"EVIDENCE (only source of truth): {_evidence(item)}\n\n"
-        + (
-            f"Scanner link to include verbatim as 'Full scan: {scanner}'\n"
-            if scanner
-            else ""
-        )
+        + (f"Scanner link to include verbatim as 'Full scan: {scanner}'\n" if scanner else "")
         + "\nWrite the post now."
     )
     try:
