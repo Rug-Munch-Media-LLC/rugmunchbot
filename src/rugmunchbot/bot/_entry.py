@@ -375,6 +375,7 @@ async def _check_rag_health() -> None:
         from rugmunchbot._vendor.health import run_health_checks
 
         results = await run_health_checks()
+        all_healthy = True
         for name, result in results.items():
             if not result.healthy:
                 logger.warning(
@@ -382,6 +383,13 @@ async def _check_rag_health() -> None:
                     name,
                     result.error,
                 )
+                all_healthy = False
+
+        # Set RAG availability flag in scan_memory module
+        from rugmunchbot._vendor.rag_pkg.scan_memory import set_rag_available
+
+        set_rag_available(all_healthy)
+        logger.info("rag_health_check_result available=%s", all_healthy)
     except Exception as exc:
         logger.warning("health_check_startup_failed error=%s", str(exc)[:100])
 
