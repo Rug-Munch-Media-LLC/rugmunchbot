@@ -412,8 +412,6 @@ async def _check_scanner_health() -> None:
 
 async def startup(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     await check_backend_health()
-    await _check_rag_health()
-    await _check_scanner_health()
     await setup_bot_profile(app)
     await assert_command_menu(app)
     # Override PTB's default stop-signal handlers (must run on the loop).
