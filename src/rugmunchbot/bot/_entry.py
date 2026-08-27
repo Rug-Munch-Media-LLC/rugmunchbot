@@ -368,12 +368,48 @@ def main() -> None:
         except Exception as exc:
             logger.warning("command_menu_assert_failed err=%s", str(exc)[:120])
 
-    async def startup(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
-        await check_backend_health()
-        await setup_bot_profile(app)
-        await assert_command_menu(app)
-        # Override PTB's default stop-signal handlers (must run on the loop).
-        install_sigterm_shutdown(app)
+
+async def _check_rag_health() -> None:
+    """Check RAG/Qdrant health at startup. Logs WARNING if unreachable."""
+    try:
+        from rugmunchbot._vendor.health import _aio, run_health_checks
+
+        results = _aio.run(run_health_checks())
+        for name, result in results.items():
+            if not result.healthy:
+                logger.warning(
+                    "health_check_failed_at_startup component=%s error=%s",
+                    name,
+                    result.error,
+                )
+    except Exception as exc:
+        logger.warning("health_check_startup_failed error=%s", str(exc)[:100])
+
+
+async def _check_scanner_health() -> None:
+    """Check scanner engine health at startup. Logs WARNING if unreachable."""
+    try:
+        from rugmunchbot._vendor.scanner_engines.rpc_router import get_rpc_router
+
+        router = get_rpc_router()
+        # Basic check: can we get a healthy endpoint for ethereum?
+        endpoint = router.get_healthy_endpoint("ethereum")
+        if endpoint:
+            logger.info("scanner_health_check_passed ethereum_endpoint=%s", endpoint[:60])
+        else:
+            logger.warning("scanner_health_check_no_healthy_endpoint chain=ethereum")
+    except Exception as exc:
+        logger.warning("scanner_health_check_failed error=%s", str(exc)[:100])
+
+
+async def startup(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
+    await check_backend_health()
+    await _check_rag_health()
+    await _check_scanner_health()
+    await setup_bot_profile(app)
+    await assert_command_menu(app)
+    # Override PTB's default stop-signal handlers (must run on the loop).
+    install_sigterm_shutdown(app)
 
     app.post_init = startup
 
