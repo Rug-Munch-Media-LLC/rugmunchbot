@@ -64,10 +64,13 @@ def test_compose_renders_all_sections(monkeypatch):
 
 
 def test_posting_volume_maps_chat_ids_to_roles(monkeypatch):
+    import time
+
     from rugmunchbot.channels.scheduler import _core
 
     _core._POST_COUNTERS.clear()
-    _core._POST_COUNTERS["20260826"] = {"-100main": 3, "-100alerts": 1}
+    today = time.strftime("%Y%m%d")
+    _core._POST_COUNTERS[today] = {"-100main": 3, "-100alerts": 1}
     monkeypatch.setattr(
         "rugmunchbot.config._resolve_channels",
         lambda: {"main": "-100main", "alerts": "-100alerts"},
