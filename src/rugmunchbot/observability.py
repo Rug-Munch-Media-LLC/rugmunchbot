@@ -60,11 +60,29 @@ try:  # prometheus-client is an existing project dependency (requirements.txt)
 
     _HAS_PROMETHEUS = True
 
-    CHAT_CALLS = Counter("rmi_bot_chat_calls_total", "LLM chat calls by tier/model", ["tier", "model"])
+    CHAT_CALLS = Counter(
+        "rmi_bot_chat_calls_total", "LLM chat calls by tier/model", ["tier", "model"]
+    )
     CHAT_LATENCY = Histogram("rmi_bot_chat_latency_seconds", "LLM chat latency by tier", ["tier"])
     SCANS = Counter("rmi_bot_scans_total", "Token scan commands by kind", ["kind"])
     ERRORS = Counter("rmi_bot_errors_total", "Bot errors by kind", ["kind"])
-    WEBHOOK_EVENTS = Counter("rmi_bot_webhook_events_total", "Webhook events delivered by type", ["event_type"])
+    WEBHOOK_EVENTS = Counter(
+        "rmi_bot_webhook_events_total", "Webhook events delivered by type", ["event_type"]
+    )
+    WEBHOOK_DELIVERIES = Counter(
+        "rmi_bot_webhook_deliveries_total", "Webhook delivery attempts", ["status"]
+    )
+    WEBHOOK_SUCCESSES = Counter(
+        "rmi_bot_webhook_successes_total",
+        "Successful webhook deliveries by attempt count",
+        ["attempts"],
+    )
+    WEBHOOK_FAILURES = Counter(
+        "rmi_bot_webhook_failures_total", "Failed webhook deliveries by attempt count", ["attempts"]
+    )
+    RAG_INDEX_OPS = Counter(
+        "rmi_bot_rag_index_ops_total", "RAG indexing operations", ["status", "source"]
+    )
     JOBS_RUN = Counter("rmi_bot_jobs_total", "Scheduled job runs by name", ["name"])
     JOBS_FAILED = Counter("rmi_bot_jobs_failed_total", "Scheduled job failures by name", ["name"])
     UPTIME = Gauge("rmi_bot_uptime_seconds", "Bot process uptime")
@@ -74,7 +92,8 @@ except ImportError:  # pragma: no cover - fallback path only when prometheus-cli
     _HAS_PROMETHEUS = False
     REGISTRY = None  # type: ignore[assignment]
     generate_latest = None  # type: ignore[assignment]
-    CHAT_CALLS = SCANS = ERRORS = WEBHOOK_EVENTS = JOBS_RUN = JOBS_FAILED = None  # type: ignore[assignment]
+    CHAT_CALLS = SCANS = ERRORS = WEBHOOK_EVENTS = WEBHOOK_DELIVERIES = None  # type: ignore[assignment]
+    WEBHOOK_SUCCESSES = WEBHOOK_FAILURES = RAG_INDEX_OPS = JOBS_RUN = JOBS_FAILED = None  # type: ignore[assignment]
     CHAT_LATENCY = UPTIME = SCHEDULER_GAUGE = LAST_ERROR_GAUGE = None  # type: ignore[assignment]
     # Plain fallback registry: key -> count (keys embed labels as JSON)
     _plain: dict[str, int] = {}
@@ -120,7 +139,39 @@ def record_scan(kind: str = "scan") -> None:
 
 def record_webhook_event(event_type: str = "unknown") -> None:
     """Record one intelligent webhook event delivered to a user."""
-    _inc(WEBHOOK_EVENTS, "webhook_events", {"event_type": (event_type or "unknown").strip() or "unknown"})
+    _inc(
+        WEBHOOK_EVENTS,
+        "webhook_events",
+        {"event_type": (event_type or "unknown").strip() or "unknown"},
+    )
+
+
+def record_webhook_delivery(*, success: bool, attempts: int, latency_ms: float) -> None:
+    """Record a webhook delivery attempt with success/failure and latency.
+
+    Args:
+        success: Whether the delivery was successful
+        attempts: Number of delivery attempts made (1 for first try)
+        latency_ms: Round-trip time in milliseconds
+    """
+    status = "success" if success else "failed"
+    _inc(WEBHOOK_DELIVERIES, "webhook_deliveries", {"status": status})
+    if success:
+        _inc(WEBHOOK_SUCCESSES, "webhook_successes", {"attempts": str(min(attempts, 5))})
+    else:
+        _inc(WEBHOOK_FAILURES, "webhook_failures", {"attempts": str(min(attempts, 5))})
+
+
+def record_rag_index(*, success: bool, source: str, latency_ms: float) -> None:
+    """Record a RAG indexing operation (scan memory or news ingest).
+
+    Args:
+        success: Whether the indexing was successful
+        source: Source of the index operation (e.g., "scan_v1", "news")
+        latency_ms: Time taken for the operation
+    """
+    status = "success" if success else "failed"
+    _inc(RAG_INDEX_OPS, "rag_index_ops", {"status": status, "source": source})
 
 
 def record_job(name: str = "unknown") -> None:
@@ -168,7 +219,9 @@ def _render_metrics() -> tuple[bytes, str]:
         for key, count in sorted(_plain.items()):
             payload["counters"][key] = count
         for tier, (lat_total, lat_count) in sorted(_plain_latency.items()):
-            payload["chat_latency_ms_mean"][tier] = round(lat_total / lat_count, 1) if lat_count else 0.0
+            payload["chat_latency_ms_mean"][tier] = (
+                round(lat_total / lat_count, 1) if lat_count else 0.0
+            )
         payload["last_error"] = _LAST_ERROR
     return json.dumps(payload, indent=2).encode(), "application/json"
 

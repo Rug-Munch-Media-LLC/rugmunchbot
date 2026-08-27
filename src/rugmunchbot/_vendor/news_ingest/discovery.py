@@ -68,7 +68,8 @@ async def discover_followed_channels(client: Any, limit: int = 500) -> list[tupl
             try:
                 me = await get_me()
                 account = getattr(me, "username", None) or getattr(me, "first_name", None) or ""
-            except Exception:
+            except Exception as exc:
+                log.warning("news_ingest:discovery:get_me_failed error=%s", str(exc)[:100])
                 account = ""
 
         # get_dialogs() returns a Dialogs container; iterate over its

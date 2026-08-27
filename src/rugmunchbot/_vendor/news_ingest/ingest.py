@@ -223,13 +223,15 @@ def filter_seen_articles(
             fresh.append(article)
             continue
         duplicate = False
-        for fp in fps:
-            try:  # fail-open by contract: dedup must never raise or drop articles
-                if is_duplicate_content(fp, collection):
-                    duplicate = True
-                    break
-            except Exception:
-                logger.debug("news_ingest:dedup_check_failed", exc_info=True)
+    for fp in fps:
+        try:  # fail-open by contract: dedup must never raise or drop articles
+            if is_duplicate_content(fp, collection):
+                duplicate = True
+                break
+        except Exception as exc:
+            logger.debug(
+                "news_ingest:dedup_check_failed fp=%s error=%s", str(fp)[:50], str(exc)[:100]
+            )
         if duplicate:
             skipped += 1
             continue
@@ -447,8 +449,8 @@ def _message_to_channel_message(msg: Any, channel_username: str) -> ChannelMessa
             views=int(views) if views is not None else None,
             reactions=_reaction_counts(getattr(msg, "reactions", None)),
         )
-    except Exception:
-        logger.debug("news_ingest_convert_failed", exc_info=True)
+    except Exception as exc:
+        logger.debug("news_ingest_convert_failed error=%s", str(exc)[:100])
         return None
 
 
