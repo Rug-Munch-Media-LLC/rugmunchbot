@@ -176,7 +176,9 @@ def should_index_scan(result: dict[str, Any], *, source: str = "scan_v1") -> boo
     result = result or {}
     if source == "sentinel":
         return bool(
-            result.get("composite_risk_score") is not None or result.get("token_address") or result.get("address")
+            result.get("composite_risk_score") is not None
+            or result.get("token_address")
+            or result.get("address")
         )
     name = str(result.get("name") or "")
     return bool(name and name != "Unknown")
@@ -260,7 +262,9 @@ async def ensure_collection(client: httpx.AsyncClient, collection: str = COLLECT
                 return False
             log.info("scan_memory_collection_created name=%s size=%d", collection, VECTOR_SIZE)
         elif r.status_code != 200:
-            log.warning("scan_memory_collection_probe_failed name=%s status=%d", collection, r.status_code)
+            log.warning(
+                "scan_memory_collection_probe_failed name=%s status=%d", collection, r.status_code
+            )
             return False
     except (httpx.HTTPError, httpx.TimeoutException, ValueError) as exc:
         log.warning("scan_memory_collection_unreachable name=%s error=%s", collection, exc)
@@ -332,17 +336,33 @@ async def index_scan_memory(
                     r.status_code,
                     r.text[:200],
                 )
+                # Record observability
+                try:
+                    from rugmunchbot.observability import record_rag_index
+
+                    record_rag_index(success=False, source=source, latency_ms=0)
+                except Exception:
+                    pass
                 return {"indexed": False, "error": f"qdrant status {r.status_code}"}
         finally:
             if owns_client:
                 await client.aclose()
+        # Record successful index
+        try:
+            from rugmunchbot.observability import record_rag_index
+
+            record_rag_index(success=True, source=source, latency_ms=0)
+        except Exception:
+            pass
         return {"indexed": True, "collection": COLLECTION, "point_id": pid, "doc": doc}
     except Exception as exc:  # fail-open contract (see module docstring)
         log.warning("scan_memory_index_failed error=%s", exc)
         return {"indexed": False, "error": str(exc)}
 
 
-def schedule_scan_memory_index(result: dict[str, Any], *, source: str = "scan_v1") -> asyncio.Task[Any] | None:
+def schedule_scan_memory_index(
+    result: dict[str, Any], *, source: str = "scan_v1"
+) -> asyncio.Task[Any] | None:
     """Fire-and-forget a scan-memory index in the background.
 
     Returns the Task (for tests / observability) or None when no event
@@ -412,7 +432,9 @@ def should_index_wallet(result: dict[str, Any]) -> bool:
     _raw_trust = result.get("trust")
     trust = _raw_trust if isinstance(_raw_trust, dict) else {}
     address = str(result.get("address") or result.get("wallet") or "")
-    return bool(address) and (trust.get("trust_score") is not None or result.get("risk_score") is not None)
+    return bool(address) and (
+        trust.get("trust_score") is not None or result.get("risk_score") is not None
+    )
 
 
 def build_wallet_doc(summary: dict[str, Any]) -> str:
@@ -480,7 +502,9 @@ async def index_wallet_memory(
             )
             return {"indexed": False, "error": f"vector dim {len(vector)} != {VECTOR_SIZE}"}
 
-        pid = wallet_point_id(summary.get("chain", "unknown"), address, summary.get("timestamp", ""))
+        pid = wallet_point_id(
+            summary.get("chain", "unknown"), address, summary.get("timestamp", "")
+        )
         owns_client = client is None
         if client is None:
             client = httpx.AsyncClient(base_url=_QDRANT_URL, timeout=5.0)
@@ -509,10 +533,22 @@ async def index_wallet_memory(
                     r.status_code,
                     r.text[:200],
                 )
+                try:
+                    from rugmunchbot.observability import record_rag_index
+
+                    record_rag_index(success=False, source="wallet_scan", latency_ms=0)
+                except Exception:
+                    pass
                 return {"indexed": False, "error": f"qdrant status {r.status_code}"}
         finally:
             if owns_client:
                 await client.aclose()
+        try:
+            from rugmunchbot.observability import record_rag_index
+
+            record_rag_index(success=True, source="wallet_scan", latency_ms=0)
+        except Exception:
+            pass
         return {"indexed": True, "collection": WALLET_COLLECTION, "point_id": pid, "doc": doc}
     except Exception as exc:  # fail-open contract (see module docstring)
         log.warning("wallet_memory_index_failed error=%s", exc)
