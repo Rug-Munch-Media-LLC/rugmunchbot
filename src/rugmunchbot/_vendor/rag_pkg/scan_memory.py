@@ -75,6 +75,10 @@ _WALLET_COLLECTION_ENSURED = False
 # garbage-collected mid-flight in CPython's asyncio.
 _BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
 
+# RAG availability flag — set at startup by the bot health check.
+# When False, scheduling is skipped to avoid wasting embedder/HTTP budget.
+_RAG_AVAILABLE: bool = True
+
 # Scan timestamp formats accepted by extract_scan_summary
 _SOURCE_LABELS = {
     "scan_v1": "scan_v1",
@@ -367,8 +371,17 @@ def schedule_scan_memory_index(
 
     Returns the Task (for tests / observability) or None when no event
     loop is running. Never raises — ingestion failure never blocks the
-    scan response.
+    /scan response.
+
+    If RAG/Qdrant is known to be unhealthy (probed at startup), the
+    scheduling is skipped entirely to avoid burning embedder + HTTP budget
+    on requests that will fail. The health state is set by
+    ``rugmunchbot.bot._entry._check_rag_health`` at startup and cleared
+    after any successful index.
     """
+    if not _rag_available():
+        log.debug("scan_memory_skip_rag_unavailable source=%s", source)
+        return None
     coro = index_scan_memory(result, source=source)
     try:
         task = asyncio.create_task(coro)
@@ -379,6 +392,23 @@ def schedule_scan_memory_index(
         coro.close()  # avoid an un-awaited coroutine warning
         log.debug("scan_memory_schedule_no_loop err=%s", exc)
         return None
+
+
+def _rag_available() -> bool:
+    """Return True if RAG/Qdrant is believed reachable.
+
+    The flag is managed by the bot startup health check and cleared on
+    any successful index. This is an optimization — the underlying
+    ``index_scan_memory`` is fully fail-open and will log+return
+    ``{"indexed": False}`` on any Qdrant error regardless of this flag.
+    """
+    return _RAG_AVAILABLE
+
+
+def set_rag_available(available: bool) -> None:
+    """Set the RAG availability flag. Called by the bot startup health check."""
+    global _RAG_AVAILABLE
+    _RAG_AVAILABLE = available
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -562,6 +592,9 @@ def schedule_wallet_memory_index(result: dict[str, Any]) -> asyncio.Task[Any] | 
     loop is running. Never raises — ingestion failure never blocks the
     /wallet response.
     """
+    if not _rag_available():
+        log.debug("wallet_memory_skip_rag_unavailable")
+        return None
     coro = index_wallet_memory(result)
     try:
         task = asyncio.create_task(coro)
@@ -571,7 +604,7 @@ def schedule_wallet_memory_index(result: dict[str, Any]) -> asyncio.Task[Any] | 
     except RuntimeError as exc:  # no running event loop
         coro.close()  # avoid an un-awaited coroutine warning
         log.debug("wallet_memory_schedule_no_loop err=%s", exc)
-        return None
+    return None
 
 
 __all__ = [
