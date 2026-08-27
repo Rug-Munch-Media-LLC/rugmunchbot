@@ -372,9 +372,9 @@ def main() -> None:
 async def _check_rag_health() -> None:
     """Check RAG/Qdrant health at startup. Logs WARNING if unreachable."""
     try:
-        from rugmunchbot._vendor.health import _aio, run_health_checks
+        from rugmunchbot._vendor.health import run_health_checks
 
-        results = _aio.run(run_health_checks())
+        results = await run_health_checks()
         for name, result in results.items():
             if not result.healthy:
                 logger.warning(
