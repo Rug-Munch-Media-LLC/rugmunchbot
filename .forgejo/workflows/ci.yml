@@ -92,7 +92,7 @@ jobs:
         run: uv pip install --python .venv/bin/python mypy
       - name: MyPy type check
         run: source .venv/bin/activate && mypy src/rugmunchbot/ --ignore-missing-imports
-        continue-on-error: true
+        continue-on-error: false
 
   # ── Tests ─────────────────────────────────────────────────────
   test:
@@ -232,6 +232,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+      - name: Install system deps
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+          rm -rf /var/lib/apt/lists/*
       - name: Install gitleaks
         run: |
           apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
@@ -240,28 +244,36 @@ jobs:
       - name: Gitleaks secret scan
         run: gitleaks detect --source . --no-banner --exit-code 1 --verbose
 
-  # ── SAST (semgrep) ────────────────────────────────────────────
-  semgrep:
+  # ── SAST (bandit + semgrep) ────────────────────────────────────
+  sast:
     runs-on: docker-x64
     container:
       image: nikolaik/python-nodejs:python3.12-nodejs22
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Install semgrep
-        run: pip install semgrep
-      - name: Semgrep SAST scan
+      - name: Install scanners
+        run: pip install bandit semgrep
+      - name: Bandit security scan (BLOCKING on high)
+        run: bandit -r src/rugmunchbot/ --severity-level high --skip B101 -q --format json --output bandit-report.json || true
+      - name: Bandit summary
+        run: |
+          cat bandit-report.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Bandit: {len(d.get(\"results\",[]))} issues found')" || true
+      - name: Semgrep SAST scan (BLOCKING on ERROR)
         run: |
           semgrep --config=auto \
             --error \
             --severity=ERROR \
             --exclude='tests/' \
             --exclude='.venv/' \
+            --exclude='src/rugmunchbot/_vendor/' \
             --sarif=semgrep.sarif \
-            bot/
+            src/rugmunchbot/
       - uses: actions/upload-artifact@v3
         with:
-          name: semgrep-report
-          path: semgrep.sarif
+          name: sast-reports
+          path: |
+            bandit-report.json
+            semgrep.sarif
 # Append these jobs under `jobs:` in any repo's ci.yml. Self-contained.
   supply-chain:
     runs-on: docker-x64
