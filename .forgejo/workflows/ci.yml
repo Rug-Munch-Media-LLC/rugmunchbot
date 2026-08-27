@@ -274,6 +274,23 @@ jobs:
           path: |
             bandit-report.json
             semgrep.sarif
+
+  # ── Docstring coverage ───────────────────────────────────────────────
+  docstring-coverage:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install interrogate
+        run: pip install interrogate
+      - name: Docstring coverage (BLOCKING at 60%)
+        run: interrogate src/rugmunchbot/ --fail-under=60
+
 # Append these jobs under `jobs:` in any repo's ci.yml. Self-contained.
   supply-chain:
     runs-on: docker-x64
