@@ -41,6 +41,7 @@ from rugmunchbot.handlers._market_helpers import (
 )
 from rugmunchbot.handlers._trending import (
     _fetch_cg_trending_news,
+    _fetch_dexscreener_trending_news,
     _fetch_fused_trending,
 )
 from rugmunchbot.keyboards import back_kb, token_buttons
@@ -620,11 +621,19 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         ) as e:
             logger.warning("cmd_news backend fetch failed: %s", e)
 
+    # Fallback to CoinGecko trending
     if not articles:
         cg_items = await _fetch_cg_trending_news()
         if cg_items:
             articles = cg_items
-            source_label = "Trending"
+            source_label = "CoinGecko Trending"
+
+    # Final fallback: use DexScreener trending
+    if not articles:
+        ds_items = await _fetch_dexscreener_trending_news()
+        if ds_items:
+            articles = ds_items
+            source_label = "DexScreener Trending"
 
     news_kb = InlineKeyboardMarkup(
         [
@@ -642,7 +651,7 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             "center-right": "\U0001f536",
             "right": "\U0001f534",
         }
-        lines = ["\U0001f4f0 <b>Rated Crypto News</b>", f"<i>via {source_label}</i>", sep()]
+        lines = ["\U0001f4f0 <b>Crypto News</b>", f"<i>via {source_label}</i>", sep()]
         for a in articles[:5]:
             title = (a.get("title") or "Untitled")[:100]
             source = a.get("source", "News")
@@ -654,6 +663,14 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 if url
                 else html.escape(title)
             )
+
+            # Detail line for trending tokens
+            detail = a.get("detail", "")
+            if detail:
+                lines.append(
+                    f"📰 {title_linked}\n  <i>{html.escape(source)}</i>{pub_str}\n  {detail}"
+                )
+                continue
 
             # Bias/sentiment/factual ratings
             bias = a.get("bias", "center")

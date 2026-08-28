@@ -46,7 +46,9 @@ async def _fetch_cg_trending_news() -> list[dict[str, Any]] | None:
     return items
 
 
-async def _fetch_dexscreener_trending(chain: str = "solana", limit: int = 20) -> list[dict[str, Any]] | None:
+async def _fetch_dexscreener_trending(
+    chain: str = "solana", limit: int = 20
+) -> list[dict[str, Any]] | None:
     """Fetch trending from DexScreener token boosts, then enrich with token details."""
     try:
         client = get_shared_client(15)
@@ -72,7 +74,9 @@ async def _fetch_dexscreener_trending(chain: str = "solana", limit: int = 20) ->
 
             async with semaphore:
                 try:
-                    r = await client.get(f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8)
+                    r = await client.get(
+                        f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8
+                    )
                     if r.status_code != 200:
                         return None
                     data = r.json()
@@ -134,7 +138,85 @@ async def _fetch_dexscreener_trending(chain: str = "solana", limit: int = 20) ->
         return None
 
 
-async def _fetch_dexscreener_fresh_launches(chain: str = "solana", limit: int = 12) -> list[dict[str, Any]] | None:
+async def _fetch_dexscreener_trending_news(limit: int = 5) -> list[dict[str, Any]] | None:
+    """Fetch trending tokens from DexScreener as news items.
+
+    Unlike _fetch_dexscreener_trending (which returns full token detail
+    dicts for the /trending command), this returns news-format dicts
+    suitable for the /news command.
+    """
+    items = await _fetch_dexscreener_trending(chain="all", limit=limit)
+    if not items:
+        return None
+    news_items = []
+    for t in items[:limit]:
+        name = t.get("name") or "Unknown"
+        symbol = t.get("symbol") or "?"
+        chain = t.get("chain", "solana")
+        price = t.get("price_usd", 0)
+        change_24h = t.get("change_24h", 0)
+        liquidity = t.get("liquidity_usd", 0)
+        volume = t.get("volume_24h", 0)
+        created = t.get("created_at")
+        is_new = t.get("is_new_launch", False)
+        risk = t.get("risk_score")
+        bundle = t.get("bundle_detected", False)
+
+        title_parts = [f"{name} ({symbol})"]
+        if is_new:
+            title_parts.append("🆕 NEW")
+        title_parts.append("trending now")
+
+        detail_parts = []
+        if chain:
+            detail_parts.append(f"⛓ {chain.upper()}")
+        if price:
+            detail_parts.append(f"💲{price:.4f}")
+        if change_24h:
+            emoji = "🟢" if change_24h > 0 else "🔴"
+            detail_parts.append(f"{emoji}{change_24h:+.1f}%")
+        if liquidity:
+            detail_parts.append(f"💧${_fmt_num(liquidity)}")
+        if volume:
+            detail_parts.append(f"📊${_fmt_num(volume)}")
+        if risk is not None:
+            risk_emoji = "🟢" if risk < 30 else "🟡" if risk < 60 else "🔴"
+            detail_parts.append(f"{risk_emoji}Risk:{risk}")
+        if bundle:
+            detail_parts.append("⚠️Bundled")
+
+        title = " ".join(title_parts)
+        detail = " · ".join(detail_parts)
+
+        news_items.append(
+            {
+                "title": title,
+                "source": "DexScreener",
+                "published_at": None,
+                "url": f"https://dexscreener.com/{chain}/{t.get('address', '')}"
+                if t.get("address")
+                else "",
+                "score": t.get("score", 0) or 0,
+                "detail": detail,
+            }
+        )
+    return news_items if news_items else None
+
+
+def _fmt_num(n: float) -> str:
+    """Format a number with K/M/B suffix."""
+    if n >= 1_000_000_000:
+        return f"{n / 1_000_000_000:.1f}B"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}K"
+    return f"{n:.0f}"
+
+
+async def _fetch_dexscreener_fresh_launches(
+    chain: str = "solana", limit: int = 12
+) -> list[dict[str, Any]] | None:
     """Freshly deployed tokens from DexScreener token-profiles (pump.fun etc.).
 
     ``/token-profiles/latest/v1`` is the same feed the trending algorithm
@@ -145,7 +227,9 @@ async def _fetch_dexscreener_fresh_launches(chain: str = "solana", limit: int = 
     """
     try:
         client = get_shared_client(15)
-        profiles = await http_get_any("https://api.dexscreener.com/token-profiles/latest/v1", timeout=15)
+        profiles = await http_get_any(
+            "https://api.dexscreener.com/token-profiles/latest/v1", timeout=15
+        )
         if not isinstance(profiles, list) or not profiles:
             return None
 
@@ -164,7 +248,9 @@ async def _fetch_dexscreener_fresh_launches(chain: str = "solana", limit: int = 
 
             async with semaphore:
                 try:
-                    r = await client.get(f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8)
+                    r = await client.get(
+                        f"https://api.dexscreener.com/latest/dex/tokens/{token_addr}", timeout=8
+                    )
                     if r.status_code != 200:
                         return None
                     pairs = r.json().get("pairs", [])
@@ -206,7 +292,9 @@ async def _fetch_dexscreener_fresh_launches(chain: str = "solana", limit: int = 
         return None
 
 
-async def _fetch_fused_trending(chain: str = "solana", limit: int = 20) -> list[dict[str, Any]] | None:
+async def _fetch_fused_trending(
+    chain: str = "solana", limit: int = 20
+) -> list[dict[str, Any]] | None:
     """Fetch and fuse trending from degen sources with enrichment.
 
     Sources (no CoinGecko search-score — it has no contract addresses and is
@@ -245,7 +333,9 @@ async def _fetch_fused_trending(chain: str = "solana", limit: int = 20) -> list[
     return enriched
 
 
-async def _fetch_rugcharts_trending(chain: str = "solana", limit: int = 8) -> list[dict[str, Any]] | None:
+async def _fetch_rugcharts_trending(
+    chain: str = "solana", limit: int = 8
+) -> list[dict[str, Any]] | None:
     """Fetch trending tokens from the RugCharts backend."""
     try:
         body = await http_get_json(
