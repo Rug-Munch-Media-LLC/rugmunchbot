@@ -417,8 +417,6 @@ async def startup(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     # Override PTB's default stop-signal handlers (must run on the loop).
     install_sigterm_shutdown(app)
 
-    app.post_init = startup
-
     # Belt-and-suspenders: if the app stops via ANY path (signal, stop_running()
     # from a handler, fatal error), close the Telethon client before the loop
     # closes. post_stop runs after Application.stop() returns; it is a no-op
@@ -436,3 +434,8 @@ async def startup(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     # thread; host/port via RUGMUNCHBOT_METRICS_HOST / RUGMUNCHBOT_METRICS_PORT).
     start_server()
     app.run_polling(drop_pending_updates=True)
+
+
+def run_bot() -> None:
+    """Entry point for the secure launcher."""
+    main()
