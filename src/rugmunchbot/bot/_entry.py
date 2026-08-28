@@ -417,6 +417,8 @@ async def startup(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     # Override PTB's default stop-signal handlers (must run on the loop).
     install_sigterm_shutdown(app)
 
+    app.post_init = startup
+
     # Belt-and-suspenders: if the app stops via ANY path (signal, stop_running()
     # from a handler, fatal error), close the Telethon client before the loop
     # closes. post_stop runs after Application.stop() returns; it is a no-op
