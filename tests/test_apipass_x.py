@@ -214,6 +214,12 @@ def test_fetch_user_tweets_polls_task(monkeypatch, respx_mock):
             ),
         ]
     )
+
+    # 2026-08-29: user-tweets now resolves handle → user_id first (graphql lane).
+    async def _fake_resolve(handle: str) -> str | None:
+        return "12345"
+
+    monkeypatch.setattr(m, "_resolve_user_id", _fake_resolve)
     monkeypatch.setattr(m, "POLL_INTERVAL_S", 0.01)
     tweets = asyncio.run(m.fetch_user_tweets("kolo", limit=5))
     assert len(tweets) == 2

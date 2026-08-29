@@ -29,32 +29,18 @@ ApiPass task flow (OpenAPI-verified 2026-08-29)
 2. ``GET  /api/v1/jobs/recordInfo?taskId=<id>`` → ``{data: {state,
    resultJson, failMsg, ...}}`` — poll until a terminal state.
 
-Model: ``twitter-api-simple`` — endpoints ``tweet-detail``, ``user-tweets``,
-``search``, ``quotes``, ``retweeters`` (verified via ``/v1/models``).
-``input`` is ``{"endpoint": ..., "params": {...}}`` with the params also
-flattened at the top level, so either provider-side convention works.
-
-Operator provisioning (verified 2026-08-29 — REQUIRED for the rail to work)
-----------------------------------------------------------------------------
-The key authenticates (no 401) but ``createTask`` may return
-``404 {"detail": "Model type not found or not configured: twitter-api-simple"}``
-when the account has NOT enabled the model. This is account-side
-provisioning — the code and model slug are correct (the slug + endpoints are
-verified against the live ``/v1/models`` catalog). To enable:
-
-1. Sign in to the ApiPass dashboard (apipass.dev) with the account whose key
-   is configured (secret store ``apipass_api_key`` / gopass
-   ``rmi/apipass/api_key``).
-2. Open the Models Market → search ``twitter`` → ``twitter-api-simple``
-   (Twitter brand, "social-media-api" task type) and enable/configure it for
-   the API key.
-3. Ensure the account has credits for the route (50 free on signup ≈ 100
-   calls at ~0.5 credits/call; top up if the social-media-api channel needs
-   a paid route).
-4. Verify: ``scripts/verify_apipass.py`` → prints "=== REAL TWEET PULLED ==="
-   when provisioning is complete. Until then every fetch fails open (None)
-   and callers fall back to the next rail — a dead ApiPass never breaks a
-   channel tick or the /tweet command.
+Model (corrected 2026-08-29, verified against the live model pages): the
+``model`` field sent to createTask IS the full endpoint path —
+``twitter/simple/user-tweets``, ``twitter/simple/tweet-detail``,
+``twitter/simple/search``, ``twitter/simple/quotes``, ``twitter/simple/
+retweeters``, plus the graphql family (``twitter/graphql/user-by-screen-name``,
+etc.). ``input`` carries that endpoint's params directly (``user_id`` /
+``tweet_id`` / ``q`` / ``screen_name``). The ``twitter-api-simple`` string is
+NOT a callable model id — it is the brand/category wrapper ("social-media-api")
+and returns ``404 "Model type not found or not configured"`` if sent as
+``model``. There is no account-side "enable" step: the endpoints are live once
+the account has credits; the correct fix was the model/input shape, not
+provisioning.
 
 Post-fetch pipeline (the "embed → dedup → rerank" contract):
 * ``semantic_dedup`` — qwen3-4B embed (``_vendor.rag_pkg.embeddings``) +
@@ -86,8 +72,13 @@ logger = logging.getLogger(__name__)
 # ══════════════════════════════════════════════════════════════════════════
 
 APIPASS_BASE_URL = os.getenv("APIPASS_BASE_URL", "https://api.apipass.dev").rstrip("/")
-#: ApiPass model slug that fronts the X API (verified in /v1/models).
-APIPASS_TWITTER_MODEL = os.getenv("APIPASS_TWITTER_MODEL", "twitter-api-simple")
+# 2026-08-29 (verified against live ApiPass model pages): the ``model`` field
+# sent to createTask IS the full endpoint path — ``twitter/simple/user-tweets``,
+# ``twitter/simple/tweet-detail``, ``twitter/simple/search``, etc. There is no
+# ``twitter-api-simple`` model id; that slug is the *brand/category* wrapper
+# (social-media-api) and 404s. Kept as the env-overridable base prefix so
+# operators can switch to the graphql family (``twitter/graphql``) if needed.
+APIPASS_TWITTER_MODEL = os.getenv("APIPASS_TWITTER_MODEL", "twitter/simple")
 #: Hard budget — max task creations per hour (default 6 ≈ 3 credits/hr at
 #: ~0.5 credits/call, per the ApiPass slow-burn doctrine).
 MAX_CALLS_PER_HOUR = int(os.getenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", "6"))
@@ -239,15 +230,19 @@ def _auth_headers() -> dict[str, str]:
 
 
 def _build_input(endpoint: str, params: dict[str, Any]) -> dict[str, Any]:
-    """Input body for createTask: ``{endpoint, params}`` + flattened params.
+    """Input body for createTask — the endpoint's own params, top-level.
 
-    ApiPass's ``input`` schema is ``additionalProperties: true`` (OpenAPI
-    verified), so carrying both conventions is safe and maximizes provider
-    compatibility (some endpoints read ``params.username``, some read
-    ``input.username``).
+    2026-08-29 (verified against the live ApiPass model pages): the ``model``
+    field IS the full endpoint path (``twitter/simple/user-tweets``,
+    ``twitter/simple/tweet-detail``, ``twitter/simple/search``, …) and the
+    ``input`` object carries the endpoint's params directly (``user_id`` /
+    ``tweet_id`` / ``q``). The endpoint is NOT nested inside ``input`` — it
+    rides in ``model`` (see ``run_task``). ``endpoint`` is kept as a param so
+    the usage meter still logs the lane, but it is not sent in the payload.
     """
+    del endpoint  # the endpoint path is passed as `model`, not inside `input`
     clean = {k: v for k, v in (params or {}).items() if v is not None}
-    return {"endpoint": endpoint, "params": clean, **clean}
+    return clean
 
 
 async def create_task(model: str, input_body: dict[str, Any]) -> str | None:
@@ -282,7 +277,7 @@ async def create_task(model: str, input_body: dict[str, Any]) -> str | None:
                 logger.warning("apipass_x:create_no_task_id body=%s", str(body)[:200])
                 return None
             _note_task_created()
-            _meter_usage(endpoint=input_body.get("endpoint", ""), task_id=task_id)
+            _meter_usage(endpoint=model, task_id=task_id)
             logger.info("apipass_x:task_created model=%s task=%s", model, task_id)
             return task_id
     except (httpx.HTTPError, httpx.TimeoutException, ValueError) as exc:
@@ -612,6 +607,44 @@ async def rerank_tweets(
 # ══════════════════════════════════════════════════════════════════════════
 
 
+async def _resolve_user_id(handle: str) -> str | None:
+    """Resolve an X screen name → numeric user id via the graphql lane.
+
+    ``twitter/simple/user-tweets`` requires ``user_id`` (numeric), but callers
+    pass handles. Use ``twitter/graphql/user-by-screen-name`` (input
+    ``screen_name``) to resolve, then the simple lane fetches the timeline.
+    Fail-open: any error → None (caller returns ``[]``).
+    """
+    try:
+        input_body = {"screen_name": handle}
+        result = await run_task("twitter/graphql/user-by-screen-name", input_body)
+        if not isinstance(result, dict):
+            return None
+
+        # Walk the graphql payload for a user id — tolerate a few shapes.
+        def _find_id(value: Any) -> str | None:
+            if isinstance(value, dict):
+                for k in ("rest_id", "id_str", "id"):
+                    v = value.get(k)
+                    if isinstance(v, str) and v.strip():
+                        return v.strip()
+                for v in value.values():
+                    found = _find_id(v)
+                    if found:
+                        return found
+            elif isinstance(value, list):
+                for v in value:
+                    found = _find_id(v)
+                    if found:
+                        return found
+            return None
+
+        return _find_id(result)
+    except Exception as exc:  # noqa: BLE001 — resolution is best-effort
+        logger.debug("apipass_x:resolve_user_id_failed handle=%s err=%s", handle, str(exc)[:120])
+        return None
+
+
 async def fetch_tweet_detail(tweet_id: str) -> dict[str, Any] | None:
     """One real tweet by id (the ApiPass 'tweet-detail' endpoint)."""
     tweet_id = str(tweet_id or "").strip()
@@ -619,9 +652,9 @@ async def fetch_tweet_detail(tweet_id: str) -> dict[str, Any] | None:
         return None
     input_body = _build_input(
         "twitter/simple/tweet-detail",
-        {"tweetId": tweet_id, "id": tweet_id, "url": _tweet_url("", tweet_id)},
+        {"tweet_id": tweet_id},
     )
-    result = await run_task(APIPASS_TWITTER_MODEL, input_body)
+    result = await run_task(f"{APIPASS_TWITTER_MODEL}/tweet-detail", input_body)
     tweets = _extract_tweets(result)
     return tweets[0] if tweets else None
 
@@ -631,15 +664,23 @@ async def fetch_user_tweets(handle: str, limit: int = 10) -> list[dict[str, Any]
 
     Returns normalized tweet dicts (fail-open ``[]``). The caller owns
     semantic dedup / rerank via :func:`semantic_dedup` / :func:`rerank_tweets`.
+
+    2026-08-29: ``twitter/simple/user-tweets`` takes a numeric ``user_id``, not
+    a handle. We only have a handle, so we first resolve handle → user_id via
+    the graphql ``user-by-screen-name`` endpoint, then fetch the timeline.
+    Fail-open at every hop (no id → ``[]``).
     """
     handle = str(handle or "").strip().lstrip("@")
     if not handle:
         return []
+    user_id = await _resolve_user_id(handle)
+    if not user_id:
+        return []
     input_body = _build_input(
         "twitter/simple/user-tweets",
-        {"username": handle, "screenName": handle, "count": max(1, min(int(limit), 50))},
+        {"user_id": user_id, "count": max(1, min(int(limit), 50))},
     )
-    result = await run_task(APIPASS_TWITTER_MODEL, input_body)
+    result = await run_task(f"{APIPASS_TWITTER_MODEL}/user-tweets", input_body)
     return _extract_tweets(result)[: max(1, min(int(limit), 50))]
 
 
@@ -654,9 +695,9 @@ async def search_tweets(query: str, limit: int = 10) -> list[dict[str, Any]]:
         return []
     input_body = _build_input(
         "twitter/simple/search",
-        {"query": query, "keyword": query, "count": max(1, min(int(limit) * 2, 50))},
+        {"q": query, "count": max(1, min(int(limit) * 2, 50))},
     )
-    result = await run_task(APIPASS_TWITTER_MODEL, input_body)
+    result = await run_task(f"{APIPASS_TWITTER_MODEL}/search", input_body)
     tweets = _extract_tweets(result)
     tweets.sort(
         key=lambda t: int(t.get("like_count") or 0) * 2 + int(t.get("retweet_count") or 0),
