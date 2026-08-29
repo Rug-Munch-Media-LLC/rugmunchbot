@@ -34,6 +34,28 @@ Model: ``twitter-api-simple`` — endpoints ``tweet-detail``, ``user-tweets``,
 ``input`` is ``{"endpoint": ..., "params": {...}}`` with the params also
 flattened at the top level, so either provider-side convention works.
 
+Operator provisioning (verified 2026-08-29 — REQUIRED for the rail to work)
+----------------------------------------------------------------------------
+The key authenticates (no 401) but ``createTask`` may return
+``404 {"detail": "Model type not found or not configured: twitter-api-simple"}``
+when the account has NOT enabled the model. This is account-side
+provisioning — the code and model slug are correct (the slug + endpoints are
+verified against the live ``/v1/models`` catalog). To enable:
+
+1. Sign in to the ApiPass dashboard (apipass.dev) with the account whose key
+   is configured (secret store ``apipass_api_key`` / gopass
+   ``rmi/apipass/api_key``).
+2. Open the Models Market → search ``twitter`` → ``twitter-api-simple``
+   (Twitter brand, "social-media-api" task type) and enable/configure it for
+   the API key.
+3. Ensure the account has credits for the route (50 free on signup ≈ 100
+   calls at ~0.5 credits/call; top up if the social-media-api channel needs
+   a paid route).
+4. Verify: ``scripts/verify_apipass.py`` → prints "=== REAL TWEET PULLED ==="
+   when provisioning is complete. Until then every fetch fails open (None)
+   and callers fall back to the next rail — a dead ApiPass never breaks a
+   channel tick or the /tweet command.
+
 Post-fetch pipeline (the "embed → dedup → rerank" contract):
 * ``semantic_dedup`` — qwen3-4B embed (``_vendor.rag_pkg.embeddings``) +
   cosine threshold against a recent-vector store, so the same shill claim

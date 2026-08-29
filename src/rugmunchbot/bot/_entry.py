@@ -45,6 +45,8 @@ from rugmunchbot.commands import (
     cmd_rugmap,
     cmd_simulate,
     cmd_smartmoney,
+    cmd_tweet,
+    cmd_tweets,
 )
 from rugmunchbot.commands.premium import (
     cmd_cluster,
@@ -76,6 +78,7 @@ from rugmunchbot.handlers.alerts import (
 from rugmunchbot.handlers.api_access import cmd_api
 from rugmunchbot.handlers.ask import cmd_ask
 from rugmunchbot.handlers.callback import handle_callback
+from rugmunchbot.handlers.cascade_token import register_cascade_token
 from rugmunchbot.handlers.chat import cmd_chat
 from rugmunchbot.handlers.chat_ai import register_chat_ai
 from rugmunchbot.handlers.deepscan import cmd_deepscan
@@ -119,6 +122,7 @@ from rugmunchbot.handlers.owner import (
     cmd_rpcstats,
 )
 from rugmunchbot.handlers.payments import precheckout, successful_payment
+from rugmunchbot.handlers.portfolio import register_portfolio
 from rugmunchbot.handlers.prediction import register_prediction
 from rugmunchbot.handlers.price import cmd_dex, cmd_price
 from rugmunchbot.handlers.report import cmd_report
@@ -139,8 +143,6 @@ from rugmunchbot.handlers.scanning import (
 )
 from rugmunchbot.handlers.sentiment import cmd_sentiment
 from rugmunchbot.handlers.status import register_status
-from rugmunchbot.handlers.portfolio import register_portfolio
-from rugmunchbot.handlers.cascade_token import register_cascade_token
 from rugmunchbot.handlers.trace import cmd_trace, register_trace_commands
 from rugmunchbot.handlers.watchlist import (
     cmd_monitor,
@@ -230,6 +232,10 @@ def main() -> None:
     _reg(app, "ask", cmd_ask)
     _reg(app, "chat", cmd_chat)
     _reg(app, "dune", cmd_dune)  # curated on-chain intel (Dune queries)
+
+    # X post reader (ApiPass — never direct scrape)
+    _reg(app, "tweet", cmd_tweet)
+    _reg(app, "tweets", cmd_tweets)
 
     # Account / billing
     _reg(app, "account", cmd_account)

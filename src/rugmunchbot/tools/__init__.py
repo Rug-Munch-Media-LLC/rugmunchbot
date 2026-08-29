@@ -75,6 +75,7 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     from rugmunchbot.tools.prediction_markets import register_tool as _register_prediction_markets
     from rugmunchbot.tools.price import price_lookup
     from rugmunchbot.tools.rag_lookup import rag_lookup
+    from rugmunchbot.tools.read_tweet import read_tweet
     from rugmunchbot.tools.security import security_scan, wallet_analysis
     from rugmunchbot.tools.story_fetch import story_fetch
     from rugmunchbot.tools.ta import register_tool as _register_ta
@@ -89,30 +90,43 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     registry_.register("smart_money", smart_money, timeout=8.0, ttl=120.0)
     registry_.register("security_scan", security_scan, timeout=8.0, ttl=60.0)
     from rugmunchbot.tools.volume_integrity import volume_integrity
+
     registry_.register("volume_integrity", volume_integrity, timeout=15.0, ttl=120.0)
     from rugmunchbot.tools.exchange_volume_audit import exchange_volume_audit
+
     registry_.register("exchange_volume_audit", exchange_volume_audit, timeout=15.0, ttl=300.0)
     from rugmunchbot.tools.dune_intel import dune_intel
+
     registry_.register("dune_intel", dune_intel, timeout=30.0, ttl=600.0)
     from rugmunchbot.tools.social_intel import social_intel
+
     registry_.register("social_intel", social_intel, timeout=20.0, ttl=300.0)
     from rugmunchbot.tools.funding_dislocation import funding_dislocation
+
     registry_.register("funding_dislocation", funding_dislocation, timeout=25.0, ttl=300.0)
     from rugmunchbot.tools.rug_prediction import rug_prediction
+
     registry_.register("rug_prediction", rug_prediction, timeout=5.0, ttl=120.0)
     from rugmunchbot.tools.cascade_predictor import cascade_watch
+
     registry_.register("cascade_watch", cascade_watch, timeout=25.0, ttl=180.0)
     from rugmunchbot.tools.data_health import probe_all
+
     registry_.register("data_health", probe_all, timeout=15.0, ttl=30.0)
     from rugmunchbot.tools.lp_expiry import check_lp_expiry
+
     registry_.register("lp_expiry", check_lp_expiry, timeout=15.0, ttl=600.0)
     from rugmunchbot.tools.whale_convergence import whale_convergence
+
     registry_.register("whale_convergence", whale_convergence, timeout=15.0, ttl=300.0)
     from rugmunchbot.tools.whale_profiler import profile_whale
+
     registry_.register("whale_profiler", profile_whale, timeout=20.0, ttl=120.0)
     from rugmunchbot.tools.portfolio_risk import audit_portfolio
+
     registry_.register("portfolio_risk", audit_portfolio, timeout=60.0, ttl=120.0)
     from rugmunchbot.tools.token_dna import analyze_token_dna
+
     registry_.register("token_dna", analyze_token_dna, timeout=5.0, ttl=120.0)
     registry_.register("wallet_analysis", wallet_analysis, timeout=20.0, ttl=60.0)
     # web_search timeout is generous (75s): when the bridge + SearXNG are
@@ -125,6 +139,10 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     # Pull any story from any site → clean text + title/author/date. ttl=0:
     # URL content is NOT cached (fresh fetch per call); bounded by timeout.
     registry_.register("story_fetch", story_fetch, timeout=14.0, ttl=0.0)
+    # Read an X post (URL / id / handle) via ApiPass — the chat-loop twin of
+    # the /tweet command. Never scrapes X. ttl=0: tweet content is not cached
+    # (fresh fetch per call); timeout covers the ApiPass task poll budget.
+    registry_.register("read_tweet", read_tweet, timeout=95.0, ttl=0.0)
     registry_.register("birdeye_market", birdeye_market, timeout=10.0, ttl=120.0)
     registry_.register("market_overview", market_overview, timeout=10.0, ttl=60.0)
     registry_.register("market_condition", market_condition, timeout=10.0, ttl=120.0)

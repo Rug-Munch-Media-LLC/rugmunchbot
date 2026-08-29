@@ -28,8 +28,10 @@ from rugmunchbot.tools.intent._vocab import (
     _SMART_MONEY_WORDS,
     _TA_WORDS,
     _TRENDING_WORDS,
+    _TWEET_WORDS,
     _WALLET_WORDS,
 )
+from rugmunchbot.tools.read_tweet import parse_target
 
 
 def route_tools(text: str) -> list[str]:
@@ -60,7 +62,9 @@ def route_tools(text: str) -> list[str]:
     # A bare risk-rank ask ("riskiest picks of the day") is an implicit
     # trending question when it names picks/tokens/coins.
     risk_rank = detect_risk_rank(text)
-    trending_intent = bool(_TRENDING_WORDS.search(text)) or (risk_rank and bool(_PICKS_WORDS.search(text)))
+    trending_intent = bool(_TRENDING_WORDS.search(text)) or (
+        risk_rank and bool(_PICKS_WORDS.search(text))
+    )
     if trending_intent and "trending" not in excluded:
         tools.append("trending")
         if _NEWS_WORDS.search(text) and "news_headlines" not in excluded:
@@ -127,8 +131,18 @@ def route_tools(text: str) -> list[str]:
     if _NEWS_WORDS.search(text) and "trending" not in tools and "web_search" not in excluded:
         tools.append("web_search")
 
+    # X-post read: an explicit tweet/X-post ask or a pasted x.com URL routes to
+    # the ApiPass reader (never the story scraper — see story_fetch guard).
+    if _TWEET_WORDS.search(text) and "read_tweet" not in excluded:
+        tools.append("read_tweet")
+
     # A bare address with no other intent is a security question.
-    if addrs and "security_scan" not in tools and "wallet_analysis" not in tools and "security_scan" not in excluded:
+    if (
+        addrs
+        and "security_scan" not in tools
+        and "wallet_analysis" not in tools
+        and "security_scan" not in excluded
+    ):
         tools.append("security_scan")
 
     # Deduplicate preserving order.
@@ -195,5 +209,7 @@ def tool_kwargs(text: str, names: list[str]) -> dict[str, dict[str, Any]]:
             kwargs["chain"] = chain or "solana"
         if name == "web_search":
             kwargs["query"] = text
+        if name == "read_tweet":
+            kwargs.update(parse_target(text))
         per_tool[name] = kwargs
     return per_tool

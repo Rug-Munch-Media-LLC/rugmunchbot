@@ -88,6 +88,16 @@ _NEWS_WORDS = re.compile(
 )
 
 
+# X-post reads (the chat-loop twin of the /tweet command): any explicit tweet /
+# X-post ask OR an x.com / twitter.com URL pasted into chat.
+_TWEET_WORDS = re.compile(
+    r"\b(tweet|tweets?|x post|x posts?|read (the|that|this) (tweet|post)|"
+    r"what('s| is) (in|on) (this )?(tweet|post)|read this)\b|"
+    r"https?://(?:x\.com|twitter\.com)/",
+    re.IGNORECASE,
+)
+
+
 _PREDICTION_WORDS = re.compile(
     r"\b(prediction markets?|polymarket|kalshi|odds (on|for|of)|who will win|chances of|probability of)\b",
     re.IGNORECASE,

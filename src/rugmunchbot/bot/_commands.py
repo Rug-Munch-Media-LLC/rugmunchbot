@@ -40,6 +40,8 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("trace", "Cross-chain fund trace"),
             ("market", "Market overview & trends"),
             ("news", "Latest crypto news"),
+            ("tweet", "Read an X post by URL, id, or @handle (via ApiPass)"),
+            ("tweets", "Recent X posts from an account"),
             ("alerts", "Manage price alerts"),
             ("chat", "Freestyle AI chat"),
             ("help", "Full command guide"),

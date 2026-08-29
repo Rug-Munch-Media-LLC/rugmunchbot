@@ -7,6 +7,7 @@ from rugmunchbot.commands.portfolio import cmd_portfolio
 from rugmunchbot.commands.rugmap import cmd_rugmap
 from rugmunchbot.commands.simulate import cmd_simulate
 from rugmunchbot.commands.smartmoney import cmd_smartmoney
+from rugmunchbot.commands.tweet import cmd_tweet, cmd_tweets
 
 __all__ = [
     "cmd_chart",
@@ -16,4 +17,6 @@ __all__ = [
     "cmd_rugmap",
     "cmd_simulate",
     "cmd_smartmoney",
+    "cmd_tweet",
+    "cmd_tweets",
 ]
