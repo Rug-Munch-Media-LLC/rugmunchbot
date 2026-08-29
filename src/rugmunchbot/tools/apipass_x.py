@@ -533,6 +533,11 @@ def _extract_tweets(payload: dict[str, Any] | None) -> list[dict[str, Any]]:
 #: Recent text → vector store for semantic dedup (bounded, fail-open).
 _recent_vectors: deque[tuple[str, list[float]]] = deque(maxlen=DEDUP_MAX_VECTORS)
 _embed_available: bool | None = None
+#: Monotonic deadline after which a failed embedder is re-probed. Without a
+#: cooldown a single outage latches ``_embed_available=False`` for the whole
+#: process and semantic dedup never recovers (silent rail loss).
+_embed_retry_after: float = 0.0
+_EMBED_RETRY_SECONDS: float = float(os.getenv("APIPASS_EMBED_RETRY_SECONDS", "300"))
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -554,8 +559,9 @@ def _remember_vector(text: str, vector: list[float]) -> None:
 
 def reset_embed_availability() -> None:
     """Force re-probe of the embedder (tests / after an outage)."""
-    global _embed_available
+    global _embed_available, _embed_retry_after
     _embed_available = None
+    _embed_retry_after = 0.0
 
 
 def _semantic_is_duplicate(text: str, vector: list[float]) -> bool:
@@ -575,13 +581,22 @@ async def semantic_dedup(text: str, *, key: str = "") -> bool:
     compares cosine against the recent-vector window. When the embedder is
     unavailable the vector is not computed and this returns False (the
     caller's URL-keyed dedup still applies) — dedup degrades, never blocks.
+    After an outage the embedder is re-probed on a cooldown
+    (``APIPASS_EMBED_RETRY_SECONDS``) instead of being disabled forever, and
+    the first failure is logged loudly.
     """
-    global _embed_available
-    if _embed_available is False:
+    global _embed_available, _embed_retry_after
+    if _embed_available is False and time.monotonic() < _embed_retry_after:
         return False
     vector = await get_embedding(text)
     if not vector:
+        if _embed_available is not False:
+            logger.warning(
+                "apipass_x:embed_unavailable semantic_dedup_disabled retry_seconds=%s",
+                _EMBED_RETRY_SECONDS,
+            )
         _embed_available = False
+        _embed_retry_after = time.monotonic() + _EMBED_RETRY_SECONDS
         return False
     _embed_available = True
     if _semantic_is_duplicate(text, vector):
@@ -637,7 +652,10 @@ async def _resolve_user_id(handle: str) -> str | None:
     Fail-open: any error → None (caller returns ``[]``).
     """
     try:
-        input_body = {"screen_name": handle}
+        # 2026-08-29: ``twitter/graphql/user-by-screen-name`` expects the param
+        # nested under ``variables`` (``INVALID_PARAMS: Missing required
+        # parameter: variables`` otherwise). Fix the input shape, not the model.
+        input_body = {"variables": {"screen_name": handle}}
         result = await run_task("twitter/graphql/user-by-screen-name", input_body)
         if not isinstance(result, dict):
             return None
@@ -649,6 +667,15 @@ async def _resolve_user_id(handle: str) -> str | None:
                     v = value.get(k)
                     if isinstance(v, str) and v.strip():
                         return v.strip()
+                # The graphql response is wrapped in `variables`/`result`/`user`
+                # containers (and ApiPass may echo `variables` back); descend into
+                # those explicitly before the generic recursion.
+                for k in ("variables", "result", "user", "data"):
+                    inner = value.get(k)
+                    if isinstance(inner, (dict, list)):
+                        found = _find_id(inner)
+                        if found:
+                            return found
                 for v in value.values():
                     found = _find_id(v)
                     if found:

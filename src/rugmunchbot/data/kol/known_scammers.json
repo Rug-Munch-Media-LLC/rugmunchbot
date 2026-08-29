@@ -230,18 +230,19 @@
    "verified": false
   },
   {
-   "handle": "AltcoinGordon",
+   "handle": "GordonGekko",
    "name": "Altcoin Gordon",
    "category": "scam_shiller",
    "known_for": "Long-documented pattern of aggressively shilling low-cap tokens and NFTs, many of which dumped shortly after his calls; repeated community criticism and 'caller' blacklist mentions. Hearsay-level evidence; handle listed as verified in influential_accounts registry. [REVIEW]",
-   "evidence_url": "https://x.com/AltcoinGordon",
+   "evidence_url": "https://x.com/GordonGekko",
    "severity": "low",
    "verified": false,
    "aliases": [
+    "altcoingordon",
     "gordongekko",
     "gordon_gecko"
    ],
-   "notes": "; renamed to @GordonGekko"
+   "notes": "; name_change: handle changed from @AltcoinGordon to @GordonGekko (confirmed via ApiPass user-by-screen-name 2026-08-29 — old handle now returns empty user/None; @GordonGekko resolves to id 1354400126857605121, display name 'Gordon 🐂')."
   },
   {
    "handle": "dritankapllani",

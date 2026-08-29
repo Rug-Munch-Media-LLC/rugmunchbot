@@ -27,7 +27,6 @@
     "aaveaave",
     "aeyakovenko",
     "altcoindailyio",
-    "altcoingordon",
     "apompliano",
     "aptos",
     "arbitrum",
@@ -80,6 +79,7 @@
     "gavofyork",
     "girlgone_crypto",
     "glassnode",
+    "gordongekko",
     "hasufl",
     "haydenzadams",
     "hoskinson_io",
@@ -409,11 +409,11 @@
       "overlap_with_ct": true
     },
     {
-      "handle": "AltcoinGordon",
+      "handle": "GordonGekko",
       "name": "Altcoin Gordon",
       "category": "kol",
       "tier": 2,
-      "notes": "KOL",
+      "notes": "KOL; name_change: handle changed from @AltcoinGordon to @GordonGekko (confirmed via ApiPass user-by-screen-name 2026-08-29; old handle no longer resolves).",
       "verified": true,
       "overlap_with_ct": true
     },
