@@ -88,32 +88,22 @@ async def dry_run_whales() -> int:
 
 
 async def dry_run_kol_shame() -> int:
-    """Assemble KOL report cards + hall-of-shame preview (store read only)."""
-    from rugmunchbot.channels.kol_hall_of_shame import (
-        KolCall,
-        compute_report_card,
-        format_hall_of_shame_post,
-        rank_hall_of_shame,
+    """Assemble KOL report cards + scoreboard preview (store read only)."""
+    from rugmunchbot.channels.kol_scoreboard import (
+        build_scoreboard_cards,
+        format_scoreboard_post,
+        rank_scoreboard,
     )
-    from rugmunchbot.db import get_kol_scores, list_kol_calls
 
     print("═" * 60)
-    print("KOL HALL OF SHAME — dry-run (store read only, no alerts sent)")
+    print("KOL SCOREBOARD — dry-run (store read only, no alerts sent)")
     print("═" * 60)
-    cached = {str(r["handle"]): r for r in get_kol_scores(limit=100)}
-    cards = []
-    for row in cached.values():
-        rows = list_kol_calls(handle=str(row["handle"]), limit=100)
-        if not rows:
-            continue
-        calls = [KolCall.from_row(r) for r in rows]
-        wallet = next((c.wallet_address for c in calls if c.wallet_address), "")
-        cards.append(compute_report_card(calls, wallet_address=wallet))
-    hall = rank_hall_of_shame(cards, limit=5)
-    if not hall:
-        print("(no KOLs in the hall yet — run the sweeper to populate)")
+    cards = build_scoreboard_cards()
+    board = rank_scoreboard(cards, limit=5)
+    if not board:
+        print("(no cards yet — run the sweeper to populate)")
         return 0
-    print(format_hall_of_shame_post(hall))
+    print(format_scoreboard_post(board))
     print()
     return 0
 

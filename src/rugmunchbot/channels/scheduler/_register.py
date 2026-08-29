@@ -172,26 +172,31 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_shill_watch",
         )
 
-    # KOL Hall of Shame (2026-08-29): track KOL calls + deleted tweets from
-    # real X data (ApiPass) → report cards → ALERTS channel, deduped per
-    # card per day. Budget-bounded by the shared ApiPass ≤3/hr limiter;
-    # fail-open when the key is unconfigured (silence is a valid outcome).
+    # KOL Scoreboard (2026-08-29, renamed from KOL Hall of Shame): track
+    # KOL calls + deleted tweets + name changes + wallets from real X data
+    # (ApiPass) → per-KOL report cards → ALERTS channel, deduped per card
+    # per day. Hall of Shame = repeat-scammer subset. Budget-bounded by the
+    # shared ApiPass ≤6/hr limiter; fail-open when the key is unconfigured.
     if (
         ALERTS_CHANNEL_ENABLED
         and _chat_id("alerts")
         and hasattr(job_queue, "run_repeating")
-        and os.getenv("RMI_KOL_SHAME_ENABLED", "true").lower() in ("1", "true", "yes")
+        and os.getenv(
+            "RMI_KOL_SCOREBOARD_ENABLED",
+            os.getenv("RMI_KOL_SHAME_ENABLED", "true"),
+        ).lower()
+        in ("1", "true", "yes")
     ):
-        from rugmunchbot.channels.kol_hall_of_shame import (
-            KOL_SHAME_INTERVAL_MIN,
-            run_kol_shame_watch,
+        from rugmunchbot.channels.kol_scoreboard import (
+            KOL_SCOREBOARD_INTERVAL_MIN,
+            run_kol_scoreboard_watch,
         )
 
         job_queue.run_repeating(
-            _tick_wrapper("channel_kol_shame", run_kol_shame_watch, envelope=True),
-            interval=KOL_SHAME_INTERVAL_MIN * 60,
+            _tick_wrapper("channel_kol_scoreboard", run_kol_scoreboard_watch, envelope=True),
+            interval=KOL_SCOREBOARD_INTERVAL_MIN * 60,
             first=360,
-            name="channel_kol_shame",
+            name="channel_kol_scoreboard",
         )
 
     # Daily quality-content job (2026-08-29, quality overhaul deliverable 3):
@@ -386,5 +391,5 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_rag_fast",
         )
     logger.info(
-        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates/shill_watch/kol_shame/daily_quality)"
+        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates/shill_watch/kol_scoreboard/daily_quality)"
     )

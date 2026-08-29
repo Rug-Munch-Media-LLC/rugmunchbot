@@ -326,8 +326,18 @@ def test_key_resolution_env_first(monkeypatch):
     assert m.api_key_configured()
 
 
-def test_key_resolution_falls_back_to_gopass(monkeypatch):
+def test_key_resolution_falls_back_to_key_file(monkeypatch, tmp_path):
     monkeypatch.delenv("APIPASS_API_KEY", raising=False)
+    key_file = tmp_path / "apipass_api_key"
+    key_file.write_text("apk_file_key\n")
+    monkeypatch.setattr(m, "_KEY_FILE", str(key_file))
+    assert m._resolve_api_key() == "apk_file_key"
+    assert m.api_key_configured()
+
+
+def test_key_resolution_file_missing_falls_to_gopass(monkeypatch, tmp_path):
+    monkeypatch.delenv("APIPASS_API_KEY", raising=False)
+    monkeypatch.setattr(m, "_KEY_FILE", str(tmp_path / "missing"))
 
     def _fake_gopass(*args, **kwargs):
         return b"apk_gopass_key\n"
@@ -336,8 +346,25 @@ def test_key_resolution_falls_back_to_gopass(monkeypatch):
     assert m._resolve_api_key() == "apk_gopass_key"
 
 
-def test_key_resolution_empty_when_unconfigured(monkeypatch):
+def test_key_resolution_env_beats_file(monkeypatch, tmp_path):
+    monkeypatch.setenv("APIPASS_API_KEY", "apk_env_key")
+    key_file = tmp_path / "apipass_api_key"
+    key_file.write_text("apk_file_key\n")
+    monkeypatch.setattr(m, "_KEY_FILE", str(key_file))
+    assert m._resolve_api_key() == "apk_env_key"
+
+
+def test_default_budget_is_six_per_hour(monkeypatch):
+    monkeypatch.delenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", raising=False)
+    import importlib
+
+    importlib.reload(m)
+    assert m.MAX_CALLS_PER_HOUR == 6  # ≤6 task-creations/hr ≈ 3 credits/hr
+
+
+def test_key_resolution_empty_when_unconfigured(monkeypatch, tmp_path):
     monkeypatch.delenv("APIPASS_API_KEY", raising=False)
+    monkeypatch.setattr(m, "_KEY_FILE", str(tmp_path / "missing"))
     monkeypatch.setattr(m.subprocess, "check_output", _fail_gopass)
     assert m._resolve_api_key() == ""
     assert not m.api_key_configured()

@@ -24,6 +24,7 @@ DEFAULT_TWEET_ID = os.getenv("APIPASS_VERIFY_TWEET_ID", "1")
 
 
 async def main() -> int:
+    from rugmunchbot.db import apipass_usage_summary
     from rugmunchbot.tools.apipass_x import (
         api_key_configured,
         fetch_tweet_detail,
@@ -32,12 +33,18 @@ async def main() -> int:
 
     if not api_key_configured():
         print("[SKIP] No ApiPass key configured.")
-        print("        Store it first:  gopass insert rmi/apipass/api_key")
-        print("        or:               export APIPASS_API_KEY=apk_...")
+        print("        Store it in /srv/secrets/apipass_api_key, export APIPASS_API_KEY,")
+        print("        or gopass insert rmi/apipass/api_key")
         print("        Then re-run this script for the real tweet pull.")
         return 1
 
     print(f"ApiPass budget remaining this hour: {task_creates_remaining()}")
+    usage = apipass_usage_summary()
+    print(
+        f"ApiPass ledger: {usage['credits_used']:.2f}/{usage['free_allowance']:.2f} "
+        f"credits used ({usage['total_calls']} calls total, {usage['calls_today']} today) — "
+        f"~{usage['estimated_calls_remaining']} calls left of the free 50"
+    )
     tweet_id = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_TWEET_ID
     tweet = await fetch_tweet_detail(tweet_id)
     if not tweet:

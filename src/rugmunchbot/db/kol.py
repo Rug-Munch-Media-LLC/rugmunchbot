@@ -2,7 +2,7 @@
 """KOL Hall-of-Shame DB accessors — calls, deletions, cached report cards.
 
 Persists the X/CT KOL call records the ApiPass pipeline captures
-(``channels.kol_hall_of_shame``) into the bot SQLite store:
+(``channels.kol_scoreboard``) into the bot SQLite store:
 
 * ``kol_calls`` — one row per captured call (handle, tweet, token, deleted
   state). ``tweet_id`` is unique so re-sweeping the same tweet upserts.
@@ -11,7 +11,7 @@ Persists the X/CT KOL call records the ApiPass pipeline captures
 
 All functions are sync sqlite3 accessors (the channel runner wraps them via
 ``db.run_db`` / ``get_db_async`` when called from the event loop). Pure
-scoring logic lives in ``channels.kol_hall_of_shame`` — this module only
+scoring logic lives in ``channels.kol_scoreboard`` — this module only
 stores and fetches rows.
 """
 
@@ -489,12 +489,22 @@ def list_kol_name_changes(kol_id: str = "", limit: int = 20) -> list[dict[str, A
         conn.close()
 
 
-def attach_kol_wallet(kol_id: str, wallet: str) -> bool:
+def attach_kol_wallet(
+    kol_id: str,
+    wallet: str,
+    *,
+    chain: str = "",
+    source: str = "inference",
+    evidence_url: str = "",
+    confidence: str = "",
+) -> bool:
     """Add one traced wallet to a KOL identity (dedup, never removes).
 
     Wallet knowledgebase: wallets come from on-chain tracing (zachxbt-style
-    inference), a call tweet containing a raw address, or manual curation.
-    Returns True when the wallet was added (False when already known).
+    inference), a call tweet containing a raw address, or curated fleet data
+    (``verified_kol_wallets.json``). Entries are stored as dicts so
+    provenance (chain/source/evidence) survives. Returns True when the
+    wallet was added (False when already known or no identity).
     """
     wallet = str(wallet or "").strip()
     if not wallet:
@@ -502,10 +512,17 @@ def attach_kol_wallet(kol_id: str, wallet: str) -> bool:
     row = get_kol_identity(kol_id)
     if row is None:
         return False
-    wallets = _json_list(row.get("wallets"))
-    if wallet.lower() in {w.lower() for w in wallets}:
+    wallets = _wallet_entries(row.get("wallets"))
+    if any(w.get("address", "").lower() == wallet.lower() for w in wallets):
         return False
-    wallets.append(wallet)
+    entry: dict[str, str] = {
+        "address": wallet,
+        "chain": str(chain or ""),
+        "source": str(source or "inference"),
+        "evidence_url": str(evidence_url or ""),
+        "confidence": str(confidence or ""),
+    }
+    wallets.append(entry)
     conn = get_db()
     try:
         import json
@@ -518,6 +535,46 @@ def attach_kol_wallet(kol_id: str, wallet: str) -> bool:
         return True
     finally:
         conn.close()
+
+
+def _wallet_entries(value: Any) -> list[dict[str, str]]:
+    """Coerce the wallets column (JSON list of dicts, legacy bare strings)."""
+    import json
+
+    if isinstance(value, list):
+        raw = value
+    elif not value:
+        return []
+    else:
+        try:
+            raw = json.loads(str(value))
+        except (ValueError, TypeError):
+            return []
+        if not isinstance(raw, list):
+            return []
+    out: list[dict[str, str]] = []
+    for v in raw:
+        if isinstance(v, dict):
+            out.append(
+                {
+                    "address": str(v.get("address") or ""),
+                    "chain": str(v.get("chain") or ""),
+                    "source": str(v.get("source") or ""),
+                    "evidence_url": str(v.get("evidence_url") or ""),
+                    "confidence": str(v.get("confidence") or ""),
+                }
+            )
+        else:
+            out.append(
+                {
+                    "address": str(v),
+                    "chain": "",
+                    "source": "legacy",
+                    "evidence_url": "",
+                    "confidence": "",
+                }
+            )
+    return out
 
 
 def link_identity_via_wallet(kol_id_a: str, kol_id_b: str) -> bool:
@@ -577,9 +634,91 @@ def kol_identities_by_wallet(wallet: str) -> list[dict[str, Any]]:
     conn = get_db()
     try:
         rows = conn.execute("SELECT * FROM kol_identities").fetchall()
-        return [dict(r) for r in rows if any(w.lower() == wallet for w in _json_list(r["wallets"]))]
+        return [
+            dict(r)
+            for r in rows
+            if any(w.get("address", "").lower() == wallet for w in _wallet_entries(r["wallets"]))
+        ]
     finally:
         conn.close()
+
+
+def seed_wallet_kb(entries: list[dict[str, str]]) -> int:
+    """Seed the wallet knowledgebase from real traced-wallet data.
+
+    Each entry: ``{handle, name, chain, address, source, evidence_url,
+    confidence}``. Creates a ``wallet_kb`` identity when the handle is not
+    yet in the registry, then attaches the wallet with full provenance.
+    Returns wallets attached.
+    """
+    count = 0
+    for e in entries:
+        handle = str(e.get("handle") or "").strip().lstrip("@")
+        address = str(e.get("address") or "").strip()
+        if not handle or not address:
+            continue
+        kol_id = _norm_handle(handle)
+        if get_kol_identity(kol_id) is None:
+            upsert_kol_identity(
+                kol_id=kol_id,
+                name=str(e.get("name") or "").strip() or handle,
+                screen_name=handle,
+                category="shiller",
+                source=str(e.get("source") or "wallet_kb"),
+                verified=False,
+                risk_level="watch",
+                notes="wallet KB: " + (str(e.get("confidence") or "")),
+            )
+            register_alias(kol_id, handle, is_current=True)
+        if attach_kol_wallet(
+            kol_id,
+            address,
+            chain=str(e.get("chain") or ""),
+            source=str(e.get("source") or "wallet_kb"),
+            evidence_url=str(e.get("evidence_url") or ""),
+            confidence=str(e.get("confidence") or ""),
+        ):
+            count += 1
+    return count
+
+
+def seed_kol_rug_history(rows: list[dict[str, str]]) -> int:
+    """Seed documented call outcomes (rug/dump history) as loss calls.
+
+    Each row: ``{handle, token_symbol, chain, date, outcome, evidence_url,
+    notes}``. The tweet_id is a deterministic storage key derived from the
+    evidence URL (never a fabricated tweet); result is always ``loss`` for
+    the fleet's documented dumped/rugged outcomes. Returns rows recorded.
+    """
+    import hashlib
+
+    count = 0
+    for r in rows:
+        handle = str(r.get("handle") or "").strip().lstrip("@")
+        token = str(r.get("token_symbol") or "").strip()
+        url = str(r.get("evidence_url") or "").strip()
+        date = str(r.get("date") or "").strip()
+        if not handle or not token:
+            continue
+        key_src = f"{handle}:{token}:{date}:{url or ''}"
+        tweet_id = "rug-" + hashlib.sha256(key_src.encode()).hexdigest()[:16]
+        text = f"Called ${token} ({date}) — documented loss outcome."
+        if url:
+            text += f" Evidence: {url}"
+        recorded = record_kol_call(
+            handle=handle,
+            tweet_id=tweet_id,
+            token_symbol=token,
+            chain=str(r.get("chain") or ""),
+            call_type="buy",
+            tweet_text=text[:500],
+            posted_at=date,
+            source_url=url,
+        )
+        if recorded:
+            update_kol_call_result(tweet_id, "loss")
+            count += 1
+    return count
 
 
 def update_kol_call_result(tweet_id: str, result: str) -> bool:
@@ -729,6 +868,8 @@ __all__ = [
     "register_alias",
     "resolve_handle",
     "seed_kol_registry",
+    "seed_kol_rug_history",
+    "seed_wallet_kb",
     "update_kol_call_result",
     "upsert_kol_identity",
     "upsert_kol_score",

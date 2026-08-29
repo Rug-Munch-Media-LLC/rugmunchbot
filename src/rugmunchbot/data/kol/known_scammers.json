@@ -1,0 +1,292 @@
+{
+  "accounts": [
+    {
+      "handle": "SahilArora0",
+      "name": "Sahil Arora",
+      "category": "rug_puller",
+      "known_for": "Serial launcher of celebrity-themed meme tokens (incl. fake celebrity launches) that dumped/rugged; charged by US DOJ (SDNY) for fraud in crypto token promotion schemes; widely exposed by on-chain investigator ZachXBT.",
+      "evidence_url": "https://www.justice.gov/usao-sdny/pr/founder-crypto-token-promotion-schemes-charged-fraud",
+      "severity": "high",
+      "verified": true
+    },
+    {
+      "handle": "avi_eisen",
+      "name": "Avi Eisenberg",
+      "category": "rug_puller",
+      "known_for": "Convicted of fraud for manipulating Mango Markets via oracle manipulation (approx. $110M drained, 2022).",
+      "evidence_url": "https://www.justice.gov/usao-sdny/pr/avi-eisenberg-convicted-fraud-arising-his-attempt-manipulate-mango-markets-cryptocurrency",
+      "severity": "high",
+      "verified": true
+    },
+    {
+      "handle": "SBF_FTX",
+      "name": "Sam Bankman-Fried",
+      "category": "ponzi",
+      "known_for": "Founder of FTX/Alameda Research; convicted of fraud over the FTX collapse (approx. $8B customer losses); sentenced to 25 years.",
+      "evidence_url": "https://www.justice.gov/usao-sdny/pr/sam-bankman-fried-sentenced-25-years-ftx-fraud",
+      "severity": "high",
+      "verified": true
+    },
+    {
+      "handle": "stablekwon",
+      "name": "Do Kwon",
+      "category": "ponzi",
+      "known_for": "Founder of Terraform Labs; convicted of fraud over the Terra/LUNA collapse (approx. $40B market value wiped).",
+      "evidence_url": "https://www.justice.gov/usao-sdny/pr/do-kwon-convicted-fraud-cryptocurrency-terra-form-labs",
+      "severity": "high",
+      "verified": true
+    },
+    {
+      "handle": "Mashinsky",
+      "name": "Alex Mashinsky",
+      "category": "ponzi",
+      "known_for": "Founder/CEO of Celsius Network; charged with fraud over Celsius's collapse and misrepresentation of the platform's finances.",
+      "evidence_url": "https://www.justice.gov/usao-sdny/pr/founder-cryptocurrency-lending-platform-celsius-charged-fraud",
+      "severity": "high",
+      "verified": true
+    },
+    {
+      "handle": "justinsuntron",
+      "name": "Justin Sun",
+      "category": "pump_dumper",
+      "known_for": "SEC charged Sun for orchestrating 600,000+ wash trades of TRX to fake trading volume, selling TRX into the secondary market, and paying celebrities to tout TRX/BTT without disclosure.",
+      "evidence_url": "https://www.sec.gov/news/press-release/2023-59",
+      "severity": "high",
+      "verified": true
+    },
+    {
+      "handle": "KimKardashian",
+      "name": "Kim Kardashian",
+      "category": "scam_shiller",
+      "known_for": "SEC settled charges for failing to disclose $250K payment to promote EMAX (EthereumMax) token; paid $1.26M penalty; banned from promoting crypto securities for 3 years.",
+      "evidence_url": "https://www.sec.gov/news/press-release/2022-183",
+      "severity": "high",
+      "verified": true
+    },
+    {
+      "handle": "lindsaylohan",
+      "name": "Lindsay Lohan",
+      "category": "scam_shiller",
+      "known_for": "SEC charged for undisclosed paid touting of TRX and BTT tokens as part of the Justin Sun celebrity promotion scheme.",
+      "evidence_url": "https://www.sec.gov/news/press-release/2023-59",
+      "severity": "medium",
+      "verified": true
+    },
+    {
+      "handle": "jakepaul",
+      "name": "Jake Paul",
+      "category": "scam_shiller",
+      "known_for": "SEC charged for undisclosed paid touting of TRX and BTT tokens as part of the Justin Sun celebrity promotion scheme.",
+      "evidence_url": "https://www.sec.gov/news/press-release/2023-59",
+      "severity": "medium",
+      "verified": true
+    },
+    {
+      "handle": "souljaboy",
+      "name": "Soulja Boy (DeAndre Cortez Way)",
+      "category": "scam_shiller",
+      "known_for": "SEC charged for undisclosed paid touting of TRX and BTT tokens as part of the Justin Sun celebrity promotion scheme.",
+      "evidence_url": "https://www.sec.gov/news/press-release/2023-59",
+      "severity": "medium",
+      "verified": true
+    },
+    {
+      "handle": "Akon",
+      "name": "Akon (Aliaune Thiam)",
+      "category": "scam_shiller",
+      "known_for": "SEC charged for undisclosed paid touting of TRX and BTT tokens as part of the Justin Sun celebrity promotion scheme.",
+      "evidence_url": "https://www.sec.gov/news/press-release/2023-59",
+      "severity": "medium",
+      "verified": true
+    },
+    {
+      "handle": "FloydMayweather",
+      "name": "Floyd Mayweather Jr.",
+      "category": "scam_shiller",
+      "known_for": "SEC charged (Nov 2018) for undisclosed promotion of the Centra Tech ICO, whose founders were later convicted of fraud. [REVIEW] exact SEC release URL not re-fetched this session; evidence_url is the SEC newsroom root.",
+      "evidence_url": "https://www.sec.gov/news/pressreleases",
+      "severity": "high",
+      "verified": false
+    },
+    {
+      "handle": "djkhaled",
+      "name": "DJ Khaled",
+      "category": "scam_shiller",
+      "known_for": "SEC charged (Nov 2018) for undisclosed promotion of the Centra Tech ICO, whose founders were later convicted of fraud. [REVIEW] exact SEC release URL not re-fetched this session.",
+      "evidence_url": "https://www.sec.gov/news/pressreleases",
+      "severity": "medium",
+      "verified": false
+    },
+    {
+      "handle": "sseagalofficial",
+      "name": "Steven Seagal",
+      "category": "scam_shiller",
+      "known_for": "SEC charged (Feb 2020) for unlawfully touting the Bitcoiin2Gen token offering without disclosing compensation. [REVIEW] exact SEC release URL not re-fetched this session.",
+      "evidence_url": "https://www.sec.gov/news/pressreleases",
+      "severity": "medium",
+      "verified": false
+    },
+    {
+      "handle": "RichardHeartWin",
+      "name": "Richard Heart (Richard Schueler)",
+      "category": "ponzi",
+      "known_for": "SEC charged (July 2023) alleging unregistered securities offerings (HEX, PulseChain, PulseX) and misuse of investor funds. [REVIEW] exact SEC release URL not re-fetched this session; enforcement action itself is well documented.",
+      "evidence_url": "https://www.sec.gov/news/pressreleases",
+      "severity": "high",
+      "verified": false
+    },
+    {
+      "handle": "BenArmstrongsX",
+      "name": "Ben Armstrong (BitBoy)",
+      "category": "scam_shiller",
+      "known_for": "BitBoy: long-documented pattern of promoting unvetted low-cap tokens and NFT projects; repeated community criticism and public fallout over paid promotion practices. Community-documented, not regulator-confirmed.",
+      "evidence_url": "https://x.com/BenArmstrongsX",
+      "severity": "medium",
+      "verified": false
+    },
+    {
+      "handle": "IvanOnTech",
+      "name": "Ivan Liljeqvist (Ivan on Tech)",
+      "category": "scam_shiller",
+      "known_for": "Community-documented history of promoting questionable and rug-adjacent crypto projects; repeated criticism from the crypto community. Hearsay-level evidence; handle verified live.",
+      "evidence_url": "https://x.com/IvanOnTech",
+      "severity": "low",
+      "verified": false
+    },
+    {
+      "handle": "cryptomanran",
+      "name": "Ran Neuner (Crypto Banter)",
+      "category": "scam_shiller",
+      "known_for": "Crypto Banter host; heavily promoted Terra/LUNA before its collapse and repeatedly shilled low-cap tokens; extensive community criticism. Hearsay-level evidence; handle verified live.",
+      "evidence_url": "https://x.com/cryptomanran",
+      "severity": "low",
+      "verified": false
+    },
+    {
+      "handle": "blknoiz06",
+      "name": "Ansem",
+      "category": "scam_shiller",
+      "known_for": "Ringleader of the Solana memecoin KOL syndicate: documented pattern of buying tokens before public shills and being accused of dumping on followers (incl. $PUMP and his own $ANSEM token launch controversies, 2024-2026). Community/on-chain-sleuth-documented, no regulator action; handle verified live. [REVIEW] media-level evidence.",
+      "evidence_url": "https://x.com/blknoiz06",
+      "severity": "medium",
+      "verified": false,
+      "notes": "[CORRECTION: NOT Solana syndicate \u2014 standalone scammer/serial shiller]"
+    },
+    {
+      "handle": "WaleMoca",
+      "name": "Wale.moca",
+      "category": "scam_shiller",
+      "known_for": "Named in community on-chain investigations as part of the Solana KOL syndicate that coordinated buy-before-shill-then-dump of memecoins. Handle returned HTTP 404 on x.com on 2026-08-13 (suspended/renamed) \u2014 recorded for re-registration monitoring. Live handle confirmed as @waleswoosh via search engine crawl 2026-08-13. Hearsay-level evidence. [REVIEW]",
+      "evidence_url": "https://x.com/waleswoosh",
+      "severity": "low",
+      "verified": false,
+      "aliases": [
+        "waleswoosh"
+      ]
+    },
+    {
+      "handle": "hurls4president",
+      "name": "Hurls",
+      "category": "scam_shiller",
+      "known_for": "Named in community on-chain investigations as part of the Solana KOL syndicate that coordinated buy-before-shill-then-dump of memecoins. Handle returned HTTP 404 on x.com on 2026-08-13 (suspended/renamed) \u2014 recorded for re-registration monitoring. Hearsay-level evidence. [REVIEW]",
+      "evidence_url": "https://x.com/hurls4president",
+      "severity": "low",
+      "verified": false
+    },
+    {
+      "handle": "MustStopMurad",
+      "name": "Murad Mahmudov",
+      "category": "scam_shiller",
+      "known_for": "Memecoin 'cult coin' KOL; heavily promoted SPX6900 and a basket of low-cap memecoins (2024-2026), widely criticized as shill-then-dump when his picks crashed. Community-documented; handle verified live. Hearsay-level evidence. [REVIEW]",
+      "evidence_url": "https://x.com/MustStopMurad",
+      "severity": "low",
+      "verified": false
+    },
+    {
+      "handle": "HalieyWelchX",
+      "name": "Haliey Welch (Hawk Tuah)",
+      "category": "scam_shiller",
+      "known_for": "Face of the HAWK token launch (Dec 2024) which crashed ~90%+ within hours of launch; launch mechanics documented by on-chain investigators (incl. ZachXBT) and covered by mainstream crypto media; later named in a class action. Account currently suspended on x.com (verified 2026-08-13). Community/media-documented; no regulator action. [REVIEW]",
+      "evidence_url": "https://x.com/HalieyWelchX",
+      "severity": "medium",
+      "verified": false
+    },
+    {
+      "handle": "LoganPaul",
+      "name": "Logan Paul",
+      "category": "scam_shiller",
+      "known_for": "Promoted the CryptoZoo NFT project and $ZOO token (2021-2023) which collapsed amid rug accusations; investigation by Coffeezilla documented the launch and token mechanics; subsequent class action filed. Handle verified live; no regulator action. [REVIEW] media-level evidence.",
+      "evidence_url": "https://x.com/LoganPaul",
+      "severity": "medium",
+      "verified": false
+    },
+    {
+      "handle": "officialmcafee",
+      "name": "John McAfee",
+      "category": "scam_shiller",
+      "known_for": "Promoted ICOs without disclosing payment, several of which were later deemed fraudulent; indicted by US DOJ (SDNY, March 2021) for fraud and money laundering schemes tied to undisclosed crypto promotions. Handle dead (deceased); [REVIEW] justice.gov URL returned empty body this session (bot-wall) \u2014 enforcement action itself is widely documented.",
+      "evidence_url": "https://www.justice.gov/usao-sdny/pr/cybersecurity-pioneer-john-mcafee-charged-fraud-and-money-laundering-schemes",
+      "severity": "high",
+      "verified": false
+    },
+    {
+      "handle": "AltcoinGordon",
+      "name": "Altcoin Gordon",
+      "category": "scam_shiller",
+      "known_for": "Long-documented pattern of aggressively shilling low-cap tokens and NFTs, many of which dumped shortly after his calls; repeated community criticism and 'caller' blacklist mentions. Hearsay-level evidence; handle listed as verified in influential_accounts registry. [REVIEW]",
+      "evidence_url": "https://x.com/AltcoinGordon",
+      "severity": "low",
+      "verified": false,
+      "aliases": [
+        "gordongekko",
+        "gordon_gecko"
+      ],
+      "notes": "; renamed to @GordonGekko"
+    },
+    {
+      "handle": "dritankapllani",
+      "name": "Dritan Kapllani Jr.",
+      "category": "impersonator",
+      "known_for": "Named by on-chain investigator ZachXBT (May 2026) as the US-based alleged scammer behind ~$19M (~185 BTC) stolen from crypto holders via social engineering and exchange/wallet support impersonation. Alleged, no conviction. [REVIEW] investigator naming, not court-confirmed. [REVIEW] handle is a placeholder \u2014 X handle not confirmed in coverage.",
+      "evidence_url": "https://www.cryptopolitan.com/zachxbt-exposes-crypto-scammer-of-19m/",
+      "severity": "high",
+      "verified": false
+    },
+    {
+      "handle": "tiffany.milanovich",
+      "name": "Tiffany Milanovich",
+      "category": "impersonator",
+      "known_for": "Identified by ZachXBT (Aug 2026) as a US-based 'caller' tied to at least $5M in crypto thefts by impersonating hardware wallet and CEX support to drain funds, incl. a June 2026 incident. Alleged, no conviction. [REVIEW] handle is a placeholder \u2014 X handle not confirmed in coverage.",
+      "evidence_url": "https://cryptorank.io/news/feed/70c02-zachxbt-milanovich-crypto-theft-support-scams",
+      "severity": "high",
+      "verified": false
+    },
+    {
+      "handle": "Serpent",
+      "name": "Serpent (pro Fortnite player)",
+      "category": "rug_puller",
+      "known_for": "Accused by ZachXBT (Nov 2024) of stealing ~$3.5M from investors via scam memecoins launched on Solana's Pump.fun, incl. the fake McDonald's token GRIMACE (reached $25M MC before rug, ~$700K moved to two wallets). Exact X handle not confirmed in coverage. [REVIEW]",
+      "evidence_url": "https://bitcoinist.com/crypto-sleuth-accuses-pro-fortnite-player-of-stealing-3-5-million-in-memecoin-scams/",
+      "severity": "high",
+      "verified": false
+    },
+    {
+      "handle": "BrooxBauer",
+      "name": "Broox Bauer",
+      "category": "pump_dumper",
+      "known_for": "Named in ZachXBT's Feb 2026 investigation as an Axiom (Solana trading platform) business development employee who allegedly used internal tools to access private wallet data for insider trading, along with associates. Alleged, no conviction. [REVIEW] handle is a placeholder \u2014 X handle not confirmed in coverage.",
+      "evidence_url": "https://finance.yahoo.com/news/solana-trading-platform-employees-accused-161249622.html",
+      "severity": "medium",
+      "verified": false
+    },
+    {
+      "handle": "MattShiller_",
+      "name": "Matt Gems",
+      "category": "scam_shiller",
+      "known_for": "Serial paid KOL promoter ('Matt Gems', ~226K followers): community-documented pattern of undisclosed paid posts pumping low-cap Solana memecoins (e.g. WOWWWW, Jun 2024) in coordination with other tier-1 KOLs. Handle verified live via x.com; hearsay-level evidence. [REVIEW]",
+      "evidence_url": "https://x.com/MattShiller_/status/1796672274164015135",
+      "severity": "low",
+      "verified": false
+    }
+  ]
+}

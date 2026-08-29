@@ -66,8 +66,12 @@ logger = logging.getLogger(__name__)
 APIPASS_BASE_URL = os.getenv("APIPASS_BASE_URL", "https://api.apipass.dev").rstrip("/")
 #: ApiPass model slug that fronts the X API (verified in /v1/models).
 APIPASS_TWITTER_MODEL = os.getenv("APIPASS_TWITTER_MODEL", "twitter-api-simple")
-#: Hard budget — max task creations per hour (default 3, per the ≤3/hr burn).
-MAX_CALLS_PER_HOUR = int(os.getenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", "3"))
+#: Hard budget — max task creations per hour (default 6 ≈ 3 credits/hr at
+#: ~0.5 credits/call, per the ApiPass slow-burn doctrine).
+MAX_CALLS_PER_HOUR = int(os.getenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", "6"))
+#: Free-credit allowance + per-call cost (usage ledger / dashboard).
+FREE_CREDITS = float(os.getenv("RMI_APIPASS_FREE_CREDITS", "50"))
+CREDITS_PER_CALL = float(os.getenv("RMI_APIPASS_CREDITS_PER_CALL", "0.5"))
 #: Per-request timeouts (seconds).
 CREATE_TIMEOUT_S = float(os.getenv("APIPASS_CREATE_TIMEOUT", "15"))
 POLL_TIMEOUT_S = float(os.getenv("APIPASS_POLL_TIMEOUT", "10"))
@@ -79,6 +83,10 @@ DEDUP_COSINE_THRESHOLD = float(os.getenv("APIPASS_DEDUP_COSINE", "0.90"))
 #: Max recent vectors kept for semantic dedup (bounded memory).
 DEDUP_MAX_VECTORS = int(os.getenv("APIPASS_DEDUP_MAX_VECTORS", "200"))
 
+#: Canonical key file for the ApiPass key (never in git). Defaults to the
+#: fleet secret-store location; overridable so tests/containers can point
+#: elsewhere.
+_KEY_FILE = os.getenv("RMI_APIPASS_KEY_FILE", "/srv/secrets/apipass_api_key")
 #: Canonical gopass path for the ApiPass key (never in git).
 _GOPASS_PATH = "rmi/apipass/api_key"
 _ENV_KEYS = ("APIPASS_API_KEY",)
@@ -125,22 +133,52 @@ def _note_task_created() -> None:
     _task_created_at.append(time.monotonic())
 
 
+def _meter_usage(endpoint: str = "", task_id: str = "") -> None:
+    """Record one task creation in the credit ledger (fail-open).
+
+    Writes to ``db.kol.record_apipass_usage`` so the 50-free-credit budget
+    is tracked (see ``db.kol.apipass_usage_summary``). Never raises — a DB
+    that is unavailable must not break the ApiPass rail.
+    """
+    try:
+        from rugmunchbot.db import record_apipass_usage
+
+        record_apipass_usage(
+            endpoint=endpoint,
+            model=APIPASS_TWITTER_MODEL,
+            credits=CREDITS_PER_CALL,
+            task_id=task_id,
+            status="created",
+        )
+    except Exception:  # fail-open by contract
+        logger.debug("apipass_x:meter_failed endpoint=%s", endpoint)
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # KEY RESOLUTION — env → gopass, never logged, never in git
 # ══════════════════════════════════════════════════════════════════════════
 
 
 def _resolve_api_key() -> str:
-    """ApiPass key: env ``APIPASS_API_KEY`` → gopass ``rmi/apipass/api_key``.
+    """ApiPass key: env ``APIPASS_API_KEY`` → key file ``/srv/secrets/
+    apipass_api_key`` → gopass ``rmi/apipass/api_key``.
 
-    UNCACHED so a key added to gopass while the bot runs is picked up on the
-    next tick without a restart. Returns "" when neither is configured —
-    callers fail open (SearXNG fallback rail).
+    UNCACHED so a key added while the bot runs is picked up on the next tick
+    without a restart. Returns "" when none is configured — callers fail
+    open (SearXNG fallback rail).
     """
     for key in _ENV_KEYS:
         value = os.getenv(key, "").strip()
         if value:
             return value
+    # Fleet secret-store file (world-readable secret dir, mode 0600).
+    try:
+        with open(_KEY_FILE, encoding="utf-8") as fh:
+            value = fh.read().strip()
+        if value:
+            return value
+    except (OSError, UnicodeDecodeError):
+        pass
     try:
         value = (
             subprocess.check_output(  # noqa: S603 — gopass is the canonical secret store
@@ -220,6 +258,7 @@ async def create_task(model: str, input_body: dict[str, Any]) -> str | None:
                 logger.warning("apipass_x:create_no_task_id body=%s", str(body)[:200])
                 return None
             _note_task_created()
+            _meter_usage(endpoint=input_body.get("endpoint", ""), task_id=task_id)
             logger.info("apipass_x:task_created model=%s task=%s", model, task_id)
             return task_id
     except (httpx.HTTPError, httpx.TimeoutException, ValueError) as exc:
@@ -605,7 +644,9 @@ async def search_tweets(query: str, limit: int = 10) -> list[dict[str, Any]]:
 __all__ = [
     "APIPASS_BASE_URL",
     "APIPASS_TWITTER_MODEL",
+    "CREDITS_PER_CALL",
     "DEDUP_COSINE_THRESHOLD",
+    "FREE_CREDITS",
     "MAX_CALLS_PER_HOUR",
     "api_key_configured",
     "create_task",

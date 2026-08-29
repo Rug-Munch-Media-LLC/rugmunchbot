@@ -1,0 +1,4687 @@
+{
+  "registry": "influential_crypto_x_accounts",
+  "description": "Curated registry of ~500 most influential crypto X (Twitter) accounts",
+  "total": 504,
+  "categories": {
+    "protocol": 113,
+    "analyst": 72,
+    "media": 67,
+    "founder": 55,
+    "vc": 54,
+    "kol": 50,
+    "trader": 42,
+    "dev": 30,
+    "exchange": 21
+  },
+  "overlap_with_ct": [
+    "0x_lens",
+    "0xcygaar",
+    "0xenas",
+    "0xfoobar",
+    "0xmert_",
+    "0xpolygon",
+    "1confirmation",
+    "1inch",
+    "a16zcrypto",
+    "aantonop",
+    "aaveaave",
+    "aeyakovenko",
+    "altcoindailyio",
+    "altcoingordon",
+    "apompliano",
+    "aptos",
+    "arbitrum",
+    "avax",
+    "balajis",
+    "banklesshq",
+    "base",
+    "berachain",
+    "biancoresearch",
+    "bitcoinmagazine",
+    "blknoiz06",
+    "blockworks_",
+    "bloombergcrypto",
+    "cathiedwood",
+    "cburniske",
+    "celestiaorg",
+    "chainlink",
+    "cobie",
+    "coinbureau",
+    "coindesk",
+    "cointelegraph",
+    "cosmos",
+    "crypto_banter",
+    "crypto_condom",
+    "crypto_news",
+    "cryptocapo_",
+    "cryptocred",
+    "cryptohayes",
+    "cryptokaleo",
+    "cryptowendyo",
+    "dbnewswire",
+    "defi_dad",
+    "defiantnews",
+    "delphi_digital",
+    "dlnewsinfo",
+    "documentingbtc",
+    "doveywan",
+    "dragonfly_xyz",
+    "drakefjustin",
+    "duneanalytics",
+    "ecoinometrics",
+    "eigenlayer",
+    "electriccapital",
+    "ercwl",
+    "ericbalchunas",
+    "ethereumjoseph",
+    "forbescrypto",
+    "ft",
+    "gabrielhaines",
+    "gavofyork",
+    "girlgone_crypto",
+    "glassnode",
+    "hasufl",
+    "haydenzadams",
+    "hoskinson_io",
+    "iamjosephyoung",
+    "injective",
+    "intotheblock",
+    "jseyff",
+    "kylesamani",
+    "laurashin",
+    "lidofinance",
+    "lightcrypto",
+    "lookonchain",
+    "lopp",
+    "lucasnuzzi",
+    "lynaldencontact",
+    "makerdao",
+    "matt_hougan",
+    "melt_dem",
+    "messaricrypto",
+    "michael_saylor",
+    "monad_xyz",
+    "multicoincap",
+    "muststopmurad",
+    "nansen_ai",
+    "nearprotocol",
+    "nic__carter",
+    "optimismfnd",
+    "panteracapital",
+    "pendle_fi",
+    "peterktodd",
+    "polychaincap",
+    "raoulgmi",
+    "rektcapital",
+    "reuters",
+    "rewkang",
+    "runekek",
+    "sassal0x",
+    "saylor",
+    "seinetwork",
+    "solanafndn",
+    "solanastatus",
+    "stacks",
+    "stanikulechov",
+    "starknet",
+    "suinetwork",
+    "techdev_52",
+    "theblock__",
+    "thecryptolark",
+    "theunipcs",
+    "thinkingusd",
+    "timbeiko",
+    "trustmachinesco",
+    "udiwertheimer",
+    "unchained_pod",
+    "uniswap",
+    "vancespencer",
+    "variantfund",
+    "vitalikbuterin",
+    "watcherguru",
+    "wsjmarkets",
+    "zachxbt",
+    "zhusu",
+    "zksync"
+  ],
+  "overlap_count": 129,
+  "generated": "2026-08-13",
+  "accounts": [
+    {
+      "handle": "0x_Lens",
+      "name": "0xLens",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "On-chain analyst",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "0xCygaar",
+      "name": "Cygaar",
+      "category": "dev",
+      "tier": 1,
+      "notes": "Solana/EVM builder",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "0xENAS",
+      "name": "ENAS",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Memecoin trader",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "0xfoobar",
+      "name": "foobar",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "DeFi/EVM analyst",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "0xKofi",
+      "name": "Kofi",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Defi/security researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "0xMert_",
+      "name": "Mert Mumtaz",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Helius CEO; Solana",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "0xngmi",
+      "name": "0xngmi",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "DefiLlama co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "0xPolygon",
+      "name": "Polygon",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Polygon org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "0xSisyphus",
+      "name": "Sisyphus",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Trader/alpha; NFT collector",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "100trillionUSD",
+      "name": "PlanB",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Stock-to-flow model",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "1confirmation",
+      "name": "1confirmation",
+      "category": "vc",
+      "tier": 1,
+      "notes": "VC org (Nick Tomaino)",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "1inch",
+      "name": "1inch",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "DEX aggregator",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "1kxnetwork",
+      "name": "1kx",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Crypto VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "_Checkmatey_",
+      "name": "Checkmate",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain analyst (Glassnode)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "a16zcrypto",
+      "name": "a16z Crypto",
+      "category": "vc",
+      "tier": 1,
+      "notes": "VC org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "aantonop",
+      "name": "Andreas Antonopoulos",
+      "category": "kol",
+      "tier": 1,
+      "notes": "Educator",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "AaveAave",
+      "name": "Aave",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Lending protocol",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "AcrossProtocol",
+      "name": "Across",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Bridge/intents",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "adamscochran",
+      "name": "Adam Cochran",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "DeFi/crypto analyst (Cinneamhain)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "adietrichs",
+      "name": "Ansgar Dietrichs",
+      "category": "dev",
+      "tier": 1,
+      "notes": "Ethereum Foundation researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AerodromeFi",
+      "name": "Aerodrome",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Base DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "aeyakovenko",
+      "name": "Anatoly Yakovenko",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Solana co-founder",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "ai_9684xtpa",
+      "name": "Ai Yi",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain sleuth (CN)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Alchemy",
+      "name": "Alchemy",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Web3 dev platform",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AleoHQ",
+      "name": "Aleo",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "zk L1",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AlexBecker",
+      "name": "Alex Becker",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AlexPack",
+      "name": "Alex Pack",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Dragonfly managing partner",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Algorand",
+      "name": "Algorand",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "L1 (Algo Foundation)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AltcoinDailyio",
+      "name": "Altcoin Daily",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "AltcoinGordon",
+      "name": "Altcoin Gordon",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "AltcoinPsycho",
+      "name": "Altcoin Psycho",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AltcoinSherpa",
+      "name": "Altcoin Sherpa",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Alts trader/analyst",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AMBCrypto",
+      "name": "AMBCrypto",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AmberGroup",
+      "name": "Amber Group",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Crypto trading/VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AndrewKang",
+      "name": "Andrew Kang",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Mechanism Capital founder/trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AnilLulla",
+      "name": "Anil Lulla",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Delphi Digital co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "apolynya",
+      "name": "Ap0l1nary",
+      "category": "kol",
+      "tier": 2,
+      "notes": "DeFi KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "APompliano",
+      "name": "Anthony Pompliano",
+      "category": "kol",
+      "tier": 1,
+      "notes": "KOL; Pomp",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Aptos",
+      "name": "Aptos",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "L1",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "arbitrum",
+      "name": "Arbitrum",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Offchain Labs L2",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "ArkhamIntel",
+      "name": "Arkham",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "On-chain intelligence",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ArthurB",
+      "name": "Arthur Breitman",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Tezos co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AshCrypto",
+      "name": "Ash Crypto",
+      "category": "kol",
+      "tier": 2,
+      "notes": "YouTube KOL/trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Avax",
+      "name": "Avalanche",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "L1",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "avichal",
+      "name": "Avichal Garg",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Electric Capital partner",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "AxelarNetwork",
+      "name": "Axelar",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Cross-chain bridge",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Backpack",
+      "name": "Backpack",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana wallet/exchange",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "balajis",
+      "name": "Balaji Srinivasan",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Investor/technologist",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Balancer",
+      "name": "Balancer",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "AMM",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "BanklessHQ",
+      "name": "Bankless",
+      "category": "media",
+      "tier": 1,
+      "notes": "Podcast/media",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "base",
+      "name": "Base",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Coinbase L2",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "beaniemaxi",
+      "name": "Beanie",
+      "category": "kol",
+      "tier": 2,
+      "notes": "NFT/Web3 KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "beincrypto",
+      "name": "BeInCrypto",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "BenjaminCowen",
+      "name": "Benjamin Cowen",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Crypto analyst (YouTube)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "berachain",
+      "name": "Berachain",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "EVM L1",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "bgarlinghouse",
+      "name": "Brad Garlinghouse",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Ripple CEO (verified @bgarlinghouse)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "biancoresearch",
+      "name": "Jim Bianco",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Macro; Bianco Research",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "BigCheds",
+      "name": "Big Cheds",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Trader; BTC/alt calls",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "binance",
+      "name": "Binance",
+      "category": "exchange",
+      "tier": 1,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "BinanceLabs",
+      "name": "Binance Labs",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Binance VC arm",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Bitboy_Crypto",
+      "name": "Ben Armstrong",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL (controversial)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "bitcoin",
+      "name": "Bitcoin",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "BTC org",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "BitcoinArchive",
+      "name": "Bitcoin Archive",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin news/media",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "BitcoinCom",
+      "name": "Bitcoin.com News",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin news outlet",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "BitcoinLFG",
+      "name": "Bitcoin LFG",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Bitcoin maxi KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "BitcoinMagazine",
+      "name": "Bitcoin Magazine",
+      "category": "media",
+      "tier": 1,
+      "notes": "BTC news",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "bitfinex",
+      "name": "Bitfinex",
+      "category": "exchange",
+      "tier": 1,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Bitget",
+      "name": "Bitget",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "BitMEX",
+      "name": "BitMEX",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "Perp exchange",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "bitstamp",
+      "name": "Bitstamp",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "bitstein",
+      "name": "Michael Goldstein",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin (Nakamoto Institute)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "BlackRock",
+      "name": "BlackRock",
+      "category": "media",
+      "tier": 2,
+      "notes": "Asset manager; IBIT ETF",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "blast",
+      "name": "Blast",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Ethereum L2",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "blknoiz06",
+      "name": "Ansem",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Solana trader/KOL",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Blockworks_",
+      "name": "Blockworks",
+      "category": "media",
+      "tier": 1,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "BloombergCrypto",
+      "name": "Bloomberg Crypto",
+      "category": "media",
+      "tier": 1,
+      "notes": "News org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "BoringSleuth",
+      "name": "Boring Sleuth",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Memecoin caller/alpha",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "brian_armstrong",
+      "name": "Brian Armstrong",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Coinbase co-founder & CEO",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "BuildOnMantle",
+      "name": "Mantle",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Ethereum L2",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Bullish",
+      "name": "Bullish",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "Exchange (EOS)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Bybit_Official",
+      "name": "Bybit",
+      "category": "exchange",
+      "tier": 1,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ByzGeneral",
+      "name": "Byzantine General",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CaitlinLong_",
+      "name": "Caitlin Long",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Custodia Bank founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CamelotDEX",
+      "name": "Camelot",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Arbitrum DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "cameron",
+      "name": "Cameron Winklevoss",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Gemini co-founder (verified @cameron)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CanteringClark",
+      "name": "Clark",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Trader; meme & BTC calls",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CaptainFaibik",
+      "name": "Captain Faibik",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Crypto trader/TA",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Cardano",
+      "name": "Cardano",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "L1",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CathieDWood",
+      "name": "Cathie Wood",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "ARK Invest",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "cburniske",
+      "name": "Chris Burniske",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Placeholder partner",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "CBVentures",
+      "name": "Coinbase Ventures",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Coinbase VC arm",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "cdixon",
+      "name": "Chris Dixon",
+      "category": "vc",
+      "tier": 1,
+      "notes": "a16z crypto managing partner",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CelestiaOrg",
+      "name": "Celestia",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Modular DA",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "CeloOrg",
+      "name": "Celo",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Mobile-first L1",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CertiKAlert",
+      "name": "CertiK Alert",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Security alerts",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "chainalysis",
+      "name": "Chainalysis",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain forensics",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ChainFeeds",
+      "name": "ChainFeeds",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news (CN/EN)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Chainflip",
+      "name": "Chainflip",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Cross-chain DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "chainlink",
+      "name": "Chainlink",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Oracle",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "ChainstackHQ",
+      "name": "Chainstack",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Web3 node infra",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CharlieShrem",
+      "name": "Charlie Shrem",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Bitcoin Foundation co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "circle",
+      "name": "Circle",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "USDC issuer",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CNBC",
+      "name": "CNBC",
+      "category": "media",
+      "tier": 2,
+      "notes": "Business news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "cobie",
+      "name": "Cobie",
+      "category": "trader",
+      "tier": 1,
+      "notes": "CT icon; Sophon",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Cogent_Crypto",
+      "name": "Cogent Crypto",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Solana/DeFi KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "coinbase",
+      "name": "Coinbase",
+      "category": "exchange",
+      "tier": 1,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Coinbureau",
+      "name": "Coin Bureau",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Education KOL",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "CoinDesk",
+      "name": "CoinDesk",
+      "category": "media",
+      "tier": 1,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "CoinFund",
+      "name": "CoinFund",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Crypto VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CoinGapeMedia",
+      "name": "CoinGape",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news outlet",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "coingecko",
+      "name": "CoinGecko",
+      "category": "media",
+      "tier": 1,
+      "notes": "Data aggregator",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "coinglass",
+      "name": "Coinglass",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Derivatives/liquidation data",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CoinMamba",
+      "name": "Coin Mamba",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL/trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CoinMarketCap",
+      "name": "CoinMarketCap",
+      "category": "media",
+      "tier": 1,
+      "notes": "Data aggregator",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Cointelegraph",
+      "name": "CoinTelegraph",
+      "category": "media",
+      "tier": 1,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "ColdBloodShill",
+      "name": "Cold Blooded Shiller",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Meme & small-cap caller",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "compoundfinance",
+      "name": "Compound",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Lending",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ConvexFinance",
+      "name": "Convex Finance",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Curve yield booster",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "cosmos",
+      "name": "Cosmos",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Interchain",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "CozomoMedici",
+      "name": "Cozomo de' Medici",
+      "category": "kol",
+      "tier": 2,
+      "notes": "NFT collector",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CredibleCrypto",
+      "name": "Credible Crypto",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "crypto_banter",
+      "name": "Crypto Banter",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Show/KOL",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "crypto_condom",
+      "name": "Crypto Condom",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Memes",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Crypto_News",
+      "name": "Crypto News",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Aggregator",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "cryptobriefing",
+      "name": "Crypto Briefing",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news outlet",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CryptoCapo_",
+      "name": "il Capo of Crypto",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Contrarian trader",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "cryptocom",
+      "name": "Crypto.com",
+      "category": "exchange",
+      "tier": 1,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CryptoCred",
+      "name": "Crypto Cred",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Trader",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "CryptoDonAlt",
+      "name": "DonAlt",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CryptoHayes",
+      "name": "Arthur Hayes",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "BitMEX co-founder; macro",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "CryptoJelleNL",
+      "name": "Jelle",
+      "category": "trader",
+      "tier": 2,
+      "notes": "BTC/alt trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CryptoKaleo",
+      "name": "Kaleo",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Trader",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "cryptomanran",
+      "name": "Ran Neuner",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Crypto Banter host",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CryptoMichNL",
+      "name": "Michaël van de Poppe",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Trader/investor",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Cryptonews",
+      "name": "Cryptonews.com",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CryptoPotato",
+      "name": "CryptoPotato",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news outlet",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "cryptoquant_com",
+      "name": "CryptoQuant",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain data",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CryptoRover",
+      "name": "Crypto Rover",
+      "category": "kol",
+      "tier": 2,
+      "notes": "YouTube KOL; BTC/alt calls",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CryptoSlate",
+      "name": "CryptoSlate",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CryptoWendyO",
+      "name": "Crypto Wendy O",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Curb",
+      "name": "Curb",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Alt trader/caller",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "CurveFinance",
+      "name": "Curve",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Stable DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "cz_binance",
+      "name": "CZ",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Binance founder & ex-CEO; BNB",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DaanCrypto",
+      "name": "Daan Crypto Trades",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Trader; futures & alts",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "dan_pantera",
+      "name": "Dan Morehead",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Pantera founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DanHeld",
+      "name": "Dan Held",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Bitcoin analyst",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "dankrad",
+      "name": "Dankrad Feist",
+      "category": "dev",
+      "tier": 1,
+      "notes": "Ethereum Foundation researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DataDash",
+      "name": "Nicholas Merten",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "davidgokhshtein",
+      "name": "David Gokhshtein",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "dbnewswire",
+      "name": "DB News Wire",
+      "category": "media",
+      "tier": 2,
+      "notes": "Breaking news wire",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "DCFGod",
+      "name": "DCF God",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "NFT/DeFi analyst",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DCinvestor",
+      "name": "DCinvestor",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Ethereum investor/KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DeanEigenmann",
+      "name": "Dean Eigenmann",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Dialect founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DecryptMedia",
+      "name": "Decrypt",
+      "category": "media",
+      "tier": 1,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DeFi_Dad",
+      "name": "DeFi Dad",
+      "category": "kol",
+      "tier": 2,
+      "notes": "DeFi educator",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "DefiantNews",
+      "name": "The Defiant",
+      "category": "media",
+      "tier": 1,
+      "notes": "DeFi news",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "DefiIgnas",
+      "name": "Ignas",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "DeFi researcher (DeFi Research)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DefiLlama",
+      "name": "DefiLlama",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "DeFi data",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DegenSpartan",
+      "name": "Degen Spartan",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Trader turned analyst",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Delphi_Digital",
+      "name": "Delphi Digital",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Research",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Deribit",
+      "name": "Deribit",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "Options exchange",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "dfinity",
+      "name": "Internet Computer (ICP)",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "L1",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "djrtwo",
+      "name": "Danny Ryan",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Ethereum dev (ex-EF)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DLNewsInfo",
+      "name": "DL News",
+      "category": "media",
+      "tier": 1,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "DocumentingBTC",
+      "name": "Documenting Bitcoin",
+      "category": "kol",
+      "tier": 1,
+      "notes": "BTC news",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "dogecoin",
+      "name": "Dogecoin",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Dogecoin chain account",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DoveyWan",
+      "name": "Dovey Wan",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Primitive Ventures; macro",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "dragonfly_xyz",
+      "name": "Dragonfly",
+      "category": "vc",
+      "tier": 1,
+      "notes": "VC org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "drakefjustin",
+      "name": "Justin Drake",
+      "category": "dev",
+      "tier": 1,
+      "notes": "Ethereum Foundation researcher",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "driftprotocol",
+      "name": "Drift",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana perps",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DuneAnalytics",
+      "name": "Dune Analytics",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Data platform",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "dwr",
+      "name": "Dan Romero",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Farcaster co-founder (verified @dwr)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "dYdX",
+      "name": "dYdX",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Perp DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "DylanLeClair",
+      "name": "Dylan LeClair",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Bitcoin macro analyst",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "EclipseFND",
+      "name": "Eclipse",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana L2 (SVM)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ecoinometrics",
+      "name": "Ecoinometrics",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Data newsletter",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "EdanYago",
+      "name": "Edan Yago",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Bitcoin dev (Cement DAO)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "eigenlayer",
+      "name": "EigenLayer",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Restaking",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "el33th4xor",
+      "name": "Emin Gün Sirer",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Avalanche founder & CEO",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "EleanorTerrett",
+      "name": "Eleanor Terrett",
+      "category": "media",
+      "tier": 1,
+      "notes": "Crypto journalist; ex-Fox",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ElectricCapital",
+      "name": "Electric Capital",
+      "category": "vc",
+      "tier": 1,
+      "notes": "VC org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "elliotrades",
+      "name": "EllioTrades",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Elliptic",
+      "name": "Elliptic",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain forensics",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "elonmusk",
+      "name": "Elon Musk",
+      "category": "kol",
+      "tier": 1,
+      "notes": "Tesla/SpaceX; DOGE influence",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "EmanAbio",
+      "name": "Adeniyi Abiodun",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Mysten Labs co-founder & CPO (Sui)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "EmberCN",
+      "name": "EmberCN",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain sleuth (CN)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ENSdomains",
+      "name": "ENS",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Naming protocol",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ercwl",
+      "name": "Eric Wall",
+      "category": "dev",
+      "tier": 1,
+      "notes": "Bitcoin dev; Hexgen",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "EricBalchunas",
+      "name": "Eric Balchunas",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Bloomberg ETF analyst",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "ErikVoorhees",
+      "name": "Erik Voorhees",
+      "category": "founder",
+      "tier": 2,
+      "notes": "ShapeShift/CoinCap founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "EthenaLabs",
+      "name": "Ethena",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Stablecoin (USDe)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ethereum",
+      "name": "Ethereum",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "ETH org",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ethereumfndn",
+      "name": "Ethereum Foundation",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Ethereum Foundation (verified @ethereumfndn)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ethereumJoseph",
+      "name": "Joseph Lubin",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Consensys founder",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Etherscan",
+      "name": "Etherscan",
+      "category": "dev",
+      "tier": 2,
+      "notes": "EVM block explorer",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "evan_sui",
+      "name": "Evan Cheng",
+      "category": "founder",
+      "tier": 2,
+      "notes": "[REVIEW] Sui/Mysten CEO; @evancheng/@Evan_Cheng are squatted by others; using @EmanAbio for Sui leadership instead",
+      "verified": false,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "evan_van_ness",
+      "name": "Evan Van Ness",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Ethereum commentator",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Farokh",
+      "name": "Farokh Sarmad",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Web3 media host (Rug Radio)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "FEhrsam",
+      "name": "Fred Ehrsam",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Paradigm co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "fenbushi",
+      "name": "Fenbushi Capital",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Web3 VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Fidelity",
+      "name": "Fidelity",
+      "category": "media",
+      "tier": 2,
+      "notes": "Asset manager; FBTC ETF",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Filecoin",
+      "name": "Filecoin",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Storage network",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Flood",
+      "name": "Flood",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Meme-coin caller",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ForbesCrypto",
+      "name": "Forbes Crypto",
+      "category": "media",
+      "tier": 1,
+      "notes": "News org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Foresight_News",
+      "name": "Foresight News",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news (CN)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "FortuneMagazine",
+      "name": "Fortune",
+      "category": "media",
+      "tier": 2,
+      "notes": "Business news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "FrankDeGods",
+      "name": "Frank III",
+      "category": "founder",
+      "tier": 2,
+      "notes": "DeGods/y00ts founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "FraxFinance",
+      "name": "Frax",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Stablecoin ecosystem",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "frozeman",
+      "name": "Fabian Vogelsteller",
+      "category": "dev",
+      "tier": 2,
+      "notes": "ERC-20 author",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "FT",
+      "name": "Financial Times",
+      "category": "media",
+      "tier": 1,
+      "notes": "News org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "FuelLabs",
+      "name": "Fuel",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Modular execution layer",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "gabrielhaines",
+      "name": "Gabriel Haines",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Crypto entertainer",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "gakonst",
+      "name": "Georgios Konstantopoulos",
+      "category": "dev",
+      "tier": 1,
+      "notes": "Paradigm CTO",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "GameofTrades_",
+      "name": "Game of Trades",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Markets/trading",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "gate_io",
+      "name": "Gate.io",
+      "category": "exchange",
+      "tier": 1,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "gavofyork",
+      "name": "Gavin Wood",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Polkadot/Parity founder",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "GCRClassic",
+      "name": "GCR",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Legendary trader (private tweets)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Gemini",
+      "name": "Gemini",
+      "category": "exchange",
+      "tier": 1,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "girlgone_crypto",
+      "name": "Girl Gone Crypto",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "gladstein",
+      "name": "Alex Gladstein",
+      "category": "founder",
+      "tier": 2,
+      "notes": "HRF CSO",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "glassnode",
+      "name": "Glassnode",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "On-chain analytics",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "gluk64",
+      "name": "Alex Gluchowski",
+      "category": "founder",
+      "tier": 1,
+      "notes": "zkSync Matter Labs founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "GMX_IO",
+      "name": "GMX",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Perp DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "gracychen",
+      "name": "Gracy Chen",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Bitget CEO",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "graphprotocol",
+      "name": "The Graph",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Indexing protocol",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Grayscale",
+      "name": "Grayscale",
+      "category": "media",
+      "tier": 2,
+      "notes": "Digital asset manager (GBTC etc.)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "GuySwann",
+      "name": "Guy Swann",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin podcaster",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Gwart",
+      "name": "Gwart",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Bitcoin researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Hashed_Official",
+      "name": "Hashed",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Korean VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "hasufl",
+      "name": "Hasu",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Flashbots; ex-Paradigm research",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "haydenzadams",
+      "name": "Hayden Adams",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Uniswap founder",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "hdevalence",
+      "name": "Henry de Valence",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Penumbra co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "hedera",
+      "name": "Hedera",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "L1",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "helius",
+      "name": "Helius",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Solana RPC/API infra",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "hmalviya9",
+      "name": "Hitesh Malviya",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain researcher (DYOR)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Hoskinson_IO",
+      "name": "IOG (IOHK)",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Cardano org (org account)",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "hosseeb",
+      "name": "Haseeb Qureshi",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Dragonfly managing partner",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "HuobiGlobal",
+      "name": "HTX (Huobi)",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "HyperliquidX",
+      "name": "Hyperliquid",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Perp DEX L1",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "iamjosephyoung",
+      "name": "Joseph Young",
+      "category": "media",
+      "tier": 2,
+      "notes": "Analyst/journalist",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "icebergy",
+      "name": "Icebergy",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "NFT researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ilblackdragon",
+      "name": "Illia Polosukhin",
+      "category": "founder",
+      "tier": 1,
+      "notes": "NEAR co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "IncomeSharks",
+      "name": "IncomeSharks",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Infura",
+      "name": "Infura",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Ethereum RPC infra",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "injective",
+      "name": "Injective",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Cosmos L1",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "intocryptoverse",
+      "name": "Benjamin Cowen",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "On-chain/cycles analyst",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "intotheblock",
+      "name": "IntoTheBlock",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "On-chain analytics",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "IOHK_Charles",
+      "name": "Charles Hoskinson",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Cardano/IOG founder (verified @IOHK_Charles)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "IOSGVC",
+      "name": "IOSG Ventures",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Web3 VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "IvanOnTech",
+      "name": "Ivan on Tech",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "jack",
+      "name": "Jack Dorsey",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Twitter/Block founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "JasonChoi",
+      "name": "Jason Choi",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Tangent founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "JasonYanowitz",
+      "name": "Jason Yanowitz",
+      "category": "media",
+      "tier": 2,
+      "notes": "Blockworks co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "jchervinsky",
+      "name": "Jake Chervinsky",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Crypto legal/policy (Variant)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "jerallaire",
+      "name": "Jeremy Allaire",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Circle co-founder & CEO (USDC)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "jessewldn",
+      "name": "Jesse Walden",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Variant Fund founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "JihanWu",
+      "name": "Jihan Wu",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Bitmain co-founder; Matrixport",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "jito_foundation",
+      "name": "Jito Foundation",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Solana MEV/staking",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "jitosol",
+      "name": "Jito",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana MEV/restaking",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "joemccann",
+      "name": "Joe McCann",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Asymmetric; trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "joeykrug",
+      "name": "Joey Krug",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Founder/VC (ex-Pantera)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "JSeyff",
+      "name": "James Seyffart",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Bloomberg ETF analyst",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "JumpCrypto",
+      "name": "Jump Crypto",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Crypto market maker/VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "JupiterExchange",
+      "name": "Jupiter",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Solana DEX aggregator",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "justinsuntron",
+      "name": "Justin Sun",
+      "category": "founder",
+      "tier": 1,
+      "notes": "TRON founder; HTX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "KainWarwick",
+      "name": "Kain Warwick",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Synthetix/Infinex founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "KaminoFinance",
+      "name": "Kamino",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana lending",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "katie_haun",
+      "name": "Katie Haun",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Haun Ventures",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "keonehon",
+      "name": "Keone Hon",
+      "category": "founder",
+      "tier": 2,
+      "notes": "[REVIEW] Monad founder; @keonehon returned 404 during verify — possible handle change",
+      "verified": false,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "KoroushAK",
+      "name": "Koroush AK",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Trader/researcher; AI + crypto",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "krakenfx",
+      "name": "Kraken",
+      "category": "exchange",
+      "tier": 1,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "KristinSmith",
+      "name": "Kristin Smith",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Blockchain Association CEO",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "krugermacro",
+      "name": "Alex Krüger",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Macro/trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "kucoincom",
+      "name": "KuCoin",
+      "category": "exchange",
+      "tier": 1,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "KyleLDavies",
+      "name": "Kyle Davies",
+      "category": "vc",
+      "tier": 2,
+      "notes": "3AC co-founder (controversial)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "KyleSamani",
+      "name": "Kyle Samani",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Multicoin managing partner",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "l2beat",
+      "name": "L2BEAT",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "L2 analytics",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "laurashin",
+      "name": "Laura Shin",
+      "category": "media",
+      "tier": 1,
+      "notes": "Journalist; Unchained",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "LayahHeilpern",
+      "name": "Layah Heilpern",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto journalist/KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "LayerZero_Labs",
+      "name": "LayerZero",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Interoperability",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Lemniscap",
+      "name": "Lemniscap",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Crypto VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "LidoFinance",
+      "name": "Lido",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Liquid staking",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "lightclients",
+      "name": "lightclient",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Ethereum dev (Geth)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "lightcrypto",
+      "name": "Light",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Crypto analyst",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "LiJin",
+      "name": "Li Jin",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Variant partner",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "linda_xie",
+      "name": "Linda Xie",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Scalar Capital co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "LineaBuild",
+      "name": "Linea",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Ethereum L2 (Consensys)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "litecoin",
+      "name": "Litecoin",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "LTC org",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Lomashuk",
+      "name": "Konstantin Lomashuk",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Lido co-founder; cyberFund",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Lomasi_",
+      "name": "Lomasi",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Memecoin caller",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "lookonchain",
+      "name": "Lookonchain",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "On-chain data",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "lopp",
+      "name": "Jameson Lopp",
+      "category": "dev",
+      "tier": 1,
+      "notes": "Bitcoin dev; Casa",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "LucasNuzzi",
+      "name": "Lucas Nuzzi",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Coin Metrics CTO",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "LynAldenContact",
+      "name": "Lyn Alden",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Macro analyst",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "MacroScope17",
+      "name": "MacroScope",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Macro analyst",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MakerDAO",
+      "name": "MakerDAO",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Stablecoin protocol",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "MarinadeFinance",
+      "name": "Marinade",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana staking",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MarketWatch",
+      "name": "MarketWatch",
+      "category": "media",
+      "tier": 2,
+      "notes": "Markets news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MartyParty",
+      "name": "Marty Bent",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin podcaster (TFTC)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "matt_etherscan",
+      "name": "Matthew Tan",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Etherscan founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "matt_hougan",
+      "name": "Matt Hougan",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Bitwise CIO",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "matthuang",
+      "name": "Matt Huang",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Paradigm co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "maurelian_",
+      "name": "Maurelian",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Solidity dev (OP Labs)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "mcuban",
+      "name": "Mark Cuban",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Investor; crypto advocate",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "mdudas",
+      "name": "Mike Dudas",
+      "category": "vc",
+      "tier": 1,
+      "notes": "6th Man Ventures",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MechanismCap",
+      "name": "Mechanism Capital",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Crypto VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Melt_Dem",
+      "name": "Meltem Demirors",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Ex-CoinShares CSO; KOL",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "MessariCrypto",
+      "name": "Messari",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Research",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "metaplex",
+      "name": "Metaplex",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana NFT standard",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MeteoraAG",
+      "name": "Meteora",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana DEX/liquidity",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MetisL2",
+      "name": "Metis",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Ethereum L2",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MEXC",
+      "name": "MEXC",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "michael_saylor",
+      "name": "Michael Saylor",
+      "category": "kol",
+      "tier": 1,
+      "notes": "MicroStrategy chairman",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "MikeIppolito_",
+      "name": "Mike Ippolito",
+      "category": "media",
+      "tier": 2,
+      "notes": "Blockworks/Empire pod",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MikybullCrypto",
+      "name": "Mikybull",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Bitcoin/Tao trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MilesDeutscher",
+      "name": "Miles Deutscher",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Retail trader KOL; AI x crypto",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "milkroaddaily",
+      "name": "Milk Road",
+      "category": "media",
+      "tier": 1,
+      "notes": "Crypto newsletter",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MinaProtocol",
+      "name": "Mina",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "zk L1",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MMCrypto",
+      "name": "MMCrypto",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Bitcoin trader/YouTuber",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "monad_xyz",
+      "name": "Monad",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "EVM L1",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "MoonOverlord",
+      "name": "Moon Overlord",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Trader/caller",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MorphL2",
+      "name": "Morph",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Ethereum L2",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "morpho_labs",
+      "name": "Morpho",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Lending protocol",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MrHodl",
+      "name": "Tuur Demeester",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Bitcoin researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MulticoinCap",
+      "name": "Multicoin Capital",
+      "category": "vc",
+      "tier": 1,
+      "notes": "VC org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "muneeb",
+      "name": "Muneeb Ali",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Stacks co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "musalbas",
+      "name": "Mustafa Al-Bassam",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Celestia co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "MustStopMurad",
+      "name": "Murad Mahmudov",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Memecoin cycle analyst",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "nansen_ai",
+      "name": "Nansen",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "On-chain analytics",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Nascentxyz",
+      "name": "Nascent",
+      "category": "vc",
+      "tier": 2,
+      "notes": "DeFi VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "NatalieBrunell",
+      "name": "Natalie Brunell",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin podcaster (Coin Stories)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "naval",
+      "name": "Naval Ravikant",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Angel; Spearhead",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "NEARProtocol",
+      "name": "NEAR",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "L1",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "NewsBTC",
+      "name": "NewsBTC",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "NGC_Ventures",
+      "name": "NGC Ventures",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Crypto VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "nic__carter",
+      "name": "Nic Carter",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Castle Island; BTC analyst",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "nobsbitcoin",
+      "name": "Nobs Bitcoin",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "novogratz",
+      "name": "Mike Novogratz",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Galaxy Digital CEO",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "nytimes",
+      "name": "The New York Times",
+      "category": "media",
+      "tier": 2,
+      "notes": "General news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "OdailyChina",
+      "name": "Odaily",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news (CN)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Offchain_Labs",
+      "name": "Offchain Labs",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Arbitrum devs",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "okx",
+      "name": "OKX",
+      "category": "exchange",
+      "tier": 1,
+      "notes": "CEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "OndoFoundation",
+      "name": "Ondo Finance",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "RWA protocol",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "OPLabsPBC",
+      "name": "OP Labs",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Optimism devs",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "optimismFND",
+      "name": "Optimism",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "OP Labs L2",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "OrcaSo",
+      "name": "Orca",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "osf_rekt",
+      "name": "OSF",
+      "category": "kol",
+      "tier": 2,
+      "notes": "NFT trader/collector",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Osmosis",
+      "name": "Osmosis",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Cosmos DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "outliervc",
+      "name": "Outlier Ventures",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Web3 accelerator/VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "packyM",
+      "name": "Packy McCormick",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Not Boring Capital",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "PancakeSwap",
+      "name": "PancakeSwap",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "BNB Chain DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "PanteraCapital",
+      "name": "Pantera Capital",
+      "category": "vc",
+      "tier": 1,
+      "notes": "VC org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "paoloardoino",
+      "name": "Paolo Ardoino",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Tether CEO",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "paulbarron",
+      "name": "Paul Barron",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Crypto media/KOL (verified @paulbarron)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "PaulRBerg",
+      "name": "Paul Berg",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Solidity dev (Sablier)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "pcaversaccio",
+      "name": "pcaversaccio",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Solidity dev (Safe)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "PeckShieldAlert",
+      "name": "PeckShield Alert",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Security alerts",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "pendle_fi",
+      "name": "Pendle",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Yield trading",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Pentosh1",
+      "name": "Pentoshi",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Top trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "PerianneDC",
+      "name": "Perianne Boring",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Digital Chamber founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "peterktodd",
+      "name": "Peter Todd",
+      "category": "dev",
+      "tier": 1,
+      "notes": "Bitcoin developer",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "PeterMcCormack",
+      "name": "Peter McCormack",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin podcaster",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "phantom",
+      "name": "Phantom",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana wallet",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "PhyrexNi",
+      "name": "Phyrex",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain analyst (CN)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Pierre_Rochard",
+      "name": "Pierre Rochard",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Bitcoin analyst (Riot)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "pokerbrat2019",
+      "name": "Poker Brat",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Memecoin caller",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Polkadot",
+      "name": "Polkadot",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "L1",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Poloniex",
+      "name": "Poloniex",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "Exchange",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "polychaincap",
+      "name": "Polychain Capital",
+      "category": "vc",
+      "tier": 1,
+      "notes": "VC org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Pranksy",
+      "name": "Pranksy",
+      "category": "kol",
+      "tier": 2,
+      "notes": "NFT collector/investor",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "PrestonPysh",
+      "name": "Preston Pysh",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin podcaster (The Investor's Podcast)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "protolambda",
+      "name": "protolambda",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Ethereum dev (OP Labs)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "protos",
+      "name": "Protos",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "pumpdotfun",
+      "name": "pump.fun",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Memecoin launchpad",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "punk9059",
+      "name": "punk9059",
+      "category": "kol",
+      "tier": 2,
+      "notes": "NFT researcher/collector",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "PythNetwork",
+      "name": "Pyth",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana/cross-chain oracle",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "QiaoWang",
+      "name": "Qiao Wang",
+      "category": "vc",
+      "tier": 2,
+      "notes": "VC (ex-0x)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "quicknode",
+      "name": "QuickNode",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Blockchain RPC infra",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "rajgokal",
+      "name": "Raj Gokal",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Solana co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "RaoulGMI",
+      "name": "Raoul Pal",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Macro; Real Vision",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Raydium",
+      "name": "Raydium",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana DEX/AMM",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "RealVision",
+      "name": "Real Vision",
+      "category": "media",
+      "tier": 2,
+      "notes": "Finance media",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "rektcapital",
+      "name": "Rekt Capital",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Cycles analyst",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Renzo_Protocol",
+      "name": "Renzo",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Restaking (ezETH)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Reuters",
+      "name": "Reuters",
+      "category": "media",
+      "tier": 1,
+      "notes": "News org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Rewkang",
+      "name": "Rekt Fencer",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Trader",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "ricburton",
+      "name": "Ric Burton",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Web3 builder/founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Ripple",
+      "name": "Ripple",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "XRP org",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "rleshner",
+      "name": "Robert Leshner",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Compound founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "RobinhoodApp",
+      "name": "Robinhood",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "Retail brokerage",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "RobotVentures",
+      "name": "Robot Ventures",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Crypto VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "RocketPool",
+      "name": "Rocket Pool",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Liquid staking",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "RogerVer",
+      "name": "Roger Ver",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Bitcoin.com founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "roham",
+      "name": "Roham Gharegozlou",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Dapper Labs CEO",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "rovercrc",
+      "name": "Crypto Rover",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "RuneKek",
+      "name": "Rune Christensen",
+      "category": "founder",
+      "tier": 1,
+      "notes": "MakerDAO founder",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "RyanBerckmans",
+      "name": "Ryan Berckmans",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Ethereum researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SalsaTekila",
+      "name": "Salsa Tekila",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Trader; TA + calls",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "samczsun",
+      "name": "samczsun",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Security researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "sandeepnailwal",
+      "name": "Sandeep Nailwal",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Polygon Foundation CEO",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "santimentfeed",
+      "name": "Santiment",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain/market data",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "santizen",
+      "name": "Santiago Santos",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Ex-ParaFi; Web3 investor",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "sassal0x",
+      "name": "Anthony Sassano",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Ethereum educator",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "SatoshiLite",
+      "name": "Charlie Lee",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Litecoin creator",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "saylor",
+      "name": "Michael Saylor",
+      "category": "kol",
+      "tier": 1,
+      "notes": "MicroStrategy BTC treasury",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "scottmelker",
+      "name": "Scott Melker",
+      "category": "trader",
+      "tier": 1,
+      "notes": "The Wolf Of All Streets",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Scroll_ZKP",
+      "name": "Scroll",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Ethereum L2 (zkEVM)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SDLerner",
+      "name": "Sergio Demian Lerner",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Bitcoin/Rootstock dev",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Seedphrase",
+      "name": "Seedphrase",
+      "category": "kol",
+      "tier": 2,
+      "notes": "NFT collector",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SeiNetwork",
+      "name": "Sei",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Cosmos L1",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "SergeyNazarov",
+      "name": "Sergey Nazarov",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Chainlink co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Sfermion_",
+      "name": "Sfermion",
+      "category": "vc",
+      "tier": 2,
+      "notes": "NFT-focused VC",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Shaughnessy119",
+      "name": "Tommy Shaughnessy",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Delphi Digital co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "silviomicali",
+      "name": "Silvio Micali",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Algorand founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SkyEcosystem",
+      "name": "Sky (MakerDAO)",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "MakerDAO rebrand",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SlowMist_Team",
+      "name": "SlowMist",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Security firm",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SmartContracter",
+      "name": "Smart Contracter",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Trader; ETH/BTC calls",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "solana",
+      "name": "Solana",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana chain account",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SolanaDaily",
+      "name": "Solana Daily",
+      "category": "media",
+      "tier": 2,
+      "notes": "Solana news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SolanaFloor",
+      "name": "SolanaFloor",
+      "category": "media",
+      "tier": 2,
+      "notes": "Solana community media",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SolanaFndn",
+      "name": "Solana Foundation",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Solana org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "SolanaStatus",
+      "name": "Solana Status",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Solana status",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "solbigbrain",
+      "name": "SolBigBrain",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Solana community KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "solpost",
+      "name": "The Sol Post",
+      "category": "media",
+      "tier": 2,
+      "notes": "Solana news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "somi",
+      "name": "Somi",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "spotonchain",
+      "name": "Spot On Chain",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain alerting/research",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "sreeramkannan",
+      "name": "Sreeram Kannan",
+      "category": "founder",
+      "tier": 1,
+      "notes": "EigenLayer/Eigen Labs founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Stacks",
+      "name": "Stacks",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "BTC L2",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "stacy_muur",
+      "name": "Stacy Muur",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "DeFi/VC researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "StaniKulechov",
+      "name": "Stani Kulechov",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Aave founder",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Starknet",
+      "name": "Starknet",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "StarkWare L2",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "StellarOrg",
+      "name": "Stellar",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Stellar org",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "StephanLivera",
+      "name": "Stephan Livera",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin podcast",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SuiNetwork",
+      "name": "Sui",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "L1",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "sunnyAggarwal",
+      "name": "Sunny Aggarwal",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Osmosis co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "sushiswap",
+      "name": "SushiSwap",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "DeFi DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "SymbioticFi",
+      "name": "Symbiotic",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Restaking",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "synthetix_io",
+      "name": "Synthetix",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Derivatives",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "taikoxyz",
+      "name": "Taiko",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Ethereum L2",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "tarunchitra",
+      "name": "Tarun Chitra",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Gauntlet CEO; MEV research",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "tayvano_",
+      "name": "Taylor Monahan",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Security/dev (MetaMask)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "TechCrunch",
+      "name": "TechCrunch",
+      "category": "media",
+      "tier": 2,
+      "notes": "Tech news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "TechDev_52",
+      "name": "TechDev",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "Fractal/Tech analysis",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "tedtalksmacro",
+      "name": "Ted",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Macro/crypto researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "TensorFdn",
+      "name": "Tensor",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Solana NFT marketplace",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Tether_to",
+      "name": "Tether",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "USDT issuer",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "tezos",
+      "name": "Tezos",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "L1",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "the_data_nerd",
+      "name": "The Data Nerd",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain data/research",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "TheBlock__",
+      "name": "The Block",
+      "category": "media",
+      "tier": 1,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "TheCryptoDog",
+      "name": "The Crypto Dog",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Trader/caller; alt & BTC calls",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "TheCryptoLark",
+      "name": "Lark Davis",
+      "category": "kol",
+      "tier": 2,
+      "notes": "YouTube KOL",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "thecryptomist",
+      "name": "The Crypto Mist",
+      "category": "kol",
+      "tier": 2,
+      "notes": "KOL/trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "thedefiedge",
+      "name": "The DeFi Edge",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "DeFi research/newsletter",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "TheEconomist",
+      "name": "The Economist",
+      "category": "media",
+      "tier": 2,
+      "notes": "Business news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "TheFlowHorse",
+      "name": "The Flow Horse",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Ex-prop trader",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "TheInformation",
+      "name": "The Information",
+      "category": "media",
+      "tier": 2,
+      "notes": "Tech/business news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "TheMoonCarl",
+      "name": "The Moon",
+      "category": "kol",
+      "tier": 2,
+      "notes": "[REVIEW] KOL; 404 transient during verify — likely @TheMoonCarl",
+      "verified": false,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "theRealKiyosaki",
+      "name": "Robert Kiyosaki",
+      "category": "kol",
+      "tier": 2,
+      "notes": "Rich Dad author; BTC advocate",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "theunipcs",
+      "name": "Unipcs",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Solana trader",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "ThinkingUSD",
+      "name": "ThinkingUSD",
+      "category": "trader",
+      "tier": 1,
+      "notes": "Trader",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "THORChain",
+      "name": "THORChain",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Cross-chain DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "timbeiko",
+      "name": "Tim Beiko",
+      "category": "dev",
+      "tier": 1,
+      "notes": "Ethereum Foundation; ACD calls",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "TimDraper",
+      "name": "Tim Draper",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Draper Associates",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "tomhschmidt",
+      "name": "Tom Schmidt",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Dragonfly partner",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ton_blockchain",
+      "name": "TON",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Telegram chain",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "ToneVays",
+      "name": "Tone Vays",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Bitcoin analyst",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Trader_XO",
+      "name": "Trader_XO",
+      "category": "trader",
+      "tier": 2,
+      "notes": "Memecoin caller",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "triton_one",
+      "name": "Triton",
+      "category": "dev",
+      "tier": 2,
+      "notes": "Solana RPC infra",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "trmlabs",
+      "name": "TRM Labs",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain forensics",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "tronfoundation",
+      "name": "TRON DAO",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "TRON chain account",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "trustmachinesco",
+      "name": "Trust Machines",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "BTC ecosystem",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "tyler",
+      "name": "Tyler Winklevoss",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Gemini co-founder (verified @tyler)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "udiWertheimer",
+      "name": "Udi Wertheimer",
+      "category": "dev",
+      "tier": 1,
+      "notes": "Bitcoin dev; Taproot Wizards",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "unchained_pod",
+      "name": "Unchained Podcast",
+      "category": "media",
+      "tier": 1,
+      "notes": "Podcast",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Uniswap",
+      "name": "Uniswap",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "DEX",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "UpbitGlobal",
+      "name": "Upbit",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "Korean exchange",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "UsualMoney",
+      "name": "Usual",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "RWA stablecoin",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Utoday_en",
+      "name": "U.Today",
+      "category": "media",
+      "tier": 2,
+      "notes": "Crypto news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "VanceSpencer",
+      "name": "Vance Spencer",
+      "category": "vc",
+      "tier": 1,
+      "notes": "Framework Ventures co-founder",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "VanEck",
+      "name": "VanEck",
+      "category": "media",
+      "tier": 2,
+      "notes": "Asset manager; spot BTC/ETH ETF issuer",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "VariantFund",
+      "name": "Variant Fund",
+      "category": "vc",
+      "tier": 1,
+      "notes": "VC org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "VelodromeFi",
+      "name": "Velodrome",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Optimism DEX",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "veradittakit",
+      "name": "Paul Veradittakit",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Pantera partner",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "VijayBoyapati",
+      "name": "Vijay Boyapati",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "Bitcoin writer/analyst",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "VitalikButerin",
+      "name": "Vitalik Buterin",
+      "category": "founder",
+      "tier": 1,
+      "notes": "Ethereum co-founder",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "wacy_time1",
+      "name": "Wacy",
+      "category": "analyst",
+      "tier": 2,
+      "notes": "On-chain researcher",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "WatcherGuru",
+      "name": "Watcher.Guru",
+      "category": "media",
+      "tier": 2,
+      "notes": "Breaking news aggregator",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "WhalePanda",
+      "name": "WhalePanda",
+      "category": "media",
+      "tier": 2,
+      "notes": "Bitcoin community media/whale",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "WhiteBIT",
+      "name": "WhiteBIT",
+      "category": "exchange",
+      "tier": 2,
+      "notes": "Exchange",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Wintermute_t",
+      "name": "Wintermute",
+      "category": "vc",
+      "tier": 2,
+      "notes": "Crypto market maker",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "woonomic",
+      "name": "Willy Woo",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "On-chain analyst",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "worldcoin",
+      "name": "Worldcoin",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Identity protocol",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Wormhole",
+      "name": "Wormhole",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "Cross-chain bridge",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "WSJmarkets",
+      "name": "WSJ Markets",
+      "category": "media",
+      "tier": 1,
+      "notes": "News org",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "WuBlockchain",
+      "name": "Wu Blockchain",
+      "category": "media",
+      "tier": 1,
+      "notes": "Asia crypto news (Colin Wu)",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "YahooFinance",
+      "name": "Yahoo Finance",
+      "category": "media",
+      "tier": 2,
+      "notes": "Finance news",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "Yat_Siu",
+      "name": "Yat Siu",
+      "category": "founder",
+      "tier": 2,
+      "notes": "Animoca Brands co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "yearnfinance",
+      "name": "Yearn Finance",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "DeFi yield aggregator",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "zachxbt",
+      "name": "ZachXBT",
+      "category": "analyst",
+      "tier": 1,
+      "notes": "On-chain sleuth",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "Zeneca_",
+      "name": "Zeneca",
+      "category": "kol",
+      "tier": 2,
+      "notes": "NFT KOL",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "zhusu",
+      "name": "Zhu Su",
+      "category": "vc",
+      "tier": 2,
+      "notes": "3AC co-founder (controversial)",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "zksync",
+      "name": "zkSync",
+      "category": "protocol",
+      "tier": 1,
+      "notes": "Matter Labs L2",
+      "verified": true,
+      "overlap_with_ct": true
+    },
+    {
+      "handle": "zmanian",
+      "name": "Zaki Manian",
+      "category": "founder",
+      "tier": 2,
+      "notes": "IBC/Sommelier co-founder",
+      "verified": true,
+      "overlap_with_ct": false
+    },
+    {
+      "handle": "zora",
+      "name": "ZORA",
+      "category": "protocol",
+      "tier": 2,
+      "notes": "NFT/creator L2",
+      "verified": true,
+      "overlap_with_ct": false
+    }
+  ]
+}

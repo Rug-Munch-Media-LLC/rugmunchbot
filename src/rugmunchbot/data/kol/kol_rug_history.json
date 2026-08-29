@@ -1,0 +1,461 @@
+{
+  "kol_rug_history": [
+    {
+      "handle": "HalieyWelchX",
+      "kol_handle": "HalieyWelchX",
+      "name": "Haliey Welch (Hawk Tuah)",
+      "rugs": [
+        {
+          "token_symbol": "HAWK",
+          "token": "HAWK",
+          "chain": "solana",
+          "date": "2024-12-04",
+          "call_date": "2024-12-04",
+          "outcome": "dumped",
+          "severity": "critical",
+          "verified": true,
+          "evidence_url": "https://www.bbc.com/news/articles/c89xvjkzzyvo",
+          "notes": "HAWK launched on Solana 2024-12-04, hit ~$490M market cap then lost >95% within hours (to ~$60M in 20 min). Coffeezilla publicly accused the team of a pump-and-dump / rug pull and insider advantage; a community note disputed Welch's denial that team tokens were sold; EDNY class action filed Dec 2024. On-chain insider-wallet analysis (incl. ZachXBT) documented launch mechanics. No regulator action as of compile date."
+        }
+      ]
+    },
+    {
+      "handle": "LoganPaul",
+      "kol_handle": "LoganPaul",
+      "name": "Logan Paul",
+      "rugs": [
+        {
+          "token_symbol": "ZOO",
+          "token": "ZOO",
+          "chain": "ethereum",
+          "date": "2021-08-27",
+          "call_date": "2021-08-27",
+          "outcome": "rugged",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/CryptoZoo",
+          "notes": "CryptoZoo ($ZOO) co-founded and heavily promoted by Logan Paul ('really fun game that makes you money'); raised millions via NFTs/coins but no playable game ever shipped. Coffeezilla three-part investigation Dec 2022; class action filed Feb 2023; $1.3M partial refund program Jan 2024; Paul countersued/defamation suit vs Coffeezilla 2024. Chain recorded as ethereum in prior dataset — [REVIEW] confirm $ZOO chain."
+        },
+        {
+          "token_symbol": "SFM",
+          "token": "SFM",
+          "chain": "bnb",
+          "date": "2021-04",
+          "call_date": "2021-04",
+          "outcome": "dumped",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/SafeMoon",
+          "notes": "Named as a defendant in the Feb 2022 SafeMoon class action alleging pump-and-dump promotion of SFM on social media; token crashed ~98.7% from Apr 2021 ATH. Evidence: SafeMoon Wikipedia (celebrity-endorsement + class action section)."
+        }
+      ]
+    },
+    {
+      "handle": "stablekwon",
+      "kol_handle": "stablekwon",
+      "name": "Do Kwon (Terraform Labs)",
+      "rugs": [
+        {
+          "token_symbol": "LUNA",
+          "token": "LUNA",
+          "chain": "terra",
+          "date": "2022-05-09",
+          "call_date": "2022-05-09",
+          "outcome": "rugged",
+          "severity": "critical",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/Terra_(blockchain)",
+          "notes": "Terra/LUNA-UST collapse began 2022-05-09, wiping ~$45B in a week; Do Kwon was the founder and chief public promoter ('King of the Lunatics', 19.45% Anchor yield). SEC charged Terraform/Kwon Feb 2023; Kwon arrested Montenegro Mar 2023, pled guilty to US fraud charges Aug 2025, sentenced 15 years Dec 2025."
+        }
+      ]
+    },
+    {
+      "handle": "cryptomanran",
+      "kol_handle": "cryptomanran",
+      "name": "Ran Neuner (Crypto Banter)",
+      "rugs": [
+        {
+          "token_symbol": "LUNA",
+          "token": "LUNA",
+          "chain": "terra",
+          "date": "2022-03",
+          "call_date": "2022-03",
+          "outcome": "rugged",
+          "severity": "high",
+          "verified": false,
+          "evidence_url": "https://x.com/cryptomanran",
+          "notes": "Crypto Banter host repeatedly promoted Terra/LUNA before the May 2022 collapse and shilled low-cap tokens; extensive community criticism and clip archives. Community-sourced / hearsay-level evidence, no regulator action."
+        }
+      ]
+    },
+    {
+      "handle": "scottmelker",
+      "kol_handle": "scottmelker",
+      "name": "Scott Melker (The Wolf of All Streets)",
+      "rugs": [
+        {
+          "token_symbol": "LUNA",
+          "token": "LUNA",
+          "chain": "terra",
+          "date": "2022-03",
+          "call_date": "2022-03",
+          "outcome": "rugged",
+          "severity": "high",
+          "verified": false,
+          "evidence_url": "https://x.com/scottmelker",
+          "notes": "Prominent LUNA bull who publicly endorsed Terra/UST at high valuations before the May 2022 collapse; frequently cited in post-collapse community roundups of LUNA promoters. Community-sourced, no regulator action."
+        }
+      ]
+    },
+    {
+      "handle": "SBF_FTX",
+      "kol_handle": "SBF_FTX",
+      "name": "Sam Bankman-Fried",
+      "rugs": [
+        {
+          "token_symbol": "FTT",
+          "token": "FTT",
+          "chain": "ethereum",
+          "date": "2022-11-06",
+          "call_date": "2022-11-06",
+          "outcome": "rugged",
+          "severity": "critical",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/FTX",
+          "notes": "FTX founder and chief promoter of FTT; FTT crashed ~80% on 2022-11-06 after Binance announced FTT sale, exchange collapsed into Chapter 11 on 2022-11-11 wiping customer funds and FTT value. SBF convicted on fraud charges Nov 2023."
+        }
+      ]
+    },
+    {
+      "handle": "kevinolearytv",
+      "kol_handle": "kevinolearytv",
+      "name": "Kevin O'Leary (Mr. Wonderful)",
+      "rugs": [
+        {
+          "token_symbol": "FTT",
+          "token": "FTT",
+          "chain": "ethereum",
+          "date": "2021-10",
+          "call_date": "2021-10",
+          "outcome": "rugged",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/FTX",
+          "notes": "Paid FTX promoter/spokesperson; reported paid ~$15M to promote FTX (widely reported Dec 2022); lost money in the collapse. Evidence: FTX Wikipedia 'Sponsorships' coverage listing O'Leary among compensated promoters."
+        }
+      ]
+    },
+    {
+      "handle": "TomBrady",
+      "kol_handle": "TomBrady",
+      "name": "Tom Brady",
+      "rugs": [
+        {
+          "token_symbol": "FTT",
+          "token": "FTT",
+          "chain": "ethereum",
+          "date": "2021-06",
+          "call_date": "2021-06",
+          "outcome": "rugged",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/FTX",
+          "notes": "FTX brand ambassador with equity stake; promoted FTX/FTT publicly; named in class actions after the Nov 2022 collapse. Evidence: FTX Wikipedia (compensated celebrity promoters)."
+        }
+      ]
+    },
+    {
+      "handle": "giseleofficial",
+      "kol_handle": "giseleofficial",
+      "name": "Gisele Bündchen",
+      "rugs": [
+        {
+          "token_symbol": "FTT",
+          "token": "FTT",
+          "chain": "ethereum",
+          "date": "2021-06",
+          "call_date": "2021-06",
+          "outcome": "rugged",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/FTX",
+          "notes": "FTX ESG advisor and compensated promoter; sued by investors post-collapse for allegedly helping FTX mislead unsophisticated investors. Evidence: FTX Wikipedia."
+        }
+      ]
+    },
+    {
+      "handle": "StephenCurry30",
+      "kol_handle": "StephenCurry30",
+      "name": "Stephen Curry",
+      "rugs": [
+        {
+          "token_symbol": "FTT",
+          "token": "FTT",
+          "chain": "ethereum",
+          "date": "2021-09",
+          "call_date": "2021-09",
+          "outcome": "rugged",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/FTX",
+          "notes": "FTX ambassador who promoted the exchange; compensated promoter per FTX coverage. Evidence: FTX Wikipedia."
+        }
+      ]
+    },
+    {
+      "handle": "SHAQ",
+      "kol_handle": "SHAQ",
+      "name": "Shaquille O'Neal",
+      "rugs": [
+        {
+          "token_symbol": "FTT",
+          "token": "FTT",
+          "chain": "ethereum",
+          "date": "2021-06",
+          "call_date": "2021-06",
+          "outcome": "rugged",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/FTX",
+          "notes": "Compensated FTX promoter (ad campaigns); named in investor lawsuits after the collapse. Evidence: FTX Wikipedia."
+        }
+      ]
+    },
+    {
+      "handle": "KimKardashian",
+      "kol_handle": "KimKardashian",
+      "name": "Kim Kardashian",
+      "rugs": [
+        {
+          "token_symbol": "EMAX",
+          "token": "EMAX",
+          "chain": "ethereum",
+          "date": "2021-06-14",
+          "call_date": "2021-06-14",
+          "outcome": "dumped",
+          "severity": "critical",
+          "verified": true,
+          "evidence_url": "https://www.sec.gov/news/press-release/2022-183",
+          "notes": "SEC charged Kardashian for touting EMAX (EthereumMax) on Instagram without disclosing the $250K payment; settled Oct 3 2022 for $1.26M penalty/disgorgement/interest and a 3-year crypto-promo ban. EMAX token collapsed after celebrity-hype peak."
+        }
+      ]
+    },
+    {
+      "handle": "paulpierce34",
+      "kol_handle": "paulpierce34",
+      "name": "Paul Pierce",
+      "rugs": [
+        {
+          "token_symbol": "EMAX",
+          "token": "EMAX",
+          "chain": "ethereum",
+          "date": "2021-06",
+          "call_date": "2021-06",
+          "outcome": "dumped",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/Paul_Pierce",
+          "notes": "NBA star promoted EMAX on social media; SEC charged Pierce for undisclosed crypto touting (Feb 2023) and he settled (~$1.4M, media-reported); EMAX token collapsed. Evidence: Paul Pierce Wikipedia '2022 EthereumMax lawsuit' section. [REVIEW] primary SEC release number not located this session."
+        }
+      ]
+    },
+    {
+      "handle": "nickcarter",
+      "kol_handle": "nickcarter",
+      "name": "Nick Carter (Backstreet Boys)",
+      "rugs": [
+        {
+          "token_symbol": "SFM",
+          "token": "SFM",
+          "chain": "bnb",
+          "date": "2021-04",
+          "call_date": "2021-04",
+          "outcome": "dumped",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/SafeMoon",
+          "notes": "Named as defendant in Feb 2022 SafeMoon class action alleging misleading promotion of SFM after token's 23,225% Apr 2021 run (Vice-documented celebrity endorsements). Token crashed ~98.7%."
+        }
+      ]
+    },
+    {
+      "handle": "souljaboy",
+      "kol_handle": "souljaboy",
+      "name": "Soulja Boy",
+      "rugs": [
+        {
+          "token_symbol": "SFM",
+          "token": "SFM",
+          "chain": "bnb",
+          "date": "2021-04",
+          "call_date": "2021-04",
+          "outcome": "dumped",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/SafeMoon",
+          "notes": "Named in SafeMoon class action (filed Feb 18 2022) for promoting SFM with misleading information. Evidence: SafeMoon Wikipedia (class-action section)."
+        }
+      ]
+    },
+    {
+      "handle": "lillyachty",
+      "kol_handle": "lillyachty",
+      "name": "Lil Yachty",
+      "rugs": [
+        {
+          "token_symbol": "SFM",
+          "token": "SFM",
+          "chain": "bnb",
+          "date": "2021-04",
+          "call_date": "2021-04",
+          "outcome": "dumped",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/SafeMoon",
+          "notes": "Named in SafeMoon class action (Feb 18 2022) for promoting SFM; Vice documented celebrity endorsements (incl. Lil Yachty) behind the Apr 2021 price surge. Evidence: SafeMoon Wikipedia."
+        }
+      ]
+    },
+    {
+      "handle": "BenPhillips",
+      "kol_handle": "BenPhillips",
+      "name": "Ben Phillips",
+      "rugs": [
+        {
+          "token_symbol": "SFM",
+          "token": "SFM",
+          "chain": "bnb",
+          "date": "2021-04",
+          "call_date": "2021-04",
+          "outcome": "dumped",
+          "severity": "high",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/SafeMoon",
+          "notes": "Social-media personality named in SafeMoon class action (Feb 2022) for pumping SFM; Coffeezilla supported claims that Paul/Phillips were pumping-and-dumping during the 96% decline. Evidence: SafeMoon Wikipedia."
+        }
+      ]
+    },
+    {
+      "handle": "stoolpresidente",
+      "kol_handle": "stoolpresidente",
+      "name": "Dave Portnoy",
+      "rugs": [
+        {
+          "token_symbol": "SFM",
+          "token": "SFM",
+          "chain": "bnb",
+          "date": "2021-04",
+          "call_date": "2021-04",
+          "outcome": "dumped",
+          "severity": "medium",
+          "verified": true,
+          "evidence_url": "https://en.wikipedia.org/wiki/SafeMoon",
+          "notes": "Promoted SFM publicly; later dismissed from the SafeMoon class action (Aug 2022) after showing he received no compensation and lost his own investment. Evidence: SafeMoon Wikipedia."
+        }
+      ]
+    },
+    {
+      "handle": "safemoon",
+      "kol_handle": "safemoon",
+      "name": "Braden Karony (SafeMoon CEO)",
+      "rugs": [
+        {
+          "token_symbol": "SFM",
+          "token": "SFM",
+          "chain": "bnb",
+          "date": "2021-03",
+          "call_date": "2021-03",
+          "outcome": "rugged",
+          "severity": "critical",
+          "verified": true,
+          "evidence_url": "https://www.sec.gov/news/press-release/2023-229",
+          "notes": "SafeMoon CEO and chief promoter; SEC + DOJ charged SafeMoon execs Nov 1 2023 with fraud, unregistered securities and money laundering over 'locked' liquidity misuse; Karony convicted May 2025, sentenced to 100 months (Feb 2026). Token fell ~98.7% from Apr 2021 ATH."
+        }
+      ]
+    },
+    {
+      "handle": "unidentified_squid_promoters",
+      "kol_handle": "unidentified_squid_promoters",
+      "name": "Squid Game token promoters (unidentified)",
+      "rugs": [
+        {
+          "token_symbol": "SQUID",
+          "token": "SQUID",
+          "chain": "bnb",
+          "date": "2021-10-26",
+          "call_date": "2021-10-26",
+          "outcome": "rugged",
+          "severity": "critical",
+          "verified": false,
+          "evidence_url": "https://www.reuters.com/markets/currencies/squid-game-crypto-token-crashes-after-soaring-2021-11-01/",
+          "notes": "$SQUID (Squid Game token, BNB Chain) launched 2021-10-26, surged >200,000% on Netflix-series hype, then liquidity was pulled 2021-11-01 (~99%+ crash) in a classic rug pull; sellers could not exit due to a sell-restriction. Promoters were anonymous/pseudonymous (TikTok/Telegram hype) - not identified as a named KOL. [REVIEW] evidence_url is the canonical Reuters article, attempted 2026-08-13 and returned HTTP 401 bot-block (not 404); archive snapshot + independent verification pending - websearch was unavailable this session."
+        }
+      ]
+    },
+    {
+      "handle": "blknoiz06",
+      "kol_handle": "blknoiz06",
+      "name": "Ansem",
+      "rugs": [
+        {
+          "token_symbol": "PUMP",
+          "token": "PUMP",
+          "chain": "solana",
+          "date": "2024",
+          "call_date": "2024",
+          "outcome": "dumped",
+          "severity": "high",
+          "verified": false,
+          "evidence_url": "https://x.com/blknoiz06",
+          "notes": "Solana memecoin KOL syndicate ringleader; documented pattern of buying tokens before public shills and dumping on followers (incl. $PUMP and his own $ANSEM launch controversies, 2024-2026). Community/on-chain-sleuth-documented; no regulator action."
+        },
+        {
+          "token_symbol": "ANSEM",
+          "token": "ANSEM",
+          "chain": "solana",
+          "date": "2025",
+          "call_date": "2025",
+          "outcome": "dumped",
+          "severity": "high",
+          "verified": false,
+          "evidence_url": "https://x.com/blknoiz06",
+          "notes": "Own $ANSEM token launch controversy; accused of dumping on followers. Community/on-chain-sleuth-documented, no regulator action."
+        }
+      ]
+    },
+    {
+      "handle": "MustStopMurad",
+      "kol_handle": "MustStopMurad",
+      "name": "Murad Mahmudov",
+      "rugs": [
+        {
+          "token_symbol": "SPX6900",
+          "token": "SPX6900",
+          "chain": "ethereum",
+          "date": "2025",
+          "call_date": "2025",
+          "outcome": "dumped",
+          "severity": "medium",
+          "verified": false,
+          "evidence_url": "https://x.com/MustStopMurad",
+          "notes": "Memecoin 'cult coin' KOL; heavily promoted SPX6900 and low-cap memecoins (2024-2026), widely criticized as shill-then-dump when his picks crashed. Community-documented; hearsay-level evidence."
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "generated": "2026-08-13",
+    "compiled_by": "api-integration-engineer",
+    "schema_note": "Backward-compatible with kol_scoring.py / shill_detector.py loaders (handle/name/rugs, token_symbol/date/outcome/evidence_url). Task-spec alias fields kol_handle/token/call_date/severity/verified included per entry; verified=false marks community-sourced or URL-pending records.",
+    "verified_sources": [
+      "https://www.bbc.com/news/articles/c89xvjkzzyvo (HAWK)",
+      "https://en.wikipedia.org/wiki/CryptoZoo",
+      "https://en.wikipedia.org/wiki/Terra_(blockchain)",
+      "https://en.wikipedia.org/wiki/FTX",
+      "https://www.sec.gov/news/press-release/2022-183 (EMAX/Kardashian)",
+      "https://en.wikipedia.org/wiki/SafeMoon",
+      "https://en.wikipedia.org/wiki/Paul_Pierce",
+      "https://www.sec.gov/news/press-release/2023-229 (SafeMoon)"
+    ]
+  }
+}
