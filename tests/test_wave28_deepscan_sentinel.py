@@ -366,7 +366,10 @@ def test_bundle_same_slot_offline_note_and_own_result() -> None:
 def test_bundle_risk_level_alone_triggers_detection() -> None:
     data = {"bundle_detection": {"risk_level": "high"}}
     out = format_sentinel_deepscan_section(data)
-    assert "Bundle detected: <b>0</b> wallets" in out
+    # Honest + fail-open: no wallet lists → the verdict renders without a
+    # fabricated "0 wallets" count (2026-08-29 bundle_analysis shape).
+    assert "Bundle detected: <b>YES</b>" in out
+    assert "Risk: <b>HIGH</b>" in out
 
 
 # ── exchange funding ──

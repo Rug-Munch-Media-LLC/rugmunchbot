@@ -8,8 +8,13 @@ from typing import Any
 
 from rugmunchbot.config import fmt_chain
 from rugmunchbot.formatters._base import footer_links, sep, thin_sep
-from rugmunchbot.formatters._scan_report_common import _clip, _collapse_blank_lines
+from rugmunchbot.formatters._scan_report_common import (
+    _clip,
+    _collapse_blank_lines,
+    _first_buyers_rows,
+)
 from rugmunchbot.formatters._scan_report_risk import _format_risk_signals_section
+from rugmunchbot.formatters._scan_report_riskreport import format_risk_report_block
 from rugmunchbot.formatters._sentinel_helpers import (
     SENTINEL_MODULE_EMOJI,
     _risk_level_emoji,
@@ -80,6 +85,17 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
     if analyst_read:
         lines.extend(["", analyst_read])
 
+    # ── AI Analyst verdict (backend LLM synthesis, 2026-08-29 depth push) ──
+    # The v2 deepscan endpoint attaches ``ai_verdict`` (scan_verdict_ai.py).
+    # Fail-open: rendered only when a non-trivial string is present.
+    ai_verdict = data.get("ai_verdict")
+    if isinstance(ai_verdict, str) and len(ai_verdict) > 20:
+        lines.extend(["", "\U0001f916 <b>AI Analyst</b>", d])
+        for raw_line in ai_verdict.strip().splitlines():
+            line = html.escape(_clip(raw_line.strip(), 380))
+            if line:
+                lines.append(f"  {line}")
+
     # ── Risk Assessment ──
     lines.append("\U0001f3af <b>Risk Assessment</b>")
     lines.append(d)
@@ -87,6 +103,18 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
         f"{_risk_level_emoji(level)} Composite Risk: <b>{risk:.0f}/100</b> ({level.upper()})"
     )
     lines.append("")
+
+    # ── Structured Risk Report (30-factor breakdown, 2026-08-29 depth push) ──
+    # Renders the canonical explainable RiskReport (deployer / holders /
+    # first-buyer / fresh% / CEX-funded% / bundle / beyond-market cluster /
+    # honeypot / liquidity + ~30 factors + rug/scam determination). Uses the
+    # backend-provided ``risk_report`` dict when present, otherwise
+    # synthesizes the same shape from the payload. Fail-open: skipped when
+    # there is no factor data at all.
+    rr_lines = format_risk_report_block(data, deep=True)
+    if rr_lines:
+        lines.extend(rr_lines)
+        lines.append("")
 
     # ── On-chain ground truth (bot-native RPC resolution) ──
     # Mint/freeze authority + Token-2022 extension facts resolved directly
@@ -157,6 +185,18 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
             mbar = "\u2b1b" * filled + "\u2b1c" * (10 - filled)
             lines.append(f"  {memoji} {mod.replace('_', ' ').title()}: {mscore:.0f}/100")
             lines.append(f"     <code>{mbar}</code>")
+        lines.append("")
+
+    # ── 🛒 First Buyers (own indexer cohort, 2026-08-29 depth push) ──
+    # The deep endpoint samples the top-250 earliest buyers (25 on quick
+    # scans) with wallet-age buckets + bundling flags. Rendered only when the
+    # engine produced a cohort — never a fabricated list. The aggregates line
+    # shows the cohort depth explicitly (``first-250 cohort``).
+    fb_rows = _first_buyers_rows(data, deep=True)
+    if fb_rows:
+        lines.append("\U0001f6d2 <b>First Buyers</b>")
+        lines.append(d)
+        lines.extend(fb_rows)
         lines.append("")
 
     # ── Holder analysis ──
@@ -262,6 +302,11 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
         lines.append("")
 
     # ── Bundle detection (SENTINEL bundle_detection module) ──
+    # v2 payload carries the own-data ``bundle_analysis`` block (detect_
+    # bundled_launch: is_bundled / launch_cluster_score / deployer_funded_pct
+    # / same_slot); the legacy SENTINEL module used ``bundle_detection``.
+    # Both shapes render through the same section.
+    bundle = data.get("bundle_detection") or data.get("bundle_analysis") or {}
     if bundle:
         lines.append("\U0001f4e6 <b>Bundle Detection</b>")
         lines.append(d)
@@ -270,6 +315,8 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
             or bundle.get("same_block_snipers")
             or int(bundle.get("jito_bundles_detected") or 0) > 0
             or str(bundle.get("risk_level") or "").upper() in ("HIGH", "CRITICAL")
+            or bundle.get("is_bundled") is True
+            or (bundle.get("launch_cluster_score") or 0) >= 70
         )
         if bundle_detected:
             deployer_wallets = bundle.get("deployer_funded") or []
@@ -280,10 +327,22 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
             except (TypeError, ValueError):
                 bundled_pct = 0.0
             b_level = str(bundle.get("risk_level") or "UNKNOWN").upper()
-            lines.append(
-                f"  \U0001f534 Bundle detected: <b>{n_wallets}</b> wallets \u00b7 {bundled_pct:.0f}% bundled"
-            )
-            lines.append(f"     Risk: <b>{b_level}</b>")
+            if n_wallets:
+                lines.append(
+                    f"  \U0001f534 Bundle detected: <b>{n_wallets}</b> wallets \u00b7 {bundled_pct:.0f}% bundled"
+                )
+            elif isinstance(bundle.get("launch_cluster_score"), (int, float)):
+                # v2 own-data shape (bundle_analysis): no wallet lists, but a
+                # definite verdict + launch cluster score carry the signal.
+                lines.append(
+                    "  \U0001f534 Bundle detected: "
+                    f"<b>{str(bundle.get('is_bundled')).upper()}</b> "
+                    f"(launch cluster {bundle['launch_cluster_score']:.0f}/100)"
+                )
+            else:
+                lines.append("  \U0001f534 Bundle detected: <b>YES</b>")
+            if b_level != "UNKNOWN":
+                lines.append(f"     Risk: <b>{b_level}</b>")
             if snipers:
                 lines.append(f"     \U0001f3af Same-block snipers: <b>{len(snipers)}</b>")
             if deployer_wallets:
@@ -294,6 +353,34 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
                 lines.append(
                     f"     \u26a1 Jito bundles: <b>{int(bundle['jito_bundles_detected'])}</b>"
                 )
+            # Own-data bundle_analysis shape (v2 deepscan): cluster score +
+            # deployer-funded % at launch + confidence.
+            try:
+                lcs = float(bundle.get("launch_cluster_score") or 0)
+            except (TypeError, ValueError):
+                lcs = 0.0
+            if lcs:
+                lines.append(f"     \U0001f3af Launch cluster score: <b>{lcs:.0f}/100</b>")
+            try:
+                dfp = float(bundle.get("deployer_funded_pct") or 0)
+            except (TypeError, ValueError):
+                dfp = 0.0
+            if dfp:
+                lines.append(
+                    f"     \U0001f468\u200d\U0001f4bb Deployer-funded at launch: <b>{dfp:.0f}%</b>"
+                )
+            try:
+                ftb = float(bundle.get("first_time_buyer_pct") or 0)
+            except (TypeError, ValueError):
+                ftb = 0.0
+            if ftb:
+                lines.append(f"     \U0001f195 First-time buyers: <b>{ftb:.0f}%</b>")
+            try:
+                conf = float(bundle.get("confidence") or 0)
+            except (TypeError, ValueError):
+                conf = 0.0
+            if conf:
+                lines.append(f"     \U0001f9e0 Confidence: <b>{conf:.0f}%</b>")
         else:
             lines.append("  \U0001f7e2 No bundle detected")
         # Same-slot buy concentration (own_bundle_detect, Helius-backed on
@@ -329,6 +416,19 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
         lines.append("")
 
     # ── Exchange funding (SENTINEL exchange_funding module) ──
+    # v2 deepscan carries the own-data ``wallet_metrics`` block
+    # (compute_wallet_metrics: cex_funded_pct / fresh_wallet_pct /
+    # first_tx_pct) — mapped onto the same section so the CEX-funded % always
+    # renders when the engine measured it.
+    exchange = data.get("exchange_funding") or {}
+    if not exchange:
+        _wm = data.get("wallet_metrics")
+        if isinstance(_wm, dict) and _wm.get("cex_funded_pct") is not None:
+            exchange = {
+                "cex_funded_percentage": _wm.get("cex_funded_pct"),
+                "instant_buy_percentage": _wm.get("first_tx_pct"),
+                "total_buyers": _wm.get("holders_analyzed"),
+            }
     if exchange:
         lines.append("\U0001f3e6 <b>Exchange Funding</b>")
         lines.append(d)
@@ -343,9 +443,13 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
         cex_count = int(exchange.get("cex_funded_count") or 0)
         total = int(exchange.get("total_buyers") or 0)
         cex_emoji = "\U0001f534" if cex_pct > 50 else "\U0001f7e1" if cex_pct > 20 else "\U0001f7e2"
-        lines.append(
-            f"  {cex_emoji} CEX-funded: <b>{cex_pct:.0f}%</b> ({cex_count}/{total} buyers)"
+        # Only render the buyer-count suffix when the engine actually counted
+        # CEX-funded wallets (wallet_metrics fallback has no count — a
+        # fabricated 0/N would mislead).
+        count_txt = (
+            f" ({cex_count}/{total} buyers)" if exchange.get("cex_funded_count") is not None else ""
         )
+        lines.append(f"  {cex_emoji} CEX-funded: <b>{cex_pct:.0f}%</b>{count_txt}")
         if inst_pct > 0:
             lines.append(f"  \u26a1 Instant-buy (fund→buy <60s): <b>{inst_pct:.0f}%</b>")
         breakdown = exchange.get("exchange_breakdown")
@@ -353,6 +457,10 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
             top = sorted(breakdown.items(), key=lambda kv: kv[1], reverse=True)[:4]
             lines.append("  \U0001f3e6 " + " \u00b7 ".join(f"{k}: {v}" for k, v in top))
         e_level = str(exchange.get("risk_level") or "UNKNOWN").upper()
+        # wallet_metrics fallback carries no risk_level — derive a verdict
+        # from the measured CEX share so the line never reads "UNKNOWN".
+        if e_level == "UNKNOWN":
+            e_level = "HIGH" if cex_pct > 50 else "MEDIUM" if cex_pct > 20 else "LOW"
         lines.append(f"  {_risk_level_emoji(e_level)} Funding verdict: <b>{e_level}</b>")
         for w in (exchange.get("warnings") or [])[:3]:
             lines.append(f"  \u26a0\ufe0f {_clip(w, 120)}")
@@ -434,17 +542,67 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
 
     # ── 🕸️ Cluster Analysis (funding-source clusters + coordinated buys) ──
     cluster = data.get("cluster_analysis") or {}
+    # v2 deepscan fallback: the structured RiskReport's beyond-market
+    # wallet-cluster graph (8-leg risk_cluster engine — funder tree,
+    # shared-deployer network, cross-token clusters/funders, temporal
+    # lockstep, sniper/bot patterns, MEV bundles, wash cycles). Renders when
+    # the legacy cluster_analysis module did not run but the engine did.
+    cluster_is_rr_fallback = False
+    if not cluster and isinstance(data.get("risk_report"), dict):
+        _rr_cluster = (data["risk_report"] or {}).get("cluster")
+        if isinstance(_rr_cluster, dict) and _rr_cluster.get("cluster_risk_score") is not None:
+            cluster = {"result": "scanned", "cluster_risk_score": _rr_cluster}
+            cluster_is_rr_fallback = True
     if cluster:
         lines.append("\U0001f578\ufe0f <b>Cluster Analysis</b>")
         lines.append(d)
         if str(cluster.get("result")) == "scanned":
             cline = cluster.get("cluster_line") or "\u2014"
-            lines.append(f"  <code>{html.escape(str(cline))}</code>")
+            # The risk_report fallback has no cluster_line — skip the bare
+            # placeholder so the real structured data below leads.
+            if not cluster_is_rr_fallback or str(cline).strip() != "\u2014":
+                lines.append(f"  <code>{html.escape(str(cline))}</code>")
             # Richer 🔴 Bundle verdict (beyond BubbleMaps/DevsNightmare):
             # same-slot + 2-hop funder chain + holding/dumped + time nodes.
             bline = cluster.get("bundle_line")
             if bline and str(bline).strip() not in ("", "\u2014"):
                 lines.append(f"  <code>{html.escape(str(bline))}</code>")
+            # Structured 8-leg risk_cluster score (v2 deepscan): the
+            # consolidated 0-100 cluster risk from the beyond-market graph.
+            _rc = cluster.get("cluster_risk_score")
+            if isinstance(_rc, dict):
+                _rc_score = _rc.get("cluster_risk_score")
+                if _rc_score is not None:
+                    with contextlib.suppress(TypeError, ValueError):
+                        _rc_score_f = float(_rc_score)
+                        _rc_label = str(_rc.get("cluster_risk_label") or "unknown").upper()
+                        lines.append(
+                            f"  \U0001f50e Cluster risk: <b>{_rc_score_f:.0f}/100</b>"
+                            f" ({html.escape(_rc_label)})"
+                        )
+                        _rc_tree = _rc.get("funder_tree")
+                        if isinstance(_rc_tree, list) and _rc_tree:
+                            lines.append(
+                                f"  \U0001f333 Funder tree: <b>{len(_rc_tree)}</b> root funder(s)"
+                            )
+                        _rc_x = _rc.get("cross_token_clusters")
+                        if isinstance(_rc_x, list) and _rc_x:
+                            lines.append(
+                                f"  \U0001f517 Cross-token clusters: <b>{len(_rc_x)}</b> (syndicate recurrences)"
+                            )
+                        _rc_sn = _rc.get("sniper_patterns")
+                        if isinstance(_rc_sn, list) and _rc_sn:
+                            lines.append(f"  \U0001f3af Sniper/bot patterns: <b>{len(_rc_sn)}</b>")
+                        _rc_mev = _rc.get("mev_bundles")
+                        if isinstance(_rc_mev, list) and _rc_mev:
+                            lines.append(f"  \u26a1 MEV bundles: <b>{len(_rc_mev)}</b>")
+                        _rc_wash = _rc.get("wash_trading")
+                        if isinstance(_rc_wash, dict) and (
+                            _rc_wash.get("cycles") or _rc_wash.get("self_swaps")
+                        ):
+                            lines.append(
+                                f"  \U0001f4b8 Wash cycles: <b>{len(_rc_wash.get('cycles') or [])}</b>"
+                            )
             try:
                 coord_buyers = int(cluster.get("coordinated_buyers") or 0)
             except (TypeError, ValueError):
