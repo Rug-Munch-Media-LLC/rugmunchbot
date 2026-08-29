@@ -131,9 +131,14 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "CertiKAlert",
     "PeckShieldAlert",
     "ScamSniffer",
-    "SlowMist",
     "zachxbt",
-    "cryptobanter",
+    # 2026-08-29 probe: handles below are DEAD ("No user has X as username" /
+    # "Nobody is using this username") — every sweep wasted an MTProto
+    # round-trip on each (the scam_watch sweep bypasses the tg_news cooldown
+    # gate, so these failed EVERY tick, not just 3x). t.me preview confirms
+    # them gone. Removed from the active list; re-enable if resurrected.
+    #   DEAD: SlowMist, cryptobanter, WolfsCryptoCallz, DiorAlpha,
+    #         SugarCalls, WulfCalls, YenniDegen
     # Call/signal/alpha channels that shill tokens — auto-scan every address
     "Caesars_Calls",  # 40k members — call channel
     "PowsGemCalls",  # 113k members — gem calls
@@ -157,7 +162,6 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "cryptoprof93",  # 8k members — crypto professor calls
     "CarnagecallsGambles",  # 7k members — gamble calls
     "wulfcryptocalls",  # wolf crypto calls — low cap shills
-    "WolfsCryptoCallz",  # wolf crypto calls alt handle
     "Shahlito",  # shahlito calls — scam shills
     "WatcherGuru",  # crypto news + shills aggregator
     "SpidersJournal",  # spyder's journal — calls/signals
@@ -169,16 +173,12 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "erics_calls",  # eric's call channel — scam shills
     "CryptoFrogsGems",  # crypto frogs gem calls — scam shills
     "crypto_memes",  # crypto memes — meme coin shills
-    "DiorAlpha",  # Dior's Alpha calls
     "ShmooCalls",  # Shmoo's Calls
     "marcellcooks",  # 45k members — trench calls
     "MiladyCalls",  # 13k members — degen calls
     "Hellokook",  # 16k members — kook calls
     "NoahhCalls",  # 6k members — alpha group
-    "SugarCalls",  # 34k members — calls
     "sugarydick",  # sugar calls — scam shill channel
-    "WulfCalls",  # 29k members — calls
-    "YenniDegen",  # 31k members — degen
     "multichaintrending",  # 33k members — trending events
     "SoITeam100x",  # 3k members — 100x calls
     "autosnipeai",  # 3k members — sniper lounge

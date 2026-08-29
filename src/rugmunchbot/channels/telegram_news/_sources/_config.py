@@ -24,35 +24,36 @@ _DEFAULT_CHANNELS: tuple[str, ...] = (
     "dailyhodl",  # The Daily Hodl (View)
     "zycrypto",  # ZyCrypto (View)
     "coinpedia",  # Coinpedia (View)
-    "blockworks",  # Blockworks (View)
     "cryptobriefing",  # Crypto Briefing (View)
     "coinjournal",  # CoinJournal (View)
-    "thedefiant",  # The Defiant (Contact)
-    "decryptmedia",  # Decrypt (Contact)
-    "ambcrypto",  # AMBCrypto (Contact)
-    "bitcoinist",  # Bitcoinist (Contact)
-    "trustnodes",  # Trustnodes (Contact)
+    # 2026-08-29 probe: decryptmedia + thedefiant handles are DEAD ("Nobody
+    # is using this username") — every sweep wasted an MTProto round-trip on
+    # each and they were auto-cooldowned. Use the live aliases below.
     "thebitcoinnews",  # The Bitcoin News (View)
     "altcoinbuzz",  # Altcoin Buzz — news/alpha (View)
-    "cryptopanic",  # CryptoPanic — news aggregator (Contact)
-    "cryptonewscom",  # Cryptonews.com (Contact)
+    # 2026-08-29 probe: 34 handles below are DEAD or unreadable ("No user has
+    # X as username" / "Nobody is using this username" / "The channel is
+    # private and you lack permission") — every sweep wasted an MTProto
+    # round-trip on each (one resolve per handle per tick) before the
+    # 3-failure auto-disable cooldown kicked in. The live t.me preview page
+    # confirms them gone. Removed from the active sweep; keep the list here
+    # so a handle that is resurrected/renamed can be re-enabled in one place.
+    #   DEAD:    ambcrypto, bitcoinist, trustnodes, cryptopanic,
+    #            cryptonewscom, CryptoNewsDose, binance_news, kucoinnews,
+    #            cryptocomnews, okx_announcements, tokeninsight,
+    #            cryptorank_io, Cryptonews, news_btc, blockchainnews,
+    #            SlowMist, EthereumSecurity, FuzzLandAlert, BeosinAlert,
+    #            openzeppelin, hackenio, AltcoinDaily, nansen_ai, chainfeeds,
+    #            duneanalytics, NerdStaking, Uniswap, base, solana, sui,
+    #            aavegrants, Compound, MakerDAO, ArkhamIntel, blockworks
+    #   PRIVATE/BANNED: CryptoDaily (86k subs, but account lacks access),
+    #            blockworks (resolves but private — see GetHistoryRequest)
     # ── News outlets — expansion batch (2026-08-18) ────────────────────────────
-    "CryptoNewsDose",  # Crypto News Dose — daily roundup (View)
     "AltcoinToday",  # Altcoin Today — news/altcoins (View)
     "CoinMarketCap",  # CoinMarketCap — official (View)
     "CoinGecko",  # CoinGecko — official announcements (View)
-    "binance_news",  # Binance News — official (View)
-    "kucoinnews",  # KuCoin News — official (View)
     "bybit_announcements",  # Bybit — official (View)
-    "cryptocomnews",  # Crypto.com — official news (View)
-    "okx_announcements",  # OKX — official (View)
-    "tokeninsight",  # TokenInsight — research/ratings (View)
-    "cryptorank_io",  # CryptoRank — data/rankings (View)
     "coincodex",  # CoinCodex — market data (View)
-    "Cryptonews",  # Cryptonews.com (View)
-    "news_btc",  # NewsBTC alt (View)
-    "blockchainnews",  # Blockchain News (View)
-    "CryptoDaily",  # Crypto Daily — news/analysis (View)
     "cryptonewswire",  # Crypto News Wire — press releases (View)
     # ── Security / exploit alerts ──────────────────────────────────────────────
     "CertiKAlert",  # CertiK Alert (View)
@@ -60,43 +61,31 @@ _DEFAULT_CHANNELS: tuple[str, ...] = (
     "rektnews",  # REKT News — exploit/incident intel (View)
     "ScamSniffer",  # ScamSniffer — phishing alerts (View)
     "zachxbt",  # ZachXBT — on-chain sleuth (View)
-    "SlowMist",  # SlowMist — security team (Contact)
     "BlockSecTeam",  # BlockSec — security alerts (View)
     "halborn",  # Halborn — security audits/alerts (View)
     "solidityfinance",  # Solidity Finance — audits + alerts (View)
     "Hacken",  # Hacken — security audits (View)
     "verichains",  # Verichains — security research (View)
     "trmlabs",  # TRM Labs — crypto risk/security (View)
-    "EthereumSecurity",  # Ethereum Foundation security (Contact)
-    "FuzzLandAlert",  # FuzzLand — exploit/rugpull alerts (Contact)
-    "BeosinAlert",  # Beosin — security alerts (Contact)
     "hypernative",  # Hypernative — exploit monitoring (Contact)
-    "openzeppelin",  # OpenZeppelin — security research (Contact)
     "Cyvers",  # Cyvers — real-time security alerts (View)
     "AnciliaInc",  # Ancilia — security audits (View)
     "NeptuneMutual",  # Neptune Mutual — cover/security (View)
     "immunefi",  # Immunefi — bug bounty/alerts (View)
-    "hackenio",  # Hacken — additional alerts (View)
     # ── On-chain / alpha / whale tracking ──────────────────────────────────────
     "lookonchain",  # Lookonchain — on-chain analytics (View)
     "spotonchain",  # Spot On Chain — on-chain alerts (View)
     "whale_alert",  # Whale Alert — large-transaction alerts (View)
-    "ArkhamIntel",  # Arkham — entity/alert intel (Contact)
     "OnChainWizard",  # OnChain Wizard — alpha (Contact)
-    "AltcoinDaily",  # Altcoin Daily — alpha/community (Contact)
     "glassnode",  # Glassnode — on-chain analytics (View)
     "cryptowhaletrades",  # Crypto Whale Trading — whale/on-chain (View)
-    "nansen_ai",  # Nansen — on-chain analytics (Contact)
-    "chainfeeds",  # ChainFeeds — crypto research digest (Contact)
     "intotheblock",  # IntoTheBlock — on-chain metrics (View)
     "SantimentFeed",  # Santiment — crypto data/insights (View)
     "CoinGlass",  # CoinGlass — liquidation data (View)
     "Coinalyze",  # Coinalyze — funding/volume (View)
-    "duneanalytics",  # Dune — on-chain dashboards (View)
     "defillama",  # DeFi Llama — TVL/data (View)
     "MessariCrypto",  # Messari — research/intel (View)
     "tokenterminal",  # Token Terminal — fundamentals (View)
-    "NerdStaking",  # Nerd Staking — validator/defi (View)
     # ── DeFi / protocol channels ───────────────────────────────────────────────
     "arbitrum",  # Arbitrum Official (View)
     "avax",  # Avalanche Official (View)
@@ -105,15 +94,11 @@ _DEFAULT_CHANNELS: tuple[str, ...] = (
     "aptos",  # Aptos Official (View)
     "lidofinance",  # Lido Finance (View)
     "chainlink",  # Chainlink Official (View)
-    "Uniswap",  # Uniswap Official (Contact)
     "Aave",  # Aave Official (Contact)
-    "base",  # Base Official (Contact)
-    "solana",  # Solana Official (Contact)
     "ethereum",  # Ethereum Foundation (View)
     "optimism",  # Optimism Official (View)
     "polygon",  # Polygon Official (View)
     "bnbchain",  # BNB Chain Official (View)
-    "sui",  # Sui Network (View)
     "NEARProtocol",  # NEAR Protocol (View)
     "cosmos",  # Cosmos — Interchain (View)
     "polkadot",  # Polkadot Official (View)
@@ -122,9 +107,6 @@ _DEFAULT_CHANNELS: tuple[str, ...] = (
     "jupiterexchange",  # Jupiter — Solana DEX (View)
     "raydiumprotocol",  # Raydium — Solana AMM (View)
     "pancakeswap",  # PancakeSwap — BSC DEX (View)
-    "aavegrants",  # Aave Grants (View)
-    "Compound",  # Compound Finance (View)
-    "MakerDAO",  # MakerDAO Official (View)
     "CurveFinance",  # Curve Finance (View)
     "balancer",  # Balancer — DEX (View)
     "yearnfinance",  # Yearn Finance (View)
@@ -189,10 +171,12 @@ _DEFAULT_CHANNELS: tuple[str, ...] = (
     "kamocalls",  # Kamo | Daily trades (View, 3k — market analysis)
     "fullfeed",  # Drago Den Crypto Technical Signals (View, 7k — TA)
     "icodrops",  # ICO Drops (View, 43k — ICO/launch news)
-    "BTC_Tick",  # Bitcoin Price (View, 4k — BTC price feed)
-    "BTCPriceX",  # BTC Price (View, 11k — BTC price feed)
-    "solusdprices",  # SOL Price (View, 13k — SOL price feed)
-    "khmertimesbreakingnews",  # Khmer Times Breaking News (View, 21k — regional)
+    # 2026-08-29 news-content fix: the price-ticker feeds (BTC_Tick /
+    # BTCPriceX / solusdprices) and the Khmer regional feed
+    # (khmertimesbreakingnews) are NOT crypto news — every sweep they were
+    # ingested as "news" and their non-crypto items (e.g. a regional fire
+    # story) polluted @rmicryptonews. Removed from the curated list; the
+    # importance floor now only sees real crypto outlets.
     # ── Known-dead handles (2026-08-16 MTProto probe: "No user has X as username") ──
     # "TheBlock__",  # The Block — DEAD handle
     # "beincrypto",  # BeInCrypto — DEAD handle
@@ -271,7 +255,7 @@ def re_split(value: str) -> list[str]:
 TG_NEWS_ENABLED = _env_bool("RMI_TG_NEWS_CHANNEL_ENABLED", True)
 
 
-TG_NEWS_INTERVAL_MINUTES = _env_int("RMI_CHANNEL_TG_NEWS_INTERVAL_MINUTES", 30)
+TG_NEWS_INTERVAL_MINUTES = _env_int("RMI_CHANNEL_TG_NEWS_INTERVAL_MINUTES", 15)
 
 
 TG_NEWS_SWEEP_HOURS = _env_int("RMI_TG_NEWS_SWEEP_HOURS", 6)
@@ -283,7 +267,9 @@ TG_NEWS_PER_CHANNEL_LIMIT = _env_int("RMI_TG_NEWS_PER_CHANNEL_LIMIT", 50)
 TG_NEWS_MAX_CHANNELS = _env_int("RMI_TG_NEWS_MAX_CHANNELS", 200)
 
 
-TG_NEWS_POST_LIMIT = _env_int("RMI_TG_NEWS_POST_LIMIT", 5)
+#: Max stories per digest post (2026-08-29 news-content fix: 5 → 8 so each
+#: tick ships more top stories; env-overridable as before).
+TG_NEWS_POST_LIMIT = _env_int("RMI_TG_NEWS_POST_LIMIT", 8)
 
 
 TG_NEWS_PERSIST = _env_bool("RMI_TG_NEWS_PERSIST", True)

@@ -3,7 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
-from rugmunchbot._vendor.news_ingest.ingest import dedupe_articles, read_channel_messages
+from rugmunchbot._vendor.news_ingest.ingest import (
+    dedupe_articles,
+    is_channel_cooldown,
+    read_channel_messages,
+)
 from rugmunchbot._vendor.news_ingest.normalize import channel_message_to_article
 from rugmunchbot.channels.scam_watch._config import (  # noqa: F401
     _DIALOG_HEURISTICS,
@@ -247,6 +251,12 @@ async def sweep_scam_channels(
     for source in sources:
         username = str(source.get("username") or "").strip().lstrip("@")
         if not username:
+            continue
+        # Mirror the tg_news sweep: honor the auto-disable cooldown so a
+        # dead/renamed call channel ("No user has X as username") is not
+        # re-probed on EVERY tick (3 failures → 24h skip, persisted to disk).
+        if is_channel_cooldown(username):
+            logger.debug("scam_watch:channel_cooldown_skip channel=%s", username)
             continue
         messages = await read_channel_messages(client, username, per_channel)
         for message in messages:
