@@ -32,8 +32,11 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import os
 import re
 from typing import Any
+
+import httpx
 
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools._client import BackendApiError
@@ -257,6 +260,273 @@ def _content_key(hit: dict[str, Any]) -> str:
     return hashlib.sha256(f"{norm}\0{verdict}\0{severity}".encode()).hexdigest()
 
 
+# ── Direct RugBrain rag-api access (bot runs on HOST → 127.0.0.1:8012) ──────
+# The bot's chat path historically grounded through the backend facade
+# (``POST /api/v1/rag/v2/search``), but the backend container cannot reach the
+# host-loopback rag-api service (binds 127.0.0.1:8012). The BOT runs on the
+# HOST, so it CAN reach the rag-api directly. This is the primary RAG lane;
+# the backend facade stays as the fallback. (2026-08-30)
+_DEFAULT_RAG_API_URL = "http://127.0.0.1:8012/api/v1"
+
+
+def _split_key_rotation(key: str) -> str:
+    """Return the CURRENT key from a ``new,old`` rotation string.
+
+    Key rotation stores the active key FIRST and the previous key after a
+    comma (``new,old``). The RAG/backend auth validates an exact match, so the
+    client must send ONLY the active (first) part — never the raw ``new,old``
+    blob. A plain single key (no comma) passes through unchanged.
+    """
+    if not key:
+        return ""
+    # Strip whitespace; keep the FIRST non-empty segment (the active key).
+    parts = [k.strip() for k in key.split(",") if k.strip()]
+    return parts[0] if parts else ""
+
+
+def _rag_api_url() -> str:
+    """RugBrain rag-api base URL (env ``RAG_API_URL``, host loopback default)."""
+    return os.getenv("RAG_API_URL", _DEFAULT_RAG_API_URL).rstrip("/")
+
+
+def _rag_api_key() -> str:
+    """RugBrain X-API-Key (env ``RMI_RAG_API_KEY``), rotation-split to active."""
+    return _split_key_rotation(os.getenv("RMI_RAG_API_KEY", ""))
+
+
+async def _rag_direct_search_multi(
+    search_query: str, collections: list[str], limit: int
+) -> list[dict[str, Any]]:
+    """Query the RugBrain ``/api/v1/search/multi`` endpoint directly.
+
+    RRF-fuses across ``collections``, ``rerank=false`` (the cross-encoder
+    rack is down as of 2026-08-30 and its absence must not hang the bot). Maps
+    hits to the standard ``{content, score, collection, metadata}`` shape the
+    prompt formatter expects. Returns ``[]`` on any failure — never raises.
+    """
+    api_url = _rag_api_url()
+    key = _rag_api_key()
+    if not api_url or not key or not collections:
+        return []
+    url = f"{api_url}/search/multi"
+    headers = {"Content-Type": "application/json", "X-API-Key": key}
+    payload = {"query": search_query, "collections": collections, "limit": limit, "rerank": False}
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(RAG_LOOKUP_TIMEOUT, connect=3.0, read=RAG_LOOKUP_TIMEOUT, write=8.0)
+        ) as client:
+            resp = await asyncio.wait_for(
+                client.post(url, headers=headers, json=payload), timeout=RAG_LOOKUP_TIMEOUT
+            )
+    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError, ValueError):
+        return []
+    if resp.status_code != 200:
+        return []
+    try:
+        raw = resp.json()
+    except ValueError:
+        return []
+    raw_results = raw.get("results") if isinstance(raw, dict) else None
+    if not isinstance(raw_results, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for r in raw_results:
+        if not isinstance(r, dict):
+            continue
+        content = (r.get("content") or r.get("text") or "").strip()
+        if not content:
+            continue
+        score = float(r.get("rrf_score") or r.get("similarity") or 0.0)
+        if score == 0.0:
+            score = float(r.get("score") or 0.0)
+        out.append(
+            {
+                "content": content,
+                "score": score,
+                "collection": r.get("collection") or collections[0],
+                "metadata": r.get("metadata") or {},
+                "id": r.get("id") or r.get("doc_id") or "",
+            }
+        )
+    return out
+
+
+
+
+
+# ── Direct Qdrant lane (bot = HOST -> 127.0.0.1:6334; embed via local qwen3) ──
+# The rag-api HTTP wrapper is slow (~9s, RRF + query-transform) and the backend
+# container cannot reach it. Direct Qdrant vector search is ~0.03s per
+# collection; the whole lane is bound by ONE query embedding (~1-3s). This is
+# the primary grounding lane. (2026-08-30)
+_DEFAULT_QDRANT_URL = "http://127.0.0.1:6334"
+_DEFAULT_EMBED_URL = "http://127.0.0.1:8004/v1/embeddings"
+_EMBED_MODEL = os.getenv("DEEPINFRA_EMBED_MODEL", "Qwen/Qwen3-Embedding-4B")
+_EMBED_DIMS_EXPECTED = 2560  # Qwen3-Embedding-4B native dim (matches all collections)
+
+
+def _qdrant_url() -> str:
+    return (os.getenv("QDRANT_URL") or _DEFAULT_QDRANT_URL).rstrip("/")
+
+
+def _embed_url() -> str:
+    return (os.getenv("QWEN_EMBED_URL") or os.getenv("RMI_EMBED_URL") or _DEFAULT_EMBED_URL).rstrip("/")
+
+
+async def _embed_query(query: str) -> list[float] | None:
+    """Embed ``query`` via the local Qwen3-Embedding-4B server (2560-dim).
+
+    Returns the vector or ``None`` on any failure (never raises). One embedding
+    serves every collection in the lane (2560d cosine is collection-agnostic).
+    """
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(8.0, connect=3.0, read=8.0, write=8.0)
+        ) as client:
+            resp = await asyncio.wait_for(
+                client.post(
+                    _embed_url(),
+                    headers={"Content-Type": "application/json"},
+                    json={"model": _EMBED_MODEL, "input": query},
+                ),
+                timeout=8.0,
+            )
+    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError, ValueError):
+        return None
+    if resp.status_code != 200:
+        return None
+    try:
+        raw = resp.json()
+        vec = raw["data"][0]["embedding"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+    if not isinstance(vec, list) or not vec:
+        return None
+    return [float(x) for x in vec]
+
+
+async def _qdrant_collection_search(
+    collection: str, vector: list[float], limit: int
+) -> list[dict[str, Any]]:
+    """Vector-search one Qdrant collection (``/collections/{c}/points/search``).
+
+    Maps each hit to the standard ``{content, score, collection, metadata}``
+    shape. Returns ``[]`` on any failure — never raises.
+    """
+    url = f"{_qdrant_url()}/collections/{collection}/points/search"
+    payload = {"vector": vector, "limit": limit, "with_payload": True}
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(6.0, connect=3.0, read=6.0, write=6.0)
+        ) as client:
+            resp = await asyncio.wait_for(
+                client.post(url, headers={"Content-Type": "application/json"}, json=payload),
+                timeout=6.0,
+            )
+    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError, ValueError):
+        return []
+    if resp.status_code != 200:
+        return []
+    try:
+        raw = resp.json()
+    except ValueError:
+        return []
+    result = raw.get("result") if isinstance(raw, dict) else None
+    points = result if isinstance(result, list) else []
+    out: list[dict[str, Any]] = []
+    for p in points:
+        if not isinstance(p, dict):
+            continue
+        pl = p.get("payload") or {}
+        content = (pl.get("content") or pl.get("text") or "").strip()
+        if not content:
+            continue
+        meta = pl.get("metadata") or {}
+        out.append(
+            {
+                "content": content,
+                "score": float(p.get("score") or 0.0),
+                "collection": pl.get("collection") or collection,
+                "metadata": meta if isinstance(meta, dict) else {},
+                "id": pl.get("doc_id") or p.get("id") or "",
+            }
+        )
+    return out
+
+
+async def _rag_direct_qdrant(
+    search_query: str, collections: list[str], limit: int
+) -> list[dict[str, Any]]:
+    """Embed ONCE and vector-search every collection in the knowledge set.
+
+    Bound to ~8s total (embed ~1-3s + per-collection @0.03s). Runs the
+    collection searches concurrently. Returns collected hits (not yet deduped)
+    or ``[]`` on failure — never raises.
+    """
+    vector = await _embed_query(search_query)
+    if not vector:
+        return []
+    tasks = [_qdrant_collection_search(c, vector, limit) for c in collections]
+    try:
+        results = await asyncio.wait_for(
+            asyncio.gather(*tasks, return_exceptions=True), timeout=RAG_LOOKUP_TIMEOUT
+        )
+    except TimeoutError:
+        return []
+    out: list[dict[str, Any]] = []
+    for res in results:
+        if isinstance(res, list):
+            out.extend(res)
+    return out
+
+
+def _finalize_rag_lookup(
+    query: str,
+    all_hits: list[dict[str, Any]],
+    symbols: list[str],
+    addresses: list[str],
+    source_label: str = RAG_LOOKUP_SOURCE_LABEL,
+) -> ToolResult | None:
+    """Dedupe, format, and build the ToolResult from raw hits.
+
+    Returns ``None`` when no usable (deduped) hit survives, so callers can
+    fall through to their next RAG lane. Shared by the direct rag-api path and
+    the backend-facade path so both cite/format identically.
+    """
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
+    for h in sorted(all_hits, key=lambda x: float(x.get("score") or 0.0), reverse=True):
+        key = _content_key(h)
+        if key and key not in seen:
+            seen.add(key)
+            deduped.append(h)
+    top = deduped[:RAG_LOOKUP_TOP_K]
+    if not top:
+        return None
+    context = _format_context(top)
+    per_collection: dict[str, int] = {}
+    for h in top:
+        col = str(h.get("collection") or "unknown")
+        per_collection[col] = per_collection.get(col, 0) + 1
+    sources = [
+        {"type": "rag", "query": query[:90], "collection": col} for col in sorted(per_collection)
+    ]
+    known_syms: set[str] = set(symbols)
+    known_addrs: set[str] = set(addresses)
+    for h in top:
+        content = str(h.get("content") or "")
+        known_syms.update(extract_symbols(content))
+        known_addrs.update(extract_addresses(content))
+    return ToolResult(
+        tool="rag_lookup",
+        ok=True,
+        data={"query": query, "context": context, "hits": top, "sources": sources},
+        symbols=sorted(known_syms),
+        addresses=sorted(known_addrs),
+        source=source_label,
+    )
+
+
 async def rag_lookup(*, query: str = "") -> ToolResult:
     """Search the intel DB for knowledge relevant to ``query``.
 
@@ -282,6 +552,35 @@ async def rag_lookup(*, query: str = "") -> ToolResult:
     if addresses:
         collections.extend(RAG_TOKEN_COLLECTIONS)
     search_query = _build_query(query, addresses, symbols)
+
+    # LANE 1 — Qdrant DIRECT (bot=HOST -> 127.0.0.1:6334, embed via local qwen3).
+    # Fastest + most reliable: ~0.03s/collection + one embed. The rag-api HTTP
+    # wrapper is ~9s and the backend container can't reach it, so Qdrant direct
+    # is the primary grounding lane.
+    qdrant_hits = await _rag_direct_qdrant(
+        search_query, collections, RAG_LOOKUP_TOP_K
+    )
+    if qdrant_hits:
+        qdrant_result = _finalize_rag_lookup(
+            query, qdrant_hits, symbols, addresses, source_label="rag:qdrant:/collections/points/search"
+        )
+        if qdrant_result is not None:
+            return qdrant_result
+
+    # PRIMARY — RugBrain rag-api DIRECT (bot runs on HOST -> 127.0.0.1:8012).
+    # The backend facade below is only the fallback: the backend container
+    # cannot reach the host-loopback rag-api service, so a direct call is what
+    # actually grounds bot chat. rerank=false — the cross-encoder rack is down
+    # (as of 2026-08-30) and a missing reranker must never hang the bot.
+    direct_hits = await _rag_direct_search_multi(
+        search_query, collections, max(RAG_LOOKUP_TOP_K, 8)
+    )
+    if direct_hits:
+        direct_result = _finalize_rag_lookup(
+            query, direct_hits, symbols, addresses, source_label="rag:rag-api:/search/multi"
+        )
+        if direct_result is not None:
+            return direct_result
 
     # Loud backend errors collected per collection — a fully-down RAG backend
     # must surface as "backend unavailable", not as "no knowledge" (silent).

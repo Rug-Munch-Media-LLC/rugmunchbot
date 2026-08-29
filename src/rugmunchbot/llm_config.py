@@ -40,6 +40,13 @@ ZEN_API_KEY = os.getenv("OPENCODE_ZEN_API_KEY", "")
 # reasoning model must be called with reasoning.enabled=false (see _chat_once).
 DEEPINFRA_BASE = os.getenv("DEEPINFRA_BASE", "https://api.deepinfra.com/v1/openai")
 DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY", "")
+# 2026-08-30: DeepInfra vision — Qwen3-VL (multimodal). The task target was
+# "Qwen3-VL-4B", but DeepInfra does NOT host a 4B VL checkpoint (verified
+# against /v1/models 2026-08-30: only Qwen/Qwen3-VL-30B-A3B-Instruct and
+# Qwen/Qwen3-VL-235B-A22B-Instruct). The 30B-A3B is the cheapest VL on
+# offer and is the working default; set DEEPINFRA_VISION_MODEL to a real
+# Qwen3-VL-4B id if/when DeepInfra or another cheap provider hosts it.
+DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-30B-A3B-Instruct")
 
 
 def get_snappy_config() -> dict[str, Any]:
@@ -303,3 +310,83 @@ async def chat_with_fallback(
 
     # Last resort: OpenCode Zen (independent of OpenRouter availability)
     return await _chat_once(get_zen_fallback_config(tier), messages, max_tokens)
+
+
+def get_vision_config() -> dict[str, Any]:
+    """DeepInfra Qwen3-VL vision config — image+text understanding (multimodal).
+
+    Used for screenshot / chart / contract-image understanding in chat. The
+    OpenAI-compatible */chat/completions payload carries an image_url part;
+    ``vision_chat`` below builds the content. Cheap: Qwen3-VL-30B-A3B-Instruct
+    is the smallest DeepInfra VL checkpoint (the requested Qwen3-VL-4B is not
+    hosted on DeepInfra as of 2026-08-30 — see DEEPINFRA_VISION_MODEL). Uses the
+    same DEEPINFRA_BASE as chat; reasoning disabled to keep cost near zero.
+    """
+    return {
+        "model": DEEPINFRA_VISION_MODEL,
+        "base_url": f"{DEEPINFRA_BASE}/chat/completions",
+        "api_key": DEEPINFRA_API_KEY,
+        "max_tokens": 1024,
+        "temperature": 0.3,
+        "timeout": 60.0,
+    }
+
+
+async def vision_chat(
+    messages: list[dict[str, Any]],
+    max_tokens: int | None = None,
+) -> dict[str, Any]:
+    """Multimodal vision chat via DeepInfra Qwen3-VL.
+
+    ``messages`` use the OpenAI multimodal shape — a ``content`` that is a list
+    of parts ``[{"type": "text", "text": ...}, {"type": "image_url",
+    "image_url": {"url": ...}}]``. Returns ``{"content": ...}`` or ``{}`` on
+    failure (fail-open, never raises). Mirrors ``chat_completion`` semantics so
+    callers can treat vision answers identically.
+    """
+    config = get_vision_config()
+    api_key = str(config.get("api_key") or "")
+    base_url = str(config.get("base_url") or "")
+    model = str(config.get("model") or "")
+    timeout = float(config.get("timeout") or 60.0)
+    if not api_key or not base_url or not model or not messages:
+        return {}
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://rugmunch.io",
+        "X-Title": "RMI Vision",
+    }
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens if max_tokens is not None else int(config.get("max_tokens") or 1024),
+        "temperature": float(config.get("temperature") or 0.3),
+        "reasoning": {"enabled": False},
+    }
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout, connect=5.0, read=timeout, write=10.0)
+        ) as client:
+            resp = await asyncio.wait_for(
+                client.post(base_url, headers=headers, json=payload),
+                timeout=timeout,
+            )
+    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError, ValueError):
+        return {}
+    if resp.status_code != 200:
+        return {}
+    try:
+        raw = resp.json()
+    except ValueError:
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    try:
+        content = raw["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        return {}
+    if not isinstance(content, str):
+        return {}
+    content = content.strip()
+    return {"content": content} if content else {}
