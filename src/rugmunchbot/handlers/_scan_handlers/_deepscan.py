@@ -73,6 +73,7 @@ from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools._client import get_shared_client
 from rugmunchbot.tools.scanner import (
     _supplement_deployer_socials,
+    render_ai_verdict,
 )
 
 if TYPE_CHECKING:
@@ -179,7 +180,11 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if resolved.resolved_from == "dexscreener_search":
             target = resolved.address
             chain = resolved.chain or chain
-        result_v2 = await scan_token_v2(target, chain)
+        result_v2 = await scan_token_v2(target, chain, deep=True)
+        if result_v2 is None:
+            # Deep endpoint unavailable (older backend / outage) — degrade to
+            # the regular scan path so /deepscan still works, just shallower.
+            result_v2 = await scan_token_v2(target, chain)
         if (
             result_v2 is not None
             and result_v2.get("background_status") == "running"
@@ -295,6 +300,14 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # (RugMap cluster, market snapshot, wallet composition) rendered
         # INSIDE the report — before the footer, never appended after it.
         report = format_deep_scan_report(result, extra_sections=enrichment_lines)
+        # AI-assisted interpretation of the wallet data on top (2026-08-29
+        # depth push): the snappy LLM reads the structured deep-scan facts —
+        # including the 250-wallet first-buyer cohort, bundle/cluster engines
+        # and wallet composition — into a plain-English verdict. Fail-open:
+        # when the LLM is unavailable the template verdict stays as-is.
+        ai_verdict = await render_ai_verdict(result)
+        if ai_verdict:
+            report = f"{ai_verdict}\n\n{report}"
         report += _beta_banner_line()
         db.increment_usage(user.id, scan=True)
         db.log_scan(user.id, target, result["chain"], "deep", result["risk_score"])
@@ -413,7 +426,12 @@ async def sentinel_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # (LLM down / no bundle data) is skipped entirely.
         analyst_read = await render_analyst_read_block(result)
         report = format_sentinel_deepscan_section(result, analyst_read=analyst_read)
-        report += f"\n\n{footer_links()}"
+        # Trade links in the footer too — every deep-scan variant carries the
+        # ref-attributed DEX links (2026-08-29 depth push: the AEGIS report
+        # previously rendered a bare footer with NO token trade links).
+        _addr = result.get("address") or result.get("token") or target
+        _chain = result.get("chain") or chain or "solana"
+        report += f"\n\n{footer_links(_addr, _chain)}"
         report += _beta_banner_line()
         await msg.edit_text(
             report,

@@ -464,8 +464,10 @@ def _first_buyers_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
     """🛒 First Buyers block rows — earliest buyers from OUR indexer.
 
     basic (``/scan``): one aggregates line over the top-25 earliest buyers.
-    deep (``/scandeep``): top-10 buyer rows + the aggregates over the
-    top-200. Honest-data rule: renders nothing when the scan carries no
+    deep (``/scandeep``): top-25 buyer rows + the aggregates over the full
+    deep cohort (250 wallets on the deep endpoint / scanner engine — the
+    backend's ``first_buyers.limit`` is shown explicitly when present).
+    Honest-data rule: renders nothing when the scan carries no
     ``first_buyers`` payload (older backend, ClickHouse unreachable, or a
     token with no indexed buys yet) — never fabricates buyer data.
     """
@@ -476,11 +478,14 @@ def _first_buyers_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
     if not isinstance(buyers, list) or not buyers:
         return []
     agg = fb.get("aggregates") if isinstance(fb.get("aggregates"), dict) else {}
+    cohort_limit = fb.get("limit")
+    if not isinstance(cohort_limit, int):
+        cohort_limit = len(buyers)
 
     rows: list[str] = []
     if deep:
         rank = 0
-        for b in buyers[:10]:
+        for b in buyers[:25]:
             if not isinstance(b, dict):
                 continue
             wallet = str(b.get("wallet") or "")
@@ -498,6 +503,10 @@ def _first_buyers_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
 
     # Aggregates line — both modes (basic renders ONLY this line).
     parts = [f"<b>{len(buyers)}</b> tracked"]
+    if deep:
+        parts.append(f"first-{cohort_limit} cohort")
+    else:
+        parts.append(f"first-{cohort_limit}")
     fresh = _float_or_none(agg.get("fresh_wallet_pct"))
     if fresh is not None:
         parts.append(f"\U0001f195 {fresh:.0f}% fresh wallets")

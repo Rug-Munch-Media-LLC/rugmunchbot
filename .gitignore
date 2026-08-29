@@ -36,6 +36,8 @@ tmp/
 # Local SQLite state created at runtime — never source-controlled.
 **/data/*.db
 **/data/*.db-*
+# KOL Hall-of-Shame JSONL site bridge (runtime export; may hold call data).
+**/data/*.jsonl
 
 # ── IDE ────────────────────────────────────────────────────────
 .vscode/

@@ -269,7 +269,18 @@ async def scan_token(
                             }
                         )
                     name_l = (vh["owner_name"] or "").lower()
-                    if any(w in name_l for w in ("binance", "coinbase", "okx", "bybit", "kraken", "upbit", "bithumb")):
+                    if any(
+                        w in name_l
+                        for w in (
+                            "binance",
+                            "coinbase",
+                            "okx",
+                            "bybit",
+                            "kraken",
+                            "upbit",
+                            "bithumb",
+                        )
+                    ):
                         cex_pct += vh["pct"]
                 if cex_pct >= 30:
                     result["threats"].append(f"CEX wallets hold {cex_pct:.0f}% of supply")
@@ -287,7 +298,12 @@ async def scan_token(
     return result
 
 
-async def scan_token_v2(address: str, chain: str | None = None) -> dict[str, Any] | None:
+async def scan_token_v2(
+    address: str,
+    chain: str | None = None,
+    *,
+    deep: bool = False,
+) -> dict[str, Any] | None:
     """Canonical v2 UnifiedTokenScanner — explainable multi-dimensional scoring.
 
     POSTs to ``/api/v2/scanner/token/scan`` through the tools' shared
@@ -297,8 +313,17 @@ async def scan_token_v2(address: str, chain: str | None = None) -> dict[str, Any
     payload (safety_score, confidence, risk_level, risk_flags, green_flags,
     breakdown, evidence, modules_run). Returns None on any failure so
     callers can fall back to the legacy scanner.
+
+    ``deep=True`` (used by ``/deepscan``, 2026-08-29 depth push) POSTs to
+    the backend's ``/token/deepscan`` endpoint instead: the backend forces
+    elite tier so premium/SENTINEL modules run AND the first-buyers engine
+    samples the full 250-wallet cohort (``FIRST_BUYERS_LIMIT_DEEP``) instead
+    of the quick 25. Same enrichment chain afterwards; falls back to the
+    regular endpoint's None on failure so the handler can retry shallow.
     """
     chain_norm = chain or detect_chain(address)
+    if deep:
+        return await _deep_scan_token_v2(address, chain_norm)
     try:
         data = await _scanner.backend_json_post(
             "/api/v2/scanner/token/scan",
@@ -330,6 +355,40 @@ async def scan_token_v2(address: str, chain: str | None = None) -> dict[str, Any
     # Scan-to-RAG memory (background, fail-open) — see scan_token.
     if _scanner.should_index_scan(data, source="scan_v2"):
         _scanner.schedule_scan_memory_index(data, source="scan_v2")
+    return data
+
+
+async def _deep_scan_token_v2(address: str, chain_norm: str) -> dict[str, Any] | None:
+    """POST the backend's deep endpoint (elite tier) + the same enrichment chain.
+
+    Fail-open: any failure returns None so ``scan_token_v2(deep=True)``
+    callers can fall back to the regular scan path.
+    """
+    try:
+        client = _scanner.get_shared_client(SENTINEL_TIMEOUT)
+        r = await client.post(
+            SENTINEL_URL,
+            json={"address": address, "chain": chain_norm},
+            headers=backend_headers(),
+            timeout=SENTINEL_TIMEOUT,
+        )
+        if r.status_code != 200:
+            logger.warning("deep scan status %s for %s", r.status_code, address)
+            return None
+        data = r.json()
+        if not isinstance(data, dict) or data.get("status") != "ok":
+            logger.warning("deep scan non-ok response for %s", address)
+            return None
+    except (httpx.HTTPError, ConnectionError, OSError, TimeoutError, ValueError) as exc:
+        logger.warning("deep scan failed for %s: %s", address, str(exc)[:120])
+        return None
+    data = await _scanner.enrich_scan_with_gmgn(data, address, chain_norm)
+    if _scanner.enrich_scan is not None:
+        data = await _scanner.enrich_scan(data, address, chain_norm)
+    data = await _scanner.enrich_scan_solana(data, address, chain_norm)
+    data = await _scanner.enrich_scan_smart_money(data, address, chain_norm)
+    if _scanner.should_index_scan(data, source="deepscan"):
+        _scanner.schedule_scan_memory_index(data, source="deepscan")
     return data
 
 
@@ -397,9 +456,7 @@ async def sentinel_scan(address: str, chain: str | None = None) -> dict[str, Any
                 discover_flow_participants,
             )
 
-            flow = await discover_flow_participants(
-                address, chain_norm, window_blocks=600, cap=100
-            )
+            flow = await discover_flow_participants(address, chain_norm, window_blocks=600, cap=100)
             participants = flow.get("participants") or {}
             if participants:
                 moved_total = sum(participants.values()) or 1.0

@@ -18,12 +18,12 @@ full human-readable inventory.
 =========  ==================  ==================================  =========================
 Role       Public handle       Gopass entry (path)                 Env var (canonical)
 =========  ==================  ==================================  =========================
-news       @rmicryptonews      rmi/telegram/CHANNEL_RMI_NEWS       RMI_NEWS_CHANNEL_ID
-alerts     @rmialerts          rmi/telegram/CHANNEL_CRYPTO_ALERTS  RMI_ALERTS_CHANNEL_ID
-alpha      @rmialpha           rmi/telegram/CHANNEL_CRYPTO_ALPHA   RMI_ALPHA_CHANNEL_ID
-scans      @rmiscans           rmi/telegram/CHANNEL_COMMUNITY_SCANS RMI_SCANS_CHANNEL_ID
-main       @cryptorugmuncher   rmi/telegram/CHANNEL_CRYPTO_RUGMUNCHER RMI_MAIN_CHANNEL_ID
-updates    @rmiupdates         rmi/telegram/CHANNEL_RMI_UPDATES    RMI_UPDATES_CHANNEL_ID
+news       @rmicryptonews      (env-var is canonical)       RMI_NEWS_CHANNEL_ID
+alerts     @rmialerts          (env-var is canonical)  RMI_ALERTS_CHANNEL_ID
+alpha      @rmialpha           (env-var is canonical)   RMI_ALPHA_CHANNEL_ID
+scans      @rmiscans           (env-var is canonical) RMI_SCANS_CHANNEL_ID
+main       @cryptorugmuncher   (env-var is canonical) RMI_MAIN_CHANNEL_ID
+updates    @rmiupdates         (env-var is canonical)    RMI_UPDATES_CHANNEL_ID
 =========  ==================  ==================================  =========================
 
 Legacy env aliases (read after the canonical var, before the fallback):
@@ -78,7 +78,7 @@ class ChannelRole:
 CHANNEL_ROLES: dict[str, ChannelRole] = {
     "news": ChannelRole(
         role="news",
-        store_path="rmi/telegram/CHANNEL_RMI_NEWS",
+        store_path="",  # supplied by deployment (env-var is canonical)
         env_var="RMI_NEWS_CHANNEL_ID",
         legacy_env_vars=("RMI_CRYPTONEWS_CHANNEL_ID",),
         public_handle="@rmicryptonews",
@@ -87,7 +87,7 @@ CHANNEL_ROLES: dict[str, ChannelRole] = {
     ),
     "alerts": ChannelRole(
         role="alerts",
-        store_path="rmi/telegram/CHANNEL_CRYPTO_ALERTS",
+        store_path="",  # supplied by deployment (env-var is canonical)
         env_var="RMI_ALERTS_CHANNEL_ID",
         public_handle="@rmialerts",
         fallback="-1003818352164",
@@ -95,7 +95,7 @@ CHANNEL_ROLES: dict[str, ChannelRole] = {
     ),
     "alpha": ChannelRole(
         role="alpha",
-        store_path="rmi/telegram/CHANNEL_CRYPTO_ALPHA",
+        store_path="",  # supplied by deployment (env-var is canonical)
         env_var="RMI_ALPHA_CHANNEL_ID",
         public_handle="@rmialpha",
         fallback="-1003762675055",
@@ -103,7 +103,7 @@ CHANNEL_ROLES: dict[str, ChannelRole] = {
     ),
     "scans": ChannelRole(
         role="scans",
-        store_path="rmi/telegram/CHANNEL_COMMUNITY_SCANS",
+        store_path="",  # supplied by deployment (env-var is canonical)
         env_var="RMI_SCANS_CHANNEL_ID",
         public_handle="@rmiscans",
         fallback="-1003937506770",
@@ -111,7 +111,7 @@ CHANNEL_ROLES: dict[str, ChannelRole] = {
     ),
     "main": ChannelRole(
         role="main",
-        store_path="rmi/telegram/CHANNEL_CRYPTO_RUGMUNCHER",
+        store_path="",  # supplied by deployment (env-var is canonical)
         env_var="RMI_MAIN_CHANNEL_ID",
         public_handle="@cryptorugmuncher",
         fallback="-1002056885429",
@@ -119,7 +119,7 @@ CHANNEL_ROLES: dict[str, ChannelRole] = {
     ),
     "updates": ChannelRole(
         role="updates",
-        store_path="rmi/telegram/CHANNEL_RMI_UPDATES",
+        store_path="",  # supplied by deployment (env-var is canonical)
         env_var="RMI_UPDATES_CHANNEL_ID",
         public_handle="@rmiupdates",
         fallback=None,
@@ -127,7 +127,7 @@ CHANNEL_ROLES: dict[str, ChannelRole] = {
     ),
     "shills": ChannelRole(
         role="shills",
-        store_path="rmi/telegram/CHANNEL_CRYPTO_SHILLS",
+        store_path="",  # supplied by deployment (env-var is canonical)
         env_var="RMI_SHILLS_CHANNEL_ID",
         public_handle="@rmishills",
         fallback=None,

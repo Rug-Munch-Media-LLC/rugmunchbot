@@ -266,6 +266,40 @@ def init_db() -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_scam_reports_addr ON scam_reports(token_address);
         CREATE INDEX IF NOT EXISTS idx_scam_reports_user ON scam_reports(user_id, created_at);
+
+        -- v7: KOL Hall of Shame — X/CT calls tracked per KOL (the report-card
+        -- store). ``kol_calls`` records every captured call + its deleted
+        -- state; ``kol_scores`` caches the aggregated report card per handle.
+        CREATE TABLE IF NOT EXISTS kol_calls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            handle TEXT NOT NULL,
+            tweet_id TEXT,
+            token_symbol TEXT,
+            token_address TEXT,
+            chain TEXT,
+            call_type TEXT DEFAULT 'buy',
+            tweet_text TEXT,
+            posted_at TEXT,
+            source_url TEXT,
+            wallet_address TEXT,
+            is_deleted INTEGER DEFAULT 0,
+            deleted_at TEXT,
+            captured_at TEXT,
+            UNIQUE(tweet_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_kol_calls_handle ON kol_calls(handle, captured_at);
+        CREATE INDEX IF NOT EXISTS idx_kol_calls_deleted ON kol_calls(is_deleted, captured_at);
+        CREATE TABLE IF NOT EXISTS kol_scores (
+            handle TEXT PRIMARY KEY,
+            total_calls INTEGER DEFAULT 0,
+            deleted_calls INTEGER DEFAULT 0,
+            shill_calls INTEGER DEFAULT 0,
+            scam_token_calls INTEGER DEFAULT 0,
+            tokens_mentioned INTEGER DEFAULT 0,
+            score REAL DEFAULT 0,
+            grade TEXT DEFAULT 'N/A',
+            updated_at TEXT
+        );
     """)
     # Migration: add bonus columns if they don't exist (SQLite safe)
     with contextlib.suppress(sqlite3.OperationalError):

@@ -246,3 +246,118 @@ def test_shill_footer_contains_all_channels() -> None:
         "https://t.me/cryptorugmuncher",
     ):
         assert expected in out, f"missing {expected} in shill footer"
+
+
+# ── Ref links in BOTH regular + deep scan (2026-08-29 depth push) ─────────
+# The ref-attributed trade links (jupiter / gmgn / photon / birdeye /
+# dexscreener / dextools / rugcharts / rugmaps) must render in the footer of
+# /scan AND /deepscan. On Solana the footer renders exactly this set.
+
+
+def _assert_ref_links(out: str) -> None:
+    for expected in (
+        "jup.ag/swap/SOL-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v?ref=rugmunch",  # jupiter
+        "gmgn.ai/sol/token/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v?ref=rugmunch",  # gmgn
+        "photon-sol.tinyastro.io/en/lp/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v?handle=rugmunch",  # photon
+        "birdeye.so/token/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # birdeye
+        "dexscreener.com/solana/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # dexscreener
+        "dextools.io/app/en/sol/pair-explorer/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # dextools
+        "rugmunch.io/rugcharts?token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # rugcharts
+        "rugmunch.io/rugmaps?token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # rugmaps
+    ):
+        assert expected in out, f"missing ref link: {expected}"
+
+
+def test_regular_scan_renders_all_ref_links() -> None:
+    _assert_ref_links(format_scan_report(_rich_scan()))
+
+
+def test_deep_scan_renders_all_ref_links() -> None:
+    _assert_ref_links(format_deep_scan_report(_rich_scan()))
+
+
+# ── First-buyers cohort depth (250-wallet deep analysis) ─────────────────
+
+
+def _first_buyers_payload(limit: int = 250, count: int = 30) -> dict[str, Any]:
+    """Dict-shaped first-buyers payload from the deep endpoint / engine."""
+    buyers = [
+        {
+            "wallet": f"0xwallet{i:04d}",
+            "first_buy_ts": "2026-08-29T11:55:00+00:00",
+            "tokens": 1_000_000_000,
+            "wallet_age_bucket": "fresh" if i < 5 else ("new" if i < 10 else "established"),
+            "age_at_buy_s": 60 + i,
+            "bundled": i < 8,
+        }
+        for i in range(count)
+    ]
+    return {
+        "buyers": buyers,
+        "aggregates": {
+            "unique_buyers": count,
+            "fresh_wallet_pct": 16.7,
+            "new_wallet_pct": 33.3,
+            "established_pct": 66.7,
+            "bundled_pct": 26.7,
+            "median_latency_s": 90.0,
+        },
+        "limit": limit,
+        "chain": "ethereum",
+    }
+
+
+def test_first_buyers_deep_renders_25_rows_and_cohort_label() -> None:
+    from rugmunchbot.formatters._scan_report_common._layout import _first_buyers_rows
+
+    r = _rich_scan()
+    r["first_buyers"] = _first_buyers_payload(limit=250, count=30)
+    rows = _first_buyers_rows(r, deep=True)
+    body = "\n".join(rows)
+    assert "first-250 cohort" in body  # explicit cohort label
+    assert "<b>30</b> tracked" in body
+    assert "🆕 17% fresh wallets" in body
+    # Deep renders the per-wallet rows: 25 wallet rows + 1 aggregates line.
+    assert len(rows) == 26
+    assert "<code>0xwallet0000</code>" in body
+    assert "<code>0xwallet0024</code>" in body  # row 25 present
+
+
+def test_first_buyers_basic_renders_cohort_label() -> None:
+    from rugmunchbot.formatters._scan_report_common._layout import _first_buyers_rows
+
+    r = _rich_scan()
+    r["first_buyers"] = _first_buyers_payload(limit=25, count=25)
+    rows = _first_buyers_rows(r, deep=False)
+    body = "\n".join(rows)
+    assert "first-25" in body
+    assert len(rows) == 1  # aggregates line only, no per-wallet rows
+
+
+# ── RiskReport consumes the 250-wallet first-buyer cohort dict ───────────
+
+
+def test_risk_report_consumes_first_buyer_cohort_dict() -> None:
+    r = _rich_scan()
+    r["first_buyers"] = _first_buyers_payload(limit=250, count=30)
+    rep = _build_risk_report_from_scan(r)
+    assert rep is not None
+    fb = rep["first_buyer"]
+    assert fb["address"] == "0xwallet0000"
+    assert fb["cohort_size"] == 30
+    assert fb["cohort_limit"] == 250
+    assert fb["cohort_bundled_pct"] == 26.7
+    # The deeper narrative names the cohort depth.
+    assert "Cohort: 30 wallets (limit 250)" in str(rep["deeper_analysis"])
+
+
+def test_deep_cluster_summary_is_deep_aware() -> None:
+    r = _rich_scan()
+    rep_basic = _build_risk_report_from_scan(r, deep=False)
+    rep_deep = _build_risk_report_from_scan(r, deep=True)
+    assert rep_basic is not None
+    assert rep_deep is not None
+    basic_summary = rep_basic["deeper_analysis"]["cluster"]["summary"]
+    deep_summary = rep_deep["deeper_analysis"]["cluster"]["summary"]
+    assert "see /deepscan" in basic_summary
+    assert "see /deepscan" not in deep_summary

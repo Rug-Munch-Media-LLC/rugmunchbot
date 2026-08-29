@@ -172,6 +172,28 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_shill_watch",
         )
 
+    # KOL Hall of Shame (2026-08-29): track KOL calls + deleted tweets from
+    # real X data (ApiPass) → report cards → ALERTS channel, deduped per
+    # card per day. Budget-bounded by the shared ApiPass ≤3/hr limiter;
+    # fail-open when the key is unconfigured (silence is a valid outcome).
+    if (
+        ALERTS_CHANNEL_ENABLED
+        and _chat_id("alerts")
+        and hasattr(job_queue, "run_repeating")
+        and os.getenv("RMI_KOL_SHAME_ENABLED", "true").lower() in ("1", "true", "yes")
+    ):
+        from rugmunchbot.channels.kol_hall_of_shame import (
+            KOL_SHAME_INTERVAL_MIN,
+            run_kol_shame_watch,
+        )
+
+        job_queue.run_repeating(
+            _tick_wrapper("channel_kol_shame", run_kol_shame_watch, envelope=True),
+            interval=KOL_SHAME_INTERVAL_MIN * 60,
+            first=360,
+            name="channel_kol_shame",
+        )
+
     # Daily quality-content job (2026-08-29, quality overhaul deliverable 3):
     # up to 8 reranked quality posts/day on main, filling the 10-post budget
     # after the 2 market briefs. Budget-gated via main_cap (shared with every
@@ -364,5 +386,5 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_rag_fast",
         )
     logger.info(
-        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates/shill_watch/daily_quality)"
+        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates/shill_watch/kol_shame/daily_quality)"
     )

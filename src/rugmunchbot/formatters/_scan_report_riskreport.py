@@ -172,13 +172,30 @@ def _sentinel_module(r: dict[str, Any], key: str) -> dict[str, Any]:
 
 
 def _first_buyer_dict(r: dict[str, Any]) -> dict[str, Any]:
-    """First-buyer entry from the own indexer engine, or {}."""
+    """First-buyer entry from the own indexer engine, or {}.
+
+    Accepts both payload shapes: the legacy list (``[{address, ...}]``) and
+    the 250-wallet cohort dict (``{buyers: [...], aggregates: {...}, limit}``
+    emitted by the deep endpoint / scanner engine). For the cohort shape the
+    earliest buyer is the first ``buyers`` entry and the aggregates ride
+    along so the RiskReport first-buyer section can report cohort depth.
+    """
     fb = r.get("first_buyers")
     if isinstance(fb, list) and fb:
         first = fb[0]
-        if isinstance(first, dict):
-            return first
+        return first if isinstance(first, dict) else {}
     if isinstance(fb, dict):
+        buyers = fb.get("buyers")
+        if isinstance(buyers, list) and buyers:
+            first = buyers[0]
+            if isinstance(first, dict):
+                return {
+                    **first,
+                    "cohort_size": (fb.get("aggregates") or {}).get("unique_buyers"),
+                    "cohort_limit": fb.get("limit"),
+                    "cohort_fresh_pct": (fb.get("aggregates") or {}).get("fresh_wallet_pct"),
+                    "cohort_bundled_pct": (fb.get("aggregates") or {}).get("bundled_pct"),
+                }
         return fb
     return {}
 
@@ -362,16 +379,18 @@ def _dev_team_share(top: list[dict[str, Any]], deployer: str | None) -> float | 
 def _extract_first_buyer_section(
     r: dict[str, Any], deployer: str | None, bundle: dict[str, Any]
 ) -> dict[str, Any]:
-    """First-buyer section: address, is_deployer, in_bundle (or {})."""
+    """First-buyer section: address, is_deployer, in_bundle (+ cohort depth)."""
     fb = _first_buyer_dict(r)
     if not fb:
         return {}
-    addr = fb.get("address") or fb.get("buyer")
+    addr = fb.get("address") or fb.get("buyer") or fb.get("wallet")
     is_deployer: bool | None = None
     if addr and deployer and str(addr).lower() == deployer.lower():
         is_deployer = True
     in_bundle: bool | None = None
-    if isinstance(bundle, dict) and bundle.get("is_bundled") is True:
+    if isinstance(fb.get("bundled"), bool):
+        in_bundle = fb["bundled"]
+    if in_bundle is None and isinstance(bundle, dict) and bundle.get("is_bundled") is True:
         launch_buyers = bundle.get("launch_buyers")
         if isinstance(launch_buyers, list):
             for lb in launch_buyers:
@@ -386,7 +405,11 @@ def _extract_first_buyer_section(
         "is_deployer": is_deployer,
         "in_bundle": in_bundle,
         "block": fb.get("block_number", fb.get("block")),
-        "tx": fb.get("tx_hash"),
+        "tx": fb.get("tx_hash") or fb.get("first_buy_ts"),
+        "cohort_size": fb.get("cohort_size"),
+        "cohort_limit": fb.get("cohort_limit"),
+        "cohort_fresh_pct": fb.get("cohort_fresh_pct"),
+        "cohort_bundled_pct": fb.get("cohort_bundled_pct"),
     }
 
 
@@ -1001,7 +1024,7 @@ def _summary_text(determination: str, composite: int | None, known: int, total: 
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def _build_risk_report_from_scan(r: dict[str, Any]) -> dict[str, Any] | None:
+def _build_risk_report_from_scan(r: dict[str, Any], *, deep: bool = False) -> dict[str, Any] | None:
     """Synthesize the RiskReport dict from the bot's scan payload (pure).
 
     Returns None only when the scan carries no data at all (no address) —
@@ -1089,7 +1112,7 @@ def _build_risk_report_from_scan(r: dict[str, Any]) -> dict[str, Any] | None:
         "determination": determination,
         "summary": summary,
         "deeper_analysis": _build_deeper_analysis(
-            deployer, holders, first_buyer, bundle, honeypot, liquidity, factors
+            deployer, holders, first_buyer, bundle, honeypot, liquidity, factors, deep=deep
         ),
         "ai_assisted": False,
         "data_quality": data_quality,
@@ -1105,6 +1128,8 @@ def _build_deeper_analysis(
     honeypot: dict[str, Any],
     liquidity: dict[str, Any],
     factors: list[dict[str, Any]],
+    *,
+    deep: bool = False,
 ) -> dict[str, Any]:
     """Per-section narrative (mirror of risk_report._build_deeper_analysis)."""
     factor_map = {f["key"]: f for f in factors}
@@ -1114,6 +1139,24 @@ def _build_deeper_analysis(
         if f is None:
             return ""
         return f"- {f['label']}: {f['explanation']}"
+
+    fb_cohort = ""
+    if first_buyer.get("cohort_size") is not None:
+        cohort = f"{first_buyer['cohort_size']} wallets"
+        if first_buyer.get("cohort_limit") is not None:
+            cohort += f" (limit {first_buyer['cohort_limit']})"
+        extra = []
+        if first_buyer.get("cohort_fresh_pct") is not None:
+            extra.append(f"{first_buyer['cohort_fresh_pct']}% fresh")
+        if first_buyer.get("cohort_bundled_pct") is not None:
+            extra.append(f"{first_buyer['cohort_bundled_pct']}% bundled")
+        fb_cohort = f" Cohort: {cohort}" + (f" ({', '.join(extra)})" if extra else "")
+
+    cluster_unavailable = (
+        "not available on this scan tier (see /deepscan)"
+        if not deep
+        else "unavailable — the beyond-market cluster engines (risk_cluster) reported no data"
+    )
 
     return {
         "deployer": {
@@ -1155,6 +1198,7 @@ def _build_deeper_analysis(
             "summary": (
                 f"First buyer {_short(first_buyer.get('address') or 'unknown')} \u2014 "
                 f"deployer={first_buyer.get('is_deployer')}, in_bundle={first_buyer.get('in_bundle')}."
+                f"{fb_cohort}"
             ),
             "factors": [
                 ln for ln in [_line("first_buyer_deployer"), _line("first_buyer_bundle")] if ln
@@ -1172,7 +1216,7 @@ def _build_deeper_analysis(
         "cluster": {
             "summary": (
                 "Cluster graph: funder tree + shared-deployer networks + cross-token "
-                "clusters \u2014 not available on this scan tier (see /deepscan)."
+                f"clusters \u2014 {cluster_unavailable}."
             ),
             "factors": [
                 ln
@@ -1288,6 +1332,8 @@ def _section_lines(rep: dict[str, Any]) -> list[str]:
             fb_bits.append("deployer=" + ("\u2713" if fb["is_deployer"] else "\u2717"))
         if fb.get("in_bundle") is not None:
             fb_bits.append("in_bundle=" + ("\u2713" if fb["in_bundle"] else "\u2717"))
+        if fb.get("cohort_size") is not None:
+            fb_bits.append(f"cohort {fb['cohort_size']}")
         lines.append(f"  \U0001f6d2 <b>First buyer:</b> {_MIDDOT.join(fb_bits)}")
 
     top25_pct = hol.get("top_25_pct")
@@ -1457,7 +1503,7 @@ def format_risk_report_block(r: dict[str, Any], *, deep: bool = False) -> list[s
     deep scans render the full ~30-factor table + deeper analysis.
     """
     raw = r.get("risk_report")
-    rep = raw if isinstance(raw, dict) else _build_risk_report_from_scan(r)
+    rep = raw if isinstance(raw, dict) else _build_risk_report_from_scan(r, deep=deep)
     if not isinstance(rep, dict) or not rep.get("factors"):
         return []
     # AI-assisted marker: when the deep scan ran the LLM verdict pass

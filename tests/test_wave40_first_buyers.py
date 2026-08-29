@@ -115,21 +115,25 @@ def test_basic_card_first_buyers_garbage_payloads_render_nothing(payload: dict[s
 # ── formatter: deep card ─────────────────────────────────────────────
 
 
-def test_deep_card_renders_top10_rows_plus_aggregates() -> None:
+def test_deep_card_renders_top25_rows_plus_aggregates() -> None:
     fb = _first_buyers(n=200)
     out = format_deep_scan_report(_report(first_buyers=fb))
     assert "\U0001f6d2 <b>First Buyers</b>" in out
-    # Top-10 buyer rows render with short addresses…
+    # Top-25 buyer rows render with short addresses (2026-08-29 depth push:
+    # deep scans go deeper — 10 → 25 rows over the 250-wallet cohort).
     assert "<code>0x0000...0001</code>" in out
     assert "<code>0x0000...000a</code>" in out  # buyer #10
-    assert "<code>0x0000...000b</code>" not in out  # buyer #11 must NOT render
+    assert "<code>0x0000...0019</code>" in out  # buyer #25
+    assert "<code>0x0000...001a</code>" not in out  # buyer #26 must NOT render
     # …bucket labels, bundle markers and compact ages…
     assert "\U0001f195 fresh" in out
     assert "\U0001f3e6 est" in out
     assert "\U0001f517 bundle" in out
     assert "bought 45s old" in out
-    # …and the aggregates line sits over the FULL tracked set (200).
+    # …and the aggregates line sits over the FULL tracked set (200) with the
+    # explicit cohort label.
     assert "<b>200</b> tracked" in out
+    assert "first-200 cohort" in out
     assert "entry wave +45s" in out
 
 

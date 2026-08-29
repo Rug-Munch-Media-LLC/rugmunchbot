@@ -15,6 +15,15 @@ from __future__ import annotations
 
 from ._base import _resolve_db_path, get_db, init_db, logger
 from .alerts import get_active_alerts, mark_alert_triggered
+from .kol import (
+    export_kol_calls_jsonl,
+    get_kol_call,
+    get_kol_scores,
+    list_kol_calls,
+    mark_kol_call_deleted,
+    record_kol_call,
+    upsert_kol_score,
+)
 from .monitors import (
     MONITOR_DEFAULT_DAYS,
     add_monitor,
@@ -96,6 +105,7 @@ __all__ = [
     "clear_chat_history",
     "count_active_today",
     "expire_monitors",
+    "export_kol_calls_jsonl",
     "get_active_alerts",
     "get_active_monitors",
     "get_admin_logs",
@@ -104,6 +114,8 @@ __all__ = [
     "get_daily_stats",
     "get_db",
     "get_known_scam_addresses",
+    "get_kol_call",
+    "get_kol_scores",
     "get_monitors",
     "get_or_create_user",
     "get_user_by_id",
@@ -116,13 +128,16 @@ __all__ = [
     "increment_usage",
     "init_db",
     "is_user_banned",
+    "list_kol_calls",
     "list_scam_reports",
     "log_admin_action",
     "log_scan",
     "logger",
     "mark_alert_triggered",
+    "mark_kol_call_deleted",
     "migrate_plaintext_api_tokens",
     "record_activity",
+    "record_kol_call",
     "remove_monitor",
     "remove_watchlist",
     "report_scam",
@@ -132,6 +147,7 @@ __all__ = [
     "spend_stars",
     "token_prefix",
     "update_monitor_baseline",
+    "upsert_kol_score",
     "verify_api_token",
 ]
 

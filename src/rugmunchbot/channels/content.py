@@ -277,14 +277,119 @@ async def _fetch_launches(chain: str, limit: int) -> list[dict[str, Any]]:
 
 
 async def _fetch_kol_trades(limit: int) -> list[dict[str, Any]]:
-    """KOL/analyst trade signals from SearXNG (live X/Twitter-adjacent hits).
+    """KOL/analyst trade signals — REAL X tweets via ApiPass (SearXNG fallback).
 
-    Bounded, fail-open ``[]``: runs a small KOL-signal query set through
-    ``tools.web.searxng_top_results`` (SearXNG-only, ~6s bound per query)
-    and normalizes each hit into the alpha lane shape. This is the "KOL
-    trades" rail of the whale+alpha channel — what influential accounts are
-    pushing right now, with the source link preserved (cite-or-omit).
+    The alpha lane's "KOL trades" rail: what influential accounts are
+    pushing right now. Primary source is the ApiPass X source
+    (``tools.apipass_x`` — real tweet payloads with engagement + author
+    attribution, bounded by the ≤3/hr budget); the old SearXNG meta-search
+    rail remains the fail-open fallback when the key is unconfigured, the
+    budget is spent, or ApiPass is down. Every item keeps its source link —
+    cite-or-omit, never synthesized.
     """
+    items = await _fetch_kol_trades_apipass(limit)
+    if items:
+        return items
+    return await _fetch_kol_trades_searxng(limit)
+
+
+async def _fetch_kol_trades_apipass(limit: int) -> list[dict[str, Any]]:
+    """ApiPass rail: real KOL tweets + trending-shill search, deduped + reranked.
+
+    Budget-compliant: at most ONE ApiPass task creation per call (the
+    KOL-handle sweep uses the same search slot when the handle pool is
+    small). Tweets pass the embed→dedup→rerank pipeline
+    (``tools.apipass_x.semantic_dedup`` / ``rerank_tweets``) so the same
+    shill claim phrased differently is caught and the strongest signals
+    surface first. Fail-open ``[]``.
+    """
+    import os
+
+    from rugmunchbot.tools.apipass_x import (
+        api_key_configured,
+        rerank_tweets,
+        search_tweets,
+        semantic_dedup,
+    )
+
+    if not api_key_configured():
+        return []
+
+    # KOL handles the alpha lane tracks for trades (env-overridable).
+    _kol_handles: tuple[str, ...] = tuple(
+        h.strip().lstrip("@")
+        for h in os.getenv(
+            "RMI_KOL_ALPHA_HANDLES",
+            "lookonchain,spotonchain,ArkhamIntel,cryptowhaletrades,ThinkingUSD,0xfoobar",
+        ).split(",")
+        if h.strip()
+    )
+    queries = [f"from:{h}" for h in _kol_handles[:3]] + [
+        "crypto KOL shilling token today",
+        "new token call crypto influencer",
+    ]
+    raw: list[dict[str, Any]] = []
+    seen_urls: set[str] = set()
+    for q in queries[:3]:  # bounded — ApiPass burn is ≤3/hr
+        try:
+            tweets = await search_tweets(q, limit=4)
+        except Exception as exc:  # fail-open by contract
+            logger.debug("channels:kol_apipass_query_failed q=%s err=%s", q, str(exc)[:80])
+            continue
+        for t in tweets:
+            url = str(t.get("url") or "")
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            raw.append(t)
+        if len(raw) >= limit * 2:
+            break
+
+    out: list[dict[str, Any]] = []
+    for t in raw:
+        text = str(t.get("text") or "")
+        if not text:
+            continue
+        try:
+            if await semantic_dedup(text):
+                continue
+        except Exception as exc:  # dedup degrades, never blocks
+            logger.debug("channels:kol_dedup_failed err=%s", str(exc)[:80])
+        handle = str(t.get("handle") or "x")
+        out.append(
+            {
+                "title": text[:120] or "KOL signal",
+                "url": str(t.get("url") or ""),
+                "source": f"@{handle}"
+                + (
+                    f" · ♥{t.get('like_count', 0)} ⟳{t.get('retweet_count', 0)}"
+                    if t.get("like_count") or t.get("retweet_count")
+                    else ""
+                ),
+                "query": "kol_x",
+                "kind": "kol_trade",
+                "image_url": "",
+            }
+        )
+        if len(out) >= limit:
+            break
+    if not out:
+        return []
+
+    # Rerank the fresh KOL tweets so the strongest signals surface first.
+    try:
+        top = await rerank_tweets(
+            out,
+            "KOL alpha signal: token call, whale move, or shill worth flagging",
+            top_n=limit,
+        )
+        return list(top)
+    except Exception:  # fail-open — keep input order
+        return out[:limit]
+
+
+async def _fetch_kol_trades_searxng(limit: int) -> list[dict[str, Any]]:
+    """Legacy SearXNG rail (fallback): X/Twitter-adjacent search hits."""
     import asyncio
 
     _kol_queries: tuple[str, ...] = (

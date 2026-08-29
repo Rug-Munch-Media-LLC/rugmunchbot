@@ -12,7 +12,7 @@ NO timestamp; the bot had no recency gate either.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -67,8 +67,10 @@ def test_recency_gate_probes_embedded_long_form_date():
 def test_recency_gate_fresh_embedded_date_passes():
     from rugmunchbot.channels.scheduler._posts_rag import _recency_gate
 
-    year = datetime.now(UTC).year
-    item = {"text": f"Exploit detected on {year}-08-25 affecting the vault."}
+    # Relative to NOW (the old hardcoded 08-25 went stale as the calendar
+    # moved on — the gate correctly flags it; the test must embed a fresh date).
+    fresh = (datetime.now(UTC) - timedelta(hours=2)).strftime("%Y-%m-%d")
+    item = {"text": f"Exploit detected on {fresh} affecting the vault."}
     assert _recency_gate(item) == ""
 
 
