@@ -24,6 +24,7 @@ First-wins on input order (the sweep's channel order = recency), matching
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from typing import TYPE_CHECKING, Any
@@ -43,6 +44,9 @@ _SEMANTIC_COSINE_DEFAULT = 0.90
 #: Max pairwise cosine comparisons per batch (O(n²) guard; sweep batches
 #: are ≤ a few hundred — beyond this the oldest candidates stop matching).
 _MAX_EMBED_CANDIDATES = 200
+#: Concurrent embed HTTP calls (the embed API is a local service; bounded
+#: concurrency collapses ~200 serial 1.4s calls into a few seconds).
+_EMBED_CONCURRENCY = 8
 
 
 def _env_float(name: str, default: float) -> float:
@@ -138,10 +142,29 @@ async def dedupe_articles_semantic(articles: list[NewsArticle]) -> list[NewsArti
 
     candidates = result[:_MAX_EMBED_CANDIDATES]
     tail = result[_MAX_EMBED_CANDIDATES:]
+
+    # Concurrent, bounded embed — the API is a local service; serializing
+    # ~200 HTTP round-trips at ~1.4s each made the whole sweep take 120-170s.
+    sem = asyncio.Semaphore(_EMBED_CONCURRENCY)
+
+    async def _embed_one(article: NewsArticle) -> list[float]:
+        async with sem:
+            return await get_embedding(_dedup_text(article))
+
     try:
-        vectors = [await get_embedding(_dedup_text(a)) for a in candidates]
+        vectors = await asyncio.gather(*(_embed_one(a) for a in candidates))
     except Exception as exc:  # fail-open — never block the sweep on the embedder
         logger.warning("news_dedup:embed_failed err=%s", str(exc)[:120])
+        return result
+
+    if not any(vectors):
+        # get_embedding swallows API errors and returns [] — without this
+        # guard the semantic layer silently no-ops (every "empty vector" is
+        # treated as "keep", no log at all). Make the fail-open LOUD.
+        logger.warning(
+            "news_dedup:embed_unavailable candidates=%s semantic_layer_skipped fail_open",
+            len(candidates),
+        )
         return result
 
     kept: list[NewsArticle] = []

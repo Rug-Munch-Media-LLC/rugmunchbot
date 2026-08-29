@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from rugmunchbot._vendor.news_ingest.ingest import (
-    dedupe_articles,
     is_channel_cooldown,
     read_channel_messages,
 )
@@ -265,4 +264,10 @@ async def sweep_scam_channels(
             article = channel_message_to_article(message, "scam_shill")
             if article is not None:
                 articles.append(article)
-    return dedupe_articles(articles)
+    # Quality rail (2026-08-29): same embed→dedup pipeline the tg_news sweep
+    # uses — exact keys → title-overlap → qwen3 embed cosine — so rephrased
+    # scam shills across channels collapse to one article before the scanner
+    # / RAG feed. Fail-open: embedder down → exact-key result only, logged.
+    from rugmunchbot.channels.telegram_news._dedup import dedupe_articles_semantic
+
+    return await dedupe_articles_semantic(articles)

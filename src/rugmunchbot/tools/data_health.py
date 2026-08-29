@@ -47,11 +47,13 @@ async def probe_all() -> dict[str, Any]:
     backend = os.getenv("BACKEND_URL", "http://localhost:8000")
     host = os.getenv("MODEL_SERVICES_HOST", "127.0.0.1")
     checks = {
-        "backend": (f"{backend}/api/v1/market/hyperliquid-liquidations?limit=5",
-                    backend_headers(), None),
+        "backend": (
+            f"{backend}/api/v1/market/hyperliquid-liquidations?limit=5",
+            backend_headers(),
+            None,
+        ),
         "gateway": (f"http://{host}:8010/health", {}, None),
         "deep_embed": (f"http://{host}:8004/health", {}, None),
-        "speed_embed": (f"http://{host}:8007/health", {}, None),
         "reranker": (f"http://{host}:8003/health", {}, None),
         "chat": (f"http://{host}:8009/health", {}, None),
         "rag_api": ("http://127.0.0.1:8012/health", {}, None),
@@ -87,14 +89,16 @@ async def probe_all() -> dict[str, Any]:
         error_rate = round(errs / total * 100, 1) if total > 0 else 0.0
         last = _last_success.get(name)
         ago = f"{time.time() - last:.0f}s ago" if last else "never"
-        sources.append({
-            "source": name,
-            "healthy": ok,
-            "latency_ms": round(ms, 0),
-            "ema_latency_ms": ema,
-            "error_rate_pct": error_rate,
-            "last_success": ago,
-        })
+        sources.append(
+            {
+                "source": name,
+                "healthy": ok,
+                "latency_ms": round(ms, 0),
+                "ema_latency_ms": ema,
+                "error_rate_pct": error_rate,
+                "last_success": ago,
+            }
+        )
 
     healthy_count = sum(1 for s in sources if s["healthy"])
     from rugmunchbot.tools.registry import ToolResult

@@ -7,8 +7,8 @@ is healthy:
 
 * SHIPPED — conventional commits from our own product repos (rugmunchbot,
   rugbrain) in the last 24h, grouped feat/fix/perf/security, capped.
-* PIPELINE HEALTH — rugbrain API, model gateway, deep/speed embedders and
-  the reranker probed concurrently (2s budget each); ✅/❌ per service.
+* PIPELINE HEALTH — rugbrain API, model gateway, the deep 4B embedder and
+  the 4B reranker probed concurrently (2s budget each); ✅/❌ per service.
 * FEED MIRROR — posts.json size + last-write age (the W30 mandatory mirror).
 
 Fail-open everywhere: git unavailable → "no commits surfaced"; a probe
@@ -51,12 +51,13 @@ REPO_DIRS = [
 ]
 
 #: Service probes: label → URL. All are local/loopback model+API services.
+#: 2026-08-29: the 0.6B speed lane (:8007/:8008) is deleted — probes cover
+#: the canonical 4B lane (:8004 embed / :8003 rerank) only.
 SERVICE_PROBES: dict[str, str] = {
     "rag-api": os.getenv("RAG_API_HEALTH_URL", "http://127.0.0.1:8012/health"),
     "model-gateway": os.getenv("GATEWAY_HEALTH_URL", "http://127.0.0.1:8010/health"),
     "embed-deep-4b": os.getenv("DEEP_EMBED_URL", "http://127.0.0.1:8004") + "/health",
-    "embed-speed-0.6b": os.getenv("SPEED_EMBED_URL", "http://127.0.0.1:8007") + "/health",
-    "rerank-0.6b": os.getenv("SPEED_RERANK_URL", "http://127.0.0.1:8008") + "/health",
+    "rerank-4b": os.getenv("DEEP_RERANK_URL", "http://127.0.0.1:8003") + "/health",
 }
 
 FEED_DATA = os.path.join(os.getenv("RMI_FEED_DIR", "/var/www/feed.rugmunch.io"), "data")
