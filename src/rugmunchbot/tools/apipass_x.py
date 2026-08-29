@@ -79,12 +79,17 @@ APIPASS_BASE_URL = os.getenv("APIPASS_BASE_URL", "https://api.apipass.dev").rstr
 # (social-media-api) and 404s. Kept as the env-overridable base prefix so
 # operators can switch to the graphql family (``twitter/graphql``) if needed.
 APIPASS_TWITTER_MODEL = os.getenv("APIPASS_TWITTER_MODEL", "twitter/simple")
-#: Hard budget — max task creations per hour (default 6 ≈ 3 credits/hr at
-#: ~0.5 credits/call, per the ApiPass slow-burn doctrine).
-MAX_CALLS_PER_HOUR = int(os.getenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", "6"))
-#: Free-credit allowance + per-call cost (usage ledger / dashboard).
+#: Hard budget — max task creations per hour. Account dashboard (2026-08-29):
+#: 15/hr, 50/day, 1,500 total. We stay safely UNDER the hourly cap (12) so
+#: bursts + concurrent ticks never 429 the shared key.
+MAX_CALLS_PER_HOUR = int(os.getenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", "12"))
+#: Daily task-creation cap (account limit 50/day) — soft, in-memory, resets on
+#: restart like the hourly window (a restart only widens the allowance).
+MAX_CALLS_PER_DAY = int(os.getenv("RMI_APIPASS_MAX_CALLS_PER_DAY", "40"))
+#: Free-credit allowance + per-call cost (usage ledger / dashboard). The
+#: social-media-api lane is ~0.1 credit/post (simple endpoints).
 FREE_CREDITS = float(os.getenv("RMI_APIPASS_FREE_CREDITS", "50"))
-CREDITS_PER_CALL = float(os.getenv("RMI_APIPASS_CREDITS_PER_CALL", "0.5"))
+CREDITS_PER_CALL = float(os.getenv("RMI_APIPASS_CREDITS_PER_CALL", "0.1"))
 #: Per-request timeouts (seconds).
 CREATE_TIMEOUT_S = float(os.getenv("APIPASS_CREATE_TIMEOUT", "15"))
 POLL_TIMEOUT_S = float(os.getenv("APIPASS_POLL_TIMEOUT", "10"))
@@ -107,13 +112,14 @@ _GOPASS_PATH = "rmi/apipass/api_key"
 _ENV_KEYS = ("APIPASS_API_KEY",)
 
 # ══════════════════════════════════════════════════════════════════════════
-# RATE LIMITER — ≤ MAX_CALLS_PER_HOUR task creations (in-memory window)
+# RATE LIMITER — ≤ MAX_CALLS_PER_HOUR + ≤ MAX_CALLS_PER_DAY (in-memory window)
 # ══════════════════════════════════════════════════════════════════════════
-# In-memory by design (matches ``_posted_keys``): a restart resets the hour
-# window, which only widens the allowance — never narrows it. Task *polling*
-# is free and does not touch this limiter.
+# In-memory by design (matches ``_posted_keys``): a restart resets the windows,
+# which only widens the allowance — never narrows it. Task *polling* is free
+# and does not touch this limiter.
 
 _task_created_at: deque[float] = deque(maxlen=MAX_CALLS_PER_HOUR or 1)
+_day_created_at: deque[float] = deque(maxlen=MAX_CALLS_PER_DAY or 1)
 
 
 def _task_creates_this_hour() -> int:
@@ -121,6 +127,13 @@ def _task_creates_this_hour() -> int:
     while _task_created_at and now - _task_created_at[0] >= 3600.0:
         _task_created_at.popleft()
     return len(_task_created_at)
+
+
+def _task_creates_this_day() -> int:
+    now = time.monotonic()
+    while _day_created_at and now - _day_created_at[0] >= 86400.0:
+        _day_created_at.popleft()
+    return len(_day_created_at)
 
 
 def task_creates_remaining() -> int:
@@ -141,11 +154,19 @@ def _task_create_allowed() -> bool:
             MAX_CALLS_PER_HOUR,
         )
         return False
+    if MAX_CALLS_PER_DAY > 0 and _task_creates_this_day() >= MAX_CALLS_PER_DAY:
+        logger.warning(
+            "apipass_x:rate_limited_day used=%s max=%s",
+            _task_creates_this_day(),
+            MAX_CALLS_PER_DAY,
+        )
+        return False
     return True
 
 
 def _note_task_created() -> None:
     _task_created_at.append(time.monotonic())
+    _day_created_at.append(time.monotonic())
 
 
 def _meter_usage(endpoint: str = "", task_id: str = "") -> None:

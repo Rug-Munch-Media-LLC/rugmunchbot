@@ -360,12 +360,12 @@ def test_key_resolution_env_beats_file(monkeypatch, tmp_path):
     assert m._resolve_api_key() == "apk_env_key"
 
 
-def test_default_budget_is_six_per_hour(monkeypatch):
+def test_default_budget_is_twelve_per_hour(monkeypatch):
     monkeypatch.delenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", raising=False)
     import importlib
 
     importlib.reload(m)
-    assert m.MAX_CALLS_PER_HOUR == 6  # ≤6 task-creations/hr ≈ 3 credits/hr
+    assert m.MAX_CALLS_PER_HOUR == 12  # under the account's 15/hr cap (2026-08-29)
 
 
 def test_key_resolution_empty_when_unconfigured(monkeypatch, tmp_path):
