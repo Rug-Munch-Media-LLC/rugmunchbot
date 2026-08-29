@@ -45,16 +45,118 @@ else:
 logger = get_logger("rmi_bot.channels.tg_news")
 
 
-async def _post_formatted(bot: Any, chat_id: str, post: NewsPost, safe_send: Any) -> bool:
-    """Post a formatter result, attaching its image when one is available.
+async def _post_backend_trending_fallback(
+    ctx: ContextTypes.DEFAULT_TYPE,
+    news_chat_id: str | None,
+    main_chat_id: str | None,
+    safe_send: Any,
+) -> int:
+    """News fallback rail: post backend trending headlines when the sweep is quiet.
 
-    ``post`` is the ``NewsPost`` from ``format_news_post`` /
-    ``format_breaking_post`` (a ``str`` carrying an optional ``.image_url``).
-    With a usable http(s) image the post goes through ``send_news_photo``
-    (photo + caption; falls back to text internally). Without one the plain
-    text ``safe_send`` path (the caller's lazily-imported ``_safe_send``,
-    with retries + ``disable_web_page_preview=True``) is used.
+    Pulls ``fetch_trending_news`` (our own ``/api/v1/news/trending`` — real
+    headlines with source links, never synthesized) and posts the top stories
+    to the news channel (and the top one to main when its importance clears
+    the main gate). Dedupes through the same ``tgnews`` namespace so a story
+    can never post twice across the sweep + fallback rails. Returns the
+    number of messages posted (0..2). Fail-open: empty backend → 0.
     """
+    from rugmunchbot.channels.content import fetch_trending_news
+    from rugmunchbot.channels.formatters import format_breaking_post
+    from rugmunchbot.channels.importance import (
+        score_importance as _score_importance,
+    )
+    from rugmunchbot.channels.router import (
+        ROUTE_MAIN_MIN_IMPORTANCE,
+        ROUTE_NEWS_MIN_IMPORTANCE,
+    )
+    from rugmunchbot.channels.scheduler import (
+        _dedupe_key,
+        _remember,
+    )
+
+    if not news_chat_id and not main_chat_id:
+        return 0
+
+    items = await fetch_trending_news(limit=TG_NEWS_POST_LIMIT)
+    if not items:
+        logger.debug("tg_news:backend_fallback_empty")
+        return 0
+
+    # Score the backend headlines with the same reranker the sweep uses so
+    # the fallback respects the importance floor (fail-open: heuristic).
+    from rugmunchbot._vendor.news_ingest.models import NewsArticle
+
+    articles = [
+        NewsArticle(
+            title=str(it.get("title") or "Untitled")[:200],
+            body=str(it.get("summary") or it.get("title") or "")[:500],
+            source_channel=str(it.get("source") or "backend"),
+            source_url=str(it.get("url") or "https://rugmunch.io/news"),
+            category="crypto_news",
+        )
+        for it in items
+        if str(it.get("title") or "").strip()
+    ]
+    scored = await _score_importance(articles)
+    posted = 0
+
+    if news_chat_id:
+        # Keep stories at/above the news floor; order best-first. (The
+        # reranker may assign low scores to short backend blurbs — that is
+        # fine: the fallback posts the top of the window, never junk.)
+        keep = sorted(
+            ((a, s) for a, s in zip(articles, scored, strict=False)),
+            key=lambda pair: pair[1].importance,
+            reverse=True,
+        )
+        keep = [pair for pair in keep if pair[1].importance >= ROUTE_NEWS_MIN_IMPORTANCE]
+        fresh = [
+            a
+            for a, _s in keep[:TG_NEWS_POST_LIMIT]
+            if _remember("tgnews", _dedupe_key("tgnews", _article_to_post_dict(a)))
+        ]
+        if fresh:
+            post_items = [_article_to_post_dict(a) for a in fresh[:TG_NEWS_POST_LIMIT]]
+            commentaries = await _tg.attach_commentaries(post_items)
+            ok = await _post_formatted(
+                ctx.bot,
+                news_chat_id,
+                _news_post_for(fresh[:TG_NEWS_POST_LIMIT], commentaries=commentaries),
+                safe_send,
+            )
+            if ok:
+                posted += 1
+                logger.info(
+                    "tg_news:posted_backend_fallback count=%s",
+                    min(len(fresh), TG_NEWS_POST_LIMIT),
+                )
+
+    if main_chat_id and scored:
+        top = max(scored, key=lambda s: s.importance)
+        if top.importance >= ROUTE_MAIN_MIN_IMPORTANCE:
+            top_article = articles[scored.index(top)]
+            post = _article_to_post_dict(top_article)
+            if _remember("tgmain", _dedupe_key("tgmain", post)):
+                formatted = (
+                    format_breaking_post(post)
+                    if _tg.is_breaking_article(top_article)
+                    else format_feature_post(post)
+                )
+                from rugmunchbot.channels.formatters._primitives import (
+                    enforce_main_link_contract,
+                )
+
+                formatted = enforce_main_link_contract(formatted, post)
+                if formatted is not None:
+                    ok = await _post_formatted(ctx.bot, main_chat_id, formatted, safe_send)
+                    if ok:
+                        posted += 1
+                        logger.info("tg_news:posted_backend_main title=%s", top_article.title[:80])
+    logger.info("tg_news:backend_fallback_posted count=%s", posted)
+    return posted
+
+
+async def _post_formatted(bot: Any, chat_id: str, post: NewsPost, safe_send: Any) -> bool:
     image_url = getattr(post, "image_url", "") or ""
     if image_url:
         return await send_news_photo(bot, chat_id, caption=post, photo_url=image_url)
@@ -146,8 +248,14 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     articles = await _tg.sweep_telegram_news()
     if not articles:
+        # 2026-08-29 news-content fix: the Telegram sweep is frequently
+        # empty (headless client unavailable, junk channels, cooldowns), so
+        # @rmicryptonews went silent. Fall back to the backend trending
+        # news rail (``fetch_trending_news`` — our own /api/v1/news/trending)
+        # so the news channel still posts top stories. Fail-open: if that is
+        # empty too, post nothing and let the next tick try again.
         logger.debug("tg_news:no_fresh_articles")
-        return 0
+        return await _post_backend_trending_fallback(ctx, news_chat_id, main_chat_id, _safe_send)
 
     counts = await _tg.persist_articles(articles)
     logger.info(

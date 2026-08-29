@@ -215,12 +215,33 @@ async def resolve_channel_sources(client: Any | None = None) -> list[dict[str, A
             sources.sort(key=lambda s: _type_rank(str(s.get("channel_category") or "other")))
             sources = sources[: _tg.TG_NEWS_MAX_CHANNELS]
             if sources:
+                # 2026-08-29 news-content fix: MERGE the curated explicit
+                # list (``channel_sources()`` — the 64 high-signal crypto
+                # outlets) into the discovered set instead of replacing it.
+                # The account's own followed channels are often regional /
+                # personal junk (e.g. a Khmer Times regional feed), so a
+                # discovery-only sweep starved @rmicryptonews. Curated
+                # outlets (cointelegraph/coindesk/decrypt/…) are always
+                # swept; dedupe keeps discovered-only channels that are not
+                # already curated.
+                by_handle: dict[str, dict[str, Any]] = {
+                    str(s.get("username") or "").strip().lstrip("@").lower(): s for s in sources
+                }
+                for curated in channel_sources():
+                    handle = str(curated.get("username") or "").strip().lstrip("@").lower()
+                    if handle and handle not in by_handle:
+                        by_handle[handle] = curated
+                merged = list(by_handle.values())
+                merged.sort(key=lambda s: _type_rank(str(s.get("channel_category") or "other")))
+                merged = merged[: _tg.TG_NEWS_MAX_CHANNELS]
                 logger.info(
-                    "tg_news:using_discovered_channels count=%s by_category=%s",
+                    "tg_news:using_discovered_plus_curated count=%s discovered=%s curated=%s by_category=%s",
+                    len(merged),
                     len(sources),
+                    len(channel_sources()),
                     counts,
                 )
-                return sources
+                return merged
             logger.debug(
                 "tg_news:auto_discover_no_news_channels fallback_to_explicit counts=%s", counts
             )

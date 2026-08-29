@@ -79,7 +79,10 @@ def _env_interval_minutes(name: str, default: int) -> int:
         return default
 
 
-_TG_NEWS_INTERVAL_MINUTES = _env_interval_minutes("RMI_CHANNEL_TG_NEWS_INTERVAL_MINUTES", 20)
+#: Scheduled tg_news sweep+post cadence (2026-08-29 news-content fix: the
+#: default dropped from 30 → 20 → 15 min so @rmicryptonews posts top stories
+#: ~4x/hour instead of ~2x; env-overridable as before).
+_TG_NEWS_INTERVAL_MINUTES = _env_interval_minutes("RMI_CHANNEL_TG_NEWS_INTERVAL_MINUTES", 15)
 
 
 def _chat_id(channel: str) -> str | None:

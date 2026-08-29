@@ -7,12 +7,11 @@ Two serving tiers on Talos (llama.cpp systemd services):
 
 * ``deep``  — Qwen3-Reranker-4B Q6_K  on 127.0.0.1:8003 (background,
   ingestion scoring, graph enrichment — quality first, latency tolerant)
-* ``live``  — Qwen3-Reranker-0.6B     on 127.0.0.1:8008 (consumer-facing
-  search/news — latency first). Cross-encoders need no shared vector space,
-  so the live tier pairs safely with 4B-embedded corpora.
+* ``live``  — Qwen3-Reranker-4B     on 127.0.0.1:8003 (consumer-facing
+  search/news — latency tolerant). The 0.6B fast lane was retired 2026-08-29.
 
-Live strain ladder: 0.6B strained/unreachable → one capped retry on the 4B
-→ fail-open (caller keeps pre-rerank order = BM25/semantic ranking).
+Live tier = 4B single-shot (the 0.6B lane was retired 2026-08-29). Fail-open:
+caller keeps pre-rerank order = BM25/semantic ranking.
 A per-endpoint strain breaker (3 failures / 2min window) stops us hammering
 a server that is already under load.
 
@@ -37,8 +36,10 @@ log = get_logger(__name__)
 # ── Tier endpoints ──────────────────────────────────────────────────────────
 # deep: Qwen3 Reranker 4B Q6_K via llama.cpp (systemd qwen-reranker.service)
 RERANK_URL: str = os.getenv("RERANK_URL", "http://127.0.0.1:8003")
-# live: Qwen3 Reranker 0.6B fast tier (systemd qwen-reranker-fast.service)
-RERANK_URL_LIVE: str = os.getenv("RERANK_URL_FAST", "http://127.0.0.1:8008")
+# 2026-08-29 consolidation: the 0.6B consumer rerank lane (:8008) is RETIRED
+# (torched — llama-speed-rerank stopped + model deleted). The live tier now
+# routes to the qwen3-reranker-4B on :8003, same as deep.
+RERANK_URL_LIVE: str = os.getenv("RERANK_URL_FAST", "http://127.0.0.1:8003")
 
 # ── Live-path budgets (Netcup RS: CPU-only, protect the vCPU budget) ───────
 LIVE_CANDIDATE_CAP: int = int(os.getenv("RERANK_LIVE_CANDIDATE_CAP", "40"))
@@ -234,8 +235,8 @@ async def rerank_results(
         query: The user query string.
         documents: Candidate document texts (same order as retrieval).
         top_n: Maximum number of ranked results to return.
-        tier: ``"live"`` (0.6B fast path, candidate-capped, strain ladder
-            into the 4B) or ``"deep"`` (4B only — background quality path).
+        tier: ``"live"`` (4B single-shot, candidate-capped) or ``"deep"``
+            (4B only — background quality path). Both route to :8003.
 
     Returns:
         List of ``{"index": int, "relevance_score": float}`` dicts ordered
@@ -252,25 +253,15 @@ async def rerank_results(
             "rag.rerank.qwen3_live",
             {
                 "openinference.span.kind": "RERANKER",
-                "openinference.embedding.model": "Qwen3-Reranker-0.6B",
+                "openinference.embedding.model": "Qwen3-Reranker-4B-Q6_K",
                 "rerank.input_count": len(capped),
                 "rerank.top_n": top_n,
                 "rerank.tier": "live",
             },
         ) as span:
-            # 1st rung: 0.6B fast server.
-            kept = await _post_rerank(RERANK_URL_LIVE, query, capped, top_n, LIVE_TIMEOUT_S, "0.6B")
-            if kept is not None:
-                span.set_attribute("rerank.served_by", "0.6B")
-                span.set_attribute("rerank.result_count", len(kept))
-                span.set_attribute("rerank.vertical", detect_vertical(query) or "default")
-                return kept
-            # 2nd rung: 4B deep server with a tighter candidate cap (it is
-            # slower; keep its budget bounded even under live latency).
-            kept = await _post_rerank(
-                RERANK_URL, query, capped[:DEEP_FALLBACK_CAP], top_n, DEEP_TIMEOUT_S, "4B-fallback"
-            )
-            span.set_attribute("rerank.served_by", "4B-fallback" if kept is not None else "none")
+            # 2026-08-29: 0.6B lane retired — live routes straight to 4B.
+            kept = await _post_rerank(RERANK_URL_LIVE, query, capped, top_n, LIVE_TIMEOUT_S, "4B")
+            span.set_attribute("rerank.served_by", "4B" if kept is not None else "none")
             span.set_attribute("rerank.result_count", len(kept or []))
             span.set_attribute("rerank.vertical", detect_vertical(query) or "default")
             return kept or []

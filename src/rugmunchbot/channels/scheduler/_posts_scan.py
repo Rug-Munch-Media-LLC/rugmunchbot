@@ -7,6 +7,7 @@ from rugmunchbot.channels._scan_commentary import attach_scan_commentary
 from rugmunchbot.channels.content import (
     fetch_alpha_content,
     fetch_scan_notes,
+    fetch_suspect_scan_notes,
 )
 from rugmunchbot.channels.formatters import (
     format_alpha_post,
@@ -60,11 +61,17 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     reasons (honeypot / bundle / LP removed / flagged deployer) + risk score
     + token + chain + scan link (rugmunch.io/scanner), each card topped with
     a bounded witty one-liner (``attach_scan_commentary``, fail-open to no
-    line). Items scoring ≥0.7 ALSO post solo to @cryptorugmuncher so the
-    most notable token bangers reach the broader audience. Fail-open: an
-    empty pool (no scans today / backend down) posts nothing, and a reranker
-    outage keeps the channel flowing with the heuristic fallback (full
-    window) exactly like the alerts job.
+    line). When the backend rails are quiet, the 2026-08-29 churn rail
+    (``fetch_suspect_scan_notes``) runs the full unified v2 scanner on the
+    riskiest trending tokens so @rmiscans churns real suspicious-token
+    content — each card carries the FULL RiskReport block (deployer, top-25,
+    first-buyer, fresh%, CEX-funded%, bundle/cluster, 30-factor,
+    determination) + links to the bot / website / other channels. Items
+    scoring ≥0.7 ALSO post solo to @cryptorugmuncher so the most notable
+    token bangers reach the broader audience. Fail-open: an empty pool (no
+    scans today / backend down) posts nothing, and a reranker outage keeps
+    the channel flowing with the heuristic fallback (full window) exactly
+    like the alerts job.
     """
     started = time.perf_counter()
     chat_id = _chat_id("scans")
@@ -81,6 +88,19 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         )
         return 0
     scans = await fetch_scan_notes(SCAN_CHANNEL_LIMIT)
+    # 2026-08-29 churn rail: the backend launch-alert + scan-history rails
+    # are frequently empty (both returned [] in live probes), so the scans
+    # channel would post nothing. Supplement the pool with fresh FULL scans
+    # of the riskiest trending tokens (unified v2 scanner, fail-open) so
+    # @rmiscans churns real suspicious-token content every tick.
+    if len(scans) < SCAN_CHANNEL_TICK_LIMIT:
+        churned = await fetch_suspect_scan_notes(limit=SCAN_CHANNEL_TICK_LIMIT)
+        if churned:
+            seen = {str(i.get("address") or "").strip().lower() for i in scans}
+            scans = [
+                *scans,
+                *[c for c in churned if str(c.get("address") or "").lower() not in seen],
+            ]
     fresh = [item for item in scans if _remember("scans", _dedupe_key("scans", item))]
     if not fresh:
         logger.info(
@@ -97,6 +117,20 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     main_items, keep, reranker_down = await _score_and_partition(
         fresh, category="news", source="scanner"
     )
+    # 2026-08-29 churn bypass: sus-token cards from the churn rail
+    # (``fetch_suspect_scan_notes``) are relevant BY CONSTRUCTION — the
+    # scans channel exists to surface suspicious tokens with full scan
+    # output, and the trend-risk sketch already flagged them. The reranker's
+    # news-importance floor (0.4) was built for headline value and drops
+    # sketch-only cards, so churn items post even below the floor (still
+    # deduped per token + bounded by the tick cap). Backend rail items keep
+    # the reranker gate.
+    churn_flagged = {str(i.get("address") or "").strip().lower() for i in scans if i.get("churned")}
+    keep_set = {str(i.get("address") or "").strip().lower() for i in keep}
+    for item in fresh:
+        addr = str(item.get("address") or "").strip().lower()
+        if addr in churn_flagged and addr not in keep_set:
+            keep.append(item)
     # Post at most SCAN_CHANNEL_TICK_LIMIT cards per tick: the reranker gate
     # (skip <0.4) + per-token dedupe are the volume controls; the tick cap
     # just spreads the day's notable scans across the day (~15-20/day at the

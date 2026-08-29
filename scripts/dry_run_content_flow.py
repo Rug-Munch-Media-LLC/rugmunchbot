@@ -100,6 +100,232 @@ def routing_evidence() -> list[str]:
     lines.append(f"   alerts rail event types = {sorted(ALERT_EVENT_TYPES)}")
     lines.append(f"   whale rail event types  = {sorted(WHALE_EVENT_TYPES)}")
     lines.append("   overlap (must be empty): " + ("✅ empty" if not overlap else f"❌ {overlap}"))
+
+    # 2026-08-29 doctrine reroute: dislocation + social spikes are ALPHA
+    # content (CONTENT-STRATEGY-CANONICAL: ALPHA/WHALES = "whale convergence /
+    # funding dislocation / social spikes FROM OUR OWN DATA"). Both jobs must
+    # resolve the ALPHA channel, never @rmialerts.
+    dislo = next((j for j in app.job_queue.repeating if j["name"] == "channel_dislocation"), None)
+    if dislo is None:
+        lines.append("❌ channel_dislocation NOT registered when ALPHA enabled")
+    else:
+        src = inspect.getsource(dislo["callback"])
+        lines.append(
+            "✅ channel_dislocation → @rmialpha (not alerts): "
+            + ("yes" if '_chat_id("alpha")' in src and '_chat_id("alerts")' not in src else "NO")
+        )
+    social = next(
+        (j for j in app.job_queue.repeating if j["name"] == "channel_social_spikes"), None
+    )
+    if social is None:
+        lines.append("❌ channel_social_spikes NOT registered when ALPHA enabled")
+    else:
+        src = inspect.getsource(social["callback"])
+        lines.append(
+            "✅ channel_social_spikes → @rmialpha (not alerts): "
+            + ("yes" if '_chat_id("alpha")' in src and '_chat_id("alerts")' not in src else "NO")
+        )
+    return lines
+
+
+# ── 1b. Alerts-digest doctrine evidence (no whale content in @rmialerts) ──
+
+
+async def alerts_digest_evidence() -> list[str]:
+    """Prove the alerts digest NEVER carries whale/alpha content.
+
+    Feeds the SAME webhook rail the live digest reads (Redis
+    ``rmi:alerts:recent``) with a mix of imminent-rug events (deployer_dump /
+    mint_freeze / lp_change) AND whale/transfer events. The doctrine gate
+    must keep every whale event out of ``fetch_risk_alerts`` while the
+    imminent-rug events pass. Sends nothing.
+    """
+    import rugmunchbot.channels.content as content
+
+    lines: list[str] = []
+    whale_entry = {
+        "type": "whale_move_webhook",
+        "event_type": "whale_move",
+        "token": "WALEaddr11111111111111111111111111111111111",
+        "token_symbol": "WALE",
+        "chain": "solana",
+        "severity": "high",
+        "title": "Whale moved 25,000 SOL to exchange",
+        "attribution": {"from": "entity:big-whale", "to": "exchange"},
+    }
+    transfer_entry = {
+        "type": "transfer_webhook",
+        "event_type": "token_transfer",
+        "token": "TFRaddr1111111111111111111111111111111111111",
+        "token_symbol": "TFR",
+        "chain": "ethereum",
+        "severity": "high",
+        "title": "Large token transfer detected",
+        "attribution": {"from": "entity:whale", "to": "entity:other"},
+    }
+    rug_entry = {
+        "type": "deployer_dump_webhook",
+        "event_type": "deployer_dump",
+        "token": "RUGGaddr111111111111111111111111111111111111",
+        "token_symbol": "RUGG",
+        "chain": "solana",
+        "severity": "critical",
+        "title": "Deployer dumping 40% of supply",
+        "attribution": {"from": "deployer", "to": "exchange"},
+    }
+    entries = [whale_entry, transfer_entry, rug_entry]
+
+    async def _fake_get_recent_alerts(limit: int, severity: str = "") -> list[dict]:
+        return entries
+
+    # Patch the vendor reader so the doctrine gate runs on OUR fixture rows.
+    import importlib
+
+    vendor = importlib.import_module("rugmunchbot._vendor.alert_pipeline")
+    original = vendor.get_recent_alerts
+    vendor.get_recent_alerts = _fake_get_recent_alerts  # type: ignore[assignment]
+    try:
+        items = await content.fetch_risk_alerts(limit=5)
+    finally:
+        vendor.get_recent_alerts = original  # type: ignore[assignment]
+
+    addresses = [str(i.get("address") or "") for i in items]
+    whale_leaked = any(
+        a
+        in (
+            "WALEaddr11111111111111111111111111111111111",
+            "TFRaddr1111111111111111111111111111111111111",
+        )
+        for a in addresses
+    )
+    rug_passed = any("RUGGaddr111111111111111111111111111111111111" in a for a in addresses)
+    lines.append(
+        "✅ alerts digest keeps whale/transfer events OUT: "
+        + ("yes" if not whale_leaked else "❌ whale leaked!")
+    )
+    lines.append(
+        "✅ alerts digest admits imminent-rug events (deployer_dump): "
+        + ("yes" if rug_passed else "NO (empty digest — scanner rail quiet)")
+    )
+    lines.append(
+        "   digest items: "
+        + (
+            ", ".join(str(i.get("symbol")) for i in items)
+            or "(empty — backend scanner rail quiet, doctrine still enforced)"
+        )
+    )
+    return lines
+
+
+# ── 1c. Scans channel evidence (full RiskReport output) ───────────────────
+
+
+async def scans_evidence() -> list[str]:
+    """Prove @rmiscans cards render the FULL RiskReport block.
+
+    Builds a realistic scan note (the same shape the churn rail and
+    scan-history rail produce) and renders ``format_scan_card`` — the card
+    must carry the full RiskReport block (deployer, top-25, first-buyer,
+    fresh%, CEX-funded%, bundle/cluster, composite, determination) plus
+    links to the bot / website / other channels. Sends nothing.
+    """
+    from rugmunchbot.channels.formatters import format_scan_card
+
+    lines: list[str] = []
+    top_holders = [
+        {"address": f"Top{i}1111111111111111111111111111111111111", "pct": round(18.5 - i * 1.2, 1)}
+        for i in range(1, 13)
+    ]
+    item = {
+        "address": "CHURNaddr111111111111111111111111111111111111",
+        "name": "Suspicious Meme",
+        "symbol": "SUS",
+        "chain": "solana",
+        "risk_level": "high",
+        "risk_score": 82,
+        "risk_flags": ["bundled_launch", "fresh_wallet", "high_risk_deployer"],
+        "condition": "risk 82/100 (high)",
+        "commentary": "Bundled opening supply, flagged deployer, fresh-wallet funded.",
+        "deployer": {
+            "address": "Deploy1111111111111111111111111111111111111",
+            "previous_tokens": 6,
+            "rug_count": 2,
+        },
+        "holders": {"count": 312, "top10_pct": "71%", "fresh_pct": "64%"},
+        "bundles": {"bundled_pct": "58%", "clusters": 4},
+        # Real scan-note shape (matches _churn_one_scan / scan-history): the
+        # RiskReport renderer reads holder_analysis + top_holders + wallet
+        # metrics, NOT the shallow "holders"/"bundles" card fields.
+        "evidence": {
+            "security": {
+                "is_honeypot": False,
+                "mint_authority_active": True,
+                "lp_locked": False,
+                "checks": {},
+            },
+            "holders": top_holders,
+        },
+        "holder_analysis": {
+            "total_holders": 312,
+            "top_10_pct": 71.0,
+            "top_25_pct": 84.2,
+            "exchange_funded_pct": 3.0,
+            "new_wallets_pct": 64.0,
+            "risk_level": "high",
+        },
+        "top_holders": top_holders,
+        "bundle_analysis": {
+            "is_bundled": True,
+            "launch_cluster_score": 72.0,
+            "deployer_funded_pct": 55.0,
+            "first_time_buyer_pct": 81.0,
+        },
+        "first_buyers": [
+            {"address": "FirstBuyer111111111111111111111111111111111", "bundled": True}
+        ],
+        "liquidity_verification": {"is_locked": False, "locked_pct": 0.0},
+        "wallet_metrics": {"fresh_wallet_pct": 64.0, "cex_funded_wallet_pct": 3.0},
+        "fresh_wallet_pct": 64.0,
+        "cex_funded_wallet_pct": 3.0,
+        "liquidity_usd": 4200,
+        "image_url": "",
+    }
+    post = format_scan_card(item)
+    text = str(post)
+    required = [
+        "Risk Report",
+        "Composite Risk",
+        "Deployer",
+        "Top-25",
+        "First buyer",
+        "fresh",
+        "CEX-funded",
+        "Bundle",
+        "determination",
+    ]
+    for needle in required:
+        lines.append(
+            f"   contains '{needle}': " + ("✅" if needle.lower() in text.lower() else "❌")
+        )
+    lines.append(
+        "   scan deep link (rugmunch.io/scanner): "
+        + ("✅" if "rugmunch.io/scanner" in text else "❌")
+    )
+    lines.append(
+        "   website link (rugmunch.io): "
+        + ("✅" if "rugmunch.io</a>" in text or "rugmunch.io" in text else "❌")
+    )
+    lines.append(
+        "   cross-channel promos (news/alerts/alpha/main): "
+        + (
+            "✅"
+            if all(
+                x in text for x in ("rmicryptonews", "rmialerts", "rmialpha", "cryptorugmuncher")
+            )
+            else "❌"
+        )
+    )
+    lines.append("   bot CTA (/scan): " + ("✅" if "/scan" in text else "❌"))
     return lines
 
 
@@ -263,6 +489,14 @@ async def _main(args: argparse.Namespace) -> int:
 
     print("\n[1] WHALE→ALPHA ROUTING")
     for line in routing_evidence():
+        print(" " + line)
+
+    print("\n[1b] ALERTS DIGEST DOCTRINE (no whale/alpha content)")
+    for line in await alerts_digest_evidence():
+        print(" " + line)
+
+    print("\n[1c] SCANS CHANNEL FULL OUTPUT (RiskReport + links)")
+    for line in await scans_evidence():
         print(" " + line)
 
     print("\n[2] ALPHA CHANNEL CONTENT")

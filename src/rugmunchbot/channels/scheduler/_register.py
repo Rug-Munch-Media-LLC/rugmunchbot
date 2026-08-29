@@ -107,15 +107,19 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
     #         name="channel_news",
     #     )
     # Funding-dislocation monitor (win 32): EXTREME cross-venue basis finds.
-    if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
+    # 2026-08-29 doctrine reroute: funding dislocation is ALPHA content
+    # (data-driven market signal — CONTENT-STRATEGY-CANONICAL lists it under
+    # ALPHA/WHALES), NOT a rug/exploit/scam detection. It posts to @rmialpha;
+    # @rmialerts carries imminent-rug/exploit/scam detections ONLY.
+    if ALPHA_CHANNEL_ENABLED and _chat_id("alpha") and hasattr(job_queue, "run_repeating"):
 
         async def _dislo_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             try:
                 text = await build_dislocation_post()
-                if text and _chat_id("alerts"):
+                if text and _chat_id("alpha"):
                     from rugmunchbot.channels.scheduler._core import _safe_send
 
-                    await _safe_send(ctx.bot, _chat_id("alerts"), text)
+                    await _safe_send(ctx.bot, _chat_id("alpha"), text)
             except Exception as exc:
                 logger.warning("dislocation_tick failed: %s", str(exc)[:120])
 
@@ -264,15 +268,19 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
         )
 
     # Social-velocity spike monitor (win 36): narrative formation detection.
-    if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
+    # 2026-08-29 doctrine reroute: social velocity is ALPHA content
+    # (data-driven market signal — CONTENT-STRATEGY-CANONICAL lists it under
+    # ALPHA/WHALES), NOT a rug/exploit/scam detection. It posts to @rmialpha;
+    # @rmialerts carries imminent-rug/exploit/scam detections ONLY.
+    if ALPHA_CHANNEL_ENABLED and _chat_id("alpha") and hasattr(job_queue, "run_repeating"):
 
         async def _social_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             try:
                 text = await build_social_spike_post()
-                if text and _chat_id("alerts"):
+                if text and _chat_id("alpha"):
                     from rugmunchbot.channels.scheduler._core import _safe_send
 
-                    await _safe_send(ctx.bot, _chat_id("alerts"), text)
+                    await _safe_send(ctx.bot, _chat_id("alpha"), text)
             except Exception as exc:
                 logger.warning("social_spike_tick failed: %s", str(exc)[:120])
 

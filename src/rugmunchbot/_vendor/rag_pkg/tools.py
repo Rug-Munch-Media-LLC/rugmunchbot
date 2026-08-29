@@ -101,7 +101,12 @@ async def get_token_price(token: str) -> dict[str, Any]:
                         "chain": pair.get("chainId", ""),
                         "source": "DexScreener",
                     }
-                return {"token": token, "price_usd": None, "source": "DexScreener", "error": "no pair"}
+                return {
+                    "token": token,
+                    "price_usd": None,
+                    "source": "DexScreener",
+                    "error": "no pair",
+                }
 
         # Ticker or id → CoinGecko simple price.
         coin_id = _TICKER_COINGECKO.get(token.upper(), token.lower())
@@ -119,7 +124,14 @@ async def get_token_price(token: str) -> dict[str, Any]:
                     "source": "CoinGecko",
                 }
         return {"token": token, "price_usd": None, "source": "CoinGecko", "error": "unknown_id"}
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException, ValueError) as exc:
+    except (
+        ConnectionError,
+        OSError,
+        TimeoutError,
+        httpx.HTTPError,
+        httpx.TimeoutException,
+        ValueError,
+    ) as exc:
         log.debug("tool_get_token_price_failed err=%s", exc)
         return {"token": token, "price_usd": None, "source": "CoinGecko", "error": "unavailable"}
 
@@ -146,11 +158,32 @@ async def get_gas_price(chain: str = "ethereum") -> dict[str, Any]:
             result = r.json().get("result")
             if result:
                 wei = int(result, 16)
-                return {"chain": chain, "gas_price_gwei": round(wei / 1e9, 2), "source": "public_rpc"}
-        return {"chain": chain, "gas_price_gwei": None, "source": "public_rpc", "error": "no_result"}
-    except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException, ValueError) as exc:
+                return {
+                    "chain": chain,
+                    "gas_price_gwei": round(wei / 1e9, 2),
+                    "source": "public_rpc",
+                }
+        return {
+            "chain": chain,
+            "gas_price_gwei": None,
+            "source": "public_rpc",
+            "error": "no_result",
+        }
+    except (
+        ConnectionError,
+        OSError,
+        TimeoutError,
+        httpx.HTTPError,
+        httpx.TimeoutException,
+        ValueError,
+    ) as exc:
         log.debug("tool_get_gas_price_failed err=%s", exc)
-        return {"chain": chain, "gas_price_gwei": None, "source": "public_rpc", "error": "unavailable"}
+        return {
+            "chain": chain,
+            "gas_price_gwei": None,
+            "source": "public_rpc",
+            "error": "unavailable",
+        }
 
 
 async def get_wallet_balance(query: str, chain: str | None = None) -> dict[str, Any]:
@@ -257,7 +290,7 @@ async def get_news(query: str, top_k: int = _NEWS_TOP_K) -> dict[str, Any]:
             top_k=top_k,
             candidate_k=_NEWS_CANDIDATE_K,
             rerank=True,
-            rerank_tier="live",  # consumer-facing: 0.6B fast tier w/ strain ladder
+            rerank_tier="live",  # consumer-facing: 4B single-shot (0.6B retired)
         )
         # Dedup by canonical URL — a story clustered from N sources (or a
         # multi-chunk doc) can surface several hits for the same article;
@@ -285,7 +318,13 @@ async def get_news(query: str, top_k: int = _NEWS_TOP_K) -> dict[str, Any]:
         return {"query": query, "count": len(results), "results": results, "source": "RAG news_v2"}
     except Exception as exc:
         log.debug("tool_get_news_failed err=%s", exc)
-        return {"query": query, "count": 0, "results": [], "source": "RAG news_v2", "error": "unavailable"}
+        return {
+            "query": query,
+            "count": 0,
+            "results": [],
+            "source": "RAG news_v2",
+            "error": "unavailable",
+        }
 
 
 __all__ = [

@@ -9,7 +9,7 @@ from __future__ import annotations
 DIM_MODELS: dict[int, str] = {
     2560: "qwen3-embedding-4b (native, local :8004 / OpenRouter same-model)",
     2048: "nvidia/nemotron-3-embed-1b:free (OpenRouter API)",
-    1024: "qwen3-embedding-0.6b (fast lane :8007) or qwen3-4b MRL-truncated legacy",
+    1024: "qwen3-embedding-4b MRL-truncated legacy (0.6b fast lane retired 2026-08-29)",
 }
 
 

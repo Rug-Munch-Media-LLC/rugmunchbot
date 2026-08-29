@@ -257,7 +257,9 @@ class RelevanceScorer:
 
             # Keyword overlap
             content_terms = set(re.findall(r"\w+", content.lower())) if content else set()
-            overlap = len(query_terms & content_terms) / max(len(query_terms), 1) if query_terms else 0.0
+            overlap = (
+                len(query_terms & content_terms) / max(len(query_terms), 1) if query_terms else 0.0
+            )
 
             # Position bonus: earliest positions get +20% max, linearly decaying
             position_bonus = max(0.0, 1.0 - (rank / max(len(hits) * 2, 1)))
@@ -581,7 +583,9 @@ class HybridRetriever:
         )
     """
 
-    def __init__(self, expander: QueryExpander | None = None, scorer: RelevanceScorer | None = None) -> None:
+    def __init__(
+        self, expander: QueryExpander | None = None, scorer: RelevanceScorer | None = None
+    ) -> None:
         self._expander = expander or QueryExpander()
         self._scorer = scorer or RelevanceScorer()
 
@@ -663,7 +667,9 @@ class HybridRetriever:
             # undo the cross-encoder's work. Only the legacy path that did not
             # rerank (single hit, reranker unreachable, or no engine) falls
             # through to the optional second pass below.
-            engine_reranked = any((h.metadata or {}).get("rerank_score") is not None for h in scored)
+            engine_reranked = any(
+                (h.metadata or {}).get("rerank_score") is not None for h in scored
+            )
             if engine_reranked:
                 scored.sort(key=lambda s: -float((s.metadata or {}).get("rerank_score", 0.0)))
                 for h in scored:
@@ -734,8 +740,9 @@ class HybridRetriever:
         Reorders hits by Qwen3 relevance (updating ``final_score``) and
         truncates to *top_n*. Fail-open: on any error or empty response the
         original ordering is returned unchanged. ``tier="live"`` routes
-        through the 0.6B fast server with a candidate cap (consumer paths);
-        ``"deep"`` uses the 4B server (background quality path).
+        through the 4B server with a candidate cap (consumer paths — the
+        0.6B fast lane was retired 2026-08-29); ``"deep"`` uses the 4B server
+        (background quality path). Both tiers hit :8003.
         """
         if len(scored) < 2:
             return scored

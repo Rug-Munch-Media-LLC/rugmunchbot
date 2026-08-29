@@ -177,3 +177,149 @@ def test_main_post_quality_contract():
     assert post.image_url == "https://example.com/bridge.jpg"  # image attached
     assert "Why it matters" in str(post)  # commentary present
     assert "rugmunch.io/news" in str(post)  # site link present
+
+
+def test_dislocation_and_social_spikes_route_to_alpha(monkeypatch):
+    """2026-08-29 doctrine: funding dislocation + social spikes are ALPHA
+    content (CONTENT-STRATEGY-CANONICAL), never @rmialerts."""
+    from rugmunchbot.channels.scheduler import _register as reg
+
+    monkeypatch.setattr(
+        reg, "_chat_id", lambda ch: {"alpha": "-100alpha", "alerts": "-100alerts"}.get(ch)
+    )
+    monkeypatch.setattr(reg, "CHANNEL_JOBS_ENABLED", True)
+    monkeypatch.setattr(reg, "ALERTS_CHANNEL_ENABLED", True)
+    monkeypatch.setattr(reg, "ALPHA_CHANNEL_ENABLED", True)
+    monkeypatch.setattr(reg, "SCAN_CHANNEL_ENABLED", False)
+    monkeypatch.setattr(reg, "TG_NEWS_ENABLED", False)
+    monkeypatch.setattr(reg, "SCAM_WATCH_ENABLED", False)
+    monkeypatch.setattr(reg, "PERSONAL_CHANNEL_ENABLED", False)
+    monkeypatch.setattr(reg, "DAILY_MARKET_SUMMARY_ENABLED", False)
+    monkeypatch.setattr(reg, "UPDATES_CHANNEL_ENABLED", False)
+    monkeypatch.delenv("RMI_RAG_POSTS_ENABLED", raising=False)
+    monkeypatch.delenv("RMI_DAILY_QUALITY_ENABLED", raising=False)
+    monkeypatch.delenv("RMI_SHILL_WATCH_ENABLED", raising=False)
+
+    app = _App()
+    reg.register_channel_jobs(app)
+    names = {j["name"] for j in app.job_queue.repeating}
+
+    dislo = next((j for j in app.job_queue.repeating if j["name"] == "channel_dislocation"), None)
+    assert dislo is not None, "dislocation job must register when alpha enabled"
+    src = dislo["callback"].__code__.co_code  # bytecode, but we check source below
+    import inspect
+
+    source = inspect.getsource(dislo["callback"])
+    assert '_chat_id("alpha")' in source
+    assert '_chat_id("alerts")' not in source
+
+    social = next(
+        (j for j in app.job_queue.repeating if j["name"] == "channel_social_spikes"), None
+    )
+    assert social is not None, "social spikes job must register when alpha enabled"
+    source = inspect.getsource(social["callback"])
+    assert '_chat_id("alpha")' in source
+    assert '_chat_id("alerts")' not in source
+
+    # The alerts channel digest job still registers (scanner risk digest).
+    assert "channel_alerts" in names
+
+
+def test_alerts_digest_excludes_whale_event_types(monkeypatch):
+    """The alerts digest rail (fetch_risk_alerts) admits imminent-rug event
+    types only — whale_move / token_transfer / transfer never reach it."""
+    import rugmunchbot.channels.content as content
+
+    from rugmunchbot.channels.content import ALERT_EVENT_TYPES, WHALE_EVENT_TYPES
+
+    assert not (ALERT_EVENT_TYPES & WHALE_EVENT_TYPES)
+
+    entries = [
+        {
+            "type": "whale_move_webhook",
+            "event_type": "whale_move",
+            "token": "WALE",
+            "token_symbol": "WALE",
+            "chain": "solana",
+            "severity": "high",
+            "title": "Whale moved",
+            "attribution": {},
+        },
+        {
+            "type": "deployer_dump_webhook",
+            "event_type": "deployer_dump",
+            "token": "RUGG",
+            "token_symbol": "RUGG",
+            "chain": "solana",
+            "severity": "critical",
+            "title": "Deployer dumping",
+            "attribution": {},
+        },
+    ]
+
+    async def _fake_get_recent_alerts(limit, severity=""):
+        return entries
+
+    import rugmunchbot._vendor.alert_pipeline as vendor
+
+    monkeypatch.setattr(vendor, "get_recent_alerts", _fake_get_recent_alerts)
+    # The webhook fetch is invoked through content._fetch_pushed_webhook_alerts
+    # which imports get_recent_alerts at call time — patch the module directly.
+    import asyncio
+
+    items = asyncio.run(content.fetch_risk_alerts(limit=5))
+    # Whale event must NOT appear; the deployer_dump event MAY (scanner rail
+    # quiet → only the webhook rail contributes, and deployer_dump passes).
+    whales = [i for i in items if i.get("symbol") == "WALE"]
+    assert not whales, "whale_move must never reach the alerts digest"
+
+
+def test_scan_churn_fallback_note_carries_sketch_flags():
+    """The churn rail's fallback note (full scan down) still carries real
+    trend-risk sketch flags so @rmiscans churns suspicious tokens."""
+    from rugmunchbot.channels.content import _candidate_fallback_note
+
+    n = _candidate_fallback_note(
+        {
+            "address": "SketchAddr11111111111111111111111111111111",
+            "symbol": "SUS",
+            "name": "Sus Token",
+            "chain": "solana",
+            "risk_flags": ["thin_liquidity", "fresh_launch"],
+            "sketch_score": 59.6,
+        }
+    )
+    assert n is not None
+    assert n["churned"] is True
+    assert n["risk_flags"] == ["thin_liquidity", "fresh_launch"]
+    assert n["address"] == "SketchAddr11111111111111111111111111111111"
+
+
+def test_scan_churn_notes_are_flagged_churned(monkeypatch):
+    """fetch_suspect_scan_notes returns notes marked churned=True."""
+    from rugmunchbot.channels import content
+
+    async def _fake_churn_one(candidate):
+        return {"address": "X", "symbol": "S", "churned": True, "risk_flags": ["x"]}
+
+    async def _fake_trend(chain="all", limit=4, rank="risk"):
+        from rugmunchbot.tools.registry import ToolResult
+
+        return ToolResult(
+            tool="trend_by_chain",
+            ok=True,
+            data={
+                "tokens": [{"address": "X", "symbol": "S", "chain": "solana", "risk_flags": ["x"]}]
+            },
+        )
+
+    monkeypatch.setattr(content, "_churn_one_scan", _fake_churn_one)
+    # fetch_suspect_scan_notes imports trend_by_chain locally from
+    # rugmunchbot.tools.trend_algo — patch it at the module it imports from.
+    import rugmunchbot.tools.trend_algo as trend_algo
+
+    monkeypatch.setattr(trend_algo, "trend_by_chain", _fake_trend)
+    import asyncio
+
+    notes = asyncio.run(content.fetch_suspect_scan_notes(limit=2))
+    assert notes and notes[0]["churned"] is True

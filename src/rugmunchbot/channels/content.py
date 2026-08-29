@@ -752,10 +752,208 @@ async def fetch_scan_notes(limit: int = 10) -> list[dict[str, Any]]:
     return notes
 
 
+# ── Suspect-scan churn rail (2026-08-29, scans-channel content fix) ─────
+#
+# Problem: the launch-alert rail and scan-history rail BOTH come from the
+# backend and are frequently empty (on 2026-08-29 both returned ``[]``), so
+# @rmiscans posted nothing. The churn rail instead GENERATES scan content:
+# it pulls the riskiest trending tokens (``trend_by_chain(rank="risk")`` —
+# our own scanner-flagged honeypots/rugs plus sketchy fresh launches),
+# runs the full unified v2 scanner on the top candidates, and normalizes
+# each result into the same scan-note shape ``format_scan_card`` renders
+# (with the complete RiskReport block: deployer, top-25, first-buyer,
+# fresh%, CEX-funded%, bundle/cluster, 30-factor, determination).
+
+_SCAN_CHURN_CONCURRENCY = 2
+_SCAN_CHURN_SCAN_TIMEOUT = 45.0
+
+
+def _candidate_fallback_note(candidate: dict[str, Any]) -> dict[str, Any] | None:
+    """Build a scan note from the trend-risk candidate when the full scan fails.
+
+    ``trend_by_chain(rank="risk")`` candidates already carry real sketch
+    flags (thin_liquidity / violent_moves / fresh_launch / unscanned) plus
+    address/symbol/chain — enough for an honest @rmiscans card (risk flags +
+    score + links) even when the unified v2 scanner times out or is down.
+    Returns None when the candidate carries no address. Pure — never raises.
+    """
+    address = str(candidate.get("address") or candidate.get("token_address") or "").strip()
+    if not address:
+        return None
+    flags = [str(f) for f in (candidate.get("risk_flags") or [])]
+    risk_score = candidate.get("sketch_score")
+    if not isinstance(risk_score, (int, float)):
+        risk_score = candidate.get("risk_score")
+    risk_level = "high" if risk_score is not None and float(risk_score) >= 50 else "unknown"
+    name = str(candidate.get("name") or "Unknown").strip()
+    symbol = str(candidate.get("symbol") or "???").strip()
+    return {
+        "address": address,
+        "token_address": address,
+        "name": name,
+        "symbol": symbol,
+        "chain": str(candidate.get("chain") or "solana").strip(),
+        "risk_level": risk_level,
+        "risk_score": risk_score,
+        "risk_flags": flags[:8],
+        "scanned_at": "",
+        "title": name,
+        "alert_type": "scan",
+        "condition": f"flagged {' '.join(flags[:3]) or risk_level}",
+        "image_url": "",
+        # Churn-rail marker: the scans poster lets these post below the
+        # news-importance floor (they are sus-token cards by construction).
+        "churned": True,
+    }
+
+
+async def _churn_one_scan(
+    candidate: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Run the full unified v2 scanner on one suspicious candidate.
+
+    Returns the normalized scan note with the full RiskReport payload when
+    the scan succeeds; on any failure/timeout it falls back to the
+    candidate's own sketch data (``_candidate_fallback_note``) so the
+    scans channel still churns real suspicious tokens. Fail-open.
+    """
+    address = str(candidate.get("address") or candidate.get("token_address") or "").strip()
+    if not address:
+        return None
+    chain = str(candidate.get("chain") or "solana").strip()
+    try:
+        from rugmunchbot.tools.scanner._scans import scan_token_v2
+
+        data = await asyncio.wait_for(
+            scan_token_v2(address, chain), timeout=_SCAN_CHURN_SCAN_TIMEOUT
+        )
+    except Exception as exc:  # fail-open by contract
+        logger.debug("channels:scan_churn_failed addr=%.40s err=%s", address, str(exc)[:80])
+        return _candidate_fallback_note(candidate)
+    if not isinstance(data, dict) or data.get("status") != "ok":
+        return _candidate_fallback_note(candidate)
+
+    # Merge the candidate's own sketch flags (cheap, already computed) with
+    # the scan's risk flags so a quiet scanner still shows the sketch signal.
+    flags = [str(f) for f in (data.get("risk_flags") or [])]
+    for f in candidate.get("risk_flags") or []:
+        f = str(f)
+        if f not in flags:
+            flags.append(f)
+    name = str(data.get("name") or candidate.get("name") or "Unknown").strip()
+    symbol = str(data.get("symbol") or candidate.get("symbol") or "???").strip()
+    # v2 reports safety_score (higher = safer) — invert to the risk score
+    # the rest of the channel pipeline uses (higher = riskier).
+    safety = data.get("safety_score")
+    risk_score = round(100.0 - float(safety), 1) if isinstance(safety, (int, float)) else None
+    _score_ctx = dict(data)
+    if risk_score is not None:
+        _score_ctx["risk_score"] = risk_score
+    return {
+        "address": address,
+        "token_address": address,
+        "name": name,
+        "symbol": symbol,
+        "chain": chain,
+        "risk_level": str(data.get("risk_level") or "unknown").strip(),
+        "risk_score": risk_score,
+        "risk_flags": flags[:8],
+        "scanned_at": str(data.get("scanned_at") or "").strip(),
+        "title": name,
+        "alert_type": "scan",
+        "condition": _scan_score_line(_score_ctx),
+        "security": (data.get("evidence") or {}).get("security")
+        if isinstance(data.get("evidence"), dict)
+        else None,
+        # Rich scan payload passthrough — the RiskReport renderer reads
+        # these exact keys (deployer/holders/first-buyer/bundle/liquidity).
+        "evidence": data.get("evidence"),
+        "sentinel": data.get("sentinel"),
+        "deployer_profile": data.get("deployer_profile"),
+        "deployer_address": data.get("deployer_address"),
+        "holder_analysis": data.get("holder_analysis"),
+        "bundle_analysis": data.get("bundle_analysis"),
+        "first_buyers": data.get("first_buyers"),
+        "top_holders": (data.get("evidence") or {}).get("holders")
+        if isinstance(data.get("evidence"), dict)
+        else None,
+        "liquidity_verification": data.get("liquidity_verification"),
+        "wallet_metrics": data.get("wallet_metrics"),
+        "funding_analysis": (data.get("evidence") or {}).get("funding_analysis"),
+        "holder_overlap": (data.get("evidence") or {}).get("holder_overlap"),
+        "fresh_wallet_pct": (data.get("wallet_metrics") or {}).get("fresh_wallet_pct"),
+        "cex_funded_wallet_pct": (data.get("wallet_metrics") or {}).get("cex_funded_wallet_pct"),
+        "liquidity_usd": data.get("liquidity_usd"),
+        "image_url": "",
+        # Churn-rail marker: the scans poster lets these post below the
+        # news-importance floor (they are sus-token cards by construction).
+        "churned": True,
+    }
+
+
+async def fetch_suspect_scan_notes(limit: int = 4) -> list[dict[str, Any]]:
+    """Churn suspicious tokens through the full scanner → scan notes.
+
+    Candidate source: ``trend_by_chain(rank="risk")`` — the riskiest /
+    sketchiest trending picks (our scanner's flagged honeypots/rugs ranked
+    first, with sketch_score + risk_flags). The top candidates are scanned
+    with the unified v2 scanner (bounded concurrency, hard timeout,
+    fail-open), and each successful result becomes a scan note carrying the
+    FULL RiskReport payload so the @rmiscans card shows the complete output
+    (deployer, top-25, first-buyer, fresh%, CEX-funded%, bundle/cluster,
+    30-factor, determination) + links to the bot / website / other channels
+    (``format_scan_card``).
+
+    Returns ``[]`` when the candidate source or the scanner is down — the
+    channel then fails open and posts nothing. Never raises.
+    """
+    if limit < 1:
+        return []
+    try:
+        from rugmunchbot.tools.trend_algo import trend_by_chain
+
+        result = await trend_by_chain(chain="all", limit=max(limit * 2, 4), rank="risk")
+    except Exception as exc:  # fail-open by contract
+        logger.debug("channels:scan_churn_candidates_failed err=%s", str(exc)[:100])
+        return []
+    candidates = (result.data or {}).get("tokens") if result.ok else []
+    if not candidates:
+        return []
+
+    sem = asyncio.Semaphore(_SCAN_CHURN_CONCURRENCY)
+
+    async def _bounded(candidate: dict[str, Any]) -> dict[str, Any] | None:
+        async with sem:
+            return await _churn_one_scan(candidate)
+
+    # Outer budget must cover EVERY batch (concurrency 2, up to limit scans,
+    # each bounded by the per-scan timeout): ceil(limit/2) batches at 45s + a
+    # small buffer. The old fixed +15s was shorter than two sequential
+    # batches, so the whole churn aborted empty before the fallback ran.
+    import math
+
+    outer_timeout = (
+        math.ceil(max(1, min(len(candidates), limit)) / max(1, _SCAN_CHURN_CONCURRENCY))
+        * _SCAN_CHURN_SCAN_TIMEOUT
+        + 15.0
+    )
+    try:
+        results = await asyncio.wait_for(
+            asyncio.gather(*(_bounded(c) for c in candidates[:limit]), return_exceptions=True),
+            timeout=outer_timeout,
+        )
+    except Exception as exc:  # fail-open by contract
+        logger.debug("channels:scan_churn_timeout err=%s", str(exc)[:100])
+        return []
+    notes = [r for r in results if isinstance(r, dict)]
+    return notes[: max(1, limit)]
+
+
 __all__ = [
     "fetch_alpha_content",
     "fetch_risk_alerts",
     "fetch_scan_notes",
+    "fetch_suspect_scan_notes",
     "fetch_trending_news",
 ]
 

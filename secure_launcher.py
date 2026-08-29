@@ -32,10 +32,15 @@ suppress_httpx_urls()
 # Canonical gopass paths. `adminbot` and `rmiadminbot` launch the SAME module
 # (app.domains.telegram.adminbot.bot) and MUST point at the same secret —
 # adminbot/config.py reads the admin bot token from secrets (adminbot/config.py:15).
+# METHODOLOGY-PROTECTION: this repo carries NO gopass paths — the placeholders
+# below are the safe public default. The deployment injects the REAL secret
+# store path via env (``RUGMUNCH_BOT_GOPASS_PATH`` / ``RMIADMINBOT_GOPASS_PATH``
+# in the systemd unit Environment=), so the running service resolves the token
+# while the source tree stays scrub-clean.
 GOPASS_PATHS = {
-    "rugmunchbot": "<bot_token_secret>",
-    "adminbot": "<adminbot_token_secret>",
-    "rmiadminbot": "<rmiadminbot_token_secret>",
+    "rugmunchbot": os.environ.get("RUGMUNCH_BOT_GOPASS_PATH", "<bot_token_secret>"),
+    "adminbot": os.environ.get("RMIADMINBOT_GOPASS_PATH", "<adminbot_token_secret>"),
+    "rmiadminbot": os.environ.get("RMIADMINBOT_GOPASS_PATH", "<rmiadminbot_token_secret>"),
 }
 
 # Env keys exported to the bot process, in priority order. Every key in the
