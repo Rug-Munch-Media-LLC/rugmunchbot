@@ -409,3 +409,59 @@ def test_deep_cluster_summary_is_deep_aware() -> None:
     deep_summary = rep_deep["deeper_analysis"]["cluster"]["summary"]
     assert "see /deepscan" in basic_summary
     assert "see /deepscan" not in deep_summary
+
+
+def test_deep_thin_report_headline_is_honest_not_0_of_100_ok() -> None:
+    """A deep scan with <6 known factors must NOT render the self-contradictory
+    "Composite Risk: 0/100 OK · 1/30 factors known" headline — it says the scan
+    is pending instead, so header score and body composite always agree."""
+    thin = _rich_scan()
+    for key in (
+        "deployer_profile",
+        "deployer_address",
+        "holder_analysis",
+        "wallet_metrics",
+        "funding_analysis",
+        "holder_overlap",
+        "fresh_wallet_pct",
+        "exchange_funded_pct",
+        "top_holders",
+        "honeypot",
+        "mintable",
+        "owner_renounced",
+        "buy_tax",
+        "sell_tax",
+        "lp_locked",
+        "liquidity",
+        "liquidity_verification",
+        "holders",
+        "volume_24h",
+    ):
+        thin.pop(key, None)
+    thin["bundle_analysis"] = None
+    thin["first_buyers"] = None
+    thin["evidence"] = {}
+    thin["sentinel"] = {}
+    out = "\n".join(format_risk_report_block(thin, deep=True))
+    # The self-contradictory composite headline must not appear…
+    assert "<b>Composite Risk:</b>" not in out
+    # …and the honest "insufficient data" marker must (factors-known coverage
+    # still appears, but framed as a pending scan, not as a clean verdict).
+    assert "Insufficient data" in out
+    assert "scan pending" in out.lower()
+    assert "needs \u2265 6" in out
+
+
+def test_honeypot_render_never_bare_x() -> None:
+    """The honeypot line must read "🚨 HONEYPOT" / "Not a honeypot", never a
+    bare "honeypot=✗" cross that a reader mistakes for a clean verdict."""
+    hp = _rich_scan()
+    hp["honeypot"] = False
+    out = "\n".join(format_risk_report_block(hp))
+    assert "Not a honeypot" in out
+    assert "honeypot=\u2717" not in out  # the bare-✗ form is gone
+    hp_true = _rich_scan()
+    hp_true["honeypot"] = True
+    out_true = "\n".join(format_risk_report_block(hp_true))
+    assert "HONEYPOT" in out_true
+    assert "honeypot=\u2717" not in out_true

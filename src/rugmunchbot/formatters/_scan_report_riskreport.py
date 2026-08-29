@@ -1357,7 +1357,7 @@ def _section_lines(rep: dict[str, Any]) -> list[str]:
     hp = rep.get("honeypot") or {}
     hp_bits: list[str] = []
     if hp.get("is_honeypot") is not None:
-        hp_bits.append("honeypot=" + ("\U0001f6a8 YES" if hp["is_honeypot"] else "\u2717"))
+        hp_bits.append("\U0001f6a8 HONEYPOT" if hp["is_honeypot"] else "Not a honeypot")
     if hp.get("mintable") is not None:
         hp_bits.append("mint=" + ("\u2713" if hp["mintable"] else "\u2717"))
     if hp.get("freezable") is not None:
@@ -1380,12 +1380,36 @@ def _section_lines(rep: dict[str, Any]) -> list[str]:
 
 
 def _headline_lines(rep: dict[str, Any]) -> list[str]:
-    """Composite score + determination + coverage header lines."""
+    """Composite score + determination + coverage header lines.
+
+    Honest-output guard: a "Composite Risk: 0/100 OK · 1/30 factors known"
+    headline is self-contradictory and misleads the reader (a low composite
+    built from a handful of known factors is not evidence of a safe token).
+    When fewer than ``_MIN_KNOWN_FOR_DETERMINATION`` factors are known and no
+    decisive scam is confirmed, do NOT present a composite verdict — say the
+    scan is pending instead. This keeps the header score and the body
+    composite in agreement for deep scans too (the concise block is already
+    gated by :func:`_concise_report_postable`).
+    """
     composite = rep.get("composite_score")
     determination = str(rep.get("determination") or "unknown")
+    dq = rep.get("data_quality") or {}
+    try:
+        _known = int(dq.get("factors_known") or 0)
+    except (TypeError, ValueError):
+        _known = 0
+    try:
+        _total = int(dq.get("factors_total") or 0)
+    except (TypeError, ValueError):
+        _total = 0
+    if _known < _MIN_KNOWN_FOR_DETERMINATION and determination != "scam":
+        return [
+            "  \u26a0\ufe0f <b>Insufficient data \u2014 scan pending</b>",
+            f"  \U0001f4ca {_known}/{_total} factors known "
+            f"(a verdict needs \u2265 {_MIN_KNOWN_FOR_DETERMINATION})",
+        ]
     emoji = _DETERMINATION_EMOJI.get(determination, "\u26aa")
     comp_str = f"<b>{composite}/100</b>" if composite is not None else "<b>unknown</b>"
-    dq = rep.get("data_quality") or {}
     coverage = (
         f"{dq.get('factors_known', 0)}/{dq.get('factors_total', 0)} factors known "
         f"({dq.get('coverage_pct', 0.0)}%)"
