@@ -108,7 +108,7 @@ def test_validate_rejects_private_literal() -> None:
 def test_validate_rejects_private_hostname(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_getaddrinfo(host: str, _port: int, proto: int = socket.IPPROTO_TCP) -> list:
         if host == "talos.internal":
-            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("100.104.130.92", 0))]
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", 0))]
         raise OSError("no address")
 
     monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)

@@ -15,7 +15,8 @@ Design:
   return whatever text we have.
 * Vision OCR is the DeepInfra VL-30B lane (reasoning.enabled=false). Never
   raises; returns "" on any failure so callers degrade to text-only.
-* Key resolution: DEEPINFRA_API_KEY env → /srv/secrets/deepinfra_api_key.
+* Key resolution: DEEPINFRA_API_KEY env → $DEEPINFRA_KEY_FILE (default
+  $RMI_SECRETS_DIR/deepinfra_api_key).
 """
 
 from __future__ import annotations
@@ -34,6 +35,12 @@ DEEPINFRA_OPENAI = os.getenv("DEEPINFRA_BASE", "https://api.deepinfra.com/v1/ope
 # DEEPINFRA_VISION_MODEL if a heavier model is ever needed for dense tables.
 DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-4B-Instruct")
 VISION_TIMEOUT = float(os.getenv("DEEPINFRA_VISION_TIMEOUT", "60"))
+#: Canonical key file for the DeepInfra key (never in git). Defaults to the
+#: fleet secret-store location; overridable so tests/containers can point
+#: elsewhere.
+_KEY_FILE = os.getenv("DEEPINFRA_KEY_FILE") or os.path.join(
+    os.getenv("RMI_SECRETS_DIR", "/srv/secrets"), "deepinfra_api_key"
+)
 
 
 def _load_key() -> str:
@@ -41,7 +48,7 @@ def _load_key() -> str:
     if key:
         return key
     try:
-        with open("/srv/secrets/deepinfra_api_key", encoding="utf-8") as fh:
+        with open(_KEY_FILE, encoding="utf-8") as fh:
             return fh.read().strip()
     except OSError:
         return ""
