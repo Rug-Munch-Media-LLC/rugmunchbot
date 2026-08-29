@@ -218,7 +218,7 @@ feed.rugmunch.io/data/posts.json EMPTY (mirror never fires)
                      │
                      └─► CRITICAL/HIGH ──► threat_intel_v2_i (W8)
    Chat ──► get_news/get_knowledge (W12) ──► citations (W13/W17)
-   Consumer search ──► federated multi-space ──► 0.6B rerank (fast lane)
+   Consumer search ──► federated multi-space ──► rerank 4B (:8003)
 ```
 
 Every producer feeds RAG; every consumer reads RAG with citations; every

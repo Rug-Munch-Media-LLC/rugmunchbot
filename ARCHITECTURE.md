@@ -149,8 +149,8 @@ First-party patched vendored code. Key modules:
 
 ### Model Services (`llm_config.py` + external)
 All inference via llama.cpp on Talos behind the gateway (:8010):
-- Deep embed Qwen3-4B :8004 · Speed embed 0.6B :8007
-- Rerank 4B :8003 → 0.6B :8008 fallback (never cloud)
+- Deep embed Qwen3-4B :8004 primary + DeepInfra API fallback (0.6B lane retired)
+- Rerank 4B :8003 only (0.6B :8008 lane retired; never cloud)
 - Chat 8B :8009 · Gateway auto-routes by word count + strain breaker
 - Cloud fallback: OR MAIN (free light) / OR BACKUP (deep) — labeled degraded
 
