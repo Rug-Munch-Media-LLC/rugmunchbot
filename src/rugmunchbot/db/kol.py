@@ -226,12 +226,510 @@ def export_kol_calls_jsonl(path: str, limit: int = 500) -> int:
         return 0
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# KOL SCOREBOARD v8 — canonical identities, handle aliases, name changes,
+# wallet knowledgebase, ApiPass credit meter
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _norm_handle(handle: str) -> str:
+    return str(handle or "").strip().lstrip("@").lower()
+
+
+def _json_list(value: Any) -> list[str]:
+    import json
+
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    if not value:
+        return []
+    try:
+        parsed = json.loads(str(value))
+        return [str(v) for v in parsed] if isinstance(parsed, list) else []
+    except (ValueError, TypeError):
+        return []
+
+
+def upsert_kol_identity(
+    *,
+    kol_id: str,
+    name: str = "",
+    screen_name: str = "",
+    category: str = "shiller",
+    source: str = "ct_known",
+    verified: bool = False,
+    risk_level: str = "watch",
+    wallets: list[str] | None = None,
+    linked_kol_ids: list[str] | None = None,
+    notes: str = "",
+) -> bool:
+    """Insert/update one canonical KOL identity (upsert by ``kol_id``).
+
+    ``kol_id`` is the canonical slug (normally the current lowercase handle);
+    ``screen_name`` is the current display handle. Every handle a KOL has
+    ever used must be registered as an alias via :func:`register_alias` so
+    past/current names resolve to this identity.
+    """
+    import json
+
+    kol_id = _norm_handle(kol_id)
+    screen_name = str(screen_name or "").strip().lstrip("@") or kol_id
+    if not kol_id:
+        return False
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO kol_identities (
+                kol_id, name, screen_name, category, source, verified,
+                risk_level, wallets, linked_kol_ids, notes, added_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(kol_id) DO UPDATE SET
+                name = COALESCE(NULLIF(excluded.name, ''), kol_identities.name),
+                screen_name = COALESCE(
+                    NULLIF(excluded.screen_name, ''), kol_identities.screen_name),
+                category = COALESCE(NULLIF(excluded.category, ''), kol_identities.category),
+                source = COALESCE(NULLIF(excluded.source, ''), kol_identities.source),
+                verified = excluded.verified,
+                risk_level = COALESCE(
+                    NULLIF(excluded.risk_level, ''), kol_identities.risk_level),
+                wallets = CASE WHEN excluded.wallets = '[]' THEN kol_identities.wallets
+                               ELSE excluded.wallets END,
+                linked_kol_ids = CASE WHEN excluded.linked_kol_ids = '[]'
+                                      THEN kol_identities.linked_kol_ids
+                                      ELSE excluded.linked_kol_ids END,
+                notes = CASE WHEN excluded.notes = '' THEN kol_identities.notes
+                             ELSE excluded.notes END,
+                updated_at = excluded.updated_at
+            """,
+            (
+                kol_id,
+                str(name or ""),
+                screen_name,
+                str(category or "shiller"),
+                str(source or "ct_known"),
+                1 if verified else 0,
+                str(risk_level or "watch"),
+                json.dumps(wallets or [], separators=(",", ":")),
+                json.dumps(linked_kol_ids or [], separators=(",", ":")),
+                str(notes or ""),
+                _now(),
+                _now(),
+            ),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def get_kol_identity(kol_id: str) -> dict[str, Any] | None:
+    """One canonical identity by kol_id (None when unknown)."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM kol_identities WHERE kol_id = ?", (_norm_handle(kol_id),)
+        ).fetchone()
+        return dict(row) if row is not None else None
+    finally:
+        conn.close()
+
+
+def list_kol_identities(
+    *, category: str = "", risk_level: str = "", limit: int = 500
+) -> list[dict[str, Any]]:
+    """Registered identities, optional category / risk_level filters."""
+    conn = get_db()
+    try:
+        sql = "SELECT * FROM kol_identities"
+        where: list[str] = []
+        params: list[Any] = []
+        if category:
+            where.append("category = ?")
+            params.append(str(category))
+        if risk_level:
+            where.append("risk_level = ?")
+            params.append(str(risk_level))
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        sql += " ORDER BY screen_name ASC LIMIT ?"
+        params.append(max(1, limit))
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def kol_registry_count() -> int:
+    """Number of canonical KOL identities seeded/tracked."""
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT COUNT(*) AS n FROM kol_identities").fetchone()
+        return int(row["n"] or 0) if row else 0
+    finally:
+        conn.close()
+
+
+def register_alias(kol_id: str, alias: str, *, is_current: bool = True) -> bool:
+    """Map one handle (current or past) to a canonical kol_id.
+
+    This is the table that makes screen-name changes resolve: a KOL who
+    renames keeps their old handle as an alias (``is_current=False``) so
+    both names resolve to the same report card.
+    """
+    kol_id = _norm_handle(kol_id)
+    alias = _norm_handle(alias)
+    if not kol_id or not alias:
+        return False
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO kol_aliases (alias, kol_id, is_current, first_seen, last_seen)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(alias) DO UPDATE SET
+                kol_id = excluded.kol_id,
+                is_current = excluded.is_current,
+                last_seen = excluded.last_seen
+            """,
+            (alias, kol_id, 1 if is_current else 0, _now(), _now()),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def demote_alias(alias: str) -> bool:
+    """Mark one handle as no-longer-current (it was renamed away from)."""
+    alias = _norm_handle(alias)
+    if not alias:
+        return False
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "UPDATE kol_aliases SET is_current = 0, last_seen = ? WHERE alias = ?",
+            (_now(), alias),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def resolve_handle(handle: str) -> dict[str, Any] | None:
+    """Resolve ANY handle (current or past) to its canonical identity.
+
+    Returns the identity row (with ``wallets``/``linked_kol_ids`` still as
+    JSON strings) or None. Case-insensitive, strips ``@``. This is the
+    100%-identification core: old and new screen names land on one card.
+    """
+    alias = _norm_handle(handle)
+    if not alias:
+        return None
+    conn = get_db()
+    try:
+        row = conn.execute(
+            """
+            SELECT i.* FROM kol_aliases a
+            JOIN kol_identities i ON a.kol_id = i.kol_id
+            WHERE a.alias = ?
+            """,
+            (alias,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+    finally:
+        conn.close()
+
+
+def record_kol_name_change(
+    kol_id: str, *, from_handle: str, to_handle: str, source: str = "apipass_sweep"
+) -> bool:
+    """Record one detected screen-name change (old handle → new handle)."""
+    kol_id = _norm_handle(kol_id)
+    if not kol_id or not from_handle or not to_handle:
+        return False
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO kol_name_changes (kol_id, from_handle, to_handle, detected_at, source)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                _norm_handle(kol_id),
+                _norm_handle(from_handle),
+                _norm_handle(to_handle),
+                _now(),
+                source,
+            ),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def list_kol_name_changes(kol_id: str = "", limit: int = 20) -> list[dict[str, Any]]:
+    """Recent name-change events, optionally scoped to one KOL."""
+    conn = get_db()
+    try:
+        if kol_id:
+            rows = conn.execute(
+                "SELECT * FROM kol_name_changes WHERE kol_id = ? ORDER BY detected_at DESC LIMIT ?",
+                (_norm_handle(kol_id), max(1, limit)),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM kol_name_changes ORDER BY detected_at DESC LIMIT ?",
+                (max(1, limit),),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def attach_kol_wallet(kol_id: str, wallet: str) -> bool:
+    """Add one traced wallet to a KOL identity (dedup, never removes).
+
+    Wallet knowledgebase: wallets come from on-chain tracing (zachxbt-style
+    inference), a call tweet containing a raw address, or manual curation.
+    Returns True when the wallet was added (False when already known).
+    """
+    wallet = str(wallet or "").strip()
+    if not wallet:
+        return False
+    row = get_kol_identity(kol_id)
+    if row is None:
+        return False
+    wallets = _json_list(row.get("wallets"))
+    if wallet.lower() in {w.lower() for w in wallets}:
+        return False
+    wallets.append(wallet)
+    conn = get_db()
+    try:
+        import json
+
+        conn.execute(
+            "UPDATE kol_identities SET wallets = ?, updated_at = ? WHERE kol_id = ?",
+            (json.dumps(wallets, separators=(",", ":")), _now(), _norm_handle(kol_id)),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def link_identity_via_wallet(kol_id_a: str, kol_id_b: str) -> bool:
+    """Inference link: same wallet surfaced under two identities → link them.
+
+    Marks both identities as linked (``linked_kol_ids``) so the knowledge
+    base records the wallet-inference connection. Does NOT merge rows —
+    a human reviews the merge.
+    """
+    a = _norm_handle(kol_id_a)
+    b = _norm_handle(kol_id_b)
+    if not a or not b or a == b:
+        return False
+    conn = get_db()
+    try:
+        import json
+
+        for kol_id, other in ((a, b), (b, a)):
+            row = conn.execute(
+                "SELECT linked_kol_ids FROM kol_identities WHERE kol_id = ?", (kol_id,)
+            ).fetchone()
+            linked = _json_list(row["linked_kol_ids"] if row else None)
+            if other not in linked:
+                linked.append(other)
+                conn.execute(
+                    "UPDATE kol_identities SET linked_kol_ids = ?, updated_at = ? WHERE kol_id = ?",
+                    (json.dumps(linked, separators=(",", ":")), _now(), kol_id),
+                )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def mark_kol_verified(kol_id: str) -> bool:
+    """Flip the verified flag (ApiPass user-tweets confirmed the handle)."""
+    kol_id = _norm_handle(kol_id)
+    if not kol_id:
+        return False
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "UPDATE kol_identities SET verified = 1, updated_at = ? WHERE kol_id = ?",
+            (_now(), kol_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def kol_identities_by_wallet(wallet: str) -> list[dict[str, Any]]:
+    """Identities known to hold *wallet* (wallet-KB reverse lookup)."""
+    wallet = str(wallet or "").strip().lower()
+    if not wallet:
+        return []
+    conn = get_db()
+    try:
+        rows = conn.execute("SELECT * FROM kol_identities").fetchall()
+        return [dict(r) for r in rows if any(w.lower() == wallet for w in _json_list(r["wallets"]))]
+    finally:
+        conn.close()
+
+
+def update_kol_call_result(tweet_id: str, result: str) -> bool:
+    """Best-effort outcome for one call: win | loss | flat | unknown."""
+    result = str(result or "").strip().lower()
+    if result not in {"win", "loss", "flat", "unknown"}:
+        return False
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "UPDATE kol_calls SET result = ? WHERE tweet_id = ? AND result = 'unknown'",
+            (result, str(tweet_id or "").strip()),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def record_apipass_usage(
+    *,
+    endpoint: str = "",
+    model: str = "",
+    credits: float = 0.5,
+    task_id: str = "",
+    status: str = "created",
+) -> bool:
+    """Meter one ApiPass task creation (the ≤3 credits/hr budget ledger)."""
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO kol_apipass_usage (ts, endpoint, model, credits, task_id, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                _now(),
+                str(endpoint or ""),
+                str(model or ""),
+                float(credits),
+                str(task_id or ""),
+                str(status),
+            ),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def apipass_usage_summary() -> dict[str, Any]:
+    """Credit-burn dashboard: calls, credits used, remaining of the free 50.
+
+    ``RMI_APIPASS_FREE_CREDITS`` (default 50) is the free allowance; each
+    task creation meters ``RMI_APIPASS_CREDITS_PER_CALL`` (default 0.5).
+    """
+    import json as _json
+    import os
+
+    free_credits = float(os.getenv("RMI_APIPASS_FREE_CREDITS", "50"))
+    credits_per_call = float(os.getenv("RMI_APIPASS_CREDITS_PER_CALL", "0.5"))
+    conn = get_db()
+    try:
+        total = conn.execute("SELECT COUNT(*) AS n FROM kol_apipass_usage").fetchone()
+        credits_row = conn.execute(
+            "SELECT COALESCE(SUM(credits), 0.0) AS c FROM kol_apipass_usage WHERE status = 'created'"
+        ).fetchone()
+        today = _now()[:10]
+        today_row = conn.execute(
+            "SELECT COUNT(*) AS n FROM kol_apipass_usage WHERE ts LIKE ?", (today + "%",)
+        ).fetchone()
+        endpoints = conn.execute(
+            "SELECT endpoint, COUNT(*) AS n, COALESCE(SUM(credits), 0.0) AS credits "
+            "FROM kol_apipass_usage GROUP BY endpoint ORDER BY credits DESC"
+        ).fetchall()
+        credits_used = float(credits_row["c"] or 0.0) if credits_row else 0.0
+        return {
+            "total_calls": int(total["n"] or 0) if total else 0,
+            "credits_used": round(credits_used, 2),
+            "free_allowance": free_credits,
+            "credits_remaining": round(max(0.0, free_credits - credits_used), 2),
+            "calls_today": int(today_row["n"] or 0) if today_row else 0,
+            "calls_per_hour_budget": int(os.getenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", "6")),
+            "credits_per_call": credits_per_call,
+            "estimated_calls_remaining": int((free_credits - credits_used) / credits_per_call),
+            "by_endpoint": [
+                {
+                    "endpoint": str(e["endpoint"]),
+                    "calls": int(e["n"]),
+                    "credits": round(float(e["credits"]), 2),
+                }
+                for e in endpoints
+            ],
+        }
+    finally:
+        conn.close()
+
+
+def seed_kol_registry(rows: list[tuple[str, str, str, str, str, str]]) -> int:
+    """Seed/refresh the canonical KOL registry from curated rows.
+
+    Each row: ``(handle, name, category, source, risk_level, notes)``.
+    Idempotent: identities upsert, primary alias registered, verified flag
+    is preserved (seeding never un-verifies). Returns rows processed.
+    """
+    count = 0
+    for handle, name, category, source, risk_level, notes in rows:
+        handle = str(handle or "").strip().lstrip("@")
+        if not handle:
+            continue
+        kol_id = _norm_handle(handle)
+        existing = get_kol_identity(kol_id)
+        upsert_kol_identity(
+            kol_id=kol_id,
+            name=str(name or "").strip() or handle,
+            screen_name=handle,
+            category=str(category or "shiller"),
+            source=str(source or "ct_known"),
+            verified=bool(existing and existing.get("verified")),
+            risk_level=str(risk_level or "watch"),
+            notes=str(notes or ""),
+        )
+        register_alias(kol_id, handle, is_current=True)
+        count += 1
+    return count
+
+
 __all__ = [
+    "apipass_usage_summary",
+    "attach_kol_wallet",
+    "demote_alias",
     "export_kol_calls_jsonl",
     "get_kol_call",
+    "get_kol_identity",
     "get_kol_scores",
+    "kol_identities_by_wallet",
+    "kol_registry_count",
+    "link_identity_via_wallet",
     "list_kol_calls",
+    "list_kol_identities",
+    "list_kol_name_changes",
     "mark_kol_call_deleted",
+    "mark_kol_verified",
+    "record_apipass_usage",
     "record_kol_call",
+    "record_kol_name_change",
+    "register_alias",
+    "resolve_handle",
+    "seed_kol_registry",
+    "update_kol_call_result",
+    "upsert_kol_identity",
     "upsert_kol_score",
 ]

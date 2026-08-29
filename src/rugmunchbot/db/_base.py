@@ -300,6 +300,58 @@ def init_db() -> None:
             grade TEXT DEFAULT 'N/A',
             updated_at TEXT
         );
+
+        -- v8: KOL Scoreboard — canonical identities, handle aliases, name
+        -- changes, ApiPass credit usage. ``kol_identities`` is the canonical
+        -- per-KOL row (name, current screen_name, traced wallets, category,
+        -- source, verification state, risk level); ``kol_aliases`` maps every
+        -- current + past handle to its canonical kol_id (the lookup table
+        -- that makes screen-name CHANGES resolve to the same report card);
+        -- ``kol_name_changes`` records each detected handle transition;
+        -- ``kol_apipass_usage`` meters the ApiPass burn (≤6 task
+        -- creations/hr ≈ 3 credits/hr) so the 50 free credits are tracked.
+        CREATE TABLE IF NOT EXISTS kol_identities (
+            kol_id TEXT PRIMARY KEY,
+            name TEXT,
+            screen_name TEXT NOT NULL,
+            category TEXT DEFAULT 'shiller',
+            source TEXT DEFAULT 'ct_known',
+            verified INTEGER DEFAULT 0,
+            risk_level TEXT DEFAULT 'watch',
+            wallets TEXT DEFAULT '[]',
+            linked_kol_ids TEXT DEFAULT '[]',
+            notes TEXT DEFAULT '',
+            added_at TEXT,
+            updated_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_kol_identities_screen ON kol_identities(screen_name);
+        CREATE TABLE IF NOT EXISTS kol_aliases (
+            alias TEXT PRIMARY KEY,
+            kol_id TEXT NOT NULL,
+            is_current INTEGER DEFAULT 1,
+            first_seen TEXT,
+            last_seen TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_kol_aliases_kol ON kol_aliases(kol_id);
+        CREATE TABLE IF NOT EXISTS kol_name_changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kol_id TEXT NOT NULL,
+            from_handle TEXT,
+            to_handle TEXT,
+            detected_at TEXT,
+            source TEXT DEFAULT 'apipass_sweep'
+        );
+        CREATE INDEX IF NOT EXISTS idx_kol_name_changes_kol ON kol_name_changes(kol_id);
+        CREATE TABLE IF NOT EXISTS kol_apipass_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT NOT NULL,
+            endpoint TEXT,
+            model TEXT,
+            credits REAL DEFAULT 0.5,
+            task_id TEXT,
+            status TEXT DEFAULT 'created'
+        );
+        CREATE INDEX IF NOT EXISTS idx_kol_apipass_usage_ts ON kol_apipass_usage(ts);
     """)
     # Migration: add bonus columns if they don't exist (SQLite safe)
     with contextlib.suppress(sqlite3.OperationalError):
@@ -312,6 +364,10 @@ def init_db() -> None:
     # Migration: non-sensitive display prefix for api_tokens (hashed at rest)
     with contextlib.suppress(sqlite3.OperationalError):
         conn.execute("ALTER TABLE api_tokens ADD COLUMN token_prefix TEXT DEFAULT ''")
+    # Migration (KOL Scoreboard v8): best-effort call outcome (win/loss) so
+    # report cards can show a real win/loss split without re-deriving it.
+    with contextlib.suppress(sqlite3.OperationalError):
+        conn.execute("ALTER TABLE kol_calls ADD COLUMN result TEXT DEFAULT 'unknown'")
     conn.commit()
     conn.close()
     # One-shot upgrade: hash any legacy plaintext api_tokens.token values.
