@@ -166,6 +166,8 @@ def _risk_emoji(risk_level: str) -> str:
 
 def _now_stamp() -> str:
     return datetime.now(UTC).strftime("%b %d, %H:%M UTC")
+
+
 def _scan_channel_shill() -> str:
     """Cross-channel promo block for the scan card footer.
 
@@ -197,7 +199,7 @@ def _strip_junk_prefixes(text: str) -> str:
     lowered = text.lower().lstrip()
     for prefix in _JUNK_PREFIXES:
         if lowered.startswith(prefix):
-            rest = text[len(prefix):]
+            rest = text[len(prefix) :]
             # Glued case ("Key takeawaysBitcoin") → drop the label entirely.
             if rest and not rest[0].isspace():
                 text = rest.lstrip()
@@ -266,4 +268,51 @@ def enforce_main_link_contract(text: str, item: dict[str, Any]) -> str | None:
     if not fallback:
         return None
     label = str(item.get("name") or item.get("symbol") or "source").strip()
-    return f"{text}\n\n🔗 <a href=\"{html.escape(fallback, quote=True)}\">{_esc(label)}</a>"
+    return f'{text}\n\n🔗 <a href="{html.escape(fallback, quote=True)}">{_esc(label)}</a>'
+
+
+# ── Site-link contract (2026-08-29 content-flow overhaul) ────────────────
+# Every main/channel post carries an EXACT link to the site version
+# (rugmunch.io/news for news-family posts, feed.rugmunch.io for mirrored
+# main posts) so Telegram drives site usage. Feed deep links use the
+# static store's per-post pattern (``/p/{slug}`` — see feed index.html).
+
+#: Site news page — the canonical "see it on the site" destination.
+SITE_NEWS_URL: str = "https://rugmunch.io/news"
+#: Static feed root (feed.rugmunch.io serves posts.json client-side).
+SITE_FEED_URL: str = "https://feed.rugmunch.io/"
+#: Per-post deep-link pattern (slug from ``mirror_post_to_feed``).
+SITE_FEED_POST_URL: str = "https://feed.rugmunch.io/p/{slug}"
+
+
+def site_news_line() -> str:
+    """Exact rugmunch.io/news link line for news-family posts (HTML-safe)."""
+    return f'📰 <a href="{SITE_NEWS_URL}">rugmunch.io/news</a> — full coverage on the site'
+
+
+def feed_site_line(slug: str = "") -> str:
+    """Exact feed.rugmunch.io link line (deep link when a slug exists)."""
+    url = SITE_FEED_POST_URL.format(slug=slug) if slug else SITE_FEED_URL
+    label = "feed.rugmunch.io" + (f"/p/{slug}" if slug else "")
+    return f'📖 <a href="{url}">{label}</a> — on the site'
+
+
+def has_site_link(text: str) -> bool:
+    """True when the text already carries a rugmunch.io / feed.rugmunch.io link."""
+    return "rugmunch.io/news" in text or "feed.rugmunch.io" in text
+
+
+def enforce_site_link(text: str, *, site: str = "news", slug: str = "") -> str:
+    """Append the exact site link line when *text* lacks one (pure, never raises).
+
+    ``site="news"`` appends the rugmunch.io/news line; ``site="feed"``
+    appends the feed.rugmunch.io line (with a deep link when *slug* is
+    given). Idempotent: text already carrying a site link is returned
+    unchanged.
+    """
+    if not text or not text.strip():
+        return text
+    if has_site_link(text):
+        return text
+    line = feed_site_line(slug) if site == "feed" else site_news_line()
+    return f"{text.rstrip()}\n\n{line}"

@@ -284,6 +284,26 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                         await _tg.publish_story_to_feed(
                             str(formatted), title=top.post_title or top.title
                         )
+                        # W30 top-of-food-chain mirror: feed.rugmunch.io static
+                        # store too (same atomic writer as the RAG/exploit lanes).
+                        try:
+                            from rugmunchbot.channels.scheduler._posts_rag import (
+                                mirror_post_to_feed,
+                            )
+
+                            mirror_post_to_feed(
+                                {
+                                    "text": str(formatted),
+                                    "story_ref": str(
+                                        post.get("canonical_url") or post.get("url") or ""
+                                    )
+                                    or (top.post_title or top.title),
+                                    "source": str(post.get("source") or "tg_news"),
+                                    "kind": "story",
+                                }
+                            )
+                        except Exception as exc:
+                            logger.warning("tg_news:feed_mirror_failed err=%s", str(exc)[:120])
 
     # Route: alpha → alpha channel (additive; no alpha chat id → skip)
     if alpha_chat_id and alpha_scored:

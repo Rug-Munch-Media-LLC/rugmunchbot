@@ -61,7 +61,7 @@ async def gather_summary_data() -> dict[str, Any]:
         if _d.ok:
             dune_data = (_d.data or {}).get("digest") or {}
     except Exception as exc:
-        logger.debug("daily_rug:dune_failed err=%s", str(exc)[:120])
+        logger.debug("market_report:dune_failed err=%s", str(exc)[:120])
     try:
         from rugmunchbot.tools.social_intel import social_intel as _social_intel
 
@@ -69,7 +69,7 @@ async def gather_summary_data() -> dict[str, Any]:
         if _s.ok:
             social_data = _s.data or {}
     except Exception as exc:
-        logger.debug("daily_rug:social_failed err=%s", str(exc)[:120])
+        logger.debug("market_report:social_failed err=%s", str(exc)[:120])
 
     # RugBrain intel lanes — whales/exploits/sentiment/regulation from the
     # standalone market-awareness collections (2026-08-25). Fail-open.
@@ -81,9 +81,9 @@ async def gather_summary_data() -> dict[str, Any]:
 
         rugbrain_intel = await _fetch_rugbrain_intel()
     except Exception as exc:
-        logger.debug("daily_rug:intel_failed err=%s", str(exc)[:120])
+        logger.debug("market_report:intel_failed err=%s", str(exc)[:120])
 
-    # The Daily Rug doctrine: no lies survive to publication. Symbol-colliding
+    # Market-report doctrine: no lies survive to publication. Symbol-colliding
     # impostor pairs ("SOL" the $20M meme) and absurd volume prints are
     # rejected here with logged reasons.
     from rugmunchbot.channels.daily_market_summary._validate import (
@@ -114,7 +114,7 @@ async def gather_summary_data() -> dict[str, Any]:
     if rugbrain_intel:
         active.append("rugbrain_intel")
 
-    # The Daily Rug story selection: freshness gate -> 4B reranker ranking.
+    # Market-report story selection: freshness gate -> 4B reranker ranking.
     # Candidates = RAG news + web narratives; only market-moving, dated,
     # <48h stories survive. Fail-open at every stage.
     try:
@@ -130,7 +130,7 @@ async def gather_summary_data() -> dict[str, Any]:
         fresh, _rej = enforce_freshness(candidates)
         top_stories, _ranked = await rerank_stories(fresh, top_n=6)
     except Exception as exc:  # selection must never kill the summary
-        logger.warning("daily_rug:selection_failed fail_open err=%s", str(exc)[:140])
+        logger.warning("market_report:selection_failed fail_open err=%s", str(exc)[:140])
         top_stories = cleaned[4] if isinstance(cleaned[4], list) else []
 
     return {

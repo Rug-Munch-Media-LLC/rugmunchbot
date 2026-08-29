@@ -5,9 +5,9 @@
 
 Two serving tiers on Talos (llama.cpp systemd services):
 
-* ``deep``  — Qwen3-Reranker-4B Q6_K  on 172.22.0.1:8003 (background,
+* ``deep``  — Qwen3-Reranker-4B Q6_K  on 127.0.0.1:8003 (background,
   ingestion scoring, graph enrichment — quality first, latency tolerant)
-* ``live``  — Qwen3-Reranker-0.6B     on 172.22.0.1:8008 (consumer-facing
+* ``live``  — Qwen3-Reranker-0.6B     on 127.0.0.1:8008 (consumer-facing
   search/news — latency first). Cross-encoders need no shared vector space,
   so the live tier pairs safely with 4B-embedded corpora.
 
@@ -36,9 +36,9 @@ log = get_logger(__name__)
 
 # ── Tier endpoints ──────────────────────────────────────────────────────────
 # deep: Qwen3 Reranker 4B Q6_K via llama.cpp (systemd qwen-reranker.service)
-RERANK_URL: str = os.getenv("RERANK_URL", "http://172.22.0.1:8003")
+RERANK_URL: str = os.getenv("RERANK_URL", "http://127.0.0.1:8003")
 # live: Qwen3 Reranker 0.6B fast tier (systemd qwen-reranker-fast.service)
-RERANK_URL_LIVE: str = os.getenv("RERANK_URL_FAST", "http://172.22.0.1:8008")
+RERANK_URL_LIVE: str = os.getenv("RERANK_URL_FAST", "http://127.0.0.1:8008")
 
 # ── Live-path budgets (Netcup RS: CPU-only, protect the vCPU budget) ───────
 LIVE_CANDIDATE_CAP: int = int(os.getenv("RERANK_LIVE_CANDIDATE_CAP", "40"))

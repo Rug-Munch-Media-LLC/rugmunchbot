@@ -27,6 +27,8 @@ from rugmunchbot.channels.telegram_news._sources._config import (
     _CHANNEL_ALPHA_KEYWORDS,
     _CHANNEL_NEWS_KEYWORDS,
     _CHANNEL_OWN_KEYWORDS,
+    ANALYST_CHANNELS,
+    SCAM_CALL_CHANNELS,
 )
 
 _tg = _sys.modules[__package__.rsplit(".", 1)[0]]
@@ -39,14 +41,20 @@ def classify_channel_category(title: str, username: str) -> str:
 
     * ``scam``  — reuses the existing scam/shill classification in
       ``channels/scam_watch.py`` (``_classify_dialog``) for **unambiguous**
-      scam signals (pump/shill/airdrop/seed-phrase/rug/honeypot). Channels
-      the scam sweep flags only as ``ALPHA_RUG_SHILL`` (alpha/calls/signals/
-      gem/100x titles) are *not* excluded here — their call content routes to
-      the alpha channel while scam_watch still scans their tokens
-      independently. No keyword duplication.
+      scam signals (pump/shill/airdrop/seed-phrase/rug/honeypot). Scam
+      channels ARE swept (2026-08-29 content-flow overhaul): their call
+      content is tagged ``category="scam"`` and routed to the alerts
+      channel by score — while scam_watch still scans their tokens
+      independently. Channels the scam sweep flags only as
+      ``ALPHA_RUG_SHILL`` (alpha/calls/signals/gem/100x titles) are *not*
+      classified scam here — their call content routes to the alpha channel.
+    * ``news``  — news/media/market-style titles → routed to the news channel.
+      Analyst/on-chain channels (``ANALYST_CHANNELS`` — LookOnChain & co.)
+      are classified as news so they are ALWAYS swept; their category tag is
+      ``analyst`` (see :func:`resolve_channel_sources`) so downstream routing
+      can prefer main.
     * ``alpha`` — whale/alpha/signal/calls-style titles → routed to the alpha
       channel.
-    * ``news``  — news/media/market-style titles → routed to the news channel.
     * ``other`` — everything else (personal chats, groups, non-crypto) →
       excluded from the sweep entirely.
 
@@ -55,6 +63,8 @@ def classify_channel_category(title: str, username: str) -> str:
     haystack = f"{title or ''} {username or ''}".lower()
     if any(word in haystack for word in _CHANNEL_OWN_KEYWORDS):
         return "other"
+    if str(username or "").strip().lstrip("@").lower() in {c.lower() for c in ANALYST_CHANNELS}:
+        return "news"  # analyst channels are swept; tagged "analyst" below
     try:
         from rugmunchbot.channels.scam_watch import (
             ScamSourceType,
@@ -80,8 +90,36 @@ def channel_sources() -> list[dict[str, Any]]:
     ``_DEFAULT_CHANNELS``). This is the *fallback* list — when auto-discovery
     is enabled and the headless client is available,
     :func:`resolve_channel_sources` prefers the account's own channels.
+    Analyst handles (``ANALYST_CHANNELS``) are tagged
+    ``channel_category="analyst"`` so downstream routing knows their genre;
+    scam-call handles (``SCAM_CALL_CHANNELS``) are tagged
+    ``category="scam"`` / ``channel_category="scam"`` so the routed lane
+    sends their scored digests to the alerts channel.
     """
-    return [{"username": u, "category": "crypto_news", "name": u} for u in _tg.TG_NEWS_CHANNELS]
+    sources: list[dict[str, Any]] = []
+    for u in _tg.TG_NEWS_CHANNELS:
+        handle = str(u).strip().lstrip("@")
+        is_analyst = handle.lower() in {c.lower() for c in ANALYST_CHANNELS}
+        is_scam = handle.lower() in {c.lower() for c in SCAM_CALL_CHANNELS}
+        if is_scam:
+            sources.append(
+                {
+                    "username": handle,
+                    "category": "scam",
+                    "name": handle,
+                    "channel_category": "scam",
+                }
+            )
+            continue
+        sources.append(
+            {
+                "username": handle,
+                "category": "crypto_news",
+                "name": handle,
+                "channel_category": "analyst" if is_analyst else "news",
+            }
+        )
+    return sources
 
 
 async def resolve_channel_sources(client: Any | None = None) -> list[dict[str, Any]]:
@@ -93,10 +131,10 @@ async def resolve_channel_sources(client: Any | None = None) -> list[dict[str, A
          (:func:`app.domains.news_ingest.discover_followed_channels`), gated
          by ``RMI_TG_NEWS_AUTO_DISCOVER`` (default on). Every discovered
          channel is categorized by :func:`classify_channel_category`:
-         **news** → ``crypto_news`` and **alpha** → ``alpha`` are swept;
-         **scam** channels are left to the scam_watch job (no duplication)
-         and **other** channels (personal chats, non-crypto) are skipped.
-         The result is bounded by ``RMI_TG_NEWS_MAX_CHANNELS``.
+         **news** → ``crypto_news``, **alpha** → ``alpha`` and **scam** →
+         ``scam`` are swept (the routed lane posts scam-call digests to the
+         alerts channel); only **other** channels (personal chats, non-crypto)
+         are skipped. The result is bounded by ``RMI_TG_NEWS_MAX_CHANNELS``.
       2. **Explicit** — ``RMI_TG_NEWS_CHANNELS`` env list.
       3. **Default** — ``_DEFAULT_CHANNELS``.
 
@@ -120,15 +158,28 @@ async def resolve_channel_sources(client: Any | None = None) -> list[dict[str, A
                 seen.add(handle)
                 category = classify_channel_category(str(title or ""), handle)
                 counts[category] += 1
-                if category in ("scam", "other"):
-                    continue  # scam → scam_watch; other → not news-relevant
+                if category == "other":
+                    continue  # personal chats / non-crypto — not news-relevant
+                if category == "scam":
+                    sources.append(
+                        {
+                            "username": handle,
+                            "category": "scam",
+                            "name": str(title or handle),
+                            "channel_category": "scam",
+                        }
+                    )
+                    if len(sources) >= _tg.TG_NEWS_MAX_CHANNELS:
+                        break
+                    continue
+                is_analyst = handle.lower() in {c.lower() for c in ANALYST_CHANNELS}
                 category_tag = "crypto_news" if category == "news" else "alpha"
                 sources.append(
                     {
                         "username": handle,
                         "category": category_tag,
                         "name": str(title or handle),
-                        "channel_category": category,
+                        "channel_category": "analyst" if is_analyst else category,
                     }
                 )
                 if len(sources) >= _tg.TG_NEWS_MAX_CHANNELS:

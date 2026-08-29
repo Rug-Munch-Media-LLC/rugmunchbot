@@ -57,10 +57,31 @@ def test_compose_renders_all_sections(monkeypatch):
     text = up.compose_updates_digest(health_lines=["✅ rag-api", "❌ embed-deep-4b"])
     assert "system progress" in text
     assert "Shipped (3 commits/24h)" in text
-    assert "feat(rag): dual-tier embedder contracts" in text
+    # Human-readable changelog (2026-08-29 quality overhaul): conventional
+    # subjects render as "type — scope — message", never raw git output.
+    assert "feat — rag — dual-tier embedder contracts" in text
     assert "✅ rag-api" in text
     assert "feed mirror" in text
     assert "Posting volume" in text
+
+
+def test_humanize_subject_and_secret_scrub():
+    assert (
+        up._humanize_subject("feat(rag): dual-tier embedder contracts")
+        == "feat — rag — dual-tier embedder contracts"
+    )
+    assert up._humanize_subject("fix: recency gate") == "fix — recency gate"
+    assert up._humanize_subject("docs: no scope") == "docs — no scope"
+    # Pass-through for non-conventional subjects.
+    assert up._humanize_subject("merge branch main") == "merge branch main"
+    # Secret scrub: token-like strings never reach the rendered changelog.
+    assert "[REDACTED]" in up._scrub_secrets("bump key: sk_live_abcdefghijklmnop123456")
+    assert "[REDACTED]" in up._scrub_secrets("api key = 0xabcdef0123456789abcdef0123456789abcdef01")
+    assert "[REDACTED]" in up._scrub_secrets("url https://user:sekret@example.com/x")
+    assert "[REDACTED]" in up._scrub_secrets("host 192.168.1.10 restarted")
+    # A plain human sentence is untouched.
+    plain = "improve reranker fallback latency"
+    assert up._scrub_secrets(plain) == plain
 
 
 def test_posting_volume_maps_chat_ids_to_roles(monkeypatch):

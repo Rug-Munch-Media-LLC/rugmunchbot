@@ -14,7 +14,53 @@ from rugmunchbot.channels.daily_market_summary._config import (
     logger,
 )
 
-SYSTEM_PROMPT = """You write "The Daily Rug" — the morning intelligence report for Crypto Rug Muncher (@cryptorugmunch). This is not a bot dump. This is a must-read market briefing that degens and institutions rely on. Published to Telegram AND rugmunch.io in long form.
+#: Edition names for the two daily market briefs. The morning brief is the
+#: flagship (07:00 ET); the midday brief re-runs the same pipeline on fresher
+#: data (13:00 ET). Both share this prompt — the edition name is injected.
+MORNING_EDITION = "The Morning Rug Market Report"
+MIDDAY_EDITION = "The Midday Rug Market Report"
+
+#: UTC hour window the legacy hour-heuristic treats as "midday" (used only
+#: when the job name is unavailable, e.g. direct/test invocation).
+_MIDDAY_HOUR_START = 11
+_MIDDAY_HOUR_END = 18
+
+
+def _edition_name(hour: int | None = None) -> str:
+    """Edition name by UTC hour: midday 11:00-17:59, else morning.
+
+    Prefer :func:`_resolve_edition` (job-name aware) in the live job; this
+    hour heuristic is the fallback for direct/test invocation.
+    """
+    if hour is None:
+        hour = datetime.now(UTC).hour
+    if _MIDDAY_HOUR_START <= hour < _MIDDAY_HOUR_END:
+        return MIDDAY_EDITION
+    return MORNING_EDITION
+
+
+def _resolve_edition(ctx: Any) -> str:
+    """Edition for this run — authoritative from the job name.
+
+    ``daily_market_summary`` → morning, ``daily_market_summary_midday`` →
+    midday. When no job context is available (direct calls, tests) it falls
+    back to the UTC hour heuristic. Fixes the old hour-only rule that
+    mislabeled the 07:00 ET morning brief (11:00 UTC in EDT) as "Midday".
+    """
+    try:
+        job = getattr(ctx, "job", None)
+        if job is not None:
+            job_name = str(getattr(job, "name", "") or "")
+            if "midday" in job_name:
+                return MIDDAY_EDITION
+            if job_name:
+                return MORNING_EDITION
+    except Exception as exc:  # never fail the run over an edition label
+        logger.debug("daily_market_summary:edition_lookup_failed err=%s", str(exc)[:80])
+    return _edition_name()
+
+
+SYSTEM_PROMPT = """You write "{EDITION}" — the flagship intelligence brief for Crypto Rug Muncher (@cryptorugmunch). This is not a bot dump. This is a must-read market briefing that degens and institutions rely on. Published to Telegram AND rugmunch.io in long form.
 
 VOICE (non-negotiable):
 - You are a sharp crypto intelligence analyst who has seen every cycle. Write with authority, never hype.
@@ -24,11 +70,11 @@ VOICE (non-negotiable):
 - Write like a human who has been doing this for years. Short sentences. Punchy observations. Flow into longer explanations.
 - Dry humor when it serves the intel. "The market is pricing in hopium again" beats "market sentiment is positive."
 
-OUTPUT FORMAT — Telegram HTML with a masthead and ruled headers:
+OUTPUT FORMAT — Telegram HTML with a masthead and ruled banners:
 
-MASTHEAD (first lines, exactly this shape):
-<b>━━━ THE DAILY RUG ━━━</b>
-<i>Rug Munch Intelligence — AI-powered morning market summary</i>
+MASTHEAD (first lines, exactly this shape — {EDITION} verbatim):
+<b>━━━ {EDITION} ━━━</b>
+<i>Rug Munch Intelligence — AI-powered market summary</i>
 <i>{Weekday, Month DD, YYYY} · Crypto Rug Muncher desk</i>
 (blank line, then sections)
 
@@ -37,8 +83,13 @@ precise, machine-fast synthesis with a human editor's skepticism. Never
 pretend to be human, never hide the AI byline.
 
 SECTION HEADERS — render as ruled banners, never bare words:
-<b>──────── MARKET OVERVIEW ────────</b>
+<b>━━━ MARKET OVERVIEW ━━━</b>
 (same pattern for every section; keeps Telegram scannable and the web export clean)
+TYPOGRAPHY (spec law):
+- Bold every number that matters: prices, 24h %, mcap, TVL, volume.
+- One blank line above and below every section banner; never two.
+- Bullets use a single "• " prefix, one bullet per line, no wrapping indent tricks.
+- No trailing spaces, no double spaces, no mid-word line breaks.
 ## MARKET OVERVIEW
 BTC/ETH/SOL prices with 24h % — bold the numbers. Then the tape read: risk-on or off, breadth, global mcap, BTC dominance. Use ONLY the provided verdict/metrics.
 
@@ -94,7 +145,7 @@ HARD RULES:
 - Format: "## SECTION" headers, "• " bullets, <a href="URL">text</a> links, <b>/<i> emphasis. No markdown, no ```, no <h1>, no <p>.
 - Target: 8000-9500 chars. The full version goes on feed.rugmunch.io. Telegram gets first ~3900 auto-trimmed — front-load the important content.
 - EVERY issue ends with this closing block (verbatim structure, fill the date):
-  <b>The Daily Rug</b> — Rug Munch Intelligence, back tomorrow same time.
+  <b>{EDITION}</b> — Rug Munch Intelligence, back tomorrow same time.
   Full edition: <a href="https://rugmunch.io">rugmunch.io</a> ·
   Run your own intel: <a href="https://t.me/rugmunchbot">@rugmunchbot</a>
 - Cite-or-omit: if a number is not in the data, do NOT invent it. Missing sections render as "N/A".
@@ -103,12 +154,15 @@ HARD RULES:
 - One emoji max in the opening line (📊). Section headers use the tags above. No other emojis."""
 
 
-def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
+def build_messages(context: dict[str, Any], *, edition: str | None = None) -> list[dict[str, str]]:
     """Messages for ``chat_with_fallback(messages, "long")``.
 
     Pure — deterministic from ``context`` (a ``generated_at`` date line is
-    stamped from the context so tests stay deterministic).
+    stamped from the context so tests stay deterministic). The edition name
+    (morning/midday) is injected into the system prompt and user prompt so
+    both daily briefs share one writer contract.
     """
+    edition = edition or _edition_name()
     date_str = "—"
     try:
         generated = context.get("generated_at")
@@ -119,14 +173,14 @@ def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
     except (TypeError, ValueError):
         date_str = "—"
     user_prompt = (
-        f"Write today's The Daily Rug for {date_str}.\n\n"
+        f"Write today's {edition} for {date_str}.\n\n"
         "Here is the ONLY data you may use (cite-or-omit):\n"
         f"{_serialize_context(context)}\n\n"
         "Now write the report. '## SECTION' headers, sections in the exact order above, "
         "7000-8000 chars, every news/narrative item linked with its real [url=...]."
     )
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": SYSTEM_PROMPT.replace("{EDITION}", edition)},
         {"role": "user", "content": user_prompt},
     ]
 
@@ -208,7 +262,9 @@ def cleanup_html(text: str, *, max_chars: int = DAILY_MARKET_SUMMARY_MAX_CHARS) 
     return cut + "…"
 
 
-async def publish_to_feed(report: str, *, title: str | None = None) -> dict[str, Any]:
+async def publish_to_feed(
+    report: str, *, title: str | None = None, edition: str | None = None
+) -> dict[str, Any]:
     """Publish the brief to the rugmunch.io feed (Ghost content platform).
 
     The rugmunch.io social feed is backed by the Ghost content platform
@@ -224,7 +280,7 @@ async def publish_to_feed(report: str, *, title: str | None = None) -> dict[str,
         return await create_post(
             content=report,
             post_type="briefing",
-            title=title or f"The Daily Rug — {stamp}",
+            title=title or f"{edition or _edition_name()} — {stamp}",
             tags=["daily", "market-summary"],
         )
     except Exception as exc:  # fail-open — feed publish is additive
@@ -253,7 +309,8 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         logger.info("daily_market_summary:no_data_sources_skipped")
         return 0
 
-    messages = build_messages(context)
+    edition = _resolve_edition(ctx)
+    messages = build_messages(context, edition=edition)
     try:
         from rugmunchbot.llm_config import chat_with_fallback
 
@@ -270,13 +327,11 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # because the LLM chain returned a degenerate one-off. If the model
     # under-delivers, retry once with an explicit length demand; if it
     # STILL under-delivers, assemble a deterministic report from the raw
-    # context — The Daily Rug never ships empty again.
+    # context — the market report never ships empty again.
     min_chars = 1500
     if len(raw.strip()) < min_chars:
-        logger.warning(
-            "daily_market_summary:llm_short retrying chars=%s", len(raw.strip())
-        )
-        retry_msgs = build_messages(context)
+        logger.warning("daily_market_summary:llm_short retrying chars=%s", len(raw.strip()))
+        retry_msgs = build_messages(context, edition=edition)
         retry_msgs[1]["content"] += (
             "\n\nIMPORTANT: your previous attempt was too short. Write the FULL "
             "7000-8000 character report now — every section, every item, with links."
@@ -303,7 +358,7 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         context.get("sources"),
     )
 
-    # The Daily Rug delivery doctrine (2026-08-26): Telegram readers get the
+    # Market-report delivery doctrine (2026-08-26): Telegram readers get the
     # FULL report — split at line boundaries into ≤3900-char parts (Telegram's
     # 4096 limit minus formatting headroom). No trimming: free-for-all long
     # form on TG; feed.rugmunch.io carries the most detailed edition.
@@ -311,16 +366,14 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # Feed publishes FIRST so the TG closing block can link the live article.
     feed_url = ""
     if DAILY_MARKET_SUMMARY_FEED_ENABLED:
-        feed_result = await publish_to_feed(raw)
+        feed_result = await publish_to_feed(raw, edition=edition)
         feed_url = str(feed_result.get("url") or "") if isinstance(feed_result, dict) else ""
         if feed_url:
             logger.info("daily_market_summary:feed_published url=%s", feed_url)
 
     parts = _split_for_telegram(report)
-    hour = datetime.now(UTC).hour
-    edition = "Midday edition" if 11 <= hour < 18 else "Morning edition"
     closer = (
-        f"📖 {edition}: full write-up on feed.rugmunch.io"
+        f"📖 <b>{edition}</b> — full write-up on feed.rugmunch.io"
         + (f' — <a href="{feed_url}">read it here</a>.' if feed_url else ".")
         + "\n🤖 Live token intel, scans &amp; alerts: @rugmunchbot"
     )
@@ -340,7 +393,32 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             break
     if sent == 0:
         return 0
+    # W30 top-of-food-chain mirror: a main-channel post lands on
+    # feed.rugmunch.io too (best-effort, never blocks the tick). The Ghost
+    # publish above covers rugmunch.io; this covers the static feed store.
+    try:
+        from rugmunchbot.channels.scheduler._posts_rag import mirror_post_to_feed
+
+        mirror_post_to_feed(
+            {
+                "text": report[:3900],
+                "story_ref": feed_url
+                or f"{_edition_slug(edition)}-{datetime.now(UTC).strftime('%Y%m%d')}",
+                "source": feed_url or "rugmunch.io",
+                "kind": "market-summary",
+            }
+        )
+    except Exception as exc:
+        logger.warning("daily_market_summary:feed_mirror_failed err=%s", str(exc)[:120])
     return 1
+
+
+def _edition_slug(edition: str) -> str:
+    """Stable dedupe slug per edition: 'The Morning Rug Market Report' →
+    'morning-rug-market-report'. Distinct per edition so the morning and
+    midday briefs never collide on the same calendar day."""
+    slug = re.sub(r"^(?:the|a|an)\s+", "", edition.strip().lower())
+    return re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
 
 
 def _split_for_telegram(report: str, max_chars: int = 3900) -> list[str]:

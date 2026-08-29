@@ -4,7 +4,7 @@ from rugmunchbot.tools.volume_integrity import analyze
 
 
 def test_impostor_washed_token_scores_low():
-    """The Daily Rug 'SOL' impostor profile: hot turnover, dust buys, flat price."""
+    """Morning Rug Market Report 'SOL' impostor profile: hot turnover, dust buys, flat price."""
     r = analyze(
         {
             "volume": {"h24": 7.8e6},

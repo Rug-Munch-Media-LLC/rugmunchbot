@@ -185,8 +185,15 @@ def _quality_gate(item: dict[str, Any]) -> str:
     return ""
 
 
-def _mirror_to_feed(item: dict[str, Any]) -> str | None:
-    """Append a main-channel post to the feed site's JSON store. Returns slug."""
+def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
+    """Append a post to the feed site's JSON store. Returns slug (None on fail).
+
+    Public entry point (2026-08-29): the exploit-alert poster
+    (``channels.exploit_alerts``) reuses this exact writer so every
+    main-channel post — RAG story or exploit alert — mirrors to
+    feed.rugmunch.io through the same atomic file path. ``_mirror_to_feed``
+    remains as a backward-compatible alias for ``_posts_rag`` callers.
+    """
     try:
         os.makedirs(FEED_DATA, exist_ok=True)
         path = os.path.join(FEED_DATA, "posts.json")
@@ -204,7 +211,7 @@ def _mirror_to_feed(item: dict[str, Any]) -> str | None:
                 "slug": slug,
                 "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "text": item.get("text", ""),
-                "source": item.get("story_ref", ""),
+                "source": item.get("story_ref", item.get("source", "")),
                 "kind": item.get("kind", "story"),
             },
         )
@@ -220,6 +227,9 @@ def _mirror_to_feed(item: dict[str, Any]) -> str | None:
         # only escalate the log level.
         logger.warning("feed_mirror_failed err=%s", str(e)[:200])
         return None
+
+
+_mirror_to_feed = mirror_post_to_feed  # backward-compatible alias
 
 
 #: Consecutive main→feed mirror failures (W30 alerting state). Alert fires
@@ -409,6 +419,7 @@ __all__ = [
     "_quality_gate",
     "_recency_gate",
     "_source_gate",
+    "mirror_post_to_feed",
     "post_rag_drafts",
     "post_rag_fast_lane",
 ]

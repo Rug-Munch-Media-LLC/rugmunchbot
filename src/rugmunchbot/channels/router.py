@@ -40,6 +40,12 @@ ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT: float = 0.7
 #: Swept category string that routes a story to the alpha channel (matches
 #: the ``classify_channel_category`` "alpha" bucket in ``telegram_news``).
 ROUTE_ALPHA_CATEGORY: str = "alpha"
+#: Swept category string for scam-call / shill-intel channels (matches the
+#: ``classify_channel_category`` "scam" bucket). Scam-call content that clears
+#: the news floor goes to the ALERTS channel (@rmialerts — its doctrine admits
+#: scam/rug detections), and above the main gate escalates to main. It never
+#: lands on the news channel: scam calls are danger intel, not headlines.
+ROUTE_SCAM_CATEGORY: str = "scam"
 
 # W18 (2026-08-25): MAJOR-EVENT escalation categories. A story whose
 # category matches these goes to MAIN (@cryptorugmuncher) regardless of its
@@ -79,7 +85,7 @@ ROUTE_MAIN_MIN_IMPORTANCE: float = _env_float(
 def route_news(importance: float, category: str) -> str:
     """Route one scored story to exactly one destination.
 
-    Returns ``"skip"`` / ``"news"`` / ``"main"`` / ``"alpha"``.
+    Returns ``"skip"`` / ``"news"`` / ``"main"`` / ``"alpha"`` / ``"alerts"``.
 
     Bands (defaults, env-overridable):
     * importance < ``ROUTE_NEWS_MIN_IMPORTANCE`` (0.4)        → ``"skip"``
@@ -88,9 +94,13 @@ def route_news(importance: float, category: str) -> str:
     * importance ≥ ``ROUTE_MAIN_MIN_IMPORTANCE`` (0.7)         → ``"main"``
     * category == ``ROUTE_ALPHA_CATEGORY`` (alpha) and
       importance < ``ROUTE_MAIN_MIN_IMPORTANCE``               → ``"alpha"``
+    * category == ``ROUTE_SCAM_CATEGORY`` (scam) and
+      importance < ``ROUTE_MAIN_MIN_IMPORTANCE``               → ``"alerts"``
+      (scam-call content in the news band is danger intel — it goes to
+      @rmialerts, never the news channel)
 
-    ``"main"`` always beats ``"alpha"``: an alpha-category story that also
-    clears the main gate is a main-channel story, never an alpha one.
+    ``"main"`` always beats ``"alpha"``/``"alerts"``: an alpha- or scam-
+    category story that also clears the main gate is a main-channel story.
     """
     # W18: major events escalate first — importance can't bury an active
     # exploit or confirmed rug.
@@ -100,6 +110,8 @@ def route_news(importance: float, category: str) -> str:
         return "main"
     if category == ROUTE_ALPHA_CATEGORY:
         return "alpha"
+    if category == ROUTE_SCAM_CATEGORY:
+        return "alerts" if importance >= ROUTE_NEWS_MIN_IMPORTANCE else "skip"
     if importance >= ROUTE_NEWS_MIN_IMPORTANCE:
         return "news"
     return "skip"
@@ -174,6 +186,7 @@ __all__ = [
     "ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT",
     "ROUTE_NEWS_MIN_IMPORTANCE",
     "ROUTE_NEWS_MIN_IMPORTANCE_DEFAULT",
+    "ROUTE_SCAM_CATEGORY",
     "demote_main",
     "route_item",
     "route_news",

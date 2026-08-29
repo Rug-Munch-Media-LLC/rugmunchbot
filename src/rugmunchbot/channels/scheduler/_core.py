@@ -88,13 +88,14 @@ def _chat_id(channel: str) -> str | None:
 
 
 def _route_chat_id(destination: str) -> str | None:
-    """Chat id for a ``route_news`` destination ("news"/"main"/"alpha").
+    """Chat id for a ``route_news`` destination ("news"/"main"/"alpha"/"alerts").
 
     ``main`` resolves through the registry's ``main`` role → the operator's
-    @cryptorugmuncher channel. Unknown destinations (e.g. ``"skip"``) return
-    None so callers simply don't post.
+    @cryptorugmuncher channel; ``alerts`` resolves the registry's ``alerts``
+    role → @rmialerts (the scam-call digest lane). Unknown destinations
+    (e.g. ``"skip"``) return None so callers simply don't post.
     """
-    if destination not in ("news", "main", "alpha"):
+    if destination not in ("news", "main", "alpha", "alerts"):
         return None
     return _chat_id(destination)
 

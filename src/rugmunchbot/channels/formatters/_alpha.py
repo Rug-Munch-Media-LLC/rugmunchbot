@@ -181,16 +181,19 @@ def format_alpha_post(
     whale_moves: list[dict[str, Any]],
     smart_money: list[dict[str, Any]],
     launches: list[dict[str, Any]],
+    kol_trades: list[dict[str, Any]] | None = None,
 ) -> NewsPost:
-    """Alpha digest: whale moves + smart money wallets + new launches, with bot CTA.
+    """Alpha digest: whale moves + smart money wallets + new launches + KOL trades.
 
     High-signal voice: every item leads with the signal, adds the context
     that matters (whale-move body hook, wallet tags, launch age/liquidity),
     a one-line verdict, and actionable scan/chart/explorer links. Every
     section only renders when its live source returned data — an empty
-    section is omitted, never invented. Every post ends with a bot CTA so
-    readers know to /scan with @RugMunchBot. Carries the first usable image
-    on the returned ``NewsPost`` so the scheduler can attach it as a photo.
+    section is omitted, never invented. The optional ``kol_trades`` rail
+    (live SearXNG X-signal hits) renders each hit with its SOURCE LINK —
+    cite-or-omit. Every post ends with a bot CTA so readers know to /scan
+    with @RugMunchBot. Carries the first usable image on the returned
+    ``NewsPost`` so the scheduler can attach it as a photo.
     """
     lines = [
         "\U0001f40b <b>Alpha Feed</b>",
@@ -263,8 +266,22 @@ def format_alpha_post(
                 lines.append(f"   {links}")
         lines.append("")
 
-    if not whale_moves and not smart_money and not launches:
+    if not whale_moves and not smart_money and not launches and not kol_trades:
         lines.append("No fresh alpha signals in this window \u2014 checking again soon.")
+        lines.append("")
+
+    if kol_trades:
+        lines.append("\U0001f4e2 <b>KOL Trades / Analyst Calls</b>")
+        for k in kol_trades[:3]:
+            title = _esc(k.get("title") or "KOL signal")
+            url = str(k.get("url") or "").strip()
+            if url:
+                lines.append(f'\u2022 <a href="{html.escape(url, quote=True)}">{title}</a>')
+            else:
+                lines.append(f"\u2022 {title}")
+            snippet = _esc(_takeaway(k.get("source"), 160))
+            if snippet:
+                lines.append(f"   \U0001f4ac {snippet}")
         lines.append("")
 
     lines.append(f"\U0001f550 {_now_stamp()}")

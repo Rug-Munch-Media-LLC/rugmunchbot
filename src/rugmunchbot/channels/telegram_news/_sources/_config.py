@@ -200,6 +200,44 @@ _DEFAULT_CHANNELS: tuple[str, ...] = (
 )
 
 
+#: Analyst / on-chain intelligence channels (quality overhaul 2026-08-29).
+#: LookOnChain and friends produce high-signal on-chain analytics that the
+#: channel doctrine routes to MAIN when importance >= the main gate (0.7)
+#: and to the news page (website feed) always — citing the source link.
+#: These handles are force-swept as ``crypto_news`` with
+#: ``channel_category="analyst"`` so auto-discovery can never drop them
+#: (``classify_channel_category`` would otherwise bucket "lookonchain"
+#: under ``other`` — no news/alpha keyword hits — and silently skip it).
+ANALYST_CHANNELS: tuple[str, ...] = tuple(
+    c.strip().lstrip("@")
+    for c in os.getenv(
+        "RMI_TG_NEWS_ANALYST_CHANNELS",
+        "lookonchain,spotonchain,ArkhamIntel,OnChainWizard,nansen_ai,nansen_digest,"
+        "glassnode,cryptowhaletrades,chainfeeds,intotheblock,SantimentFeed,"
+        "duneanalytics,defillama,MessariCrypto,tokenterminal,DelphiDigital",
+    ).split(",")
+    if c.strip()
+)
+
+#: Scam-call / shill-intel channels (2026-08-29 content-flow overhaul).
+#: The tg_news sweep reads these AND every discovered scam-classified
+#: channel, tags their articles ``category="scam"``, and the routed lane
+#: posts the scored digest to the ALERTS channel (@rmialerts — the channel
+#: whose doctrine admits scam/rug detections) — never the news channel.
+#: Handles here are force-swept as ``scam`` even when discovery is off;
+#: the full scam_watch registry (hundreds of call channels) stays the
+#: scanner's job — this is the high-signal call-out subset the feed reads.
+SCAM_CALL_CHANNELS: tuple[str, ...] = tuple(
+    c.strip().lstrip("@")
+    for c in os.getenv(
+        "RMI_TG_NEWS_SCAM_CHANNELS",
+        "thepumpalert,CallAnalyser,walloftrophies,FuzzLandAlert,BeosinAlert,"
+        "ScamSniffer,rektnews,zachxbt,SlowMist",
+    ).split(",")
+    if c.strip()
+)
+
+
 def _env_bool(name: str, default: bool = True) -> bool:
     raw = os.getenv(name)
     if raw is None:

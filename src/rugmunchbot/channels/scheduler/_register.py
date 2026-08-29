@@ -126,18 +126,22 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_dislocation",
         )
 
-    # Whale-alerts (2026-08-26): multi-chain whale moves from the firehose's
-    # whale_transfers collection → alerts channel every 30 min. Fail-open.
-    if ALERTS_CHANNEL_ENABLED and _chat_id("alerts") and hasattr(job_queue, "run_repeating"):
+    # Whale + Alpha (2026-08-26, rerouted 2026-08-29): multi-chain whale
+    # moves from the firehose's whale_transfers collection → ALPHA channel
+    # every 30 min. Channel doctrine v3: whale moves are "worth paying for"
+    # alpha — they NEVER belong on @rmialerts (that channel is exploit /
+    # scam / shill-campaign detections only). Fail-open.
+    if ALPHA_CHANNEL_ENABLED and _chat_id("alpha") and hasattr(job_queue, "run_repeating"):
         from rugmunchbot.channels.scheduler._posts_whales import build_whale_post
 
         async def _whale_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             try:
                 text = await build_whale_post()
-                if text and _chat_id("alerts"):
+                alpha_chat = _chat_id("alpha")
+                if text and alpha_chat:
                     from rugmunchbot.channels.scheduler._core import _safe_send
 
-                    await _safe_send(ctx.bot, _chat_id("alerts"), text)
+                    await _safe_send(ctx.bot, alpha_chat, text)
             except Exception as exc:
                 logger.warning("whale_alerts_tick failed: %s", str(exc)[:120])
 
@@ -146,6 +150,48 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             interval=int(os.getenv("WHALE_ALERT_INTERVAL_MIN", "30")) * 60,
             first=180,
             name="channel_whale_alerts",
+        )
+
+    # Shill-campaign watch (2026-08-29, quality overhaul deliverable 4):
+    # coordinated shill detection (same token pushed by many KOL/alpha
+    # accounts in a window) → ALERTS channel. High-signal only — the alerts
+    # channel doctrine admits exploit/scam/rug + shill-campaign detections,
+    # never routine moves.
+    if (
+        ALERTS_CHANNEL_ENABLED
+        and _chat_id("alerts")
+        and hasattr(job_queue, "run_repeating")
+        and os.getenv("RMI_SHILL_WATCH_ENABLED", "true").lower() in ("1", "true", "yes")
+    ):
+        from rugmunchbot.channels.shill_watch import SHILL_INTERVAL_MIN, run_shill_watch
+
+        job_queue.run_repeating(
+            _tick_wrapper("channel_shill_watch", run_shill_watch, envelope=True),
+            interval=SHILL_INTERVAL_MIN * 60,
+            first=300,
+            name="channel_shill_watch",
+        )
+
+    # Daily quality-content job (2026-08-29, quality overhaul deliverable 3):
+    # up to 8 reranked quality posts/day on main, filling the 10-post budget
+    # after the 2 market briefs. Budget-gated via main_cap (shared with every
+    # main lane) so the day never exceeds 10. Dedup = stable-key + qwen3-4B
+    # embed + the global _remember namespace — no double-post.
+    if (
+        os.getenv("RMI_DAILY_QUALITY_ENABLED", "true").lower() in ("1", "true", "yes")
+        and _chat_id("main")
+        and hasattr(job_queue, "run_repeating")
+    ):
+        from rugmunchbot.channels.scheduler._posts_daily import (
+            DAILY_QUALITY_INTERVAL_MIN,
+            post_daily_quality,
+        )
+
+        job_queue.run_repeating(
+            _tick_wrapper("channel_daily_quality", post_daily_quality, envelope=True),
+            interval=DAILY_QUALITY_INTERVAL_MIN * 60,
+            first=420,
+            name="channel_daily_quality",
         )
 
     # RugBrain content-distribution (2026-08-24): RAG-ranked stories ->
@@ -315,5 +361,5 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_rag_fast",
         )
     logger.info(
-        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates)"
+        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates/shill_watch/daily_quality)"
     )

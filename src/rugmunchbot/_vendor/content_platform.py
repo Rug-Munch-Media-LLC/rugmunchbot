@@ -31,6 +31,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import html
 import json
 import os
 import re
@@ -111,9 +112,13 @@ def _ghost_admin_jwt(admin_key: str) -> str:
     def _b64url(data: bytes) -> str:
         return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
-    header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT", "kid": kid}, separators=(",", ":")).encode())
+    header = _b64url(
+        json.dumps({"alg": "HS256", "typ": "JWT", "kid": kid}, separators=(",", ":")).encode()
+    )
     now = int(time.time())
-    payload = _b64url(json.dumps({"iat": now, "exp": now + 300, "aud": "/admin/"}, separators=(",", ":")).encode())
+    payload = _b64url(
+        json.dumps({"iat": now, "exp": now + 300, "aud": "/admin/"}, separators=(",", ":")).encode()
+    )
     try:
         secret_bytes = bytes.fromhex(secret)
     except ValueError:
@@ -170,6 +175,14 @@ _INLINE_RE = re.compile(
 _BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
 _BULLET_RE = re.compile(r"^[-•*](?:\s*[-•*])*\s+")
 _HEADING_RE = re.compile(r"^(#{1,4})\s+(.+)$")
+#: Ruled Telegram banner: ``<b>━━━ MARKET OVERVIEW ━━━</b>`` or the old
+#: full-width ``<b>──────── SECTION ────────</b>``. The leading/trailing
+#: decoration must be a run of box-drawing/rule chars; the label sits between.
+_RULED_BANNER_RE = re.compile(r"^\s*<b>\s*([━─=•·]+)\s*(.*?)\s*\1\s*</b>\s*$", re.DOTALL)
+_BOX_DECOR_RE = re.compile(r"[━─=•·]+")
+#: Repeated-blank normalization — mirrors the Telegram cleanup so the site
+#: never double-spaces between sections.
+_BLANK_RUN_RE = re.compile(r"\n{3,}")
 
 
 def _text_node(text: str, fmt: int = 0) -> dict[str, Any]:
@@ -178,7 +191,7 @@ def _text_node(text: str, fmt: int = 0) -> dict[str, Any]:
         "format": fmt,
         "mode": "normal",
         "style": "",
-        "text": text,
+        "text": html.unescape(text),
         "type": "text",
         "version": 1,
     }
@@ -224,12 +237,38 @@ def _inline_to_children(text: str) -> list[dict[str, Any]]:
 def _markdown_to_lexical(content: str) -> dict[str, Any]:
     """Convert markdown-ish / Telegram-HTML content to Ghost lexical JSON.
 
-    Handles ``#``/``##`` headings, ``-``/``•`` bullet lists, ``**bold**``,
-    ``*italic*``, ``[text](url)`` links and Telegram ``<b>/<i>/<a href>``
-    tags. Everything else renders as paragraphs.
+    Handles ``#``/``##`` headings, ruled Telegram banners
+    (``<b>━━━ SECTION ━━━</b>`` → ``h2``, the masthead banner → ``h1``),
+    ``-``/``•`` bullet lists, ``**bold**``, ``*italic*``,
+    ``[text](url)`` links and Telegram ``<b>/<i>/<a href>`` tags. Everything
+    else renders as paragraphs. Blank runs collapse to a single blank line
+    (no double-spacing), and HTML entities are decoded so ``&amp;`` renders
+    as ``&`` on the site.
     """
     content = _BR_RE.sub("\n", content)
+    content = _BLANK_RUN_RE.sub("\n\n", content)
     children: list[dict[str, Any]] = []
+    masthead_done = False
+
+    def _heading_node(tag: str, text: str) -> dict[str, Any]:
+        return {
+            "type": "heading",
+            "version": 1,
+            "children": _inline_to_children(text),
+            "direction": "ltr",
+            "format": "",
+            "indent": 0,
+            "tag": tag,
+        }
+
+    def _banner_label(line: str) -> str | None:
+        """'<b>━━━ MARKET OVERVIEW ━━━</b>' → 'MARKET OVERVIEW' (None if not a banner)."""
+        m = _RULED_BANNER_RE.match(line)
+        if not m:
+            return None
+        label = _BOX_DECOR_RE.sub("", m.group(2)).strip()
+        return label or None
+
     for block in re.split(r"\n\s*\n", content):
         block = block.strip()
         if not block:
@@ -239,20 +278,19 @@ def _markdown_to_lexical(content: str) -> dict[str, Any]:
             continue
         heading = _HEADING_RE.match(lines[0])
         if heading:
-            children.append(
-                {
-                    "type": "heading",
-                    "version": 1,
-                    "children": _inline_to_children(heading.group(2)),
-                    "direction": "ltr",
-                    "format": "",
-                    "indent": 0,
-                    "tag": f"h{len(heading.group(1))}",
-                }
-            )
+            children.append(_heading_node(f"h{len(heading.group(1))}", heading.group(2)))
             lines = lines[1:]
             if not lines:
                 continue
+        else:
+            banner = _banner_label(lines[0])
+            if banner:
+                tag = "h1" if not masthead_done else "h2"
+                masthead_done = True
+                children.append(_heading_node(tag, banner))
+                lines = lines[1:]
+                if not lines:
+                    continue
         if all(_BULLET_RE.match(ln) for ln in lines):
             items = [
                 {
@@ -399,7 +437,9 @@ async def create_post(
         return {"error": str(e)}
 
 
-async def get_feed(page: int = 1, limit: int = 20, tag: str = "", include: str = "tags,authors") -> dict[str, Any]:
+async def get_feed(
+    page: int = 1, limit: int = 20, tag: str = "", include: str = "tags,authors"
+) -> dict[str, Any]:
     """Get feed via Ghost Content API."""
     if not GHOST_CONTENT_KEY:
         return {"posts": [], "error": "content key not configured"}
@@ -426,7 +466,9 @@ async def get_feed(page: int = 1, limit: int = 20, tag: str = "", include: str =
                 posts = []
                 for p in data.get("posts", []):
                     ptags = [t["name"] for t in p.get("tags", [])]
-                    post_type = next((t for t in POST_TYPES if POST_TYPES[t]["tag"] in ptags), "article")
+                    post_type = next(
+                        (t for t in POST_TYPES if POST_TYPES[t]["tag"] in ptags), "article"
+                    )
                     posts.append(
                         {
                             "id": p["id"],
@@ -476,7 +518,12 @@ async def generate_briefing() -> dict[str, Any]:
     summary. Non-breaking: on a catastrophic pipeline failure it falls back to
     the legacy RAG-snippet stub (``_generate_briefing_legacy``).
     """
-    from rugmunchbot._vendor.briefing import draft_briefing, gather_briefing_context, publish_briefing, review_briefing
+    from rugmunchbot._vendor.briefing import (
+        draft_briefing,
+        gather_briefing_context,
+        publish_briefing,
+        review_briefing,
+    )
 
     try:
         context = await gather_briefing_context()
@@ -489,7 +536,9 @@ async def generate_briefing() -> dict[str, Any]:
             "published": published,
         }
         if not review["ok"]:
-            summary["warning"] = f"Review flagged {len(review['flags'])} items — verify before publishing"
+            summary["warning"] = (
+                f"Review flagged {len(review['flags'])} items — verify before publishing"
+            )
         return summary
     except Exception as e:  # keep the endpoint alive — fall back to legacy stub
         logger.warning("briefing_pipeline_failed — using legacy fallback err=%s", str(e)[:160])
@@ -498,7 +547,9 @@ async def generate_briefing() -> dict[str, Any]:
 
 async def _generate_briefing_legacy() -> dict[str, Any]:
     """Legacy daily-briefing stub: raw RAG snippets (pre-§6 behavior)."""
-    content_parts = [f"# 🕵️ Daily Intelligence Briefing\n\n*{datetime.now(UTC).strftime('%B %d, %Y')}*\n"]
+    content_parts = [
+        f"# 🕵️ Daily Intelligence Briefing\n\n*{datetime.now(UTC).strftime('%B %d, %Y')}*\n"
+    ]
 
     # Pull from RAG
     try:
@@ -533,7 +584,9 @@ async def _generate_briefing_legacy() -> dict[str, Any]:
 
 async def generate_newsletter() -> dict[str, Any]:
     """Generate weekly newsletter with top stories and analysis."""
-    content_parts = [f"# 📰 Weekly Intelligence Report\n\n*Week of {datetime.now(UTC).strftime('%B %d, %Y')}*\n"]
+    content_parts = [
+        f"# 📰 Weekly Intelligence Report\n\n*Week of {datetime.now(UTC).strftime('%B %d, %Y')}*\n"
+    ]
 
     try:
         from rugmunchbot._vendor.rugbrain_client import rugbrain_search

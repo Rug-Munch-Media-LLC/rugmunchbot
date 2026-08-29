@@ -21,9 +21,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import subprocess
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -38,28 +40,78 @@ from rugmunchbot.channels.scheduler._core import (
 )
 
 #: Repos whose commits surface as "shipped". Comma-separated env override.
+#: ``_THIS_REPO`` stays a Path — parents[4] is the repo root (parents[3] is
+#: ``src/``); the str() cast in the earlier fix broke ``.parent`` resolution.
+_THIS_REPO = Path(__file__).resolve().parents[4]
+_DEFAULT_REPO_DIRS = f"{_THIS_REPO},{_THIS_REPO.parent / 'rugbrain'}"
 REPO_DIRS = [
     d.strip()
-    for d in os.getenv(
-        "RMI_CHANGELOG_REPO_DIRS",
-        "/srv/work/repos/rugmunchbot,/srv/work/repos/rugbrain",
-    ).split(",")
+    for d in os.getenv("RMI_CHANGELOG_REPO_DIRS", _DEFAULT_REPO_DIRS).split(",")
     if d.strip()
 ]
 
 #: Service probes: label → URL. All are local/loopback model+API services.
 SERVICE_PROBES: dict[str, str] = {
     "rag-api": os.getenv("RAG_API_HEALTH_URL", "http://127.0.0.1:8012/health"),
-    "model-gateway": os.getenv("GATEWAY_HEALTH_URL", "http://172.22.0.1:8010/health"),
-    "embed-deep-4b": os.getenv("DEEP_EMBED_URL", "http://172.22.0.1:8004") + "/health",
-    "embed-speed-0.6b": os.getenv("SPEED_EMBED_URL", "http://172.22.0.1:8007") + "/health",
-    "rerank-0.6b": os.getenv("SPEED_RERANK_URL", "http://172.22.0.1:8008") + "/health",
+    "model-gateway": os.getenv("GATEWAY_HEALTH_URL", "http://127.0.0.1:8010/health"),
+    "embed-deep-4b": os.getenv("DEEP_EMBED_URL", "http://127.0.0.1:8004") + "/health",
+    "embed-speed-0.6b": os.getenv("SPEED_EMBED_URL", "http://127.0.0.1:8007") + "/health",
+    "rerank-0.6b": os.getenv("SPEED_RERANK_URL", "http://127.0.0.1:8008") + "/health",
 }
 
 FEED_DATA = os.path.join(os.getenv("RMI_FEED_DIR", "/var/www/feed.rugmunch.io"), "data")
 
 _MAX_COMMIT_LINES = 8
 _PROBE_TIMEOUT = 2.5
+
+
+#: Posting-volume guard: watched editorial channel roles.
+_WATCHED_ROLES: tuple[str, ...] = ("main", "news", "alerts", "alpha", "scans")
+
+#: Secret-looking tokens scrubbed from changelog text (defense in depth —
+#: commit subjects should never carry them, but a leaked-looking string must
+#: never be echoed to a public channel). "No secrets" is a hard contract.
+_SECRET_RE = re.compile(
+    r"(?i)"
+    r"(?:"
+    r"(?:sk|pk|key|api[_-]?key|token|secret|password|passwd|mnemonic|private[_-]?key)"
+    r"[=:\s]+[A-Za-z0-9_\-\.]{12,}"
+    r")"
+    r"|(?:0x[a-fA-F0-9]{40,})"
+    r"|(?:[A-Za-z0-9+/]{40,}={0,2})"  # base64-ish blob
+    r"|(?:\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b)"  # IPv4
+    r"|(?:tg[A-Za-z0-9_-]{20,})"  # telegram bot tokens
+    r"|(?:https?://[^\s:@/]+:[^\s@/]+@)"  # creds-in-url
+)
+
+
+def _scrub_secrets(text: str) -> str:
+    """Replace secret-looking substrings with a redaction marker."""
+    return _SECRET_RE.sub("[REDACTED]", text or "")
+
+
+def _humanize_subject(subject: str) -> str:
+    """Turn a conventional-commit subject into a human-readable line.
+
+    ``"feat(rag): dual-tier embedder contracts"`` →
+    ``"✨ rag — dual-tier embedder contracts"`` (scope preserved, hyphens
+    for the human eye). Non-conventional subjects pass through unchanged
+    (scrubbed). Pure — never raises.
+    """
+    text = _scrub_secrets(subject or "").strip()
+    m = re.match(
+        r"^(feat|fix|perf|security|docs|refactor|chore|ops|style|build|ci|test|revert)\(([^)]+)\):\s*(.+)$",
+        text,
+    )
+    if m:
+        return f"{m.group(1)} — {m.group(2)} — {m.group(3).strip()}"
+    m = re.match(
+        r"^(feat|fix|perf|security|docs|refactor|chore|ops|style|build|ci|test|revert):\s*(.+)$",
+        text,
+    )
+    if m:
+        return f"{m.group(1)} — {m.group(2).strip()}"
+    return text
 
 
 def _git_commits_since(repo_dir: str, since: str) -> list[str]:
@@ -96,7 +148,12 @@ def _group_commits(subjects: list[str]) -> dict[str, list[str]]:
 
 
 def _render_shipped(groups: dict[str, list[str]]) -> list[str]:
-    """Bounded markdown lines for the SHIPPED section."""
+    """Bounded markdown lines for the SHIPPED section (human-readable).
+
+    Commit subjects are humanized (``feat(scope): msg`` → ``feat — scope —
+    msg``) and secret-scrubbed before render — the changelog reads like a
+    progress note, never raw git output, and never leaks credentials.
+    """
     icons = {"feat": "✨", "fix": "🛠", "perf": "⚡", "security": "🔒", "other": "•"}
     lines: list[str] = []
     total = 0
@@ -107,7 +164,7 @@ def _render_shipped(groups: dict[str, list[str]]) -> list[str]:
                 if remaining > 0:
                     lines.append(f"  …and {remaining} more")
                 return lines
-            lines.append(f"  {icons[key]} {subject[:90]}")
+            lines.append(f"  {icons[key]} {_humanize_subject(subject)[:90]}")
             total += 1
     return lines
 
@@ -163,10 +220,9 @@ def _posting_volume_lines() -> list[str]:
             role_counts.get(id_to_role.get(chat_id, chat_id[-6:]), 0) + count
         )
     # Every editorial channel role appears — silent ones flagged.
-    watched = ("main", "news", "alerts", "alpha", "scans")
     lines: list[str] = []
     total = 0
-    for role in watched:
+    for role in _WATCHED_ROLES:
         count = role_counts.pop(role, 0)
         total += count
         marker = "✅" if count else "❌ silent"
@@ -221,7 +277,7 @@ async def post_updates_digest(ctx: Any) -> int:
             items_scored=0,
             items_posted=0,
             items_failed=0,
-            reason="no_chat_id (set RMI_UPDATES_CHANNEL_ID or gopass CHANNEL_RMI_UPDATES)",
+            reason="no_chat_id (set RMI_UPDATES_CHANNEL_ID or secrets-manager CHANNEL_RMI_UPDATES)",
         )
         return 0
     today = datetime.now(UTC).strftime("%Y%m%d")

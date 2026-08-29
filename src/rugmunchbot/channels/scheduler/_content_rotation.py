@@ -5,10 +5,10 @@ Only reranked-to-main content gets pushed to feed.rugmunch.io.
 Quality > quantity: if fewer than 8 stories pass the bar, we post fewer.
 
 Content calendar (UTC):
-  06:00 — The Daily Rug (full market brief + AI analysis)
+  06:00 — The Morning Rug Market Report (full market brief + AI analysis)
   08:00 — Whale Watch (top HL + chain movements)
   10:00 — Security Spotlight (tokens matching rug DNA)
-  12:00 — Midday Market Pulse (condition + funding dislocations)
+  12:00 — The Midday Rug Market Report (condition + funding dislocations)
   14:00 — Cascade Alert (liquidation proximity warnings)
   16:00 — Smart Money Report (convergence + accumulation patterns)
   19:00 — Scam Exposure (new rugs, honeypots, wash tokens found)
@@ -28,7 +28,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 CONTENT_SLOTS = [
-    {"time_utc": "06:00", "type": "daily_rug", "label": "The Daily Rug", "priority": "high"},
+    {
+        "time_utc": "06:00",
+        "type": "morning_market_report",
+        "label": "The Morning Rug Market Report",
+        "priority": "high",
+    },
     {"time_utc": "08:00", "type": "whale_watch", "label": "Whale Watch", "priority": "medium"},
     {
         "time_utc": "10:00",
@@ -39,7 +44,7 @@ CONTENT_SLOTS = [
     {
         "time_utc": "12:00",
         "type": "market_pulse",
-        "label": "Midday Market Pulse",
+        "label": "The Midday Rug Market Report",
         "priority": "medium",
     },
     {"time_utc": "14:00", "type": "cascade_alert", "label": "Cascade Alert", "priority": "high"},

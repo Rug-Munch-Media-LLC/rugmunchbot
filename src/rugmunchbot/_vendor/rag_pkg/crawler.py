@@ -378,7 +378,7 @@ def _ensure_host_connectivity() -> None:
     except ValueError:
         host = ""
     if host and "llama.cpp qwen3" in host and not _hostname_resolves(host):
-        fallback = os.getenv("QWEN_EMBED_URL_FALLBACK", "http://172.22.0.1:8004/v1")
+        fallback = os.getenv("QWEN_EMBED_URL_FALLBACK", "http://127.0.0.1:8004/v1")
         log.warning("qwen3_embed_dns_fallback from=%s to=%s", url, fallback)
         os.environ["QWEN_EMBED_URL"] = fallback
         # The settings singleton was built at import time; align it so the

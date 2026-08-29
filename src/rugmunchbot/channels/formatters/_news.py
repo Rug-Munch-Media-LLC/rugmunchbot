@@ -16,6 +16,7 @@ from rugmunchbot.channels.formatters._primitives import (
     _scan_channel_shill,
     _strip_markup,
     _takeaway,
+    site_news_line,
 )
 from rugmunchbot.formatters import footer_links, sep
 
@@ -67,6 +68,7 @@ def format_news_post(items: list[dict[str, Any]]) -> NewsPost:
     for i, item in enumerate(items[:6], 1):
         lines.extend(_story_line(item, i))
     lines.extend(["", f"\U0001f550 {_now_stamp()}"])
+    lines.append(site_news_line())
     lines.append(sep())
     lines.append(_scan_channel_shill())
     image_url = ""
@@ -111,7 +113,9 @@ def format_breaking_post(item: dict[str, Any]) -> NewsPost:
         lines.append(f'🔗 <i>Full story: <a href="{html.escape(url, quote=True)}">{source}</a></i>')
     else:
         lines.append(f"🔗 <i>Full story: {source}</i>")
-    lines.extend(["", f"🕐 {_now_stamp()}", footer_links()])
+    lines.extend(["", f"🕐 {_now_stamp()}"])
+    lines.append(site_news_line())
+    lines.append(footer_links())
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = _pick_image_url(item.get("image_url"))
     return post
@@ -151,7 +155,9 @@ def format_feature_post(item: dict[str, Any]) -> NewsPost:
         lines.append(f'🔗 <i>Full story: <a href="{html.escape(url, quote=True)}">{source}</a></i>')
     else:
         lines.append(f"🔗 <i>Full story: {source}</i>")
-    lines.extend(["", f"\U0001f550 {_now_stamp()}", footer_links()])
+    lines.extend(["", f"\U0001f550 {_now_stamp()}"])
+    lines.append(site_news_line())
+    lines.append(footer_links())
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = _pick_image_url(item.get("image_url"))
     return post

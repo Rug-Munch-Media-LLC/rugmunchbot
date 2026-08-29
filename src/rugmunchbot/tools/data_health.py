@@ -45,7 +45,7 @@ async def probe_all() -> dict[str, Any]:
     import asyncio
 
     backend = os.getenv("BACKEND_URL", "http://localhost:8000")
-    host = os.getenv("MODEL_SERVICES_HOST", "172.22.0.1")
+    host = os.getenv("MODEL_SERVICES_HOST", "127.0.0.1")
     checks = {
         "backend": (f"{backend}/api/v1/market/hyperliquid-liquidations?limit=5",
                     backend_headers(), None),

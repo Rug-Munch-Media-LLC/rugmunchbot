@@ -1,4 +1,4 @@
-"""Data sanity validation for The Daily Rug (2026-08-23).
+"""Data sanity validation for the daily market report (2026-08-23).
 
 Doctrine: NEVER publish a number that fails plausibility. Worst observed
 failure: a fresh GMGN meme pair symbol-colliding with a major ("SOL") and its
@@ -89,7 +89,7 @@ def sanitize_movers(movers: dict[str, Any]) -> dict[str, Any]:
             reason = check_mover(item)
             if reason:
                 rejected.append(reason)
-                logger.warning("daily_rug:rejected_mover side=%s %s", side, reason)
+                logger.warning("market_report:rejected_mover side=%s %s", side, reason)
             else:
                 kept.append(item)
         out[side] = kept
@@ -104,7 +104,7 @@ def sanitize_prices(prices: dict[str, Any]) -> dict[str, Any]:
         if isinstance(val, dict):
             bad = check_price(sym, val.get("price"))
             if bad:
-                logger.warning("daily_rug:rejected_price %s", bad)
+                logger.warning("market_report:rejected_price %s", bad)
                 continue
         clean[sym] = val
     return clean

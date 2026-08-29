@@ -1,4 +1,4 @@
-"""Story selection for The Daily Rug — freshness gate + 4B reranker.
+"""Story selection for the market report — freshness gate + 4B reranker.
 
 Doctrine: only market-moving, verifiably-fresh stories make the brief.
 Selection pipeline: freshness filter -> deep reranker (:8003) with a
@@ -17,7 +17,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-RERANK_URL = os.getenv("DAILY_RUG_RERANK_URL", "http://172.22.0.1:8003")
+RERANK_URL = os.getenv("DAILY_RUG_RERANK_URL", "http://127.0.0.1:8003")
 MAX_AGE_HOURS = float(os.getenv("DAILY_RUG_MAX_STORY_AGE_H", "48"))
 
 # Vertical instruction per rugbrain.search.rerank doctrine ([TASK]...[QUERY]...)
@@ -80,7 +80,7 @@ def enforce_freshness(
             continue
         fresh.append(s)
     for r in rejected:
-        logger.warning("daily_rug:freshness_rejected %s", r)
+        logger.warning("market_report:freshness_rejected %s", r)
     return fresh, rejected
 
 
@@ -100,15 +100,22 @@ async def rerank_stories(
         async with httpx.AsyncClient(timeout=timeout_s) as c:
             r = await c.post(
                 f"{RERANK_URL}/rerank",
-                json={"query": f"{_INSTRUCTION} most market-moving crypto events today", "documents": docs},
+                json={
+                    "query": f"{_INSTRUCTION} most market-moving crypto events today",
+                    "documents": docs,
+                },
             )
             if r.status_code != 200:
                 raise RuntimeError(f"reranker {r.status_code}")
             results = r.json().get("results", [])
         ordered = sorted(results, key=lambda x: x.get("relevance_score", 0.0), reverse=True)
-        picked = [stories[item["index"]] for item in ordered[:top_n] if item["index"] < len(stories)]
-        logger.info("daily_rug:reranked %d->%d stories via 4B reranker", len(stories), len(picked))
+        picked = [
+            stories[item["index"]] for item in ordered[:top_n] if item["index"] < len(stories)
+        ]
+        logger.info(
+            "market_report:reranked %d->%d stories via 4B reranker", len(stories), len(picked)
+        )
         return picked, True
     except Exception as exc:
-        logger.warning("daily_rug:rerank_failed fail_open err=%s", str(exc)[:140])
+        logger.warning("market_report:rerank_failed fail_open err=%s", str(exc)[:140])
         return stories[:top_n], False

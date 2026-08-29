@@ -1,6 +1,6 @@
 """Volume integrity analysis — wash-trading & fake-volume detection.
 
-The Daily Rug doctrine applied to tokens: never trust a number that fails
+Market-report doctrine applied to tokens: never trust a number that fails
 plausibility. Heuristics over DexScreener pair data:
 
   1. VOL/MCAP  — >150% daily turnover on a small cap is bot-churn territory.
@@ -38,9 +38,7 @@ async def _get_pairs(address: str, chain: str) -> list[dict[str, Any]]:
     """DexScreener pairs via direct API call (no sqlalchemy dependency)."""
     try:
         async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(
-                f"https://api.dexscreener.com/latest/dex/tokens/{address}"
-            )
+            r = await c.get(f"https://api.dexscreener.com/latest/dex/tokens/{address}")
             if r.status_code != 200:
                 return []
             data = r.json()
@@ -80,36 +78,99 @@ def analyze(pair: dict[str, Any]) -> dict[str, Any]:
         ratio = vol24 / mcap
         if ratio > 1.5:
             score -= 30
-            checks.append({"check": "vol_mcap", "value": f"{ratio:.0%}", "flag": "CRITICAL", "note": ">150% daily turnover — bot churn pattern"})
+            checks.append(
+                {
+                    "check": "vol_mcap",
+                    "value": f"{ratio:.0%}",
+                    "flag": "CRITICAL",
+                    "note": ">150% daily turnover — bot churn pattern",
+                }
+            )
         elif ratio > 0.8:
             score -= 12
-            checks.append({"check": "vol_mcap", "value": f"{ratio:.0%}", "flag": "WARN", "note": "unusually hot turnover"})
+            checks.append(
+                {
+                    "check": "vol_mcap",
+                    "value": f"{ratio:.0%}",
+                    "flag": "WARN",
+                    "note": "unusually hot turnover",
+                }
+            )
         else:
-            checks.append({"check": "vol_mcap", "value": f"{ratio:.0%}", "flag": "OK", "note": "plausible turnover"})
+            checks.append(
+                {
+                    "check": "vol_mcap",
+                    "value": f"{ratio:.0%}",
+                    "flag": "OK",
+                    "note": "plausible turnover",
+                }
+            )
 
     # 2) VOL/LIQ
     if vol24 is not None and liq and liq > 0:
         ratio = vol24 / liq
         if ratio > 25:
             score -= 30
-            checks.append({"check": "vol_liq", "value": f"{ratio:.1f}x", "flag": "CRITICAL", "note": "volume cannot exit through this liquidity — fake prints"})
+            checks.append(
+                {
+                    "check": "vol_liq",
+                    "value": f"{ratio:.1f}x",
+                    "flag": "CRITICAL",
+                    "note": "volume cannot exit through this liquidity — fake prints",
+                }
+            )
         elif ratio > 8:
             score -= 12
-            checks.append({"check": "vol_liq", "value": f"{ratio:.1f}x", "flag": "WARN", "note": "thin liquidity vs claimed volume"})
+            checks.append(
+                {
+                    "check": "vol_liq",
+                    "value": f"{ratio:.1f}x",
+                    "flag": "WARN",
+                    "note": "thin liquidity vs claimed volume",
+                }
+            )
         else:
-            checks.append({"check": "vol_liq", "value": f"{ratio:.1f}x", "flag": "OK", "note": "flow fits liquidity"})
+            checks.append(
+                {
+                    "check": "vol_liq",
+                    "value": f"{ratio:.1f}x",
+                    "flag": "OK",
+                    "note": "flow fits liquidity",
+                }
+            )
 
     # 3) BUY RATIO
     if total_tx >= 50 and vol24 and vol24 > 10_000:
         buy_ratio = buys / total_tx
         if buy_ratio > 0.85:
             score -= 25
-            checks.append({"check": "buy_ratio", "value": f"{buy_ratio:.0%} buys", "flag": "CRITICAL", "note": "near-one-way buying at scale = self-dealing"})
+            checks.append(
+                {
+                    "check": "buy_ratio",
+                    "value": f"{buy_ratio:.0%} buys",
+                    "flag": "CRITICAL",
+                    "note": "near-one-way buying at scale = self-dealing",
+                }
+            )
         elif buy_ratio > 0.72:
             score -= 8
-            checks.append({"check": "buy_ratio", "value": f"{buy_ratio:.0%} buys", "flag": "WARN", "note": "one-sided flow"})
+            checks.append(
+                {
+                    "check": "buy_ratio",
+                    "value": f"{buy_ratio:.0%} buys",
+                    "flag": "WARN",
+                    "note": "one-sided flow",
+                }
+            )
         else:
-            checks.append({"check": "buy_ratio", "value": f"{buy_ratio:.0%} buys", "flag": "OK", "note": "two-way market"})
+            checks.append(
+                {
+                    "check": "buy_ratio",
+                    "value": f"{buy_ratio:.0%} buys",
+                    "flag": "OK",
+                    "note": "two-way market",
+                }
+            )
 
     # 4) AVG TRADE SIZE vs LIQUIDITY (dust storm)
     if total_tx > 0 and vol24 is not None and liq and liq > 0:
@@ -117,17 +178,45 @@ def analyze(pair: dict[str, Any]) -> dict[str, Any]:
         dust_ratio = avg_trade / liq
         if total_tx > 300 and dust_ratio < 0.0005:
             score -= 20
-            checks.append({"check": "tx_size", "value": f"${avg_trade:,.0f} avg", "flag": "WARN", "note": f"dust storm: {int(total_tx)} micro-trades"})
+            checks.append(
+                {
+                    "check": "tx_size",
+                    "value": f"${avg_trade:,.0f} avg",
+                    "flag": "WARN",
+                    "note": f"dust storm: {int(total_tx)} micro-trades",
+                }
+            )
         else:
-            checks.append({"check": "tx_size", "value": f"${avg_trade:,.0f} avg", "flag": "OK", "note": "normal ticket size"})
+            checks.append(
+                {
+                    "check": "tx_size",
+                    "value": f"${avg_trade:,.0f} avg",
+                    "flag": "OK",
+                    "note": "normal ticket size",
+                }
+            )
 
     # 5) FLAT PRICE + VOLUME SPIKE
     if price_change is not None and vol24 is not None and mcap and mcap < 50e6:
         if abs(price_change) < 1.0 and vol24 / mcap > 0.5:
             score -= 22
-            checks.append({"check": "price_vol_divergence", "value": f"{price_change:+.1f}% @ {vol24/mcap:.0%} vol", "flag": "CRITICAL", "note": "massive volume, zero price discovery = wash"})
+            checks.append(
+                {
+                    "check": "price_vol_divergence",
+                    "value": f"{price_change:+.1f}% @ {vol24 / mcap:.0%} vol",
+                    "flag": "CRITICAL",
+                    "note": "massive volume, zero price discovery = wash",
+                }
+            )
         else:
-            checks.append({"check": "price_vol_divergence", "value": f"{price_change:+.1f}%", "flag": "OK", "note": "price responds to flow"})
+            checks.append(
+                {
+                    "check": "price_vol_divergence",
+                    "value": f"{price_change:+.1f}%",
+                    "flag": "OK",
+                    "note": "price responds to flow",
+                }
+            )
 
     score = max(0.0, min(100.0, score))
     if score >= 80:
@@ -145,15 +234,19 @@ async def volume_integrity(*, address: str = "", chain: str = "") -> ToolResult:
         return ToolResult(tool="volume_integrity", ok=False, data={"error": "address required"})
     pairs = await _get_pairs(address=address, chain=chain)
     if not pairs:
-        return ToolResult(tool="volume_integrity", ok=False, data={"error": "no dexscreener pairs found"})
+        return ToolResult(
+            tool="volume_integrity", ok=False, data={"error": "no dexscreener pairs found"}
+        )
     primary = _pick_primary(pairs)
     report = analyze(primary)
-    report.update({
-        "address": address,
-        "chain": chain or primary.get("chainId"),
-        "pair": f"{(primary.get('baseToken') or {}).get('symbol')}/{(primary.get('quoteToken') or {}).get('symbol')}",
-        "liquidity_usd": _f((primary.get("liquidity") or {}).get("usd")),
-        "volume24_usd": _f((primary.get("volume") or {}).get("h24")),
-        "pairs_analyzed": len(pairs),
-    })
+    report.update(
+        {
+            "address": address,
+            "chain": chain or primary.get("chainId"),
+            "pair": f"{(primary.get('baseToken') or {}).get('symbol')}/{(primary.get('quoteToken') or {}).get('symbol')}",
+            "liquidity_usd": _f((primary.get("liquidity") or {}).get("usd")),
+            "volume24_usd": _f((primary.get("volume") or {}).get("h24")),
+            "pairs_analyzed": len(pairs),
+        }
+    )
     return ToolResult(tool="volume_integrity", ok=True, data=report)

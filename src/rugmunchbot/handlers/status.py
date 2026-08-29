@@ -50,11 +50,11 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     checks = await __import__("asyncio").gather(
         _probe("backend", f"{BACKEND_URL}/api/v1/market/hyperliquid-liquidations?limit=5",
                headers=backend_headers()),
-        _probe("gateway-engines", "http://172.22.0.1:8010/health"),
-        _probe("deep-embedder", "http://172.22.0.1:8004/health"),
-        _probe("speed-embedder", "http://172.22.0.1:8007/health"),
-        _probe("reranker-4b", "http://172.22.0.1:8003/health"),
-        _probe("chat-8b", "http://172.22.0.1:8009/health"),
+        _probe("gateway-engines", "http://127.0.0.1:8010/health"),
+        _probe("deep-embedder", "http://127.0.0.1:8004/health"),
+        _probe("speed-embedder", "http://127.0.0.1:8007/health"),
+        _probe("reranker-4b", "http://127.0.0.1:8003/health"),
+        _probe("chat-8b", "http://127.0.0.1:8009/health"),
     )
 
     def _mark(ok: bool, ms: float) -> str:

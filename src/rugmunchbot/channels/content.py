@@ -57,14 +57,10 @@ _IDENTITY_ENRICH_TIMEOUT: float = 6.0
 #: Imminent-rug / hack / exploit signals — the ONLY events allowed on the
 #: alerts channel (channel doctrine 2026-08-26: alerts = imminent danger,
 #: never routine transfers).
-ALERT_EVENT_TYPES: frozenset[str] = frozenset(
-    {"deployer_dump", "mint_freeze", "lp_change"}
-)
+ALERT_EVENT_TYPES: frozenset[str] = frozenset({"deployer_dump", "mint_freeze", "lp_change"})
 #: Routine whale/transfer movements — belong on the whales/alpha lanes,
 #: NEVER on alerts.
-WHALE_EVENT_TYPES: frozenset[str] = frozenset(
-    {"whale_move", "token_transfer", "transfer"}
-)
+WHALE_EVENT_TYPES: frozenset[str] = frozenset({"whale_move", "token_transfer", "transfer"})
 #: Legacy union kept for compatibility with existing imports.
 WEBHOOK_EVENT_TYPES: frozenset[str] = ALERT_EVENT_TYPES | WHALE_EVENT_TYPES
 
@@ -135,7 +131,9 @@ async def _enrich_scan_identity(item: dict[str, Any]) -> None:
     if not addr:
         return
     try:
-        body = await http_get_json(f"https://api.dexscreener.com/latest/dex/tokens/{addr}", timeout=5.0)
+        body = await http_get_json(
+            f"https://api.dexscreener.com/latest/dex/tokens/{addr}", timeout=5.0
+        )
         if not body:
             return
         pairs = body.get("pairs")
@@ -278,6 +276,61 @@ async def _fetch_launches(chain: str, limit: int) -> list[dict[str, Any]]:
     ]
 
 
+async def _fetch_kol_trades(limit: int) -> list[dict[str, Any]]:
+    """KOL/analyst trade signals from SearXNG (live X/Twitter-adjacent hits).
+
+    Bounded, fail-open ``[]``: runs a small KOL-signal query set through
+    ``tools.web.searxng_top_results`` (SearXNG-only, ~6s bound per query)
+    and normalizes each hit into the alpha lane shape. This is the "KOL
+    trades" rail of the whale+alpha channel — what influential accounts are
+    pushing right now, with the source link preserved (cite-or-omit).
+    """
+    import asyncio
+
+    _kol_queries: tuple[str, ...] = (
+        "crypto KOL shilling today",
+        "crypto influencer tokens trending twitter today",
+        "top crypto KOL mentions token today",
+        "whale trader position new token today",
+    )
+    try:
+        from rugmunchbot.tools.web import searxng_top_results
+
+        results = await asyncio.gather(
+            *(searxng_top_results(q, limit=2) for q in _kol_queries),
+            return_exceptions=True,
+        )
+    except Exception as exc:  # fail-open by contract
+        logger.debug("channels:kol_trades_failed err=%s", str(exc)[:120])
+        return []
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for query, res in zip(_kol_queries, results, strict=True):
+        if isinstance(res, BaseException) or not res:
+            continue
+        for r in res:
+            if not isinstance(r, dict):
+                continue
+            url = str(r.get("url") or "").strip()
+            title = str(r.get("title") or "").strip()
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            out.append(
+                {
+                    "title": title[:120] or "KOL signal",
+                    "url": url,
+                    "source": str(r.get("snippet") or "")[:200],
+                    "query": str(query or "")[:60],
+                    "kind": "kol_trade",
+                    "image_url": "",
+                }
+            )
+        if len(out) >= limit:
+            break
+    return out[: max(1, limit)]
+
+
 async def fetch_alpha_content(
     *,
     chain: str = "solana",
@@ -285,26 +338,34 @@ async def fetch_alpha_content(
     smart_limit: int = 5,
     launch_limit: int = 5,
     early_entry_limit: int = 2,
+    kol_limit: int = 3,
 ) -> dict[str, list[dict[str, Any]]]:
-    """Assemble the alpha-channel content: whale moves + smart money + launches.
+    """Assemble the alpha-channel content: whale moves + smart money + launches + KOL.
 
     Whale moves come from our own ClickHouse ``token_transfers`` (≥ $10k,
     entity-labeled); early whale entries (first-block buyers of fresh tokens,
     with size) are appended to the same list and tagged ``kind="early_entry"``
     so the scheduler's existing whale rail surfaces them untouched. Smart
     money comes from the live ``smart_money_feed``; launches from the backend
-    launch feed.
+    launch feed; KOL trades from live SearXNG X-signal hits (``kol_trades``,
+    each with its source link — cite-or-omit).
 
-    Returns ``{"whale_moves": [...], "smart_money": [...], "launches": [...]}``
-    — each a list of normalized dicts, empty when the source has no data.
-    Never raises.
+    Returns ``{"whale_moves": [...], "smart_money": [...], "launches": [...],
+    "kol_trades": [...]}`` — each a list of normalized dicts, empty when the
+    source has no data. Never raises.
     """
     whale_moves = await _fetch_whale_moves(chain, whale_limit)
     early_entries = await _fetch_early_entries(chain, early_entry_limit)
     whale_moves = [*early_entries, *whale_moves]
     smart_money = await _fetch_smart_money(chain, smart_limit)
     launches = await _fetch_launches(chain, launch_limit)
-    return {"whale_moves": whale_moves, "smart_money": smart_money, "launches": launches}
+    kol_trades = await _fetch_kol_trades(kol_limit)
+    return {
+        "whale_moves": whale_moves,
+        "smart_money": smart_money,
+        "launches": launches,
+        "kol_trades": kol_trades,
+    }
 
 
 # ── Alerts: scanner risk digest + webhook-trigger events ────────────────
@@ -464,7 +525,10 @@ async def fetch_risk_alerts(limit: int = 5) -> list[dict[str, Any]]:
                     # deployer, liquidity) instead of a generic verdict.
                     "security": security if isinstance(security, dict) else None,
                     "deployer": str(
-                        item.get("deployer") or item.get("creator_address") or item.get("creator") or ""
+                        item.get("deployer")
+                        or item.get("creator_address")
+                        or item.get("creator")
+                        or ""
                     ).strip()
                     or None,
                     "liquidity": item.get("liquidity"),
@@ -618,6 +682,7 @@ async def fetch_rag_drafts(channel: str, limit: int = 3) -> list[dict[str, Any]]
         logger.debug("rag_drafts_skipped reason=no_api_key")
         return []
     try:
+
         async def _get() -> list[dict[str, Any]]:
             from rugmunchbot.tools._client import http_get_json as _g
 

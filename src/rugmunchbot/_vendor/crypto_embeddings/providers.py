@@ -56,7 +56,7 @@ class LocalBGEEmbedder:
 class Qwen3Embedder:
     """Qwen3-Embedding-4B via llama.cpp (OpenAI-compatible /v1/embeddings). 2560d, zero cost."""
 
-    EMBEDDER_URL = os.getenv("EMBEDDER_URL", "http://172.22.0.1:8004/v1")
+    EMBEDDER_URL = os.getenv("EMBEDDER_URL", "http://127.0.0.1:8004/v1")
     MODEL = "qwen3-embedding-4b"
     DIMS = 1024
 

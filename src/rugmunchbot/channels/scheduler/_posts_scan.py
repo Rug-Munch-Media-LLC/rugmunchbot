@@ -156,16 +156,17 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    """Post the curated alpha digest (whale/smart/launch); escalate ≥0.7 to main.
+    """Post the curated alpha digest (whale/smart/launch/KOL); escalate ≥0.7 to main.
 
     Returns the number of messages posted (0-1 native digest + 0..N main
-    escalations). Whale/smart/launch items are deduped per section, reranked
-    (``channels/importance.py``), and routed through ``route_news`` (category
-    "alpha"): below the news floor they are dropped (rerank mode only), the
-    rest form the alpha digest (verdict + links, photo when available), and
-    items ≥0.7 ALSO post solo to @cryptorugmuncher. Fail-open: a reranker
-    outage keeps the digest flowing (heuristic fallback) and never blocks
-    the JobQueue.
+    escalations). Whale/smart/launch/KOL items are deduped per section,
+    reranked (``channels/importance.py``), and routed through ``route_news``
+    (category "alpha"): below the news floor they are dropped (rerank mode
+    only), the rest form the alpha digest (verdict + links, photo when
+    available), and items ≥0.7 ALSO post solo to @cryptorugmuncher — each
+    main post mirrors to feed.rugmunch.io (W30 top-of-food-chain mirror).
+    Fail-open: a reranker outage keeps the digest flowing (heuristic
+    fallback) and never blocks the JobQueue.
     """
     started = time.perf_counter()
     chat_id = _chat_id("alpha")
@@ -186,6 +187,7 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         whale_limit=max(1, ALPHA_CHANNEL_LIMIT),
         smart_limit=ALPHA_CHANNEL_LIMIT,
         launch_limit=ALPHA_CHANNEL_LIMIT,
+        kol_limit=ALPHA_CHANNEL_LIMIT,
     )
     whale_fresh = [
         m for m in content["whale_moves"] if _remember("alpha:whale", _dedupe_key("whale", m))
@@ -198,8 +200,16 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         for item in content["launches"]
         if _remember("alpha:launch", _dedupe_key("launch", item))
     ]
-    swept = len(content["whale_moves"]) + len(content["smart_money"]) + len(content["launches"])
-    scored = len(whale_fresh) + len(smart_fresh) + len(launch_fresh)
+    kol_fresh = [
+        k for k in content.get("kol_trades", []) if _remember("alpha:kol", _dedupe_key("kol", k))
+    ]
+    swept = (
+        len(content["whale_moves"])
+        + len(content["smart_money"])
+        + len(content["launches"])
+        + len(content.get("kol_trades", []))
+    )
+    scored = len(whale_fresh) + len(smart_fresh) + len(launch_fresh) + len(kol_fresh)
     if not scored:
         logger.info(
             "channels:tick",
@@ -221,13 +231,16 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     launch_main, launch_keep, launch_down = await _score_and_partition(
         launch_fresh, category=ROUTE_ALPHA_CATEGORY, source="launch_feed"
     )
-    reranker_down = whale_down or smart_down or launch_down
+    kol_main, kol_keep, kol_down = await _score_and_partition(
+        kol_fresh, category=ROUTE_ALPHA_CATEGORY, source="kol_trades"
+    )
+    reranker_down = whale_down or smart_down or launch_down or kol_down
     posted = 0
-    if whale_keep or smart_keep or launch_keep:
+    if whale_keep or smart_keep or launch_keep or kol_keep:
         ok = await _post_photo_aware(
             ctx.bot,
             chat_id,
-            format_alpha_post(whale_keep, smart_keep, launch_keep),
+            format_alpha_post(whale_keep, smart_keep, launch_keep, kol_trades=kol_keep),
             _safe_send,
         )
         if ok:
@@ -235,7 +248,7 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     main_chat_id = _chat_id("main")
     if main_chat_id:
         escalated = sorted(
-            [*whale_main, *smart_main, *launch_main],
+            [*whale_main, *smart_main, *launch_main, *kol_main],
             key=lambda i: i.get("importance", 0.0),
             reverse=True,
         )
@@ -246,19 +259,36 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             # digest above already carries the item natively).
             if await _main_admission("alpha") != "main":
                 continue
-            ok = await _post_photo_aware(
-                ctx.bot, main_chat_id, format_main_escalation(item), _safe_send
-            )
+            main_text = format_main_escalation(item)
+            ok = await _post_photo_aware(ctx.bot, main_chat_id, main_text, _safe_send)
             if ok:
                 posted += 1
                 await _record_main_post()
+                # W30 top-of-food-chain mirror: every main post lands on
+                # feed.rugmunch.io (best-effort, never blocks the tick).
+                try:
+                    from rugmunchbot.channels.scheduler._posts_rag import mirror_post_to_feed
+
+                    mirror_post_to_feed(
+                        {
+                            "text": str(main_text),
+                            "story_ref": str(
+                                item.get("url") or item.get("address") or item.get("title") or ""
+                            ),
+                            "source": "alpha",
+                            "kind": "alpha",
+                        }
+                    )
+                except Exception as exc:
+                    logger.warning("alpha_feed_mirror_failed err=%s", str(exc)[:120])
     if posted:
         logger.info(
-            "channels:alpha posted=%s whales=%s smart=%s launches=%s main=%s",
+            "channels:alpha posted=%s whales=%s smart=%s launches=%s kol=%s main=%s",
             posted,
             len(whale_keep),
             len(smart_keep),
             len(launch_keep),
+            len(kol_keep),
             len(escalated) if main_chat_id else 0,
         )
     logger.info(

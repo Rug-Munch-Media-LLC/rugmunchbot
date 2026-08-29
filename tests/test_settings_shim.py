@@ -24,8 +24,8 @@ def test_defaults_match_backend(monkeypatch):
     assert shim.settings.qdrant_url == "http://localhost:6333"
     # Qwen3 embedder/reranker stack (2026-08): llama.cpp servers on the
     # docker bridge host, OpenAI-compatible /v1 API on 8004, reranker 8003.
-    assert shim.settings.qwen_embed_url == "http://172.22.0.1:8004/v1"
-    assert shim.settings.reranker_url == "http://172.22.0.1:8003"
+    assert shim.settings.qwen_embed_url == "http://127.0.0.1:8004/v1"
+    assert shim.settings.reranker_url == "http://127.0.0.1:8003"
     assert shim.settings.embedder_primary == "llama.cpp qwen3"
     assert shim.settings.embedder_primary_model == "qwen3-embedding-4b"
     assert shim.settings.embedder_cache_ttl == 86400
