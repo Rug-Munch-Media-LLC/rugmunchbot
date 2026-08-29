@@ -117,7 +117,11 @@ def _cex_funded_pct(r: dict[str, Any]) -> float | None:
     number a provider actually reported — never a fabricated 0.
     """
     wm = r.get("wallet_metrics")
-    if isinstance(wm, dict) and str(wm.get("result") or "") != "unavailable" and wm.get("cex_funded_pct") is not None:
+    if (
+        isinstance(wm, dict)
+        and str(wm.get("result") or "") != "unavailable"
+        and wm.get("cex_funded_pct") is not None
+    ):
         pct = _float_or_none(wm.get("cex_funded_pct"))
         if pct is not None:
             return pct
@@ -161,7 +165,9 @@ def _holders_count(r: dict[str, Any]) -> int | None:
     returns None (the formatter renders "—"/N/A) — never a fabricated 0.
     """
     gmgn_holders = (r.get("gmgn") or {}).get("holders") if isinstance(r.get("gmgn"), dict) else None
-    sentinel_free = (r.get("sentinel") or {}).get("free") if isinstance(r.get("sentinel"), dict) else None
+    sentinel_free = (
+        (r.get("sentinel") or {}).get("free") if isinstance(r.get("sentinel"), dict) else None
+    )
     sentinel_ha = sentinel_free.get("holder_analysis") if isinstance(sentinel_free, dict) else None
     for source in (
         gmgn_holders,
@@ -190,6 +196,17 @@ def _fake_volume_pct(r: dict[str, Any]) -> float | None:
             return float(wash["fake_volume_pct"])
         except (TypeError, ValueError):
             return None
+    # v2 evidence: the backend's volume_authenticity deep phase reports
+    # ``evidence.market.fake_volume_pct`` (merged into the payload by
+    # _merge_completed_scan / v2_token_to_legacy).
+    ev = r.get("evidence")
+    if isinstance(ev, dict):
+        mkt = ev.get("market")
+        if isinstance(mkt, dict) and mkt.get("fake_volume_pct") is not None:
+            try:
+                return float(mkt["fake_volume_pct"])
+            except (TypeError, ValueError):
+                return None
     ratio = r.get("volume_real_ratio")
     if ratio is None:
         return None
@@ -220,7 +237,11 @@ def _volume_up_price_flat_churn(r: dict[str, Any]) -> str | None:
 def _fresh_wallet_pct(r: dict[str, Any]) -> float | None:
     """Fresh-wallet percentage (0-100), or None when no wallet metrics."""
     wm = r.get("wallet_metrics")
-    if isinstance(wm, dict) and wm.get("result") != "unavailable" and wm.get("fresh_wallet_pct") is not None:
+    if (
+        isinstance(wm, dict)
+        and wm.get("result") != "unavailable"
+        and wm.get("fresh_wallet_pct") is not None
+    ):
         try:
             return float(wm["fresh_wallet_pct"])
         except (TypeError, ValueError):
@@ -253,7 +274,10 @@ def _token_2022_flag(r: dict[str, Any]) -> str | None:
     """Token-2022 program flag (Solana) — None when the scan carries no data."""
     if r.get("token_2022"):
         return "Token-2022 program — extensions may hide transfer hooks / freeze"
-    if str(r.get("token_program") or "").lower() in ("spl-token-2022", "tokenzqdbnblqap5vehdkas6epflc1phnbqcxeppxueb"):
+    if str(r.get("token_program") or "").lower() in (
+        "spl-token-2022",
+        "tokenzqdbnblqap5vehdkas6epflc1phnbqcxeppxueb",
+    ):
         return "Token-2022 program — extensions may hide transfer hooks / freeze"
     try:
         sentinel = r.get("sentinel") or {}
@@ -278,7 +302,9 @@ def _mev_note(r: dict[str, Any]) -> str | None:
         if isinstance(mev, dict):
             level = str(mev.get("risk_level") or "").lower()
             if level in ("high", "critical"):
-                return f"MEV risk <b>{html.escape(level.upper())}</b> — sandwich / front-run exposure"
+                return (
+                    f"MEV risk <b>{html.escape(level.upper())}</b> — sandwich / front-run exposure"
+                )
             warnings = mev.get("warnings")
             if isinstance(warnings, list) and warnings:
                 return f"MEV: {html.escape(str(warnings[0])[:90])}"

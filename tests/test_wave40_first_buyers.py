@@ -223,6 +223,184 @@ async def test_poll_returns_payload_once_complete(monkeypatch: pytest.MonkeyPatc
     assert out["background_status"] == "complete"
 
 
+async def test_poll_accepts_backend_nested_status_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The real status endpoint nests the result under ``result``
+    (``{"state": ..., "phase": ..., "result": {...}, "updated_at": ...}``)
+    and the 1h result-cache path reports ``state=complete``. The poll must
+    detect both and return the NESTED result dict — the legacy serializer
+    shape ``_merge_completed_scan`` reads top-level keys from.
+    """
+    nested_done = {
+        "state": "complete",
+        "phase": "done",
+        "updated_at": "2026-08-29T00:00:00+00:00",
+        "result": {
+            "background_status": "complete",
+            "wallet_metrics": {"result": "scanned", "fresh_wallet_pct": 55.0},
+            "bundle_analysis": {"is_bundled": True, "launch_cluster_score": 74.0},
+            "first_buyers": [{"address": "0xholder2"}],
+            "evidence": {"holders": {"holder_count": 412}},
+        },
+    }
+    client = _FakeClient(
+        [
+            {"state": "running", "phase": "deep", "result": {"background_status": "running"}},
+            nested_done,
+        ]
+    )
+    monkeypatch.setattr(
+        "rugmunchbot.handlers._scan_handlers._scan.get_shared_client",
+        lambda _t: client,
+    )
+    from rugmunchbot.handlers._scan_handlers._scan import _poll_v2_scan_completion
+
+    out = await _poll_v2_scan_completion(
+        "0xabc", "ethereum", max_wait_s=5, head_start_s=0, interval_s=0.01
+    )
+    assert out is not None
+    assert out["background_status"] == "complete"
+    # The returned payload IS the nested result dict — the keys
+    # _merge_completed_scan probes are top-level (not under "result").
+    assert out.get("wallet_metrics", {}).get("fresh_wallet_pct") == 55.0
+    assert out.get("bundle_analysis", {}).get("is_bundled") is True
+    assert out.get("first_buyers") == [{"address": "0xholder2"}]
+
+
+async def test_poll_accepts_result_cache_shape(monkeypatch: pytest.MonkeyPatch) -> None:
+    """After the status TTL expires, the endpoint serves the 1h result cache
+    wrapped as ``{"state": "complete", "source": "result_cache", "result":
+    {...}}`` — no nested ``background_status``, but state=complete is enough.
+    """
+    client = _FakeClient(
+        [
+            {
+                "state": "complete",
+                "source": "result_cache",
+                "result": {
+                    "wallet_metrics": {"result": "scanned", "fresh_wallet_pct": 30.0},
+                    "bundle_analysis": {"is_bundled": False},
+                },
+            }
+        ]
+    )
+    monkeypatch.setattr(
+        "rugmunchbot.handlers._scan_handlers._scan.get_shared_client",
+        lambda _t: client,
+    )
+    from rugmunchbot.handlers._scan_handlers._scan import _poll_v2_scan_completion
+
+    out = await _poll_v2_scan_completion(
+        "0xabc", "ethereum", max_wait_s=5, head_start_s=0, interval_s=0.01
+    )
+    assert out is not None
+    assert out.get("wallet_metrics", {}).get("fresh_wallet_pct") == 30.0
+
+
+# ── churn rail: scan-card deep-data merge (2026-08-29 fix) ────────────
+# The @rmiscans suspect-scan rail must poll the completion status and merge
+# the backend's deep phases into the note, so the card renders holders /
+# bundle / first-buyers instead of "Deep analysis unavailable" + 1/30
+# factors known.
+
+
+async def test_churn_scan_merges_deep_data_into_note(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rugmunchbot.channels import content
+
+    fast_path: dict[str, Any] = {
+        "status": "ok",
+        "token_address": "0xabc",
+        "chain": "ethereum",
+        "name": "Fast",
+        "symbol": "FST",
+        "safety_score": 40.0,
+        "risk_level": "high",
+        "risk_flags": [],
+        "background_status": "running",
+        "evidence": {"security": {"is_honeypot": False}},
+    }
+
+    async def _fake_scan_token_v2(address: str, chain: str) -> dict[str, Any]:
+        return fast_path
+
+    async def _fake_poll(address: str, chain: str, **_: Any) -> dict[str, Any]:
+        return {
+            "background_status": "complete",
+            "wallet_metrics": {
+                "result": "scanned",
+                "fresh_wallet_pct": 55.0,
+                "cex_funded_pct": 8.0,
+            },
+            "bundle_analysis": {"is_bundled": True, "launch_cluster_score": 74.0},
+            "first_buyers": [{"address": "0xholder2", "block_number": 1}],
+            "evidence": {
+                "holders": {"holder_count": 412, "top_10_pct": 75.5},
+                "liquidity": {"liquidity_usd": 18_000.0, "locked_pct": 12.0},
+                "deployer": {
+                    "deployer_address": "0xdeployer",
+                    "total_deployments": 6,
+                    "rug_rate": 0.7,
+                },
+                "market": {"fake_volume_pct": 40.0},
+            },
+            "liquidity_usd": 18_000.0,
+        }
+
+    monkeypatch.setattr("rugmunchbot.tools.scanner._scans.scan_token_v2", _fake_scan_token_v2)
+    monkeypatch.setattr(
+        "rugmunchbot.handlers._scan_handlers._scan._poll_v2_scan_completion", _fake_poll
+    )
+
+    note = await content._churn_one_scan(
+        {"address": "0xabc", "chain": "ethereum", "name": "Fast", "symbol": "FST"}
+    )
+    assert note is not None
+    # Deep-phase data made it into the note the card renderer reads.
+    assert note["bundle_analysis"]["is_bundled"] is True
+    assert note["first_buyers"][0]["address"] == "0xholder2"
+    assert (note["evidence"] or {}).get("holders", {}).get("holder_count") == 412
+    assert (note["evidence"] or {}).get("market", {}).get("fake_volume_pct") == 40.0
+    assert note["liquidity_usd"] == 18_000.0
+
+
+async def test_churn_scan_falls_back_when_poll_misses(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Poll timeout → note still ships with the fast path (fail-open)."""
+    from rugmunchbot.channels import content
+
+    fast_path: dict[str, Any] = {
+        "status": "ok",
+        "token_address": "0xabc",
+        "chain": "ethereum",
+        "name": "Fast",
+        "symbol": "FST",
+        "safety_score": 40.0,
+        "risk_level": "high",
+        "risk_flags": [],
+        "background_status": "running",
+    }
+
+    async def _fake_scan_token_v2(address: str, chain: str) -> dict[str, Any]:
+        return fast_path
+
+    async def _fake_poll(address: str, chain: str, **_: Any) -> dict[str, Any] | None:
+        return None
+
+    monkeypatch.setattr("rugmunchbot.tools.scanner._scans.scan_token_v2", _fake_scan_token_v2)
+    monkeypatch.setattr(
+        "rugmunchbot.handlers._scan_handlers._scan._poll_v2_scan_completion", _fake_poll
+    )
+
+    note = await content._churn_one_scan(
+        {"address": "0xabc", "chain": "ethereum", "name": "Fast", "symbol": "FST"}
+    )
+    assert note is not None
+    assert note["address"] == "0xabc"
+    # No deep keys were invented when the poll missed.
+    assert note.get("bundle_analysis") is None
+    assert note.get("first_buyers") is None
+
+
 async def test_poll_times_out_fail_open(monkeypatch: pytest.MonkeyPatch) -> None:
     """Status never completes → None within the bounded budget (fail-open)."""
     client = _FakeClient([{"background_status": "running"}])

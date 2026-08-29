@@ -55,7 +55,6 @@ from rugmunchbot.scanner import (
 from rugmunchbot.states import check_spam
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools._client import get_shared_client
-from rugmunchbot.tools.rag_lookup import rag_lookup
 from rugmunchbot.tools.scanner import (
     _scan_cache_get,
     _scan_cache_set,
@@ -273,8 +272,16 @@ async def _poll_v2_scan_completion(
     SENTINEL, news) continue in a background task. /deepscan waits a little
     longer so the wallet-composition section has real data; /scan uses a
     shorter bounded budget (see ``_BASIC_SCAN_POLL_MAX_S``). Returns the
-    completed status payload (legacy serializer shape), or None on
-    timeout/failure — the caller then renders whatever the fast path had.
+    completed result payload (legacy serializer shape — the dict carrying
+    ``wallet_metrics`` / ``bundle_analysis`` / ``first_buyers`` /
+    ``evidence`` top-level, exactly what ``_merge_completed_scan`` reads),
+    or None on timeout/failure — the caller then renders whatever the fast
+    path had.
+
+    Payload shape: the status endpoint nests the scan result under
+    ``result`` (``{"state": ..., "phase": ..., "result": {...},
+    "updated_at": ...}`` — also used by the 1h result-cache path). Older
+    backends returned the flat payload. Both shapes are accepted.
     """
     url = f"{BACKEND_URL}/api/v2/scanner/token/scan/{chain}/{address}/status"
     deadline = time.monotonic() + max_wait_s
@@ -285,8 +292,18 @@ async def _poll_v2_scan_completion(
             r = await client.get(url, headers=backend_headers())
             if r.status_code == 200:
                 data = r.json()
-                if isinstance(data, dict) and data.get("background_status") == "complete":
-                    return data
+                if not isinstance(data, dict):
+                    continue
+                payload = data.get("result")
+                if not isinstance(payload, dict):
+                    payload = data
+                # Complete when the nested/flat result says so, OR the
+                # wrapper reports state=complete (result-cache path).
+                if (
+                    payload.get("background_status") == "complete"
+                    or data.get("state") == "complete"
+                ):
+                    return payload
         except (ConnectionError, OSError, TimeoutError, httpx.HTTPError) as exc:
             logger.debug("v2 scan status poll failed for %s: %s", address[:12], exc)
         await asyncio.sleep(interval_s)

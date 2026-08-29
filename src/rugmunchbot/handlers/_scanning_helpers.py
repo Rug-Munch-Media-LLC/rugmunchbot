@@ -50,7 +50,7 @@ def _merge_completed_scan(result_v2: dict[str, Any], completed: dict[str, Any]) 
     payload uses the legacy serializer (``deep_profile`` nesting,
     ``funding_analysis`` top-level) so both shapes are probed.
     """
-    for key in ("wallet_metrics", "bundle_analysis", "first_buyers"):
+    for key in ("wallet_metrics", "bundle_analysis", "first_buyers", "liquidity_usd"):
         if completed.get(key) and not result_v2.get(key):
             result_v2[key] = completed[key]
     # Structured RiskReport (rugmunch_scanner/unified/risk_report.py) — the

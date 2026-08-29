@@ -766,6 +766,11 @@ async def fetch_scan_notes(limit: int = 10) -> list[dict[str, Any]]:
 
 _SCAN_CHURN_CONCURRENCY = 2
 _SCAN_CHURN_SCAN_TIMEOUT = 45.0
+# Bounded completion poll after the fast-path POST returns (~25s) — the
+# backend's deep phases (holders/bundle/first-buyers/wallet metrics) land on
+# the status endpoint seconds later. Kept well under the per-scan budget so
+# the churn rail still finishes inside the outer gather timeout.
+_SCAN_CHURN_POLL_MAX_S = 12.0
 
 
 def _candidate_fallback_note(candidate: dict[str, Any]) -> dict[str, Any] | None:
@@ -832,6 +837,33 @@ async def _churn_one_scan(
         return _candidate_fallback_note(candidate)
     if not isinstance(data, dict) or data.get("status") != "ok":
         return _candidate_fallback_note(candidate)
+
+    # ── Deep-analysis completion merge (2026-08-29 fix) ──
+    # The v2 engine returns within ~25s while its background phases (holder
+    # data, wallet metrics, bundle detection, first-buyers, SENTINEL,
+    # RiskReport) continue and land on the status endpoint. Without the
+    # poll+merge the churn card only ever sees the fast path and renders
+    # "Deep analysis (deployer/holders/bundles): unavailable" with ~1/30
+    # factors known. Same bounded-poll contract as /scan — fail-open: on
+    # timeout we render whatever the fast path had.
+    if data.get("background_status") == "running":
+        try:
+            from rugmunchbot.handlers._scan_handlers._scan import _poll_v2_scan_completion
+            from rugmunchbot.handlers._scanning_helpers import _merge_completed_scan
+
+            completed = await _poll_v2_scan_completion(
+                address,
+                chain,
+                max_wait_s=_SCAN_CHURN_POLL_MAX_S,
+                head_start_s=0.0,
+                interval_s=2.5,
+            )
+            if completed:
+                _merge_completed_scan(data, completed)
+        except Exception as exc:  # fail-open by contract
+            logger.debug(
+                "channels:scan_churn_poll_failed addr=%.40s err=%s", address, str(exc)[:80]
+            )
 
     # Merge the candidate's own sketch flags (cheap, already computed) with
     # the scan's risk flags so a quiet scanner still shows the sketch signal.
