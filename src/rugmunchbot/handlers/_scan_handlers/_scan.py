@@ -266,7 +266,7 @@ async def _poll_v2_scan_completion(
     head_start_s: float = 4.0,
     interval_s: float = 4.0,
 ) -> dict[str, Any] | None:
-    """Poll the v2 scan status endpoint until background phases complete.
+    """Poll the v2 scan status until background phases complete.
 
     The v2 scan API returns within ~25s while deep phases (wallet metrics,
     SENTINEL, news) continue in a background task. /deepscan waits a little
@@ -278,6 +278,12 @@ async def _poll_v2_scan_completion(
     or None on timeout/failure — the caller then renders whatever the fast
     path had.
 
+    Local-first (2026-08-29): when the scan ran on the VENDORED local
+    engine, its background phases publish to the SAME Redis under
+    ``scanner:status:{chain}:{address}`` — read that directly (no HTTP to
+    localhost:8000). The backend HTTP status endpoint remains fallback-only
+    (a scan served by the backend fallback path is polled there).
+
     Payload shape: the status endpoint nests the scan result under
     ``result`` (``{"state": ..., "phase": ..., "result": {...},
     "updated_at": ...}`` — also used by the 1h result-cache path). Older
@@ -287,6 +293,22 @@ async def _poll_v2_scan_completion(
     deadline = time.monotonic() + max_wait_s
     await asyncio.sleep(head_start_s)  # head start for the background phases
     while time.monotonic() < deadline:
+        # Local-first: the vendored scanner publishes progress + the final
+        # result to the bot's Redis — read it directly, no backend HTTP.
+        try:
+            from rugmunchbot.tools.scanner._local_v2 import install_import_bridge
+
+            install_import_bridge()
+            from rugmunchbot._vendor.unified_scanner.scanner import scan_status as _local_status
+
+            local = await _local_status(chain, address)
+            if isinstance(local, dict) and local.get("state") == "complete":
+                payload = local.get("result")
+                if isinstance(payload, dict):
+                    return payload
+                return local
+        except Exception as exc:
+            logger.debug("v2 scan local status failed for %s: %s", address[:12], exc)
         try:
             client = get_shared_client(10)
             r = await client.get(url, headers=backend_headers())
