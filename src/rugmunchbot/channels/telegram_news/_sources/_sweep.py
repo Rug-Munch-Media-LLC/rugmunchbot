@@ -27,13 +27,13 @@ from typing import TYPE_CHECKING
 
 from rugmunchbot._vendor.news_ingest.ingest import (
     DEFAULT_DEDUP_COLLECTION,
-    dedupe_articles,
     extract_canonical_url,
     filter_seen_articles,
     is_channel_cooldown,
     read_channel_messages,
 )
 from rugmunchbot._vendor.news_ingest.normalize import channel_message_to_article
+from rugmunchbot.channels.telegram_news._dedup import dedupe_articles_semantic
 from rugmunchbot.channels.telegram_news._sources._channels import resolve_channel_sources
 from rugmunchbot.channels.telegram_news._sources._config import (
     TG_NEWS_PER_CHANNEL_LIMIT,
@@ -133,7 +133,8 @@ async def sweep_telegram_news(
     The channel list is resolved by :func:`resolve_channel_sources`: the
     account's own followed/member channels (when ``RMI_TG_NEWS_AUTO_DISCOVER``
     is on and the client exposes ``get_dialogs``) are primary — categorized
-    into news / alpha / scam / other (scam left to scam_watch, other skipped)
+    into news / alpha / scam / other (ALL tiers swept since 2026-08-29 —
+    ``other`` ranked last; type-ranked before the MAX_CHANNELS cap)
     and bounded by ``RMI_TG_NEWS_MAX_CHANNELS`` — and the explicit
     ``RMI_TG_NEWS_CHANNELS`` / ``_DEFAULT_CHANNELS`` list is the fallback.
 
@@ -174,7 +175,7 @@ async def sweep_telegram_news(
             article = channel_message_to_article(message, category)
             if article is not None:
                 articles.append(article)
-    articles = dedupe_articles(articles)
+    articles = await dedupe_articles_semantic(articles)
     articles, seen_skipped = filter_seen_articles(articles, DEFAULT_DEDUP_COLLECTION)
     if seen_skipped:
         logger.info("tg_news:cross_run_dedup skipped=%s kept=%s", seen_skipped, len(articles))

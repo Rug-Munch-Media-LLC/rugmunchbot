@@ -72,8 +72,17 @@ async def test_resolve_sources_sweeps_scam_channels(monkeypatch):
     assert by_handle["somepumpgroup"]["channel_category"] == "scam"
     # News + alpha still swept.
     assert by_handle["cointelegraph"]["category"] == "crypto_news"
-    # Personal chats remain excluded.
-    assert "myprivatechat" not in by_handle
+    # 100%-ingestion (2026-08-29): personal chats are no longer dropped —
+    # they sweep as the lowest tier ("other") and only post if their content
+    # clears the importance floor. Type-ranking puts them last.
+    assert "myprivatechat" in by_handle
+    assert by_handle["myprivatechat"]["channel_category"] == "other"
+    assert by_handle["myprivatechat"]["category"] == "crypto_news"
+    # Type ranking: news before scam before other.
+    order = [s["username"].lower() for s in sources]
+    assert (
+        order.index("cointelegraph") < order.index("somepumpgroup") < order.index("myprivatechat")
+    )
 
 
 @pytest.mark.asyncio

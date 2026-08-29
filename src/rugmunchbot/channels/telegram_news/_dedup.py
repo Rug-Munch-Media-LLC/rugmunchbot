@@ -1,0 +1,181 @@
+"""Semantic news dedup — title-token overlap + embed cosine (2026-08-29).
+
+Closes the "Trump Digital Gold" class of duplicates: beincrypto and
+cryptobriefing ran the same story with different URLs, different headlines
+("Trump's Digital Gold..." vs "Digital Gold: Trump...") and reworded bodies,
+so every exact key (canonical URL / t.me URL / normalized title / content
+hash) missed and both copies posted ~simultaneously.
+
+Two new layers, applied AFTER the vendor's exact-key ``dedupe_articles``:
+
+1. **Title token overlap** (sync, free) — normalized-title token-set Jaccard
+   ≥ ``RMI_NEWS_TITLE_OVERLAP_DEDUP`` (default 0.60) marks two headlines as
+   the same story. Catches reworded headlines that share most content words.
+2. **Embedding cosine** (async, one embed per candidate) — title + first
+   300 chars of body embedded via the shared qwen3 endpoint
+   (``_vendor.rag_pkg.embeddings.get_embedding``); cosine ≥
+   ``RMI_NEWS_SEMANTIC_DEDUP_THRESHOLD`` (default 0.90) collapses
+   paraphrased copies. Fail-open: embedder down → layer skipped, exact-key
+   dedup still ran.
+
+First-wins on input order (the sweep's channel order = recency), matching
+``dedupe_articles`` semantics.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+from typing import TYPE_CHECKING, Any
+
+from rugmunchbot._vendor.logging_shim import get_logger
+from rugmunchbot._vendor.news_ingest.ingest import dedupe_articles, normalize_title
+
+if TYPE_CHECKING:
+    from rugmunchbot._vendor.news_ingest.models import NewsArticle
+
+logger = get_logger(__name__)
+
+#: Title token-set Jaccard at/above which two headlines are the same story.
+_TITLE_OVERLAP_DEFAULT = 0.60
+#: Embedding cosine at/above which two articles are the same story.
+_SEMANTIC_COSINE_DEFAULT = 0.90
+#: Max pairwise cosine comparisons per batch (O(n²) guard; sweep batches
+#: are ≤ a few hundred — beyond this the oldest candidates stop matching).
+_MAX_EMBED_CANDIDATES = 200
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if not raw or not raw.strip():
+        return default
+    try:
+        return float(raw.strip())
+    except ValueError:
+        return default
+
+
+TITLE_OVERLAP_THRESHOLD = _env_float("RMI_NEWS_TITLE_OVERLAP_DEDUP", _TITLE_OVERLAP_DEFAULT)
+SEMANTIC_COSINE_THRESHOLD = _env_float(
+    "RMI_NEWS_SEMANTIC_DEDUP_THRESHOLD", _SEMANTIC_COSINE_DEFAULT
+)
+
+_WORD_RE = re.compile(r"[a-z0-9$]{3,}")
+#: Generic words that carry no story identity ("trump says bitcoin..." vs
+#: "bitcoin surges as trump..." share these but are different stories).
+_STOPWORDS = frozenset(
+    {"the", "and", "for", "with", "from", "that", "this", "into", "over", "after", "amid", "as"}
+)
+
+
+def title_tokens(title: str) -> set[str]:
+    """Content-word set of a normalized title (lowercase, punct stripped).
+
+    Reuses the vendor ``normalize_title`` (punctuation/emoji stripped,
+    breaking markers removed) then keeps tokens ≥3 chars minus stopwords —
+    the story-identity words only.
+    """
+    return {tok for tok in _WORD_RE.findall(normalize_title(title or "")) if tok not in _STOPWORDS}
+
+
+def title_overlap(a: str, b: str) -> float:
+    """Token-set Jaccard between two titles (0.0 when either is empty)."""
+    ta, tb = title_tokens(a), title_tokens(b)
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / len(ta | tb)
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(x * x for x in b) ** 0.5
+    if na == 0.0 or nb == 0.0:
+        return 0.0
+    return dot / (na * nb)
+
+
+def _dedup_text(article: NewsArticle) -> str:
+    """Embedding input: title + lead of the body (mirrors rugbrain's fingerprint)."""
+    return f"{article.title or ''} {str(article.body or '')[:300]}".strip()
+
+
+def dedupe_articles_title_overlap(articles: list[NewsArticle]) -> list[NewsArticle]:
+    """Sync pass: drop articles whose title token-overlap matches an earlier one."""
+    kept: list[NewsArticle] = []
+    kept_tokens: list[set[str]] = []
+    for article in articles:
+        tokens = title_tokens(article.title or "")
+        if tokens and any(
+            len(tokens & kt) / len(tokens | kt) >= TITLE_OVERLAP_THRESHOLD for kt in kept_tokens
+        ):
+            logger.info(
+                "news_dedup:title_overlap_drop title=%s",
+                (article.title or "")[:80],
+            )
+            continue
+        kept.append(article)
+        kept_tokens.append(tokens)
+    return kept
+
+
+async def dedupe_articles_semantic(articles: list[NewsArticle]) -> list[NewsArticle]:
+    """Full semantic dedup: exact keys → title overlap → embed cosine ≥0.90.
+
+    Fail-open at the embed layer (embedder down → title-overlap result only).
+    """
+    result = dedupe_articles(articles)
+    before_overlap = len(result)
+    result = dedupe_articles_title_overlap(result)
+    if before_overlap != len(result):
+        logger.info("news_dedup:title_overlap dropped=%s", before_overlap - len(result))
+    if len(result) <= 1:
+        return result
+
+    from rugmunchbot._vendor.rag_pkg.embeddings import get_embedding
+
+    candidates = result[:_MAX_EMBED_CANDIDATES]
+    tail = result[_MAX_EMBED_CANDIDATES:]
+    try:
+        vectors = [await get_embedding(_dedup_text(a)) for a in candidates]
+    except Exception as exc:  # fail-open — never block the sweep on the embedder
+        logger.warning("news_dedup:embed_failed err=%s", str(exc)[:120])
+        return result
+
+    kept: list[NewsArticle] = []
+    kept_vecs: list[list[float]] = []
+    dropped = 0
+    for article, vec in zip(candidates, vectors, strict=True):
+        if not vec:
+            kept.append(article)  # embedder returned empty for this one — keep
+            continue
+        dup = False
+        for kv in kept_vecs:
+            sim = _cosine(vec, kv)
+            if sim >= SEMANTIC_COSINE_THRESHOLD:
+                dup = True
+                logger.info(
+                    "news_dedup:semantic_drop title=%s cos=%.3f",
+                    (article.title or "")[:80],
+                    sim,
+                )
+                break
+        if dup:
+            dropped += 1
+            continue
+        kept.append(article)
+        kept_vecs.append(vec)
+    if dropped:
+        logger.info("news_dedup:semantic dropped=%s kept=%s", dropped, len(kept))
+    return kept + tail
+
+
+def dedup_stats(articles: list[NewsArticle]) -> dict[str, Any]:
+    """Small observability dict for the sweep log line."""
+    return {
+        "threshold_cosine": SEMANTIC_COSINE_THRESHOLD,
+        "threshold_title_overlap": TITLE_OVERLAP_THRESHOLD,
+        "input": len(articles or []),
+    }

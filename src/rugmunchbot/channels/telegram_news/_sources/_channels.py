@@ -55,8 +55,13 @@ def classify_channel_category(title: str, username: str) -> str:
       can prefer main.
     * ``alpha`` — whale/alpha/signal/calls-style titles → routed to the alpha
       channel.
-    * ``other`` — everything else (personal chats, groups, non-crypto) →
-      excluded from the sweep entirely.
+    * ``other`` — everything else (personal chats, groups, non-crypto).
+      2026-08-29 100%-ingestion change: ``other`` channels are NO LONGER
+      dropped — they are swept as the lowest-priority tier
+      (``channel_category="other"``, ``category="crypto_news"``) so every
+      channel the owner follows is ingested; they only reach a channel post
+      if their content clears the same importance floor as everything else
+      (ranked last by :func:`_type_rank`).
 
     Pure + fail-open (a broken scam_watch import never breaks categorization).
     """
@@ -81,6 +86,18 @@ def classify_channel_category(title: str, username: str) -> str:
     if any(kw in haystack for kw in _CHANNEL_NEWS_KEYWORDS):
         return "news"
     return "other"
+
+
+#: Sweep priority by channel type (2026-08-29 100%-ingestion ranking):
+#: news outlets first, then analyst/on-chain, then alpha/call channels,
+#: then scam-call intel, then everything else. Applied to the discovered
+#: source list BEFORE the ``TG_NEWS_MAX_CHANNELS`` cap so the bound trims
+#: the lowest-value tier, never a news outlet.
+_TYPE_RANK: dict[str, int] = {"news": 0, "analyst": 1, "alpha": 2, "scam": 3, "other": 4}
+
+
+def _type_rank(channel_category: str) -> int:
+    return _TYPE_RANK.get(str(channel_category or "other").lower(), 4)
 
 
 def channel_sources() -> list[dict[str, Any]]:
@@ -158,8 +175,6 @@ async def resolve_channel_sources(client: Any | None = None) -> list[dict[str, A
                 seen.add(handle)
                 category = classify_channel_category(str(title or ""), handle)
                 counts[category] += 1
-                if category == "other":
-                    continue  # personal chats / non-crypto — not news-relevant
                 if category == "scam":
                     sources.append(
                         {
@@ -169,8 +184,20 @@ async def resolve_channel_sources(client: Any | None = None) -> list[dict[str, A
                             "channel_category": "scam",
                         }
                     )
-                    if len(sources) >= _tg.TG_NEWS_MAX_CHANNELS:
-                        break
+                    continue
+                if category == "other":
+                    # 100%-ingestion (2026-08-29): unclassified channels are
+                    # swept as the lowest tier instead of dropped — full
+                    # coverage of the owner's channels; the importance floor
+                    # (not the category filter) decides what posts.
+                    sources.append(
+                        {
+                            "username": handle,
+                            "category": "crypto_news",
+                            "name": str(title or handle),
+                            "channel_category": "other",
+                        }
+                    )
                     continue
                 is_analyst = handle.lower() in {c.lower() for c in ANALYST_CHANNELS}
                 category_tag = "crypto_news" if category == "news" else "alpha"
@@ -182,8 +209,11 @@ async def resolve_channel_sources(client: Any | None = None) -> list[dict[str, A
                         "channel_category": "analyst" if is_analyst else category,
                     }
                 )
-                if len(sources) >= _tg.TG_NEWS_MAX_CHANNELS:
-                    break
+            # Rank by type BEFORE the cap: the TG_NEWS_MAX_CHANNELS bound
+            # trims the lowest tier (other → scam → alpha → analyst → news),
+            # never a news outlet.
+            sources.sort(key=lambda s: _type_rank(str(s.get("channel_category") or "other")))
+            sources = sources[: _tg.TG_NEWS_MAX_CHANNELS]
             if sources:
                 logger.info(
                     "tg_news:using_discovered_channels count=%s by_category=%s",

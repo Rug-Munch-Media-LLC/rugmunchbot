@@ -16,6 +16,7 @@ from rugmunchbot.channels.formatters._primitives import (
     _scan_channel_shill,
     _strip_markup,
     _takeaway,
+    feed_site_line,
     site_news_line,
 )
 from rugmunchbot.formatters import footer_links, sep
@@ -69,6 +70,7 @@ def format_news_post(items: list[dict[str, Any]]) -> NewsPost:
         lines.extend(_story_line(item, i))
     lines.extend(["", f"\U0001f550 {_now_stamp()}"])
     lines.append(site_news_line())
+    lines.append(feed_site_line())
     lines.append(sep())
     lines.append(_scan_channel_shill())
     image_url = ""
@@ -115,6 +117,7 @@ def format_breaking_post(item: dict[str, Any]) -> NewsPost:
         lines.append(f"🔗 <i>Full story: {source}</i>")
     lines.extend(["", f"🕐 {_now_stamp()}"])
     lines.append(site_news_line())
+    lines.append(feed_site_line())
     lines.append(footer_links())
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = _pick_image_url(item.get("image_url"))
@@ -157,6 +160,7 @@ def format_feature_post(item: dict[str, Any]) -> NewsPost:
         lines.append(f"🔗 <i>Full story: {source}</i>")
     lines.extend(["", f"\U0001f550 {_now_stamp()}"])
     lines.append(site_news_line())
+    lines.append(feed_site_line())
     lines.append(footer_links())
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = _pick_image_url(item.get("image_url"))
@@ -209,6 +213,7 @@ def format_hybrid_post(items: list[dict[str, Any]]) -> NewsPost:
             lines.append(f"{i}. {t} — <i>{s}</i>")
     lines.extend(["", f"🕐 {_now_stamp()}"])
     lines.append(site_news_line())
+    lines.append(feed_site_line())
     lines.append(footer_links())
     image_url = _pick_image_url(lead.get("image_url"))
     for item in items[1:]:
@@ -237,6 +242,7 @@ def format_themed_post(items: list[dict[str, Any]], theme: str = "") -> NewsPost
         lines.extend(_story_line(item, i))
     lines.extend(["", f"🕐 {_now_stamp()}"])
     lines.append(site_news_line())
+    lines.append(feed_site_line())
     lines.append(footer_links())
     image_url = ""
     for item in items[:6]:
@@ -277,6 +283,7 @@ def format_scam_digest(items: list[dict[str, Any]]) -> NewsPost:
             lines.append(f"   {takeaway}")
     lines.extend(["", f"🕐 {_now_stamp()}"])
     lines.append(site_news_line())
+    lines.append(feed_site_line())
     lines.append(sep())
     lines.append(_scan_channel_shill())
     image_url = ""
