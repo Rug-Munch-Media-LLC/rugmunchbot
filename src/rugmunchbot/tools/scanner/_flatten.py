@@ -454,6 +454,14 @@ def v2_token_to_legacy(data: dict[str, Any]) -> dict[str, Any]:
         # scan_token_v2 via enrich_scan_with_gmgn) — surfaced as the
         # "Smart Money / Holders" section on /scan.
         "gmgn": data.get("gmgn"),
+        # v2 structured RiskReport (rugmunch_scanner/unified/risk_report.py):
+        # deployer / holders / first-buyer / top-25 / fresh% / CEX-funded% /
+        # bundle / cluster / honeypot / liquidity + ~30 explainable factors +
+        # composite score + rug/scam determination. The backend emits it once
+        # its scanner wires the phase; the scan formatter falls back to
+        # building the same dict shape locally when absent (see
+        # formatters._scan_report_riskreport).
+        "risk_report": data.get("risk_report"),
     }
 
 

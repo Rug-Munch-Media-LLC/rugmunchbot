@@ -136,3 +136,44 @@ def test_daily_quality_job_registers_on_main(monkeypatch):
     reg.register_channel_jobs(app)
     names = [j["name"] for j in app.job_queue.repeating]
     assert "channel_daily_quality" in names
+
+
+def test_site_link_helpers():
+    """Site-link contract: every channel post carries the exact site link."""
+    from rugmunchbot.channels.formatters._primitives import (
+        enforce_site_link,
+        feed_site_line,
+        has_site_link,
+        site_news_line,
+    )
+
+    assert "rugmunch.io/news" in site_news_line()
+    assert "feed.rugmunch.io" in feed_site_line("abc123")
+    assert "feed.rugmunch.io/p/abc123" in feed_site_line("abc123")
+
+    text = "Some post text"
+    linked = enforce_site_link(text, site="news")
+    assert "rugmunch.io/news" in linked
+    # Idempotent: already-linked text is unchanged.
+    assert enforce_site_link(linked, site="news") == linked
+    assert has_site_link(linked)
+
+
+def test_main_post_quality_contract():
+    """Main posts: image (when available) + commentary + site link."""
+    from rugmunchbot.channels.formatters import format_feature_post
+
+    post = format_feature_post(
+        {
+            "title": "Bridge exploit drains $190M",
+            "url": "https://rekt.news/bridge-190m",
+            "source": "rekt.news",
+            "summary": "A cross-chain bridge was compromised and roughly $190M "
+            "was drained across three chains in under an hour.",
+            "commentary": "The largest exploit of the year so far.",
+            "image_url": "https://example.com/bridge.jpg",
+        }
+    )
+    assert post.image_url == "https://example.com/bridge.jpg"  # image attached
+    assert "Why it matters" in str(post)  # commentary present
+    assert "rugmunch.io/news" in str(post)  # site link present

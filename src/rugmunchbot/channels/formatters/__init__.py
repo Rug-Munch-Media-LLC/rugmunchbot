@@ -53,6 +53,7 @@ from rugmunchbot.channels.formatters._news import (
     format_feature_post as format_feature_post,
     format_hybrid_post as format_hybrid_post,
     format_news_post as format_news_post,
+    format_scam_digest as format_scam_digest,
     format_themed_post as format_themed_post,
 )
 from rugmunchbot.channels.formatters._primitives import (
@@ -96,6 +97,7 @@ __all__ = [
     "format_hybrid_post",
     "format_main_escalation",
     "format_news_post",
+    "format_scam_digest",
     "format_scan_card",
     "format_themed_post",
 ]

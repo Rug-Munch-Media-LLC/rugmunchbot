@@ -23,6 +23,7 @@ from rugmunchbot.channels.formatters._primitives import (
     site_news_line,
 )
 from rugmunchbot.formatters import sep, short_addr
+from rugmunchbot.formatters._scan_report_riskreport import format_risk_report_block
 
 
 def format_scan_card(item: dict[str, Any]) -> NewsPost:
@@ -127,6 +128,16 @@ def format_scan_card(item: dict[str, Any]) -> NewsPost:
         lines.extend(deep)
     else:
         lines.append("<i>Deep analysis (deployer/holders/bundles): unavailable for this scan</i>")
+    # ── Full-product RiskReport block (deployer / holders / first-buyer /
+    #    top-25 / fresh% / CEX% / bundle / cluster / honeypot / liquidity +
+    #    ~30-factor score + rug/scam determination) — the same RiskReport the
+    #    /scan formatter renders (rugmunch_scanner/unified/risk_report.py),
+    #    so suspicious-token cards demonstrate the full scanner. Fail-open. ──
+    if addr:
+        risk_report_lines = format_risk_report_block(item, deep=False)
+        if risk_report_lines:
+            lines.append("")
+            lines.extend(risk_report_lines)
     commentary = str(item.get("commentary") or "").strip()
     if commentary:
         lines.append(f"\U0001f4ac \u201c{_esc(commentary)}\u201d")

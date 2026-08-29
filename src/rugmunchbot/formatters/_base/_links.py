@@ -105,6 +105,33 @@ def web_scan_button(address: str, chain: str = "") -> InlineKeyboardButton:
     return InlineKeyboardButton("\U0001f310 Full Report on RugMunch.io", url=url)
 
 
+#: Cross-channel promotion block for scan posts (drives adoption). The
+#: canonical handles mirror ``channels_registry`` public handles — keep in
+#: sync when a channel is added/renamed.
+_SHILL_CHANNELS: tuple[tuple[str, str, str], ...] = (
+    ("\U0001f50d", "https://t.me/RugMunchBot", "@RugMunchBot"),
+    ("\U0001f310", "https://rugmunch.io", "rugmunch.io"),
+    ("\U0001f52c", "https://t.me/rmiscans", "@rmiscans"),
+    ("\U0001f6a8", "https://t.me/rmialerts", "@rmialerts"),
+    ("\U0001f4f0", "https://t.me/rmicryptonews", "@rmicryptonews"),
+    ("\U0001f40b", "https://t.me/rmialpha", "@rmialpha"),
+    ("\U0001f4e1", "https://t.me/cryptorugmuncher", "@cryptorugmuncher"),
+)
+
+
+def scan_shill_footer() -> str:
+    """Shill footer for scan posts: the bot, the site + every RugMunch channel.
+
+    Rendered at the end of every scan report so readers can reach the product
+    from anywhere (t.me/rugmunchbot is the bot handle; the rest are the
+    public Telegram channels). HTML-safe for Telegram (``<a>`` only).
+    """
+    lines = [f"\n{sep()}\n\U0001f4e2 <b>RugMunch Intelligence</b>"]
+    for emoji, url, label in _SHILL_CHANNELS:
+        lines.append(f'{emoji} <a href="{html.escape(url, quote=True)}">{html.escape(label)}</a>')
+    return "\n".join(lines)
+
+
 DEXSCREENER_CHAINS = {
     "solana": "solana",
     "ethereum": "ethereum",

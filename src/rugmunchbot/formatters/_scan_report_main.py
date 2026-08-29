@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from rugmunchbot.config import _risk_gauge, fmt_chain, fmt_pct, risk_bar, threat_indicator
-from rugmunchbot.formatters._base import footer_links, sep, thin_sep
+from rugmunchbot.formatters._base import footer_links, scan_shill_footer, sep, thin_sep
 from rugmunchbot.formatters._scan_report_common import (
     _clip,
     _collapse_blank_lines,
@@ -43,6 +43,7 @@ from rugmunchbot.formatters._scan_report_common._fields import (
     _mint_auth,
 )
 from rugmunchbot.formatters._scan_report_risk import _format_risk_signals_section, _verdict_text
+from rugmunchbot.formatters._scan_report_riskreport import format_risk_report_block
 from rugmunchbot.formatters._scan_report_sentinel import _format_sentinel_pro
 from rugmunchbot.formatters._scan_report_token import _token_description, _token_image_url
 from rugmunchbot.formatters._scan_report_wallet import (
@@ -263,6 +264,16 @@ def _format_scan_report(
     if scam_lines:
         lines.extend(scam_lines)
 
+    # ── 2d. Risk Report (the full product demo) ──
+    # Wires the structured RiskReport (rugmunch_scanner/unified/risk_report.py):
+    # deployer / holders / first-buyer / top-25 / fresh% / CEX-funded% /
+    # bundle / cluster / honeypot / liquidity + the ~30-factor risk score +
+    # rug/scam determination. Basic scans render the CONCISE block; deep
+    # scans render the full factor table + deeper-level analysis.
+    risk_report_lines = format_risk_report_block(r, deep=deep)
+    if risk_report_lines:
+        lines.extend(risk_report_lines)
+
     # ── 3. Market Data ──
     # Real live market figures from the scan's best-pair DexScreener snapshot
     # (see tools/scanner._ds_market_snapshot). Missing fields render "—",
@@ -472,9 +483,12 @@ def _format_scan_report(
     if watch_line:
         lines.extend(["", f"\U0001f440 <b>Watch:</b> {watch_line}"])
 
-    # ── 9. Footer (trade links) ──
+    # ── 9. Footer (trade links + cross-channel shill) ──
     lines.extend(["", s, "\U0001f4b1 <b>Trade:</b>"])
     _addr = r.get("address", r.get("token", ""))
     _chain = r.get("chain", "solana")
     lines.append(footer_links(_addr, _chain))
+    # Shill block drives adoption: bot handle, rugmunch.io + every RugMunch
+    # Telegram channel (see _base._links.scan_shill_footer).
+    lines.append(scan_shill_footer())
     return _collapse_blank_lines("\n".join(lines))

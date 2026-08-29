@@ -280,9 +280,12 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_scans",
         )
     # Routed tg_news job: registered when ANY routed destination resolves
-    # (news / main @cryptorugmuncher / alpha) — the post path routes each
-    # scored story to exactly one destination via ``route_news``.
-    if TG_NEWS_ENABLED and any(_chat_id(dest) for dest in ("news", "main", "alpha")):
+    # (news / main @cryptorugmuncher / alpha / alerts) — the post path routes
+    # each scored story to exactly one destination via ``route_news``. The
+    # alerts destination covers the scam-call lane (2026-08-29): scam-call
+    # digests post to @rmialerts, so a deployment with only alerts+news
+    # configured still sweeps and routes.
+    if TG_NEWS_ENABLED and any(_chat_id(dest) for dest in ("news", "main", "alpha", "alerts")):
         job_queue.run_repeating(
             _tick_wrapper("channel_tg_news", post_tg_news_update, envelope=True),
             interval=_TG_NEWS_INTERVAL_MINUTES * 60,

@@ -46,6 +46,7 @@ from rugmunchbot.formatters._scan_report_risk import (
     _format_risk_signals_section,
     _verdict_text,
 )
+from rugmunchbot.formatters._scan_report_riskreport import format_risk_report_block
 from rugmunchbot.formatters._scan_report_sentinel import (
     _format_sentinel_pro,
     format_sentinel_flags,
@@ -102,6 +103,7 @@ __all__ = [
     "_wallet_freshness_line",
     "format_deep_ml_scan_report",
     "format_deep_scan_report",
+    "format_risk_report_block",
     "format_scan_report",
     "format_sentinel_deepscan_section",
     "format_sentinel_flags",

@@ -53,6 +53,12 @@ def _merge_completed_scan(result_v2: dict[str, Any], completed: dict[str, Any]) 
     for key in ("wallet_metrics", "bundle_analysis", "first_buyers"):
         if completed.get(key) and not result_v2.get(key):
             result_v2[key] = completed[key]
+    # Structured RiskReport (rugmunch_scanner/unified/risk_report.py) — the
+    # status payload's legacy serializer carries it once the backend's scanner
+    # wires the phase; merge so the formatter renders the real report instead
+    # of the local fallback.
+    if completed.get("risk_report") and not result_v2.get("risk_report"):
+        result_v2["risk_report"] = completed["risk_report"]
     # funding_analysis is consumed from evidence by v2_token_to_legacy —
     # fill both slots so downstream readers always find it.
     if completed.get("funding_analysis"):

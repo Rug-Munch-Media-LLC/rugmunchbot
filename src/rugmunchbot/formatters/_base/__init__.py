@@ -34,6 +34,7 @@ from rugmunchbot.formatters._base._links import (
     explorer_url as explorer_url,
     footer_links as footer_links,
     gmgn_url as gmgn_url,
+    scan_shill_footer as scan_shill_footer,
     web_scan_button as web_scan_button,
 )
 from rugmunchbot.formatters._base._primitives import (
@@ -102,6 +103,7 @@ __all__ = [
     "is_evm",
     "is_sol",
     "paywall_text",
+    "scan_shill_footer",
     "sep",
     "short_addr",
     "social_proof_text",

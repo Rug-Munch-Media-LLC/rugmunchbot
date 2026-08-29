@@ -29,12 +29,12 @@ import os
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from rugmunchbot.channels.formatters._primitives import NewsPost, enforce_site_link
 from rugmunchbot.channels.quality_schedule import (
     QUALITY_SLOTS_PER_DAY,
     build_daily_quality_schedule,
     render_schedule,
 )
-from rugmunchbot.channels.formatters._primitives import NewsPost, enforce_site_link
 from rugmunchbot.channels.scheduler._core import (
     _chat_id,
     _post_photo_aware,

@@ -299,13 +299,14 @@ def _item_to_article(item: dict[str, Any], *, category: str, source: str) -> New
     )
 
 
-async def _post_photo_aware(bot: Any, chat_id: str, post: NewsPost, safe_send: Any) -> bool:
-    """Post a ``NewsPost``, attaching its image when one is available.
+async def _post_photo_aware(bot: Any, chat_id: str, post: "NewsPost | str", safe_send: Any) -> bool:
+    """Post a ``NewsPost`` (or plain text), attaching its image when one is available.
 
     Reuses the existing photo primitive (``channels._media.send_news_photo``)
     so digest and escalated posts get the same photo-or-text fail-open
     behavior as the tg_news lane. Without an image the caller's ``safe_send``
-    (retry + ``disable_web_page_preview=True``) is used.
+    (retry + ``disable_web_page_preview=True``) is used. Accepts a plain
+    ``str`` too (``NewsPost`` is a ``str`` subclass — callers may pass either).
     """
     image_url = getattr(post, "image_url", "") or ""
     if image_url:

@@ -75,11 +75,14 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     Routing: **news**-categorized articles are persisted and posted to the
     news channel; **alpha**-categorized articles are persisted and posted to
-    the alpha channel (when ``_chat_id("alpha")`` resolves). Every swept
-    article is persisted (store everything); only the articles
-    ``select_important`` keeps (rerank importance >=
-    ``RMI_NEWS_IMPORTANCE_THRESHOLD``, or the top-N under the heuristic
-    fallback when qwen3 /rerank is down) are posted — per category.
+    the alpha channel (when ``_chat_id("alpha")`` resolves); **scam**-
+    categorized articles (scam-call channels swept since 2026-08-29) are
+    persisted and posted to the alerts channel (when ``_chat_id("alerts")``
+    resolves) — danger intel, never news headlines. Every swept article is
+    persisted (store everything); only the articles ``select_important``
+    keeps (rerank importance >= ``RMI_NEWS_IMPORTANCE_THRESHOLD``, or the
+    top-N under the heuristic fallback when qwen3 /rerank is down) are
+    posted — per category.
     Dedup (multi-key, canonical-URL-first) + rerank importance happen BEFORE
     any post — the post-time ``_remember`` guard is a final freshness check,
     so only fresh important stories ship.
