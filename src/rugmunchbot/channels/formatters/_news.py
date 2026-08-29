@@ -207,7 +207,9 @@ def format_hybrid_post(items: list[dict[str, Any]]) -> NewsPost:
                 t = f'<a href="{html.escape(u, quote=True)}">{t}</a>'
             s = _esc(item.get("source") or "unknown")
             lines.append(f"{i}. {t} — <i>{s}</i>")
-    lines.extend(["", f"🕐 {_now_stamp()}", footer_links()])
+    lines.extend(["", f"🕐 {_now_stamp()}"])
+    lines.append(site_news_line())
+    lines.append(footer_links())
     image_url = _pick_image_url(lead.get("image_url"))
     for item in items[1:]:
         if not image_url:
@@ -233,7 +235,9 @@ def format_themed_post(items: list[dict[str, Any]], theme: str = "") -> NewsPost
     ]
     for i, item in enumerate(items[:6], 1):
         lines.extend(_story_line(item, i))
-    lines.extend(["", f"🕐 {_now_stamp()}", footer_links()])
+    lines.extend(["", f"🕐 {_now_stamp()}"])
+    lines.append(site_news_line())
+    lines.append(footer_links())
     image_url = ""
     for item in items[:6]:
         candidate = _pick_image_url(item.get("image_url"))
