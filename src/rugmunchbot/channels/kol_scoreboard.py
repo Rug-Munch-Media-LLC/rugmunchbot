@@ -6,8 +6,21 @@ tracked crypto KOL / shiller. "Hall of Shame" survives as the *subset* of
 **repeat scammers** (≥2 deleted calls, ≥2 known-scam-token calls, or ≥3
 shill calls) — deliberately NOT every KOL with a low grade.
 
+v9 (2026-08-29): **scammer groups** (syndicate attribution) + **wallet
+tracing expansion**. Every identity can carry a ``scammer_group`` slug
+(``solana_kol_syndicate``, ``impersonation_syndicate``,
+``celebrity_tout_syndicate``, … — labels resolve via
+``kol_registry_seed.group_label``). The Hall of Shame and scoreboard posts
+render the group. Wallet tracing now exposes per-wallet chain + confidence
+(``list_kol_wallets``), inference linking from call tweets
+(``link_wallet_from_call``), provenance-source lookup
+(``wallet_kb_by_source``, e.g. ``zachxbt_post`` / ``dethective`` when the
+operator seeds evidence-linked entries), and on-chain clustering of
+identities that share a wallet (``wallet_clusters`` /
+``cluster_kols_by_wallet``).
+
 How it works (bounty-hunter model)
----------------------------------
+----------------------------------
 1. ``run_kol_scoreboard_watch`` sweeps the seeded KOL registry
    (``kol_registry_seed`` — ~565 real accounts from the fleet's curated
    registries) via the ApiPass X source, one handle per tick
@@ -19,17 +32,21 @@ How it works (bounty-hunter model)
    (``db.kol.record_kol_name_change``), the old alias demoted and the new
    one registered — so a renamed KOL keeps ONE report card (100% correct
    identification across screen-name changes, e.g. altcoingordon).
+   ``db.kol.list_kol_aliases`` returns the full historical alias list.
 4. ``detect_deleted_calls`` — a recorded tweet that now 404s on ApiPass is
    marked deleted (retraction = the strongest dishonesty signal).
-5. Wallet linking — wallet-shaped addresses in call texts are attributed to
-   the KOL's wallet KB (``attach_kol_wallet``), plus the 945-wallet
-   knowledgebase seeded from fleet data; same wallet on two identities
-   links them (``link_identity_via_wallet``).
+5. Wallet tracing — wallet-shaped addresses in call texts are attributed to
+   the KOL's wallet KB via inference (``link_wallet_from_call``, chain from
+   address shape, confidence ``inference``), the 945-wallet knowledgebase
+   is seeded from fleet data with chain/confidence/provenance
+   (``attach_kol_wallet`` / ``seed_wallet_kb``), and shared wallets across
+   identities produce on-chain clusters (``wallet_clusters``) plus identity
+   links (``link_identity_via_wallet`` / ``cluster_kols_by_wallet``).
 6. ``compute_report_card`` (pure) aggregates: calls, deletions, shills,
    scam-token calls, win/loss (from documented outcomes), name changes,
-   wallet, score + grade.
+   scammer group, traced wallets, score + grade.
 7. The SCOREBOARD post (worst-first, deduped per day) goes to @rmialerts;
-   the HALL OF SHAME subset is only repeat scammers.
+   the HALL OF SHAME subset is only repeat scammers — and shows the group.
 
 Pure + deterministic where possible; fail-open at every stage.
 """
@@ -142,6 +159,7 @@ class KolReportCard:
     kol_id: str = ""
     name: str = ""
     category: str = ""
+    scammer_group: str = ""
     total_calls: int = 0
     deleted_calls: int = 0
     shill_calls: int = 0
@@ -150,6 +168,7 @@ class KolReportCard:
     losses: int = 0
     tokens_mentioned: int = 0
     wallet_address: str = ""
+    wallets: list[dict[str, str]] = None  # type: ignore[assignment]
     name_changes: int = 0
     is_repeat_scammer: bool = False
     score: float = 0.0
@@ -180,6 +199,7 @@ class KolIdentity:
     verified: bool = False
     risk_level: str = "watch"
     wallets: list[str] = None  # type: ignore[assignment]
+    scammer_group: str = ""
     notes: str = ""
 
     @classmethod
@@ -195,6 +215,7 @@ class KolIdentity:
             verified=bool(row.get("verified") or 0),
             risk_level=str(row.get("risk_level") or "watch"),
             wallets=_json_list(row.get("wallets")),
+            scammer_group=str(row.get("scammer_group") or ""),
             notes=str(row.get("notes") or ""),
         )
 
@@ -267,15 +288,23 @@ def compute_report_card(
     wallet_address: str = "",
     name_changes: int = 0,
     identity: KolIdentity | None = None,
+    traced_wallets: list[dict[str, str]] | None = None,
 ) -> KolReportCard:
     """Aggregate one KOL's calls into a report card (pure).
 
     Counts deletions, shill/rug calls, wins/losses (from resolved call
     outcomes), tokens mentioned, and calls on tokens on the scanner
     denylist. ``is_repeat_scammer`` gates Hall-of-Shame membership.
+    ``traced_wallets`` carries the wallet KB entries (address + chain +
+    confidence) so the card can render tracing evidence.
     """
     if not calls:
-        return KolReportCard(handle="", wallet_address=wallet_address, name_changes=name_changes)
+        return KolReportCard(
+            handle="",
+            wallet_address=wallet_address,
+            wallets=_clean_wallets(traced_wallets),
+            name_changes=name_changes,
+        )
     handle = calls[0].handle
     total = len(calls)
     deleted = sum(1 for c in calls if c.is_deleted)
@@ -295,6 +324,7 @@ def compute_report_card(
         kol_id=(identity.kol_id if identity else "") or handle.lower(),
         name=(identity.name if identity else "") or handle,
         category=(identity.category if identity else "") or "",
+        scammer_group=(identity.scammer_group if identity else "") or "",
         total_calls=total,
         deleted_calls=deleted,
         shill_calls=shill,
@@ -305,12 +335,34 @@ def compute_report_card(
         wallet_address=wallet_address
         or (identity.wallets[0] if identity and identity.wallets else "")
         or next((c.wallet_address for c in calls if c.wallet_address), ""),
+        wallets=_clean_wallets(traced_wallets),
         name_changes=name_changes,
         is_repeat_scammer=repeat,
     )
     card.score = score_card(card)
     card.grade = grade_for(card.score)
     return card
+
+
+def _clean_wallets(entries: list[dict[str, str]] | None) -> list[dict[str, str]]:
+    """Normalize wallet KB entries to {address, chain, confidence} (pure)."""
+    if not entries:
+        return []
+    cleaned: list[dict[str, str]] = []
+    for e in entries:
+        address = str(e.get("address") or "").strip() if isinstance(e, dict) else str(e).strip()
+        if not address:
+            continue
+        if any(c.get("address", "").lower() == address.lower() for c in cleaned):
+            continue
+        cleaned.append(
+            {
+                "address": address,
+                "chain": str(e.get("chain") or "") if isinstance(e, dict) else "",
+                "confidence": str(e.get("confidence") or "") if isinstance(e, dict) else "",
+            }
+        )
+    return cleaned
 
 
 def _known_scam_token_count(calls: list[KolCall]) -> int:
@@ -377,7 +429,12 @@ def format_report_card(card: KolReportCard) -> str:
     name = card.name if card.name and card.name != handle else ""
     head_name = f" {name}" if name else ""
     badge = " 🚨 <b>REPEAT SCAMMER</b>" if card.is_repeat_scammer else ""
-    head = f"🧾 <b>KOL report card: @{handle}</b>{head_name} — grade {card.grade}{badge}"
+    group_tag = ""
+    if card.scammer_group:
+        from rugmunchbot.kol_registry_seed import group_label
+
+        group_tag = f" [<i>{group_label(card.scammer_group)}</i>]"
+    head = f"🧾 <b>KOL report card: @{handle}</b>{head_name} — grade {card.grade}{badge}{group_tag}"
     lines = [
         head,
         f"• calls: {card.total_calls}  (wins {card.wins} / losses {card.losses}, win-rate {card.win_rate:.0%})",
@@ -390,7 +447,16 @@ def format_report_card(card: KolReportCard) -> str:
         lines.append(f"• category: {card.category}")
     if card.name_changes:
         lines.append(f"• screen-name changes: {card.name_changes}")
-    if card.wallet_address:
+    if card.wallets:
+        shown = card.wallets[:3]
+        rendered = []
+        for w in shown:
+            short = w["address"][:8] + "…" + w["address"][-6:]
+            meta = "/".join(x for x in (w.get("chain"), w.get("confidence")) if x)
+            rendered.append(f"<code>{short}</code>{' (' + meta + ')' if meta else ''}")
+        more = f" +{len(card.wallets) - len(shown)} more" if len(card.wallets) > len(shown) else ""
+        lines.append(f"• traced wallets ({len(card.wallets)}): {', '.join(rendered)}{more}")
+    elif card.wallet_address:
         short = card.wallet_address[:8] + "…" + card.wallet_address[-6:]
         lines.append(f"• wallet: <code>{short}</code>")
     lines.append(f"• score: <b>{card.score:.1f}</b>")
@@ -404,6 +470,10 @@ def format_scoreboard_post(cards: list[KolReportCard]) -> str:
     lines = ["🏆 <b>KOL SCOREBOARD</b> — worst KOL report cards right now", ""]
     for card in cards[:5]:
         entry = f"@{card.handle} — grade <b>{card.grade}</b> (score {card.score:.0f})"
+        if card.scammer_group:
+            from rugmunchbot.kol_registry_seed import group_label
+
+            entry += f" [{group_label(card.scammer_group)}]"
         detail = []
         if card.deleted_calls:
             detail.append(f"{card.deleted_calls} deleted")
@@ -413,6 +483,9 @@ def format_scoreboard_post(cards: list[KolReportCard]) -> str:
             detail.append(f"{card.shill_calls} shills")
         if card.scam_token_calls:
             detail.append(f"{card.scam_token_calls} scam-token calls")
+        if card.wallets:
+            n = len(card.wallets)
+            detail.append(f"{n} wallet{'s' if n != 1 else ''} traced")
         if card.is_repeat_scammer:
             detail.append("repeat scammer")
         if detail:
@@ -424,12 +497,20 @@ def format_scoreboard_post(cards: list[KolReportCard]) -> str:
 
 
 def format_hall_of_shame_post(cards: list[KolReportCard]) -> str:
-    """HTML post for the Hall of Shame SUBSET (repeat scammers only)."""
+    """HTML post for the Hall of Shame SUBSET (repeat scammers only).
+
+    Group-attributed KOLs show their syndicate — the Hall is where the
+    scammer-group is surfaced to the channel.
+    """
     if not cards:
         return ""
     lines = ["🪦 <b>KOL HALL OF SHAME</b> — repeat scammers only", ""]
     for card in cards[:5]:
         entry = f"@{card.handle} — grade <b>{card.grade}</b> (score {card.score:.0f})"
+        if card.scammer_group:
+            from rugmunchbot.kol_registry_seed import group_label
+
+            entry += f" [<i>{group_label(card.scammer_group)}</i>]"
         detail = []
         if card.deleted_calls:
             detail.append(f"{card.deleted_calls} deleted")
@@ -437,6 +518,9 @@ def format_hall_of_shame_post(cards: list[KolReportCard]) -> str:
             detail.append(f"{card.scam_token_calls} scam-token calls")
         if card.shill_calls:
             detail.append(f"{card.shill_calls} shills")
+        if card.wallets:
+            n = len(card.wallets)
+            detail.append(f"{n} wallet{'s' if n != 1 else ''} traced")
         if detail:
             entry += f" — {', '.join(detail)}"
         lines.append(entry)
@@ -507,12 +591,16 @@ def link_wallet_from_call(call: KolCall) -> bool:
 
     Inference-based wallet linking: when a KOL's own tweet contains a
     long base58/0x address, it is a strong signal the address belongs to
-    them (or at least to their wallet knowledgebase). Returns True when a
-    new wallet was attached. Fail-open False.
+    them (or at least to their wallet knowledgebase). The chain is derived
+    from the address shape (0x → ethereum, base58 → solana); confidence is
+    ``inference`` — the weakest tier, below deterministic/strong_heuristic/
+    probabilistic from the curated KB. Returns True when a new wallet was
+    attached. Fail-open False.
     """
     address = extract_wallet_address(call.tweet_text)
     if not address:
         return False
+    chain = "ethereum" if address.startswith("0x") else "solana"
     try:
         from rugmunchbot.db import attach_kol_wallet, resolve_handle
 
@@ -520,7 +608,16 @@ def link_wallet_from_call(call: KolCall) -> bool:
         kol_id = (
             str(identity.get("kol_id") or call.handle.lower()) if identity else call.handle.lower()
         )
-        return bool(attach_kol_wallet(kol_id, address))
+        return bool(
+            attach_kol_wallet(
+                kol_id,
+                address,
+                chain=chain,
+                source="inference",
+                evidence_url=call.source_url,
+                confidence="inference",
+            )
+        )
     except Exception:  # fail-open by contract
         return False
 
@@ -662,8 +759,20 @@ def _card_from_rows(
         cached_row = cached.get(handle.lower())
         if cached_row:
             wallet = str(cached_row.get("wallet_address") or "")
+    traced_wallets: list[dict[str, str]] = []
+    if identity:
+        try:
+            from rugmunchbot.db import list_kol_wallets
+
+            traced_wallets = list_kol_wallets(identity.kol_id)
+        except Exception:  # fail-open by contract
+            traced_wallets = []
     return compute_report_card(
-        calls, wallet_address=wallet, name_changes=name_changes, identity=identity
+        calls,
+        wallet_address=wallet,
+        name_changes=name_changes,
+        identity=identity,
+        traced_wallets=traced_wallets,
     )
 
 
@@ -691,7 +800,17 @@ def build_scoreboard_cards(limit: int = 400) -> list[KolReportCard]:
         identity = KolIdentity.from_row(resolve_handle(handle))
         kol_id = identity.kol_id if identity else handle.lower()
         name_changes = len(list_kol_name_changes(kol_id=kol_id))
-        card = compute_report_card(rows, identity=identity, name_changes=name_changes)
+        traced_wallets: list[dict[str, str]] = []
+        if identity:
+            try:
+                from rugmunchbot.db import list_kol_wallets
+
+                traced_wallets = list_kol_wallets(identity.kol_id)
+            except Exception:  # fail-open by contract
+                traced_wallets = []
+        card = compute_report_card(
+            rows, identity=identity, name_changes=name_changes, traced_wallets=traced_wallets
+        )
         cards.append(card)
         if len(cards) >= max(1, limit):
             break

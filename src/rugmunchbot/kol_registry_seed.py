@@ -65,6 +65,103 @@ _CELEBRITY_SCAMMERS = frozenset(
     }
 )
 
+#: ZachXBT-named Solana-syndicate handles (Mar 2026 exposé — the war/politics
+#: panic → crypto-scam traffic network; 10 handles seeded from the two posts).
+#: The group slug is ``solana_syndicate`` and deliberately EXCLUDES Ansem
+#: (``blknoiz06`` — owner-flagged NOT a scammer; he lives in the separate
+#: ``solana_kol_syndicate`` hearsay group). All 10 were verified as real X
+#: handles at seed time; all are suspended post-exposé (per ZachXBT update +
+#: fxTwitter 404 "suspended").
+_SOLANA_SYNDICATE_HANDLES = frozenset(
+    {
+        "mrbitcoinwhalee",
+        "mrcryptoxwhale",
+        "crypto0637",
+        "btcdailynotes",
+        "cryptodailynot",
+        "jihooncrypto",
+        "seongwooiq300",
+        "iq300min",
+        "raqeem_saudi",
+        "mrcryptowhalecn",
+    }
+)
+
+#: Scammer syndicates — group attribution for the scoreboard's Hall of Shame.
+#: Every membership below is grounded in the vendored evidence
+#: (``known_scammers.json`` / ``verified_kol_wallets.json``), NOT fabricated:
+#: the "Solana KOL syndicate" members are named in the file's community
+#: on-chain investigations; the impersonators are ZachXBT-named (May/Aug 2026);
+#: the celebrity touters are the SEC-charged undisclosed-promotion group.
+#: ``label`` is what renders on the scorecard; ``description`` states the
+#: evidence basis so nobody mistakes a group tag for a conviction.
+SCAMMER_GROUPS: dict[str, dict[str, str]] = {
+    "solana_kol_syndicate": {
+        "label": "Solana KOL syndicate (Ansem)",
+        "description": (
+            "Buy-before-shill-then-dump memecoin coordination ring; blknoiz06 "
+            "(Ansem) named ringleader in community on-chain investigations "
+            "(incl. $PUMP / $ANSEM token controversies). Hearsay-level, no "
+            "regulator action."
+        ),
+    },
+    "solana_syndicate": {
+        "label": "Solana syndicate (ZachXBT-named)",
+        "description": (
+            "Named by ZachXBT (Mar 2026 thread, status/2035989255395082589 + "
+            "status/2038297120034422945): a coordinated network of ~16 X "
+            "accounts (2.23M combined followers) manufacturing viral panic "
+            "about war and politics to drive traffic to crypto scams — fake "
+            "giveaways and pump-and-dump promotions (e.g. $ORAMAMA, Feb 2026, "
+            "six-figure on-chain profit). 10 accounts seeded from the posts; "
+            "all suspended by X after the exposé. NOT the Ansem-led "
+            "buy-before-shill ring (blknoiz06 excluded per owner)."
+        ),
+    },
+    "impersonation_syndicate": {
+        "label": "CZ-impersonation syndicate",
+        "description": (
+            "ZachXBT-named social-engineering impersonators ('The Com' "
+            "network) posing as CEX / hardware-wallet support to drain funds: "
+            "Dritan Kapllani Jr. ($19M, May 2026 thread), Tiffany Milanovich "
+            "($5M, Aug 2026 thread), John Daghita ($46M seized-crypto theft, "
+            "arrested). NOTE: evidence shows support-impersonation, not "
+            "direct CZ-name spoofing — label kept per product request; "
+            "alleged, no conviction (Daghita: arrested/charged)."
+        ),
+    },
+    "celebrity_tout_syndicate": {
+        "label": "Celebrity tout syndicate (SEC-charged)",
+        "description": (
+            "SEC-charged undisclosed paid touting of tokens (TRX/BTT/EMAX/"
+            "Centra Tech/Bitcoiin2Gen) by celebrity accounts."
+        ),
+    },
+    "ponzi_founder_group": {
+        "label": "Ponzi / fraud founders",
+        "description": (
+            "Convicted or charged founders of collapsed platforms (FTX/"
+            "Alameda, Terra/LUNA, Celsius, HEX/PulseChain, Mango Markets)."
+        ),
+    },
+    "rug_puller_group": {
+        "label": "Serial rug-pull launchers",
+        "description": (
+            "Evidence-backed serial launchers of tokens that dumped/rugged "
+            "(incl. DOJ-charged celebrity-token launcher Sahil Arora and "
+            "ZachXBT-named rug pullers)."
+        ),
+    },
+    "serial_shill_rail": {
+        "label": "Serial paid-shill rail",
+        "description": (
+            "Community-documented serial paid KOL promoters of low-cap "
+            "memecoins ('Matt Gems' tier), often coordinated with tier-1 KOLs."
+        ),
+    },
+}
+
+
 #: Curated well-known CT meme-KOL / call accounts (public record).
 #: (handle, name, category, source, risk_level, notes)
 CURATED_EXTRA: list[tuple[str, str, str, str, str, str]] = [
@@ -186,6 +283,69 @@ def _load_json(name: str) -> dict | list | None:
         except (OSError, ValueError):
             continue
     return None
+
+
+def _build_group_map() -> dict[str, str]:
+    """Group attribution: handle → group slug, from the vendored evidence.
+
+    Built from ``known_scammers.json`` so group membership can never drift
+    from the source registry. Explicit syndicate memberships named in the
+    evidence (Solana KOL syndicate, ZachXBT impersonators, SEC celebrity
+    touters) win; otherwise the evidence category drives the group.
+    """
+    mapping: dict[str, str] = {}
+    data = _load_json("known_scammers.json")
+    if not isinstance(data, dict):
+        return mapping
+    accounts = data.get("accounts")
+    if not isinstance(accounts, list):
+        return mapping
+    for a in accounts:
+        if not isinstance(a, dict):
+            continue
+        handle = str(a.get("handle") or "").strip().lstrip("@").lower()
+        if not handle:
+            continue
+        known_for = str(a.get("known_for") or "").lower()
+        category = str(a.get("category") or "").lower()
+        if handle in _SOLANA_SYNDICATE_HANDLES:
+            mapping[handle] = "solana_syndicate"
+        elif "solana kol syndicate" in known_for or "$ansem" in known_for:
+            mapping[handle] = "solana_kol_syndicate"
+        elif handle in {"dritankapllani", "tiffany.milanovich", "johndaghita"}:
+            mapping[handle] = "impersonation_syndicate"
+        elif handle in _CELEBRITY_SCAMMERS:
+            mapping[handle] = "celebrity_tout_syndicate"
+        elif handle in {"avi_eisen"}:
+            # Convicted fraudster (Mango Markets oracle manipulation) — the
+            # source file's category is rug_puller but the evidence is a
+            # fraud conviction, so the fraud-founders group fits better.
+            mapping[handle] = "ponzi_founder_group"
+        elif category == "rug_puller":
+            mapping[handle] = "rug_puller_group"
+        elif category == "ponzi":
+            mapping[handle] = "ponzi_founder_group"
+        elif "paid kol promoter" in known_for or "serial paid" in known_for:
+            mapping[handle] = "serial_shill_rail"
+    return mapping
+
+
+#: handle → group slug (lowercase handles).
+SCAMMER_GROUP_MAP: dict[str, str] = _build_group_map()
+
+
+def build_scammer_group_map() -> dict[str, str]:
+    """Group attribution map: handle → group slug (for DB seeding)."""
+    return dict(SCAMMER_GROUP_MAP)
+
+
+def group_label(group: str) -> str:
+    """Display label for a group slug (fallback: the slug itself)."""
+    group = str(group or "").strip()
+    if not group:
+        return ""
+    info = SCAMMER_GROUPS.get(group)
+    return info["label"] if info else group
 
 
 def _registry_rows() -> list[tuple[str, str, str, str, str, str]]:
@@ -357,6 +517,8 @@ def seed_stats() -> dict[str, int]:
         "merged_identities": merged,
         "wallets": len(_wallet_rows()),
         "rug_history_calls": len(_rug_history_rows()),
+        "scammer_groups": len(SCAMMER_GROUPS),
+        "grouped_handles": len(SCAMMER_GROUP_MAP),
     }
 
 
@@ -365,8 +527,12 @@ KOL_SEED: list[tuple[str, str, str, str, str, str]] = build_seed_rows()
 __all__ = [
     "CURATED_EXTRA",
     "KOL_SEED",
+    "SCAMMER_GROUPS",
+    "SCAMMER_GROUP_MAP",
     "build_rug_history",
+    "build_scammer_group_map",
     "build_seed_rows",
     "build_wallet_kb",
+    "group_label",
     "seed_stats",
 ]

@@ -310,6 +310,10 @@ def init_db() -> None:
         -- ``kol_name_changes`` records each detected handle transition;
         -- ``kol_apipass_usage`` meters the ApiPass burn (≤6 task
         -- creations/hr ≈ 3 credits/hr) so the 50 free credits are tracked.
+        -- v9: ``scammer_group`` — syndicate attribution (e.g. the Solana KOL
+        -- syndicate, CZ/support-impersonation syndicate, SEC-charged
+        -- celebrity touters). A group id is a stable slug; display labels
+        -- live in the seed registry / group table lookup.
         CREATE TABLE IF NOT EXISTS kol_identities (
             kol_id TEXT PRIMARY KEY,
             name TEXT,
@@ -320,6 +324,7 @@ def init_db() -> None:
             risk_level TEXT DEFAULT 'watch',
             wallets TEXT DEFAULT '[]',
             linked_kol_ids TEXT DEFAULT '[]',
+            scammer_group TEXT DEFAULT '',
             notes TEXT DEFAULT '',
             added_at TEXT,
             updated_at TEXT
@@ -368,6 +373,9 @@ def init_db() -> None:
     # report cards can show a real win/loss split without re-deriving it.
     with contextlib.suppress(sqlite3.OperationalError):
         conn.execute("ALTER TABLE kol_calls ADD COLUMN result TEXT DEFAULT 'unknown'")
+    # Migration (KOL Scoreboard v9): scammer-group syndicate attribution.
+    with contextlib.suppress(sqlite3.OperationalError):
+        conn.execute("ALTER TABLE kol_identities ADD COLUMN scammer_group TEXT DEFAULT ''")
     conn.commit()
     conn.close()
     # One-shot upgrade: hash any legacy plaintext api_tokens.token values.

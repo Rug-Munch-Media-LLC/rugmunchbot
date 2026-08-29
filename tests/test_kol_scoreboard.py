@@ -464,3 +464,292 @@ def test_store_export_jsonl_callstore_shape(tmp_db):
     assert record["channel"] == "x"
     assert record["token_symbol"] == "MOON"
     assert record["source_url"].startswith("https://x.com/")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# v9: Scammer groups (syndicate attribution) + Hall of Shame grouping
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_scammer_group_model_round_trip(tmp_db):
+    """scammer_group persists on the identity, resolves, and renders."""
+    from rugmunchbot.db import (
+        get_kol_identity,
+        kol_identities_by_group,
+        list_kol_groups,
+        register_alias,
+        resolve_handle,
+        upsert_kol_identity,
+    )
+
+    upsert_kol_identity(
+        kol_id="blknoiz06",
+        name="Ansem",
+        screen_name="blknoiz06",
+        category="scammer",
+        source="scammer_list",
+        risk_level="scammer",
+        scammer_group="solana_kol_syndicate",
+    )
+    register_alias("blknoiz06", "blknoiz06", is_current=True)
+
+    row = get_kol_identity("blknoiz06")
+    assert row["scammer_group"] == "solana_kol_syndicate"
+    assert resolve_handle("blknoiz06")["scammer_group"] == "solana_kol_syndicate"
+    assert len(kol_identities_by_group("solana_kol_syndicate")) == 1
+    groups = list_kol_groups()
+    assert any(
+        g["scammer_group"] == "solana_kol_syndicate" and g["member_count"] == 1 for g in groups
+    )
+
+
+def test_scammer_group_renders_on_cards(tmp_db):
+    """Group flows identity → report card → scoreboard/Hall formatters."""
+    from rugmunchbot.channels.kol_scoreboard import (
+        KolIdentity,
+        compute_report_card,
+        format_hall_of_shame_post,
+        format_report_card,
+        format_scoreboard_post,
+    )
+    from rugmunchbot.db import upsert_kol_identity
+
+    upsert_kol_identity(
+        kol_id="blknoiz06",
+        screen_name="blknoiz06",
+        category="scammer",
+        source="scammer_list",
+        risk_level="scammer",
+        scammer_group="solana_kol_syndicate",
+    )
+    identity = KolIdentity.from_row(
+        {"kol_id": "blknoiz06", "scammer_group": "solana_kol_syndicate"}
+    )
+    calls = [_call(tweet_id="1", deleted=True), _call(tweet_id="2", deleted=True)]
+    card = compute_report_card(calls, identity=identity)
+    assert card.scammer_group == "solana_kol_syndicate"
+
+    report = format_report_card(card)
+    assert "Solana KOL syndicate (Ansem)" in report
+    assert card.in_hall_of_shame  # 2 deletions → repeat scammer + score ≥ 15
+
+    scoreboard = format_scoreboard_post([card])
+    assert "Solana KOL syndicate (Ansem)" in scoreboard
+
+    hall = format_hall_of_shame_post([card])
+    assert "Solana KOL syndicate (Ansem)" in hall  # Hall of Shame shows the group
+
+
+def test_seed_scammer_groups_from_map(tmp_db):
+    """seed_scammer_groups applies the evidence-driven handle→group map."""
+    from rugmunchbot.db import list_kol_groups, seed_kol_registry, seed_scammer_groups
+    from rugmunchbot.kol_registry_seed import KOL_SEED, SCAMMER_GROUP_MAP, build_scammer_group_map
+
+    assert len(SCAMMER_GROUP_MAP) >= 10  # evidence-backed syndicate membership
+    assert SCAMMER_GROUP_MAP["blknoiz06"] == "solana_kol_syndicate"
+    assert SCAMMER_GROUP_MAP["dritankapllani"] == "impersonation_syndicate"
+    # Groups used on real seeded identities:
+    seeded = seed_kol_registry(KOL_SEED)
+    assert seeded >= 500
+    updated = seed_scammer_groups(build_scammer_group_map())
+    assert updated >= 10
+    groups = list_kol_groups()
+    slugs = {g["scammer_group"] for g in groups}
+    assert "solana_kol_syndicate" in slugs
+    assert "impersonation_syndicate" in slugs
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# v9: Wallet tracing — traced wallets (address+chain+confidence), inference
+# linking from tweets, on-chain clustering, provenance-source lookup
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_traced_wallets_carry_chain_and_confidence(tmp_db):
+    """Each KOL gets traced wallets: address + chain + confidence."""
+    from rugmunchbot.db import attach_kol_wallet, list_kol_wallets, upsert_kol_identity
+
+    upsert_kol_identity(kol_id="kolA", screen_name="kolA")
+    sol = "G5nxEXuFMfV74DSnsrSatqCW32F34XUnBeq3PfDS7w5E"
+    assert attach_kol_wallet(
+        "kolA",
+        sol,
+        chain="solana",
+        source="github",
+        evidence_url="https://github.com/sn3ll/KOL-Wallets-BULLX",
+        confidence="strong_heuristic",
+    )
+    wallets = list_kol_wallets("kolA")
+    assert len(wallets) == 1
+    w = wallets[0]
+    assert w["address"] == sol
+    assert w["chain"] == "solana"
+    assert w["confidence"] == "strong_heuristic"
+
+
+def test_inference_wallet_linking_from_call(tmp_db):
+    """A wallet-shaped address in a KOL tweet links to their KB (inference)."""
+    from rugmunchbot.channels.kol_scoreboard import link_wallet_from_call
+    from rugmunchbot.db import (
+        list_kol_wallets,
+        register_alias,
+        upsert_kol_identity,
+    )
+
+    upsert_kol_identity(kol_id="kolX", screen_name="kolX")
+    register_alias("kolX", "kolX", is_current=True)
+    sol = "G5nxEXuFMfV74DSnsrSatqCW32F34XUnBeq3PfDS7w5E"
+    call = _call(
+        handle="kolX",
+        tweet_id="t9",
+        text=f"just aped, my wallet {sol}",
+        token_symbol_val="MOON",
+    )
+    assert link_wallet_from_call(call) is True
+    wallets = list_kol_wallets("kolX")
+    assert wallets[0]["address"] == sol
+    assert wallets[0]["chain"] == "solana"
+    assert wallets[0]["confidence"] == "inference"
+    # Re-linking the same wallet is a dedup no-op (False).
+    assert link_wallet_from_call(call) is False
+
+
+def test_wallet_clustering_and_link(tmp_db):
+    """Shared wallet across identities → on-chain cluster + inference link."""
+    from rugmunchbot.db import (
+        attach_kol_wallet,
+        cluster_kols_by_wallet,
+        get_kol_identity,
+        upsert_kol_identity,
+        wallet_clusters,
+    )
+
+    upsert_kol_identity(kol_id="kolA", screen_name="kolA")
+    upsert_kol_identity(kol_id="kolB", screen_name="kolB")
+    shared = "ADDR" * 8  # 32-char base58-ish
+    attach_kol_wallet("kolA", shared, chain="solana", confidence="deterministic")
+    attach_kol_wallet("kolB", shared, chain="solana", confidence="probabilistic")
+
+    clusters = wallet_clusters()
+    assert len(clusters) == 1
+    assert clusters[0]["wallet"] == shared.lower()
+    assert clusters[0]["member_count"] == 2
+    # deterministic member sorts before probabilistic member
+    assert clusters[0]["members"][0]["kol_id"] == "kola"
+
+    linked = cluster_kols_by_wallet()
+    assert linked >= 1
+    assert "kolb" in (get_kol_identity("kolA") or {}).get("linked_kol_ids", "")
+
+
+def test_wallet_kb_by_source_lookup(tmp_db):
+    """Provenance-tagged wallets surface via source lookup (e.g. zachxbt)."""
+    from rugmunchbot.db import attach_kol_wallet, upsert_kol_identity, wallet_kb_by_source
+
+    upsert_kol_identity(kol_id="kolC", screen_name="kolC")
+    attach_kol_wallet(
+        "kolC",
+        "DETECTIVEADDR" + "1" * 20,
+        chain="ethereum",
+        source="dethective",
+        confidence="strong_heuristic",
+    )
+    hits = wallet_kb_by_source("dethective")
+    assert len(hits) == 1
+    assert hits[0]["kol_id"] == "kolc"
+    assert hits[0]["address"].startswith("DETECTIVEADDR")
+    assert wallet_kb_by_source("zachxbt_post") == []  # no fabricated zachxbt rows
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# v9: Name-change verification — renames caught + historical alias list
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_name_change_keeps_historical_alias_list(tmp_db):
+    """Renames (altcoingordon → current) keep a full historical alias list."""
+    from rugmunchbot.channels.kol_scoreboard import detect_name_change
+    from rugmunchbot.db import (
+        list_kol_aliases,
+        register_alias,
+        resolve_handle,
+        upsert_kol_identity,
+    )
+
+    upsert_kol_identity(
+        kol_id="altcoingordon",
+        name="Altcoin Gordon",
+        screen_name="currenthandle",
+        category="shiller",
+        source="ct_known",
+        risk_level="watch",
+    )
+    register_alias("altcoingordon", "currenthandle", is_current=True)
+    register_alias("altcoingordon", "altcoingordon", is_current=False)
+
+    # Both old and new handles resolve to one identity.
+    assert resolve_handle("altcoingordon")["kol_id"] == "altcoingordon"
+    assert resolve_handle("currenthandle")["kol_id"] == "altcoingordon"
+
+    # A later rename is caught and the historical list grows.
+    assert detect_name_change("currenthandle", "evennewer") is True
+    aliases = list_kol_aliases("altcoingordon")
+    by_alias = {a["alias"]: a for a in aliases}
+    assert set(by_alias) == {"altcoingordon", "currenthandle", "evennewer"}
+    assert by_alias["evennewer"]["is_current"] == 1
+    assert by_alias["currenthandle"]["is_current"] == 0
+    assert by_alias["altcoingordon"]["is_current"] == 0
+    # The newest handle is first (is_current DESC, last_seen DESC).
+    assert aliases[0]["alias"] == "evennewer"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# v9: Scorecard render — group, calls, win-rate, deleted, shills, wallets,
+# grade all present on one card
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_report_card_renders_full_scorecard_fields(tmp_db):
+    """One card renders: group, calls, win-rate, deleted, shills, wallets, grade."""
+    from rugmunchbot.channels.kol_scoreboard import (
+        KolIdentity,
+        compute_report_card,
+        format_report_card,
+    )
+
+    calls = [
+        _call(tweet_id="1", deleted=True, result="win"),
+        _call(tweet_id="2", deleted=True, result="loss"),
+        _call(tweet_id="3", text="$MOON is a gem 100x"),
+        _call(tweet_id="4", text="Bought $PEPE position open"),
+    ]
+    identity = KolIdentity.from_row(
+        {
+            "kol_id": "shillking",
+            "name": "Shill King",
+            "category": "shiller",
+            "scammer_group": "impersonation_syndicate",
+        }
+    )
+    card = compute_report_card(
+        calls,
+        identity=identity,
+        traced_wallets=[
+            {
+                "address": "G5nxEXuFMfV74DSnsrSatqCW32F34XUnBeq3PfDS7w5E",
+                "chain": "solana",
+                "confidence": "probabilistic",
+            }
+        ],
+    )
+    assert card.total_calls == 4
+    assert card.win_rate == 0.5
+    text = format_report_card(card)
+    assert "CZ-impersonation syndicate" in text  # group
+    assert "calls: 4" in text  # calls
+    assert "win-rate 50%" in text  # win-rate
+    assert "deleted calls: 2" in text  # deleted
+    assert "shill/rug calls:" in text  # shills
+    assert "traced wallets (1)" in text  # wallets
+    assert "solana/probabilistic" in text  # chain + confidence
+    assert f"grade {card.grade}" in text  # grade

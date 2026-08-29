@@ -261,6 +261,7 @@ def upsert_kol_identity(
     risk_level: str = "watch",
     wallets: list[str] | None = None,
     linked_kol_ids: list[str] | None = None,
+    scammer_group: str = "",
     notes: str = "",
 ) -> bool:
     """Insert/update one canonical KOL identity (upsert by ``kol_id``).
@@ -268,7 +269,9 @@ def upsert_kol_identity(
     ``kol_id`` is the canonical slug (normally the current lowercase handle);
     ``screen_name`` is the current display handle. Every handle a KOL has
     ever used must be registered as an alias via :func:`register_alias` so
-    past/current names resolve to this identity.
+    past/current names resolve to this identity. ``scammer_group`` is the
+    syndicate slug (stable id; labels live in the seed registry) — empty
+    means "not group-attributed".
     """
     import json
 
@@ -282,8 +285,9 @@ def upsert_kol_identity(
             """
             INSERT INTO kol_identities (
                 kol_id, name, screen_name, category, source, verified,
-                risk_level, wallets, linked_kol_ids, notes, added_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                risk_level, wallets, linked_kol_ids, scammer_group, notes,
+                added_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(kol_id) DO UPDATE SET
                 name = COALESCE(NULLIF(excluded.name, ''), kol_identities.name),
                 screen_name = COALESCE(
@@ -298,6 +302,9 @@ def upsert_kol_identity(
                 linked_kol_ids = CASE WHEN excluded.linked_kol_ids = '[]'
                                       THEN kol_identities.linked_kol_ids
                                       ELSE excluded.linked_kol_ids END,
+                scammer_group = CASE WHEN excluded.scammer_group = ''
+                                     THEN kol_identities.scammer_group
+                                     ELSE excluded.scammer_group END,
                 notes = CASE WHEN excluded.notes = '' THEN kol_identities.notes
                              ELSE excluded.notes END,
                 updated_at = excluded.updated_at
@@ -312,6 +319,7 @@ def upsert_kol_identity(
                 str(risk_level or "watch"),
                 json.dumps(wallets or [], separators=(",", ":")),
                 json.dumps(linked_kol_ids or [], separators=(",", ":")),
+                str(scammer_group or ""),
                 str(notes or ""),
                 _now(),
                 _now(),
@@ -336,9 +344,13 @@ def get_kol_identity(kol_id: str) -> dict[str, Any] | None:
 
 
 def list_kol_identities(
-    *, category: str = "", risk_level: str = "", limit: int = 500
+    *,
+    category: str = "",
+    risk_level: str = "",
+    scammer_group: str = "",
+    limit: int = 500,
 ) -> list[dict[str, Any]]:
-    """Registered identities, optional category / risk_level filters."""
+    """Registered identities, optional category / risk_level / group filters."""
     conn = get_db()
     try:
         sql = "SELECT * FROM kol_identities"
@@ -350,6 +362,9 @@ def list_kol_identities(
         if risk_level:
             where.append("risk_level = ?")
             params.append(str(risk_level))
+        if scammer_group:
+            where.append("scammer_group = ?")
+            params.append(str(scammer_group))
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY screen_name ASC LIMIT ?"
@@ -358,6 +373,56 @@ def list_kol_identities(
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def kol_identities_by_group(scammer_group: str, limit: int = 500) -> list[dict[str, Any]]:
+    """Every identity attributed to one syndicate (empty list when none)."""
+    return list_kol_identities(scammer_group=scammer_group, limit=limit)
+
+
+def list_kol_groups() -> list[dict[str, Any]]:
+    """Syndicate summary: group slug + member count (group-attributed only)."""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """
+            SELECT scammer_group, COUNT(*) AS member_count,
+                   GROUP_CONCAT(screen_name, ', ') AS handles
+            FROM kol_identities
+            WHERE scammer_group != ''
+            GROUP BY scammer_group
+            ORDER BY member_count DESC, scammer_group ASC
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def seed_scammer_groups(group_map: dict[str, str]) -> int:
+    """Attach ``handle -> group_slug`` attributions to registered identities.
+
+    ``group_map`` keys are handles (any case); values are stable group slugs
+    (labels live in the seed registry / caller). Idempotent — re-running with
+    the same map overwrites the same slugs. Returns identities updated.
+    """
+    count = 0
+    for handle, group in (group_map or {}).items():
+        kol_id = _norm_handle(handle)
+        group = str(group or "").strip()
+        if not kol_id or not group:
+            continue
+        conn = get_db()
+        try:
+            cur = conn.execute(
+                "UPDATE kol_identities SET scammer_group = ?, updated_at = ? WHERE kol_id = ?",
+                (group, _now(), kol_id),
+            )
+            conn.commit()
+            count += cur.rowcount
+        finally:
+            conn.close()
+    return count
 
 
 def kol_registry_count() -> int:
@@ -484,6 +549,29 @@ def list_kol_name_changes(kol_id: str = "", limit: int = 20) -> list[dict[str, A
                 "SELECT * FROM kol_name_changes ORDER BY detected_at DESC LIMIT ?",
                 (max(1, limit),),
             ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def list_kol_aliases(kol_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    """Historical alias list for one KOL: every handle ever resolved to it.
+
+    Name-change tracking companion — the aliases table is the source of
+    truth for "this KOL used to be @X". Each row carries ``is_current`` so a
+    report card can distinguish the live handle from past ones. Sorted with
+    the current alias first, then most-recently-seen.
+    """
+    kol_id = _norm_handle(kol_id)
+    if not kol_id:
+        return []
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM kol_aliases WHERE kol_id = ? "
+            "ORDER BY is_current DESC, last_seen DESC LIMIT ?",
+            (kol_id, max(1, limit)),
+        ).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
@@ -641,6 +729,123 @@ def kol_identities_by_wallet(wallet: str) -> list[dict[str, Any]]:
         ]
     finally:
         conn.close()
+
+
+def list_kol_wallets(kol_id: str) -> list[dict[str, str]]:
+    """Traced wallets for one KOL: address + chain + confidence (+ provenance).
+
+    This is the wallet-tracing render accessor — each traced wallet carries
+    its chain and confidence so the scoreboard can show
+    ``addr… (chain, confidence)``. Unknown kol_id → [].
+    """
+    row = get_kol_identity(kol_id)
+    if row is None:
+        return []
+    return _wallet_entries(row.get("wallets"))
+
+
+def wallet_kb_by_source(source: str, limit: int = 500) -> list[dict[str, Any]]:
+    """Wallet-KB reverse lookup by provenance source tag.
+
+    Every traced wallet stores its source (``github``, ``gmgn_kol``,
+    ``kolscan``, ``etherscan``, or an operator-seeded evidence source such
+    as ``zachxbt_post`` / ``dethective``). Returns identities + the wallet
+    entries that match the source tag. No addresses are fabricated here —
+    the tag comes from the data.
+    """
+    source = str(source or "").strip().lower()
+    if not source:
+        return []
+    conn = get_db()
+    try:
+        rows = conn.execute("SELECT * FROM kol_identities").fetchall()
+    finally:
+        conn.close()
+    matches: list[dict[str, Any]] = []
+    for r in rows:
+        ident = dict(r)
+        for w in _wallet_entries(ident.get("wallets")):
+            if w.get("source", "").lower() == source:
+                matches.append(
+                    {
+                        "kol_id": ident["kol_id"],
+                        "screen_name": ident["screen_name"],
+                        "address": w["address"],
+                        "chain": w.get("chain", ""),
+                        "confidence": w.get("confidence", ""),
+                        "evidence_url": w.get("evidence_url", ""),
+                    }
+                )
+                if len(matches) >= max(1, limit):
+                    return matches
+    return matches
+
+
+def wallet_clusters() -> list[dict[str, Any]]:
+    """On-chain clustering: identities linked by a SHARED traced wallet.
+
+    Same wallet under two identities is the wallet-inference link signal.
+    Returns one cluster per shared wallet with member identities
+    (sorted by evidence strength: deterministic > strong_heuristic >
+    probabilistic > inference). Fail-open ``[]``.
+    """
+    conn = get_db()
+    try:
+        rows = conn.execute("SELECT * FROM kol_identities").fetchall()
+    finally:
+        conn.close()
+    by_wallet: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        ident = dict(r)
+        for w in _wallet_entries(ident.get("wallets")):
+            by_wallet.setdefault(w.get("address", "").lower(), []).append(
+                {
+                    "identity": ident,
+                    "chain": w.get("chain", ""),
+                    "confidence": w.get("confidence", ""),
+                }
+            )
+    _strength = {"deterministic": 0, "strong_heuristic": 1, "probabilistic": 2, "inference": 3}
+    clusters: list[dict[str, Any]] = []
+    for addr, members in by_wallet.items():
+        if len(members) < 2:
+            continue
+        members.sort(key=lambda m: _strength.get(m["confidence"], 9))
+        clusters.append(
+            {
+                "wallet": addr,
+                "chain": next((m["chain"] for m in members if m["chain"]), ""),
+                "member_count": len(members),
+                "members": [
+                    {
+                        "kol_id": m["identity"]["kol_id"],
+                        "screen_name": m["identity"]["screen_name"],
+                        "confidence": m["confidence"],
+                    }
+                    for m in members
+                ],
+            }
+        )
+    clusters.sort(key=lambda c: (-c["member_count"], c["wallet"]))
+    return clusters
+
+
+def cluster_kols_by_wallet(limit: int = 50) -> int:
+    """Run the wallet-inference clustering pass over the whole KB.
+
+    For every wallet shared by ≥2 identities, links the pairs via
+    :func:`link_identity_via_wallet` so ``linked_kol_ids`` records the
+    inference connection (no rows merged — a human reviews merges).
+    Returns link records written.
+    """
+    linked = 0
+    for cluster in wallet_clusters()[: max(1, limit)]:
+        members = [m["kol_id"] for m in cluster["members"]]
+        for i in range(len(members)):
+            for j in range(i + 1, len(members)):
+                if link_identity_via_wallet(members[i], members[j]):
+                    linked += 1
+    return linked
 
 
 def seed_wallet_kb(entries: list[dict[str, str]]) -> int:
@@ -848,17 +1053,22 @@ def seed_kol_registry(rows: list[tuple[str, str, str, str, str, str]]) -> int:
 __all__ = [
     "apipass_usage_summary",
     "attach_kol_wallet",
+    "cluster_kols_by_wallet",
     "demote_alias",
     "export_kol_calls_jsonl",
     "get_kol_call",
     "get_kol_identity",
     "get_kol_scores",
+    "kol_identities_by_group",
     "kol_identities_by_wallet",
     "kol_registry_count",
     "link_identity_via_wallet",
+    "list_kol_aliases",
     "list_kol_calls",
+    "list_kol_groups",
     "list_kol_identities",
     "list_kol_name_changes",
+    "list_kol_wallets",
     "mark_kol_call_deleted",
     "mark_kol_verified",
     "record_apipass_usage",
@@ -868,8 +1078,11 @@ __all__ = [
     "resolve_handle",
     "seed_kol_registry",
     "seed_kol_rug_history",
+    "seed_scammer_groups",
     "seed_wallet_kb",
     "update_kol_call_result",
     "upsert_kol_identity",
     "upsert_kol_score",
+    "wallet_clusters",
+    "wallet_kb_by_source",
 ]
