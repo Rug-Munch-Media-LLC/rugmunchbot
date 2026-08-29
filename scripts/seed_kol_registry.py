@@ -28,10 +28,12 @@ def main() -> int:
         list_kol_calls,
         seed_kol_registry,
         seed_kol_rug_history,
+        seed_scammer_groups,
         seed_wallet_kb,
     )
     from rugmunchbot.kol_registry_seed import (
         build_rug_history,
+        build_scammer_group_map,
         build_seed_rows,
         build_wallet_kb,
         seed_stats,
@@ -47,10 +49,12 @@ def main() -> int:
     )
 
     seeded = seed_kol_registry(build_seed_rows())
+    grouped = seed_scammer_groups(build_scammer_group_map())
     wallet_count = seed_wallet_kb(build_wallet_kb())
     rug_count = seed_kol_rug_history(build_rug_history())
 
     print(f"seeded identities: {seeded}")
+    print(f"scammer-group attributions applied: {grouped}")
     print(f"registry count now: {kol_registry_count()}")
     print(f"wallets attached: {wallet_count}")
     print(f"rug-history loss calls recorded: {rug_count}")

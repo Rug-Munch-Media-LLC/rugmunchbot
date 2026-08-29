@@ -199,6 +199,29 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_kol_scoreboard",
         )
 
+    # Scammer-warning watch (2026-08-29): when an account in a seeded
+    # scammer group (e.g. the ZachXBT-named ``solana_syndicate`` network)
+    # shills a token, post the warning to @rmialerts (+ main when the call
+    # classifies shill/rug, mirrored to feed.rugmunch.io). Group membership
+    # is evidence-backed in known_scammers.json; ZachXBT is cited as source.
+    if (
+        ALERTS_CHANNEL_ENABLED
+        and _chat_id("alerts")
+        and hasattr(job_queue, "run_repeating")
+        and os.getenv("RMI_SCAMMER_WARNING_ENABLED", "true").lower() in ("1", "true", "yes")
+    ):
+        from rugmunchbot.channels.scammer_warning import (
+            SCAMMER_WARNING_INTERVAL_MIN,
+            run_scammer_warning_watch,
+        )
+
+        job_queue.run_repeating(
+            _tick_wrapper("channel_scammer_warning", run_scammer_warning_watch, envelope=True),
+            interval=SCAMMER_WARNING_INTERVAL_MIN * 60,
+            first=540,
+            name="channel_scammer_warning",
+        )
+
     # Daily quality-content job (2026-08-29, quality overhaul deliverable 3):
     # up to 8 reranked quality posts/day on main, filling the 10-post budget
     # after the 2 market briefs. Budget-gated via main_cap (shared with every
@@ -391,5 +414,5 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_rag_fast",
         )
     logger.info(
-        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates/shill_watch/kol_scoreboard/daily_quality)"
+        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates/shill_watch/kol_scoreboard/scammer_warning/daily_quality)"
     )
