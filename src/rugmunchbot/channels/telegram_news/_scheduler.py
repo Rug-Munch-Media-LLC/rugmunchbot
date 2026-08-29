@@ -24,6 +24,7 @@ from rugmunchbot.channels.formatters import (
     format_breaking_post,
     format_feature_post,
     format_news_post,
+    format_scam_digest,
 )
 from rugmunchbot.channels.importance import select_important
 from rugmunchbot.channels.telegram_news._digest import (
@@ -125,7 +126,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """
     # Lazy import keeps the scheduler ↔ this module import graph acyclic
     # (scheduler.py imports this module at module scope for registration).
-    from rugmunchbot.channels.router import ROUTE_ALPHA_CATEGORY, route_news
+    from rugmunchbot.channels.router import ROUTE_ALPHA_CATEGORY, ROUTE_SCAM_CATEGORY, route_news
     from rugmunchbot.channels.scheduler import (
         _chat_id,
         _dedupe_key,
@@ -136,7 +137,8 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     news_chat_id = _chat_id("news")
     alpha_chat_id = _chat_id("alpha")
     main_chat_id = _chat_id("main")
-    if not news_chat_id and not alpha_chat_id and not main_chat_id:
+    alerts_chat_id = _chat_id("alerts")
+    if not news_chat_id and not alpha_chat_id and not main_chat_id and not alerts_chat_id:
         return 0
 
     articles = await _tg.sweep_telegram_news()
@@ -165,17 +167,22 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # news channel (requirement: important stories auto-post to news + main).
     # Alpha-category stories keep the design invariant — they never land on
     # the news channel (main-only above the gate, alpha lane below it).
+    # Scam-category stories (scam-call channels) route to the ALERTS channel
+    # below the main gate — danger intel, never news headlines.
     news_scored: list[Any] = []
     alpha_scored: list[Any] = []
     main_scored: list[Any] = []
+    alerts_scored: list[Any] = []
     for s in scored:
         dest = route_news(s.importance, s.article.category)
         if dest == "main":
             main_scored.append(s)
-            if s.article.category != ROUTE_ALPHA_CATEGORY:
+            if s.article.category not in (ROUTE_ALPHA_CATEGORY, ROUTE_SCAM_CATEGORY):
                 news_scored.append(s)
         elif dest == "alpha":
             alpha_scored.append(s)
+        elif dest == "alerts":
+            alerts_scored.append(s)
         elif dest == "news":
             news_scored.append(s)
 
@@ -327,6 +334,36 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             if ok:
                 logger.info(
                     "tg_news:posted_alpha count=%s", min(len(fresh_alpha), TG_NEWS_POST_LIMIT)
+                )
+                posted += 1
+
+    # Route: scam-call intel → alerts channel (@rmialerts). Scam-call
+    # content cleared the news floor but sits below the main gate — it is
+    # danger intel, so it posts to the alerts channel as a compact digest
+    # (never the news channel). Deduped per URL via the global namespace
+    # (prefix ``tgscam``), exactly like the news/alpha lanes.
+    if alerts_chat_id and alerts_scored:
+        selected_alerts = select_important(alerts_scored, top_n=TG_NEWS_POST_LIMIT)
+        fresh_alerts = [
+            scored_article.article
+            for scored_article in selected_alerts
+            if _remember(
+                "tgscam", _dedupe_key("tgscam", _article_to_post_dict(scored_article.article))
+            )
+        ]
+        if fresh_alerts:
+            ok = await _post_formatted(
+                ctx.bot,
+                alerts_chat_id,
+                format_scam_digest(
+                    [_article_to_post_dict(a) for a in fresh_alerts[:TG_NEWS_POST_LIMIT]]
+                ),
+                _safe_send,
+            )
+            if ok:
+                logger.info(
+                    "tg_news:posted_scam_alerts count=%s",
+                    min(len(fresh_alerts), TG_NEWS_POST_LIMIT),
                 )
                 posted += 1
 

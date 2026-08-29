@@ -247,3 +247,44 @@ def format_themed_post(items: list[dict[str, Any]], theme: str = "") -> NewsPost
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = image_url
     return post
+
+
+def format_scam_digest(items: list[dict[str, Any]]) -> NewsPost:
+    """Scam-call / shill-intel digest for the ALERTS channel (@rmialerts).
+
+    Compact, high-signal card for the tg_news routed lane: each scam-call
+    item renders its headline (linking the source — cite-or-omit), the
+    pushing channel, and a clipped one-line takeaway. The alerts doctrine
+    admits scam/rug detections, so this digest shares the alerts channel —
+    never the news channel. Carries the first usable image on the returned
+    ``NewsPost`` (text-only when none — fail-open).
+    """
+    lines = [
+        "🚨 <b>Scam Calls &amp; Shill Intel</b>",
+        "<i>Coordinated scam-call signals from watched channels \u2014 verify before ape: /scan @rugmunchbot</i>",
+        sep(),
+        "",
+    ]
+    for i, item in enumerate(items[:6], 1):
+        title = _esc(item.get("title") or "Untitled")
+        url = (item.get("url") or "").strip()
+        if url:
+            title = f'<a href="{html.escape(url, quote=True)}">{title}</a>'
+        source = _esc(item.get("source") or item.get("source_channel") or "unknown")
+        lines.append(f"{i}. {title} — <i>{source}</i>")
+        takeaway = _esc(_takeaway(item.get("summary") or item.get("description"), 140))
+        if takeaway:
+            lines.append(f"   {takeaway}")
+    lines.extend(["", f"🕐 {_now_stamp()}"])
+    lines.append(site_news_line())
+    lines.append(sep())
+    lines.append(_scan_channel_shill())
+    image_url = ""
+    for item in items[:6]:
+        candidate = _pick_image_url(item.get("image_url"))
+        if candidate:
+            image_url = candidate
+            break
+    post = NewsPost(_clip("\n".join(lines)))
+    post.image_url = image_url
+    return post

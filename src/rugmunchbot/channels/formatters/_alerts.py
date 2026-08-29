@@ -12,6 +12,7 @@ from rugmunchbot.channels.formatters._primitives import (
     _pick_image_url,
     _risk_emoji,
     _scan_channel_shill,
+    site_news_line,
 )
 from rugmunchbot.formatters import footer_links, gmgn_url, sep
 
@@ -203,6 +204,7 @@ def format_alerts_post(alerts: list[dict[str, Any]]) -> NewsPost:
     if not alerts:
         lines.append("✅ No new high-risk tokens detected in the last window. All clear.")
         lines.extend(["", f"\U0001f550 {_now_stamp()}"])
+        lines.append(site_news_line())
         lines.append(sep())
         lines.append(_scan_channel_shill())
         return NewsPost(_clip("\n".join(lines)))
@@ -241,6 +243,7 @@ def format_alerts_post(alerts: list[dict[str, Any]]) -> NewsPost:
             lines.append(links)
         lines.append("")
     lines.append(sep())
+    lines.append(site_news_line())
     lines.append(_scan_channel_shill())
     post = NewsPost(_clip("\n".join(lines)))
     for item in alerts[:6]:
@@ -294,7 +297,9 @@ def format_main_escalation(item: dict[str, Any]) -> NewsPost:
     if links:
         lines.append("")
         lines.append(links)
-    lines.extend(["", f"🕐 {_now_stamp()}", footer_links()])
+    lines.extend(["", f"🕐 {_now_stamp()}"])
+    lines.append(site_news_line())
+    lines.append(footer_links())
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = _pick_image_url(item.get("image_url"))
     return post

@@ -34,8 +34,10 @@ from rugmunchbot.channels.quality_schedule import (
     build_daily_quality_schedule,
     render_schedule,
 )
+from rugmunchbot.channels.formatters._primitives import NewsPost, enforce_site_link
 from rugmunchbot.channels.scheduler._core import (
     _chat_id,
+    _post_photo_aware,
     _release,
     _remember,
     _safe_send,
@@ -152,7 +154,19 @@ async def post_daily_quality(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     if not _remember("daily_quality", dedupe_key):
         return 0  # already posted by this lane today
 
-    ok = await _safe_send(ctx.bot, main_chat_id, item.get("text", ""))
+    # Site-link contract (2026-08-29): every main post carries the exact
+    # feed.rugmunch.io link (the mirror below), and the story's image rides
+    # the NewsPost when the draft provides one — quality on main, never a
+    # linkless bare-text card.
+    text = enforce_site_link(str(item.get("text", "")), site="feed")
+    image_url = str(item.get("image_url") or item.get("image") or "").strip()
+    post: NewsPost | str = text
+    if image_url.startswith(("http://", "https://")):
+        news_post = NewsPost(text)
+        news_post.image_url = image_url
+        post = news_post
+
+    ok = await _post_photo_aware(ctx.bot, main_chat_id, post, _safe_send)
     if not ok:
         _release("daily_quality", dedupe_key)
         return 0

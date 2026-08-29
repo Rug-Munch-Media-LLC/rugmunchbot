@@ -20,6 +20,7 @@ from rugmunchbot.channels.formatters._primitives import (
     _risk_emoji,
     _scan_channel_shill,
     _takeaway,
+    site_news_line,
 )
 from rugmunchbot.formatters import sep, short_addr
 
@@ -285,6 +286,7 @@ def format_alpha_post(
         lines.append("")
 
     lines.append(f"\U0001f550 {_now_stamp()}")
+    lines.append(site_news_line())
     lines.append(sep())
     lines.append(_scan_channel_shill())
     post = NewsPost(_clip("\n".join(lines)))

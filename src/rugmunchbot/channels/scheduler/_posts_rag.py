@@ -30,8 +30,10 @@ from rugmunchbot.channels.content import fetch_rag_drafts
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
 
+from rugmunchbot.channels.formatters._primitives import NewsPost, enforce_site_link
 from rugmunchbot.channels.scheduler._core import (
     _chat_id,
+    _post_photo_aware,
     _release,
     _remember,
     _safe_send,
@@ -232,6 +234,22 @@ def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
 _mirror_to_feed = mirror_post_to_feed  # backward-compatible alias
 
 
+def _rag_post_with_image(text: str, item: dict[str, Any]) -> NewsPost | str:
+    """Wrap a RAG draft's text as a ``NewsPost`` carrying its image (if any).
+
+    Main-channel doctrine (2026-08-29): a flagship post attaches the story's
+    image when the draft provides one — the photo-aware sender
+    (``_post_photo_aware``) then posts photo + caption, falling back to text.
+    Fail-open: no usable image → the plain text string (unchanged behavior).
+    """
+    image_url = str(item.get("image_url") or item.get("image") or "").strip()
+    if not (image_url.startswith(("http://", "https://"))):
+        return text
+    post = NewsPost(text)
+    post.image_url = image_url
+    return post
+
+
 #: Consecutive main→feed mirror failures (W30 alerting state). Alert fires
 #: once per failure streak; a success resets it (recovery logged once).
 _mirror_fail_streak = 0
@@ -335,7 +353,19 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             if not _remember(f"rag_{channel}", dedupe_key):
                 continue
 
-            ok = await _safe_send(ctx.bot, chat_id, item.get("text", ""))
+            # Site-link contract (2026-08-29): main posts carry the exact
+            # feed.rugmunch.io link (the mirror they land on), news posts the
+            # rugmunch.io/news link — never a linkless flagship post.
+            text = str(item.get("text", ""))
+            if channel in ("main", "news"):
+                text = enforce_site_link(text, site="feed" if channel == "main" else "news")
+
+            ok = await _post_photo_aware(
+                ctx.bot,
+                chat_id,
+                _rag_post_with_image(text, item),
+                _safe_send,
+            )
             if not ok:
                 # Release the dedupe mark so the next tick retries this draft
                 # instead of black-holing it (see docstring).
