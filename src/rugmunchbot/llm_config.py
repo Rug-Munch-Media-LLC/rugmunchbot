@@ -36,24 +36,28 @@ KILOCODE_API_KEY = os.getenv("KILOCODE_API_KEY", "")
 # ultra-550b = long/reasoned.
 ZEN_BASE = os.getenv("OPENCODE_ZEN_BASE", "https://opencode.ai/zen/v1")
 ZEN_API_KEY = os.getenv("OPENCODE_ZEN_API_KEY", "")
+# 2026-08-29: DeepInfra — cheap primary chat (Qwen3.5-9B ~$0.08/Mtok). The
+# reasoning model must be called with reasoning.enabled=false (see _chat_once).
+DEEPINFRA_BASE = os.getenv("DEEPINFRA_BASE", "https://api.deepinfra.com/v1/openai")
+DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY", "")
 
 
 def get_snappy_config() -> dict[str, Any]:
-    """Config for fast chat answers (StepFlash 3.7 via KiloCode, FREE).
+    """Config for fast chat answers.
 
-    StepFlash delivers quick, snappy responses with 256K context.
-    Falls back to OpenRouter GPT-OSS if KiloCode is down.
+    2026-08-29: DeepInfra Qwen3.5-9B primary (~$0.08/Mtok, ~0.7s, RAG-friendly).
+    Falls back to KiloCode StepFlash:free if DeepInfra is down.
     max_tokens 2000 — the snappy prompt tells the model to write the
     COMPLETE answer when a question needs depth; the old cap truncated
     detailed answers mid-sentence. Multi-part delivery splits long answers.
     """
     return {
-        "model": "stepfun/step-3.7-flash:free",
-        "base_url": f"{KILOCODE_BASE}/chat/completions",
-        "api_key": KILOCODE_API_KEY,
-        "fallback_model": "nvidia/nemotron-3-super-120b-a12b:free",
-        "fallback_base_url": f"{OPENROUTER_BASE}/chat/completions",
-        "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
+        "model": "Qwen/Qwen3.5-9B",
+        "base_url": f"{DEEPINFRA_BASE}/chat/completions",
+        "api_key": DEEPINFRA_API_KEY,
+        "fallback_model": "stepfun/step-3.7-flash:free",
+        "fallback_base_url": f"{KILOCODE_BASE}/chat/completions",
+        "fallback_api_key": KILOCODE_API_KEY,
         "max_tokens": 2000,
         "temperature": 0.3,
         "timeout": 40.0,
