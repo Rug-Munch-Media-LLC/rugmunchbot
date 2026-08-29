@@ -172,7 +172,13 @@ _COMMENTARY_SYSTEM: str = (
     "it changes, who it affects, what to watch next. NEVER restate or paraphrase "
     "the headline; if you would only be repeating the headline, say what the "
     "story means instead. Be concrete and specific, use only facts "
-    "present in the summary, no hype, no emojis, no markdown, no leading label."
+    "present in the summary, no hype, no emojis, no markdown, no leading label.\n"
+    "NO AI SLOP, ever: no 'in the ever-evolving world of crypto', no 'the crypto "
+    "landscape', no 'it's worth noting', no 'delve into', no 'at the end of the day', "
+    "no 'staying ahead of the curve', no hedging or fence-sitting. Write like a sharp "
+    "analyst who gets paid to call it — name the thing that actually changed and why "
+    "it matters, in plain words. If the story is genuinely minor, say so plainly rather "
+    "than inflating it."
 )
 
 

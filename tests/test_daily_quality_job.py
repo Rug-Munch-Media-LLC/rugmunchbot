@@ -129,6 +129,59 @@ async def test_post_daily_quality_releases_mark_on_failed_send(monkeypatch):
     assert pd._quality_posted_today() == 1
 
 
+@pytest.mark.asyncio
+async def test_fresh_drafts_falls_back_to_bot_sources_when_rag_empty(monkeypatch):
+    """2026-08-29 'daily MAIN didn't fire' fix: when the RAG lane is empty,
+    `_fresh_main_drafts` falls back to the bot's own curated news so the daily
+    quality slot still fills. Fail-open to [] when even that has nothing."""
+
+    # RAG lane empty/disabled → returns [].
+    async def _rag(channel, limit=None):
+        return []
+
+    # Bot-owned news source → one real, sourced headline.
+    async def _news(limit=5):
+        return [
+            {
+                "title": "Bridge exploit drains $190M",
+                "summary": "Cross-chain bridge compromised; ~$190M drained.",
+                "url": "https://rekt.news/bridge-190m",
+                "source": "rekt",
+                "sentiment_label": "",
+                "factual_rating": "",
+            }
+        ]
+
+    monkeypatch.setattr("rugmunchbot.channels.content.fetch_rag_drafts", _rag)
+    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
+
+    drafts = await pd._fresh_main_drafts()
+
+    assert len(drafts) == 1
+    d = drafts[0]
+    assert d["title"] == "Bridge exploit drains $190M"
+    assert "https://rekt.news/bridge-190m" in d["text"]  # source-link gate passes
+    assert d["ts"]  # recency gate passes (dated now)
+    assert d["story_ref"] == "https://rekt.news/bridge-190m"
+
+    # And the RAG-highway is preferred when it does yield a fresh draft.
+    async def _rag_populated(channel, limit=None):
+        return [
+            {
+                "story_ref": "exploit-1",
+                "title": "RAG pick",
+                "text": "RAG story. Source: https://example.com/x",
+                "kind": "story",
+                "ts": datetime.now(UTC).isoformat(),
+            }
+        ]
+
+    monkeypatch.setattr("rugmunchbot.channels.content.fetch_rag_drafts", _rag_populated)
+    prefs = await pd._fresh_main_drafts()
+    assert prefs
+    assert prefs[0]["story_ref"] == "exploit-1"
+
+
 class _Cap:
     """Minimal main_cap double for admission/record/count."""
 

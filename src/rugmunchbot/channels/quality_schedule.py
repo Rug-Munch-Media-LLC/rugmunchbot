@@ -179,15 +179,25 @@ MAX_EMBED_TEXTS = int(os.getenv("RMI_DAILY_MAX_EMBED_TEXTS", "8"))
 
 
 async def _embed_texts(texts: list[str]) -> list[list[float]]:
-    """Qwen3-Embedding-4B via llama.cpp OpenAI-compatible /embeddings.
+    """Qwen3-Embedding-4B via an OpenAI-compatible /embeddings endpoint.
 
-    One batch POST (llama.cpp serializes anyway — 8 texts ≈ 25-30s on the
-    live box), bounded by ``EMBED_TIMEOUT_S`` via ``asyncio.wait_for`` so a
-    slow/cold embedder never stalls the schedule builder or a job tick.
-    The local llama.cpp serves 2560-dim vectors; any non-empty vector is
-    accepted (no strict dim pin — the old 1024 assumption silently disabled
-    dedup). Zero-vectors on failure — callers treat those as "no signal"
-    and keep the candidate.
+    Defaults to the local self-hosted llama.cpp (``EMBEDDER_URL`` /
+    ``EMBEDDER_MODEL`` — frugality-first, zero cost). To route the content
+    dedup through **DeepInfra** (hosted Qwen3-Embedding-4B) instead, set:
+      ``EMBEDDER_URL=https://api.deepinfra.com/v1/openai``,
+      ``EMBEDDER_MODEL=Qwen/Qwen3-Embedding-4B``,
+      ``EMBEDDER_API_KEY=<DEEPINFRA_API_KEY>``.
+    When ``EMBEDDER_API_KEY`` is set a ``Bearer`` auth header is sent, so the
+    same client works against DeepInfra (or any authed OpenAI-compatible
+    gateway) without a different code path — the content selection is never
+    hard-wired to a local embedder.
+
+    One batch POST, bounded by ``EMBED_TIMEOUT_S`` via ``asyncio.wait_for``
+    so a slow/cold embedder never stalls the schedule builder or a job tick.
+    The 4B model serves 2560-dim vectors; any non-empty vector is accepted
+    (no strict dim pin — the old 1024 assumption silently disabled dedup).
+    Zero-vectors on failure — callers treat those as "no signal" and keep
+    the candidate.
     """
     import asyncio
 
@@ -196,13 +206,16 @@ async def _embed_texts(texts: list[str]) -> list[list[float]]:
     url = os.getenv("EMBEDDER_URL", "http://127.0.0.1:8004/v1")
     model = os.getenv("EMBEDDER_MODEL", "qwen3-embedding-4b")
     dims = int(os.getenv("EMBEDDER_DIMS", "1024"))
+    api_key = os.getenv("EMBEDDER_API_KEY", "").strip()
     texts = texts[:MAX_EMBED_TEXTS]
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
 
     async def _batch() -> list[list[float]]:
         async with httpx.AsyncClient(timeout=EMBED_TIMEOUT_S + 60) as client:
             resp = await client.post(
                 f"{url.rstrip('/')}/embeddings",
                 json={"model": model, "input": [t[:8000] for t in texts]},
+                headers=headers,
             )
             if resp.status_code != 200:
                 return []

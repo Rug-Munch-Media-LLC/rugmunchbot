@@ -29,7 +29,12 @@ _SYSTEM_PROMPT = (
     "- Close with 'Full scan:' pointing to the scanner link provided.\n"
     "- 400-700 characters. Telegram HTML allowed: <b>, <i>, <a href>.\n"
     "- NEVER invent facts not in the evidence. If evidence is thin, say so.\n"
-    "- No 'BREAKING' clickbait, no emoji spam (max 2), no hashtags."
+    "- No 'BREAKING' clickbait, no emoji spam (max 2), no hashtags.\n"
+    "- NO AI SLOP, ever: no 'in the ever-evolving world of crypto', no 'the crypto "
+    "landscape', no 'it's worth noting', no 'delve into', no 'at the end of the day', "
+    "no generic hype, no hedging. Name the deployer, the size, the mechanism — write "
+    "it like a human who is genuinely annoyed, not like a language model filling "
+    "space. If it's a classic rug, say 'another classic rug' and mean it."
 )
 
 
@@ -79,7 +84,7 @@ async def write_alert_story(item: dict[str, Any]) -> str | None:
                 ],
                 "standard",
             )
-    except (TimeoutError, Exception) as exc:  # noqa: BLE001 — fail-open
+    except Exception as exc:  # fail-open by contract
         logger.debug("alert_story_failed err=%s", str(exc)[:120])
         return None
     out = (out or "").strip()
