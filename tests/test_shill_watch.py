@@ -162,6 +162,17 @@ async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
 
     monkeypatch.setattr(_core, "_posted_keys", {})
 
+    # 2026-08-30 intelligent routing: the campaign must clear the alerts floor
+    # (0.4) to post. Patch the rerank-scorer so the synthetic campaign scores
+    # ``0.6`` — above the alerts floor, below the main gate → alerts only.
+    async def _fake_score(campaign):
+        campaign.importance = 0.6
+        return 0.6
+
+    monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
+    # Screenshot capture is disabled in the runner unit test (no X URLs anyway).
+    monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+
     addr = "0x" + "e" * 40
     articles = [
         _article("calls_one", "PUMP NOW", [addr]),
@@ -209,6 +220,13 @@ async def test_run_releases_mark_on_failed_send(monkeypatch):
 
     monkeypatch.setattr(_core, "_posted_keys", {})
 
+    async def _fake_score(campaign):
+        campaign.importance = 0.6
+        return 0.6
+
+    monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
+    monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+
     addr = "0x" + "f" * 40
     articles = [
         _article("calls_one", "PUMP NOW", [addr]),
@@ -242,3 +260,144 @@ async def test_run_releases_mark_on_failed_send(monkeypatch):
 def test_constants_are_sane():
     assert SHILL_MIN_ACCOUNTS >= 3  # coordination requires >= 3 distinct pushers
     assert SHILL_MIN_MENTIONS >= 3
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 2026-08-30 — intelligent routing + screenshot evidence
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_x_status_url_parses():
+    """X/Twitter status URLs (incl /i/status/) normalize to one canonical form."""
+    from rugmunchbot.channels.shill_watch import _x_status_url
+
+    assert (
+        _x_status_url("https://x.com/foo/status/1234567890") == "https://x.com/i/status/1234567890"
+    )
+    assert _x_status_url("https://twitter.com/foo/status/999") == "https://x.com/i/status/999"
+    assert _x_status_url("https://x.com/i/status/42") == "https://x.com/i/status/42"
+    assert _x_status_url("https://t.me/CallAnalyser/1") == ""  # Telegram, not X
+    assert _x_status_url("") == ""
+
+
+def test_format_alert_includes_evidence():
+    """The alert card explains WHAT/WHO/WHY and attaches screenshot evidence."""
+    from rugmunchbot.channels.shill_watch import ShillCampaign, format_shill_alert
+
+    campaign = ShillCampaign(
+        token="$MOON",
+        chain="ticker",
+        accounts=["a_call", "b_alpha"],
+        mentions=[{"channel": "a_call", "title": "MOON 100x", "url": "https://x.com/a/status/123"}],
+        importance=0.9,
+        screenshots=[
+            {
+                "url": "https://x.com/a/status/123",
+                "image_path": "/srv/data/shill_shots/x.png",
+                "text": "GET IN $MOON NOW @badkol",
+                "account": "a_call",
+            }
+        ],
+    )
+    alert = format_shill_alert(campaign)
+    assert "Coordinated shill" in alert
+    assert "<b>What:</b>" in alert
+    assert "<b>Who:</b>" in alert
+    assert "<b>Why this is likely a scam:</b>" in alert
+    assert "GET IN $MOON NOW" in alert
+
+
+@pytest.mark.asyncio
+async def test_run_holds_below_importance_floor(monkeypatch):
+    """A campaign scoring below the news floor (0.4) is held — never spammed."""
+    from rugmunchbot.channels import shill_watch
+    from rugmunchbot.channels.scheduler import _core
+
+    monkeypatch.setattr(_core, "_posted_keys", {})
+
+    async def _fake_score(campaign):
+        campaign.importance = 0.2
+        return 0.2
+
+    monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
+    monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+
+    addr = "0x" + "d" * 40
+    articles = [
+        _article("calls_one", "PUMP NOW", [addr]),
+        _article("alpha_king", "GEM", [addr]),
+        _article("whale_whisper", "EARLY", [addr]),
+    ]
+
+    async def _fake_sweep(client=None, lookback_hours=None):
+        return articles
+
+    sent: list[tuple[str, str]] = []
+
+    async def _fake_send(bot, chat_id, text):
+        sent.append((chat_id, text))
+        return True
+
+    class _Ctx:
+        class _Bot:
+            pass
+
+        bot = _Bot()
+
+    monkeypatch.setattr(shill_watch, "_sweep_shill_sources", _fake_sweep)
+    monkeypatch.setattr(_core, "_chat_id", lambda ch: "-100alerts" if ch == "alerts" else None)
+    monkeypatch.setattr(_core, "_safe_send", _fake_send)
+
+    assert await shill_watch.run_shill_watch(_Ctx()) == 0  # below floor → held
+    assert len(sent) == 0
+
+
+@pytest.mark.asyncio
+async def test_run_escalates_main_at_gate(monkeypatch):
+    """A campaign at/above the main gate posts to BOTH alerts and main."""
+    from rugmunchbot.channels import shill_watch
+    from rugmunchbot.channels.scheduler import _core
+
+    monkeypatch.setattr(_core, "_posted_keys", {})
+
+    async def _fake_score(campaign):
+        campaign.importance = 0.8
+        return 0.8
+
+    monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
+    monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+
+    addr = "0x" + "c" * 40
+    articles = [
+        _article("calls_one", "PUMP NOW", [addr]),
+        _article("alpha_king", "GEM", [addr]),
+        _article("whale_whisper", "EARLY", [addr]),
+    ]
+
+    async def _fake_sweep(client=None, lookback_hours=None):
+        return articles
+
+    sent: list[tuple[str, str]] = []
+
+    async def _fake_send(bot, chat_id, text):
+        sent.append((chat_id, text))
+        return True
+
+    class _Ctx:
+        class _Bot:
+            pass
+
+        bot = _Bot()
+
+    monkeypatch.setattr(shill_watch, "_sweep_shill_sources", _fake_sweep)
+    monkeypatch.setattr(
+        _core,
+        "_chat_id",
+        lambda ch: "-100main" if ch == "main" else ("-100alerts" if ch == "alerts" else None),
+    )
+    monkeypatch.setattr(_core, "_safe_send", _fake_send)
+
+    posted = await shill_watch.run_shill_watch(_Ctx())
+    assert posted == 1
+    assert len(sent) == 2  # alerts + main
+    assert {chat for chat, _ in sent} == {"-100alerts", "-100main"}

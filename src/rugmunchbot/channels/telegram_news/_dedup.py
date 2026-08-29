@@ -8,15 +8,16 @@ hash) missed and both copies posted ~simultaneously.
 
 Two new layers, applied AFTER the vendor's exact-key ``dedupe_articles``:
 
-1. **Title token overlap** (sync, free) — normalized-title token-set Jaccard
-   ≥ ``RMI_NEWS_TITLE_OVERLAP_DEDUP`` (default 0.60) marks two headlines as
-   the same story. Catches reworded headlines that share most content words.
-2. **Embedding cosine** (async, one embed per candidate) — title + first
-   300 chars of body embedded via the shared qwen3 endpoint
-   (``_vendor.rag_pkg.embeddings.get_embedding``); cosine ≥
-   ``RMI_NEWS_SEMANTIC_DEDUP_THRESHOLD`` (default 0.90) collapses
-   paraphrased copies. Fail-open: embedder down → layer skipped, exact-key
-   dedup still ran.
+ 1. **Title token overlap** (sync, free) — normalized-title token-set Jaccard
+    ≥ ``RMI_NEWS_TITLE_OVERLAP_DEDUP`` (default 0.60) marks two headlines as
+    the same story. Catches reworded headlines that share most content words.
+ 2. **Embedding cosine** (async, one embed per candidate) — title + first
+    300 chars of body embedded via the DeepInfra-first embed lane
+    (``_embed_candidate``:     DeepInfra ``Qwen3-Embedding-4B`` → local
+    llama.cpp ``:8004`` → vendored ``get_embedding``); cosine ≥
+    ``RMI_NEWS_SEMANTIC_DEDUP_THRESHOLD`` (default 0.82) collapses
+    paraphrased copies. Fail-open: embedder down → layer skipped, exact-key
+    dedup still ran.
 
 First-wins on input order (the sweep's channel order = recency), matching
 ``dedupe_articles`` semantics.
@@ -29,6 +30,8 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.news_ingest.ingest import dedupe_articles, normalize_title
 
@@ -40,7 +43,13 @@ logger = get_logger(__name__)
 #: Title token-set Jaccard at/above which two headlines are the same story.
 _TITLE_OVERLAP_DEFAULT = 0.60
 #: Embedding cosine at/above which two articles are the same story.
-_SEMANTIC_COSINE_DEFAULT = 0.90
+#: 2026-08-30 recalibrated 0.90 → 0.82: the module's own "Trump Digital Gold"
+#: regression case (beincrypto vs cryptobriefing — reworded headline + body,
+#: different URL) measures ~0.85-0.89 on the DeepInfra Qwen3-Embedding-4B
+#: lane, so the 0.90 default MISSED the exact duplicate it was built to catch.
+#: Related-but-distinct stories (e.g. ETH-ETF vs BTC-ETF approval) measure
+#: ~0.75, so 0.82 keeps them separate while collapsing true duplicates.
+_SEMANTIC_COSINE_DEFAULT = 0.82
 #: Max pairwise cosine comparisons per batch (O(n²) guard; sweep batches
 #: are ≤ a few hundred — beyond this the oldest candidates stop matching).
 _MAX_EMBED_CANDIDATES = 200
@@ -93,9 +102,9 @@ def title_overlap(a: str, b: str) -> float:
 def _cosine(a: list[float], b: list[float]) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
-    dot = sum(x * y for x, y in zip(a, b, strict=True))
-    na = sum(x * x for x in a) ** 0.5
-    nb = sum(x * x for x in b) ** 0.5
+    dot = float(sum(x * y for x, y in zip(a, b, strict=True)))
+    na = float(sum(x * x for x in a) ** 0.5)
+    nb = float(sum(x * x for x in b) ** 0.5)
     if na == 0.0 or nb == 0.0:
         return 0.0
     return dot / (na * nb)
@@ -104,6 +113,113 @@ def _cosine(a: list[float], b: list[float]) -> float:
 def _dedup_text(article: NewsArticle) -> str:
     """Embedding input: title + lead of the body (mirrors rugbrain's fingerprint)."""
     return f"{article.title or ''} {str(article.body or '')[:300]}".strip()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Embed lane (2026-08-30) — DeepInfra API primary, local llama.cpp fallback.
+# ══════════════════════════════════════════════════════════════════════════
+# The vendored ``_vendor.rag_pkg.embeddings.get_embedding`` resolves its
+# endpoint from ``RAG_API_URL`` (default ``http://rugbrain-api:8012/api/v1`` —
+# a Docker service name that is UNREACHABLE from this host, so it silently
+# returned ``[]`` and the embed-cosine dedup layer no-op'd). The task
+# directive is "Embed via DeepInfra API (qwen3-4b 2560), local llama.cpp =
+# fallback", so this lane:
+#   1. DeepInfra ``Qwen/Qwen3-Embedding-4B`` (2560d, ``/v1/inference``)
+#   2. local llama.cpp ``qwen3-embedding-4b`` ``/v1/embeddings`` (:8004)
+#   3. vendored ``get_embedding`` (last resort; may be unreachable at runtime)
+# The chain is fail-open — any unreachable tier returns ``[]`` and the caller
+# keeps the article (never drops content on an embedder outage).
+_DEEPINFRA_EMBED_URL = os.getenv(
+    "DEEPINFRA_EMBED_URL", "https://api.deepinfra.com/v1/inference"
+).rstrip("/")
+_DEEPINFRA_EMBED_MODEL = os.getenv("DEEPINFRA_EMBED_MODEL", "Qwen/Qwen3-Embedding-4B")
+#: Local llama.cpp OpenAI-compatible embed endpoint (self-hosted fallback).
+_LOCAL_EMBED_URL = os.getenv("DEEP_EMBED_URL", "http://127.0.0.1:8004/v1").rstrip("/")
+_LOCAL_EMBED_MODEL = os.getenv("DEEP_EMBED_LOCAL_MODEL", "qwen3-embedding-4b")
+#: Embed timeout per tier (a slow embedder must never stall the whole sweep).
+_EMBED_CALL_TIMEOUT = float(os.getenv("DEEPINFRA_EMBED_TIMEOUT", "35"))
+#: Key resolved once (env → key file → fleet secret store), cached.
+_DEEPINFRA_EMBED_KEY: str | None = None
+
+
+def _deepinfra_key() -> str | None:
+    """Resolve the DeepInfra API key (env → key file → fleet secret store)."""
+    global _DEEPINFRA_EMBED_KEY
+    if _DEEPINFRA_EMBED_KEY is not None:
+        return _DEEPINFRA_EMBED_KEY or None
+    key = os.getenv("DEEPINFRA_API_KEY", "").strip()
+    if not key:
+        kf = os.getenv("DEEPINFRA_KEY_FILE") or os.path.join(
+            os.getenv("RMI_SECRETS_DIR", "/srv/secrets"), "deepinfra_api_key"
+        )
+        try:
+            with open(kf, encoding="utf-8") as fh:
+                key = fh.read().strip()
+        except OSError:
+            key = ""
+    _DEEPINFRA_EMBED_KEY = key  # cached; "" is the "no key" sentinel
+    return _DEEPINFRA_EMBED_KEY or None
+
+
+async def _embed_deepinfra(text: str) -> list[float]:
+    """Embed via DeepInfra-hosted Qwen3-Embedding-4B (2560d). ``[]`` fail-open."""
+    key = _deepinfra_key()
+    if not key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=_EMBED_CALL_TIMEOUT) as client:
+            resp = await client.post(
+                f"{_DEEPINFRA_EMBED_URL}/{_DEEPINFRA_EMBED_MODEL}",
+                headers={"Authorization": f"Bearer {key}"},
+                json={"inputs": [text[:2048]]},
+            )
+        if resp.status_code != 200:
+            logger.debug("news_dedup:deepinfra_embed_status=%d", resp.status_code)
+            return []
+        data = resp.json()
+        embs = data.get("embeddings") or []
+        return list(embs[0]) if embs and isinstance(embs[0], list) else []
+    except Exception as exc:  # fail-open by contract
+        logger.debug("news_dedup:deepinfra_embed_failed err=%s", str(exc)[:120])
+        return []
+
+
+async def _embed_local(text: str) -> list[float]:
+    """Embed via local llama.cpp qwen3-embedding-4b (``/v1/embeddings``)."""
+    try:
+        async with httpx.AsyncClient(timeout=_EMBED_CALL_TIMEOUT) as client:
+            resp = await client.post(
+                f"{_LOCAL_EMBED_URL}/embeddings",
+                json={"model": _LOCAL_EMBED_MODEL, "input": [text[:2048]]},
+            )
+        if resp.status_code != 200:
+            return []
+        items = resp.json().get("data") or []
+        if not items:
+            return []
+        vec = sorted(items, key=lambda i: i.get("index", 0))[0].get("embedding") or []
+        return list(vec) if isinstance(vec, list) else []
+    except Exception as exc:  # fail-open by contract
+        logger.debug("news_dedup:local_embed_failed err=%s", str(exc)[:120])
+        return []
+
+
+async def _embed_candidate(text: str) -> list[float]:
+    """Chain the three embed tiers (DeepInfra → local :8004 → vendored default).
+
+    The first tier returning a non-empty vector wins. Every tier is fail-open;
+    total failure returns ``[]`` so the caller keeps the article and the
+    semantic dedup layer degrades to title-overlap only (loud fail-open).
+    """
+    vec = await _embed_deepinfra(text)
+    if vec:
+        return vec
+    vec = await _embed_local(text)
+    if vec:
+        return vec
+    from rugmunchbot._vendor.rag_pkg.embeddings import get_embedding
+
+    return await get_embedding(text)
 
 
 def dedupe_articles_title_overlap(articles: list[NewsArticle]) -> list[NewsArticle]:
@@ -138,18 +254,20 @@ async def dedupe_articles_semantic(articles: list[NewsArticle]) -> list[NewsArti
     if len(result) <= 1:
         return result
 
-    from rugmunchbot._vendor.rag_pkg.embeddings import get_embedding
-
     candidates = result[:_MAX_EMBED_CANDIDATES]
     tail = result[_MAX_EMBED_CANDIDATES:]
 
-    # Concurrent, bounded embed — the API is a local service; serializing
+    # Concurrent, bounded embed — the embed API is a local service; serializing
     # ~200 HTTP round-trips at ~1.4s each made the whole sweep take 120-170s.
+    # 2026-08-30: switched to the DeepInfra-first embed lane
+    # (``_embed_candidate``) so the semantic dedup actually embeds — the
+    # vendored ``get_embedding`` resolved ``RAG_API_URL`` (a Docker service
+    # name) and silently returned ``[]``, no-op'ing the cosine layer.
     sem = asyncio.Semaphore(_EMBED_CONCURRENCY)
 
     async def _embed_one(article: NewsArticle) -> list[float]:
         async with sem:
-            return await get_embedding(_dedup_text(article))
+            return await _embed_candidate(_dedup_text(article))
 
     try:
         vectors = await asyncio.gather(*(_embed_one(a) for a in candidates))
