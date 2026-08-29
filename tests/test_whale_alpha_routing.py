@@ -206,7 +206,6 @@ def test_dislocation_and_social_spikes_route_to_alpha(monkeypatch):
 
     dislo = next((j for j in app.job_queue.repeating if j["name"] == "channel_dislocation"), None)
     assert dislo is not None, "dislocation job must register when alpha enabled"
-    src = dislo["callback"].__code__.co_code  # bytecode, but we check source below
     import inspect
 
     source = inspect.getsource(dislo["callback"])
@@ -229,7 +228,6 @@ def test_alerts_digest_excludes_whale_event_types(monkeypatch):
     """The alerts digest rail (fetch_risk_alerts) admits imminent-rug event
     types only — whale_move / token_transfer / transfer never reach it."""
     import rugmunchbot.channels.content as content
-
     from rugmunchbot.channels.content import ALERT_EVENT_TYPES, WHALE_EVENT_TYPES
 
     assert not (ALERT_EVENT_TYPES & WHALE_EVENT_TYPES)
@@ -274,25 +272,54 @@ def test_alerts_digest_excludes_whale_event_types(monkeypatch):
     assert not whales, "whale_move must never reach the alerts digest"
 
 
-def test_scan_churn_fallback_note_carries_sketch_flags():
-    """The churn rail's fallback note (full scan down) still carries real
-    trend-risk sketch flags so @rmiscans churns suspicious tokens."""
-    from rugmunchbot.channels.content import _candidate_fallback_note
+def test_scan_churn_drops_candidate_when_scan_fails():
+    """A candidate whose full scan fails is DROPPED, never posted from sketch
+    flags alone — a sketch-only "unscanned · thin_liquidity" card carries no
+    why (scans-of-interest rule: either run the deep scan so we HAVE data,
+    or drop it)."""
+    import asyncio
 
-    n = _candidate_fallback_note(
-        {
-            "address": "SketchAddr11111111111111111111111111111111",
-            "symbol": "SUS",
-            "name": "Sus Token",
-            "chain": "solana",
-            "risk_flags": ["thin_liquidity", "fresh_launch"],
-            "sketch_score": 59.6,
-        }
-    )
-    assert n is not None
-    assert n["churned"] is True
-    assert n["risk_flags"] == ["thin_liquidity", "fresh_launch"]
-    assert n["address"] == "SketchAddr11111111111111111111111111111111"
+    from rugmunchbot.channels import content
+
+    async def _failed_scan(address, chain):
+        return None
+
+    async def _timeout_scan(address, chain):
+        raise TimeoutError("backend slow")
+
+    import rugmunchbot.tools.scanner._scans as scanner_module
+
+    original = scanner_module.scan_token_v2
+    try:
+        scanner_module.scan_token_v2 = _failed_scan
+        n_fail = asyncio.run(
+            content._churn_one_scan(
+                {
+                    "address": "SketchAddr11111111111111111111111111111111",
+                    "symbol": "SUS",
+                    "name": "Sus Token",
+                    "chain": "solana",
+                    "risk_flags": ["thin_liquidity", "fresh_launch", "unscanned"],
+                    "sketch_score": 59.6,
+                }
+            )
+        )
+        scanner_module.scan_token_v2 = _timeout_scan
+        n_timeout = asyncio.run(
+            content._churn_one_scan(
+                {
+                    "address": "SketchAddr22222222222222222222222222222222",
+                    "symbol": "SUS2",
+                    "chain": "solana",
+                    "risk_flags": ["thin_liquidity"],
+                    "sketch_score": 61.0,
+                }
+            )
+        )
+    finally:
+        scanner_module.scan_token_v2 = original
+    assert n_fail is None
+    assert n_timeout is None
 
 
 def test_scan_churn_notes_are_flagged_churned(monkeypatch):
@@ -322,4 +349,5 @@ def test_scan_churn_notes_are_flagged_churned(monkeypatch):
     import asyncio
 
     notes = asyncio.run(content.fetch_suspect_scan_notes(limit=2))
-    assert notes and notes[0]["churned"] is True
+    assert notes, "suspect scan notes should be returned"
+    assert notes[0]["churned"] is True

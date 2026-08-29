@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 
+from rugmunchbot.formatters._scan_report_common._fields import _holders_count
 from rugmunchbot.formatters._scan_report_main import (
     format_deep_scan_report,
     format_scan_report,
@@ -362,10 +363,18 @@ async def test_churn_scan_merges_deep_data_into_note(monkeypatch: pytest.MonkeyP
     assert (note["evidence"] or {}).get("holders", {}).get("holder_count") == 412
     assert (note["evidence"] or {}).get("market", {}).get("fake_volume_pct") == 40.0
     assert note["liquidity_usd"] == 18_000.0
+    # Scans-of-interest gate: the completed scan posts as a FULL card — the
+    # card's risk score is reconciled to the RiskReport composite so the
+    # header and the body block agree (never 59 HIGH + Composite 0/100 OK).
+    assert note.get("scan_pending") is None
+    assert note["risk_score"] == content._build_risk_report_from_scan(note)["composite_score"]
+    assert content._scan_signal_count(note) >= content._SCAN_CHURN_MIN_SIGNAL
+    assert _holders_count(note) == 412  # evidence.holders.holder_count probed
 
 
 async def test_churn_scan_falls_back_when_poll_misses(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Poll timeout → note still ships with the fast path (fail-open)."""
+    """Poll timeout → the note ships as a "Scanning…" PENDING teaser, not a
+    full card with fabricated deep data (fail-open + never "unavailable")."""
     from rugmunchbot.channels import content
 
     fast_path: dict[str, Any] = {
@@ -396,6 +405,8 @@ async def test_churn_scan_falls_back_when_poll_misses(monkeypatch: pytest.Monkey
     )
     assert note is not None
     assert note["address"] == "0xabc"
+    # Deep phases still running + no signal → pending teaser (re-post later).
+    assert note.get("scan_pending") is True
     # No deep keys were invented when the poll missed.
     assert note.get("bundle_analysis") is None
     assert note.get("first_buyers") is None

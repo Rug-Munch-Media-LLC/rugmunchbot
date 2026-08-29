@@ -26,6 +26,65 @@ from rugmunchbot.formatters import sep, short_addr
 from rugmunchbot.formatters._scan_report_riskreport import format_risk_report_block
 
 
+def _scan_signal_lines(item: dict[str, Any]) -> list[str]:
+    """The actual-signal line parts for a scans-of-interest card.
+
+    Every posted token must show WHY it is suspicious: holders count,
+    liquidity amount, volume, first-25-buyers, bundle/deployer flags.
+    Renders each field only when the scan payload actually reported it
+    (honest-data rule — never a fabricated 0). Pure — never raises.
+    """
+    from rugmunchbot.formatters._scan_report_common._fields import (
+        _float_or_none,
+        _holders_count,
+    )
+
+    parts: list[str] = []
+    holders = _holders_count(item)
+    if holders is not None:
+        parts.append(f"\U0001f465 <b>{holders:,}</b> holders")
+    liquidity = _float_or_none(item.get("liquidity_usd") or item.get("liquidity"))
+    if liquidity is not None:
+        parts.append(f"\U0001f4a7 <b>${liquidity:,.0f}</b> liq")
+    volume = _float_or_none(item.get("volume_24h"))
+    if volume is not None:
+        parts.append(f"\U0001f4c8 <b>${volume:,.0f}</b> vol 24h")
+    first_buyers = item.get("first_buyers")
+    cohort: int | None = None
+    if isinstance(first_buyers, dict):
+        buyers = first_buyers.get("buyers")
+        if isinstance(buyers, list) and buyers:
+            cohort = (
+                first_buyers.get("limit")
+                if isinstance(first_buyers.get("limit"), int)
+                else len(buyers)
+            )
+    elif isinstance(first_buyers, list) and first_buyers:
+        cohort = len(first_buyers)
+    if cohort:
+        parts.append(f"\U0001f6d2 first-<b>{cohort}</b> buyers")
+    ba = item.get("bundle_analysis")
+    if isinstance(ba, dict) and ba.get("is_bundled") is not None:
+        parts.append(
+            "\U0001f578\ufe0f bundle <b>DETECTED</b>"
+            if ba["is_bundled"]
+            else "\U0001f578\ufe0f no bundle"
+        )
+    deployer_addr = item.get("deployer_address")
+    dp = item.get("deployer_profile")
+    if not deployer_addr and isinstance(dp, dict):
+        deployer_addr = dp.get("address") or dp.get("deployer_address")
+    if not deployer_addr:
+        legacy_dep = item.get("deployer")
+        if isinstance(legacy_dep, str) and len(legacy_dep) >= 10:
+            deployer_addr = legacy_dep
+    if deployer_addr:
+        parts.append(
+            f"\U0001f468\u200d\U0001f4bb deployer <code>{_esc(short_addr(str(deployer_addr)))}</code>"
+        )
+    return parts
+
+
 def format_scan_card(item: dict[str, Any]) -> NewsPost:
     """Engaging @rmiscans card with full address + bot instructions + cross-channel promo.
 
@@ -82,62 +141,35 @@ def format_scan_card(item: dict[str, Any]) -> NewsPost:
     reasons = _scan_reason_bits(item)
     if reasons:
         lines.append("\u26a0\ufe0f " + " \u00b7 ".join(_esc(r) for r in reasons))
-    # ── Deep-analysis section (CONTENT-STRATEGY-CANONICAL v2) ──
-    # Deployer / holders / bundle-clustering: render whatever the scanner
-    # populated; missing sections show honestly as unavailable.
-    dep = item.get("deployer") or {}
-    holders = item.get("holders") or {}
-    bundles = item.get("bundles") or {}
-    deep: list[str] = []
-    if isinstance(dep, dict) and dep:
-        d_addr = str(dep.get("address") or "").strip()
-        d_prev = dep.get("previous_tokens")
-        d_rug = dep.get("rug_count", dep.get("rugs"))
-        if d_addr or d_prev is not None:
-            parts = ["<b>Deployer:</b>"]
-            if d_addr:
-                parts.append(f"<code>{_esc(d_addr)}</code>")
-            if d_prev is not None:
-                parts.append(f"past tokens: {_esc(d_prev)}")
-            if d_rug is not None:
-                parts.append(f"rugs: {_esc(d_rug)}")
-            deep.append(" ".join(parts))
-    if isinstance(holders, dict) and holders:
-        h_count = holders.get("count", holders.get("total"))
-        h_top = holders.get("top10_pct", holders.get("top10"))
-        h_fresh = holders.get("fresh_pct", holders.get("fresh_wallets_pct"))
-        if h_count is not None:
-            seg = f"<b>Holders:</b> {_esc(h_count)}"
-            if h_top is not None:
-                seg += f" \u00b7 top-10 {_esc(h_top)}"
-            if h_fresh is not None:
-                seg += f" \u00b7 fresh {_esc(h_fresh)}"
-            deep.append(seg)
-    if isinstance(bundles, dict) and bundles:
-        b_pct = bundles.get("bundled_pct", bundles.get("bundled_supply_pct"))
-        b_clusters = bundles.get("clusters", bundles.get("cluster_count"))
-        if b_pct is not None or b_clusters is not None:
-            seg = "<b>Bundling:</b>"
-            if b_pct is not None:
-                seg += f" {_esc(b_pct)} supply bundled"
-            if b_clusters is not None:
-                seg += f" \u00b7 {_esc(b_clusters)} clusters"
-            deep.append(seg)
-    if deep:
+    # ── Scans-of-interest signal (2026-08-29 fix) ──
+    # The REAL why a reader needs: holders count, liquidity amount, volume,
+    # first-25-buyers, bundle/deployer flags — the actual signal, rendered
+    # only when the scan reported it. A ``scan_pending`` card (deep phases
+    # still running) says so honestly — "Scanning…" — and carries NO
+    # RiskReport block (a thin 1/30-factor composite would contradict the
+    # header). Never "Deep analysis unavailable".
+    signal = _scan_signal_lines(item)
+    if signal:
         lines.append("")
-        lines.extend(deep)
+        lines.append("\U0001f9e0 " + " \u00b7 ".join(signal))
+    if item.get("scan_pending"):
+        lines.append("")
+        lines.append(
+            "\u23f3 <i>Scanning\u2026 deep analysis in progress \u2014 "
+            "I\u2019ll repost the full report when it\u2019s ready.</i>"
+        )
     else:
-        lines.append("<i>Deep analysis (deployer/holders/bundles): unavailable for this scan</i>")
-    # ── Full-product RiskReport block (deployer / holders / first-buyer /
-    #    top-25 / fresh% / CEX% / bundle / cluster / honeypot / liquidity +
-    #    ~30-factor score + rug/scam determination) — the same RiskReport the
-    #    /scan formatter renders (rugmunch_scanner/unified/risk_report.py),
-    #    so suspicious-token cards demonstrate the full scanner. Fail-open. ──
-    if addr:
-        risk_report_lines = format_risk_report_block(item, deep=False)
-        if risk_report_lines:
-            lines.append("")
-            lines.extend(risk_report_lines)
+        # Full-product RiskReport block (deployer / holders / first-buyer /
+        # top-25 / fresh% / CEX% / bundle / cluster / honeypot / liquidity +
+        # ~30-factor score + rug/scam determination) — the same RiskReport the
+        # /scan formatter renders. Gated upstream: a report with too few known
+        # factors to declare a verdict is omitted entirely rather than
+        # rendering a composite that contradicts the card header.
+        if addr:
+            risk_report_lines = format_risk_report_block(item, deep=False)
+            if risk_report_lines:
+                lines.append("")
+                lines.extend(risk_report_lines)
     commentary = str(item.get("commentary") or "").strip()
     if commentary:
         lines.append(f"\U0001f4ac \u201c{_esc(commentary)}\u201d")

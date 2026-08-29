@@ -88,6 +88,104 @@ def test_scan_card_full_address_reasons_commentary_and_image() -> None:
     assert post.image_url == "https://img.example/z.png"
 
 
+def test_scan_card_pending_teaser_says_scanning_never_unavailable() -> None:
+    """A deep-scan-still-running card reads "Scanning…" and carries NO
+    RiskReport block — never "Deep analysis unavailable" (scans-of-interest
+    rule: post "scanning…" and re-post later, not "unavailable")."""
+    item = {
+        "symbol": "PEPE",
+        "address": _A,
+        "chain": "ethereum",
+        "risk_level": "high",
+        "risk_score": 59,
+        "risk_flags": ["thin_liquidity", "violent_moves", "unscanned"],
+        "liquidity_usd": 5000.0,
+        "scan_pending": True,
+    }
+    post = format_scan_card(item)
+    assert "\u23f3 <i>Scanning\u2026" in post
+    assert "Deep analysis unavailable" not in post
+    assert "unavailable" not in post
+    assert "<b>Risk Report</b>" not in post  # no contradictory 1/30-factor composite
+    # Whatever signal the fast path carried is still shown.
+    assert "<b>$5,000</b> liq" in post
+
+
+def test_scan_card_shows_the_actual_signal_fields() -> None:
+    """Every posted token must show the actual signal: holders count,
+    liquidity amount, volume, first-25-buyers, bundle/deployer flags."""
+    item = {
+        "name": "Signal",
+        "symbol": "SIG",
+        "address": _A,
+        "chain": "ethereum",
+        "risk_level": "medium",
+        "risk_score": 46,
+        "risk_flags": ["thin_liquidity"],
+        "holders": 412,
+        "liquidity_usd": 18000.0,
+        "volume_24h": 95000.0,
+        "first_buyers": [{"address": "0xholder2"}],
+        "bundle_analysis": {"is_bundled": True, "launch_cluster_score": 74.0},
+        "deployer_address": "0xDeployer00000000000000000000000000000001",
+        "churned": True,
+    }
+    post = format_scan_card(item)
+    assert "<b>412</b> holders" in post
+    assert "<b>$18,000</b> liq" in post
+    assert "<b>$95,000</b> vol 24h" in post
+    assert "first-<b>1</b> buyers" in post
+    assert "bundle <b>DETECTED</b>" in post
+    assert "deployer <code>" in post
+
+
+def test_scan_card_header_reconciles_with_body_composite() -> None:
+    """The card header risk score and the body RiskReport composite MUST
+    agree — the scans-of-interest rule (never 59/100 HIGH + 0/100 OK). The
+    churn rail sets ``risk_score`` to the composite the builder computes for
+    the SAME payload, so the header and the body block render one number."""
+    from rugmunchbot.formatters._scan_report_riskreport import _build_risk_report_from_scan
+
+    item = {
+        "name": "Fast",
+        "symbol": "FST",
+        "address": _A,
+        "chain": "ethereum",
+        "risk_level": "medium",
+        "risk_flags": ["thin_liquidity"],
+        "holders": 412,
+        "liquidity_usd": 18000.0,
+        "volume_24h": 95000.0,
+        "first_buyers": [{"address": "0xholder2"}],
+        "bundle_analysis": {"is_bundled": True, "launch_cluster_score": 74.0},
+        "deployer_address": "0xDeployer00000000000000000000000000000001",
+        "deployer_profile": {"total_deployments": 6, "rug_rate": 0.7},
+        "wallet_metrics": {"fresh_wallet_pct": 55.0, "cex_funded_pct": 8.0},
+        "honeypot": False,
+        "mintable": False,
+        "owner_renounced": True,
+        "buy_tax": 0.12,
+        "sell_tax": 0.18,
+        "lp_locked": 0.12,
+        "liquidity_verification": {"total_locked_percentage": 12.0},
+        "holder_overlap": {"max_overlap_pct": 41.0, "worst_token_is_scam": True},
+        "evidence": {"security": {"is_honeypot": False}},
+        "churned": True,
+    }
+    rep = _build_risk_report_from_scan(item)
+    assert rep is not None
+    assert rep["composite_score"] is not None
+    item["risk_score"] = rep["composite_score"]
+    post = format_scan_card(item)
+    import re
+
+    header = re.search(r"Risk Score: (\d+)/100", post)
+    body = re.search(r"Composite Risk:</b> <b>(\d+)/100", post)
+    assert header is not None
+    assert body is not None
+    assert header.group(1) == body.group(1), "header score must equal body composite"
+
+
 # ── alpha digest assembly ────────────────────────────────────────────────────
 
 

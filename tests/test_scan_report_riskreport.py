@@ -146,6 +146,54 @@ def test_builder_degrades_gracefully() -> None:
     assert format_risk_report_block({"name": "x"}) == []
 
 
+def test_concise_block_skips_too_thin_reports() -> None:
+    """A concise RiskReport with too few known factors to declare a verdict
+    is omitted entirely — a "Composite 0/100 OK · 1/30 factors known" block
+    is a contradiction generator, not a finding (scans-of-interest rule:
+    header score and body composite must agree)."""
+    thin = _rich_scan()
+    # Strip every provider payload AND flat field so almost no factor is known.
+    for key in (
+        "deployer_profile",
+        "deployer_address",
+        "holder_analysis",
+        "wallet_metrics",
+        "funding_analysis",
+        "holder_overlap",
+        "fresh_wallet_pct",
+        "exchange_funded_pct",
+        "top_holders",
+        "honeypot",
+        "mintable",
+        "owner_renounced",
+        "buy_tax",
+        "sell_tax",
+        "lp_locked",
+        "liquidity",
+        "liquidity_verification",
+        "holders",
+        "volume_24h",
+    ):
+        thin.pop(key, None)
+    thin["bundle_analysis"] = None
+    thin["first_buyers"] = None
+    thin["evidence"] = {}
+    thin["sentinel"] = {}
+    rep = _build_risk_report_from_scan(thin)
+    assert rep is not None
+    assert rep["data_quality"]["factors_known"] < 6
+    # Concise block skipped…
+    assert format_risk_report_block(thin) == []
+    # …while the rich scan still renders its concise block.
+    assert format_risk_report_block(_rich_scan()) != []
+    # A confirmed honeypot matters even on a thin scan — the block renders.
+    thin_hp = dict(thin)
+    thin_hp["honeypot"] = True
+    assert format_risk_report_block(thin_hp) != []
+    # Deep scans keep the full factor table (unknowns render as "—" honestly).
+    assert format_risk_report_block(thin, deep=True) != []
+
+
 def test_basic_block_shows_full_product_sections() -> None:
     out = "\n".join(format_risk_report_block(_rich_scan()))
     for expected in (

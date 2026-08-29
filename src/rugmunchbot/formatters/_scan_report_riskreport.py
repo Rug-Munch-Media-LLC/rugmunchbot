@@ -1494,17 +1494,45 @@ def _render_risk_report(rep: dict[str, Any], *, deep: bool) -> list[str]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def _concise_report_postable(rep: dict[str, Any]) -> bool:
+    """True when a CONCISE (``deep=False``) report is substantive enough to
+    render a composite verdict.
+
+    Scans-of-interest fix (2026-08-29): a nearly-empty report renders the
+    self-contradictory headline "Composite Risk 0/100 OK · 1/30 factors
+    known" while the card header claims a different score — a reader learns
+    nothing. The concise block only renders when it can actually declare a
+    verdict: >= :data:`_MIN_KNOWN_FOR_DETERMINATION` known factors (the same
+    threshold the scanner uses to emit a determination) OR a decisive scam is
+    confirmed (a confirmed honeypot matters even on a thin scan). Pure —
+    never raises.
+    """
+    dq = rep.get("data_quality") or {}
+    try:
+        known = int(dq.get("factors_known") or 0)
+    except (TypeError, ValueError):
+        known = 0
+    if known >= _MIN_KNOWN_FOR_DETERMINATION:
+        return True
+    return str(rep.get("determination") or "") == "scam"
+
+
 def format_risk_report_block(r: dict[str, Any], *, deep: bool = False) -> list[str]:
     """Risk Report section for the scan report ([] when the scan has no data).
 
     Uses the backend-provided RiskReport dict when the payload carries one;
     otherwise builds the same shape from the scan fields (see
     ``_build_risk_report_from_scan``). Basic scans render the concise block;
-    deep scans render the full ~30-factor table + deeper analysis.
+    deep scans render the full ~30-factor table + deeper analysis. The
+    concise block is skipped entirely when the report is too thin to declare
+    a verdict (see :func:`_concise_report_postable`) — a 1/30-factor
+    composite is a fabrication, not a finding.
     """
     raw = r.get("risk_report")
     rep = raw if isinstance(raw, dict) else _build_risk_report_from_scan(r, deep=deep)
     if not isinstance(rep, dict) or not rep.get("factors"):
+        return []
+    if not deep and not _concise_report_postable(rep):
         return []
     # AI-assisted marker: when the deep scan ran the LLM verdict pass
     # (``ai_verdict``), flag the locally-built report so the renderer notes

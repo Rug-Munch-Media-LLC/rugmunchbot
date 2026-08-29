@@ -101,8 +101,25 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 *scans,
                 *[c for c in churned if str(c.get("address") or "").lower() not in seen],
             ]
-    fresh = [item for item in scans if _remember("scans", _dedupe_key("scans", item))]
-    if not fresh:
+    # Scans-of-interest honesty (2026-08-29): a ``scan_pending`` note is a
+    # "Scanning…" teaser (deep phases still running) — deduped under its OWN
+    # namespace so the FULL card can still post later (rule: post "scanning…",
+    # re-post when ready, never "unavailable"). Pending teasers never
+    # escalate to the main channel. Full cards keep the normal per-token
+    # dedupe.
+    pending = [item for item in scans if item.get("scan_pending")]
+    full = [item for item in scans if not item.get("scan_pending")]
+    pending_fresh = [
+        item
+        for item in pending
+        if _remember(
+            "scans_pending",
+            "pending_"
+            + str(item.get("address") or item.get("token_address") or "").strip().lower(),
+        )
+    ]
+    fresh = [item for item in full if _remember("scans", _dedupe_key("scans", item))]
+    if not fresh and not pending_fresh:
         logger.info(
             "channels:tick",
             job="channel_scans",
@@ -144,6 +161,16 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         ok = await _post_photo_aware(ctx.bot, chat_id, format_scan_card(item), _safe_send)
         if ok:
             posted += 1
+    # Pending "Scanning…" teasers — bounded by the tick cap, own dedupe
+    # namespace, never escalated to main. No commentary (they are status
+    # cards, not final verdicts).
+    remaining = max(0, SCAN_CHANNEL_TICK_LIMIT - posted)
+    for item in sorted(pending_fresh, key=lambda i: i.get("importance", 0.0), reverse=True)[
+        :remaining
+    ]:
+        ok = await _post_photo_aware(ctx.bot, chat_id, format_scan_card(item), _safe_send)
+        if ok:
+            posted += 1
     # Escalate high-importance scans (≥0.7) to the main channel @cryptorugmuncher
     # so the most notable token scans also reach the broader audience.
     main_chat_id = _chat_id("main")
@@ -180,7 +207,7 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         "channels:tick",
         job="channel_scans",
         items_swept=len(scans),
-        items_scored=len(fresh),
+        items_scored=len(fresh) + len(pending_fresh),
         items_posted=posted,
         items_failed=0,
         latency_ms=_elapsed_ms(started),

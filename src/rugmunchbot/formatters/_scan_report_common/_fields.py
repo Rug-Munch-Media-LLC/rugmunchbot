@@ -181,6 +181,19 @@ def _holders_count(r: dict[str, Any]) -> int | None:
                     return int(float(raw))
                 except (TypeError, ValueError) as e:
                     logger.debug("time-ago parse failed: %s", e)
+    # v2 scanner evidence bucket (``evidence.holders.holder_count``) — the
+    # canonical holder source the unified engine merges into the payload;
+    # without this probe v2-backed notes render "N/A" holders.
+    ev = r.get("evidence")
+    if isinstance(ev, dict):
+        ev_holders = ev.get("holders")
+        if isinstance(ev_holders, dict):
+            raw = ev_holders.get("holder_count", ev_holders.get("total_holders"))
+            if raw is not None:
+                try:
+                    return int(float(raw))
+                except (TypeError, ValueError) as e:
+                    logger.debug("time-ago parse failed: %s", e)
     try:
         holders = r.get("holders")
         return int(float(holders)) if holders is not None else None
