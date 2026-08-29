@@ -33,7 +33,9 @@ async def main() -> int:
 
     if not api_key_configured():
         print("[SKIP] No ApiPass key configured.")
-        print("        Store it in the deployment secrets dir (apipass_api_key), export APIPASS_API_KEY,")
+        print(
+            "        Store it in the deployment secrets dir (apipass_api_key), export APIPASS_API_KEY,"
+        )
         print("        or gopass insert rmi/apipass/api_key")
         print("        Then re-run this script for the real tweet pull.")
         return 1

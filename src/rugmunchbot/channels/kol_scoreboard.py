@@ -622,7 +622,9 @@ async def detect_deleted_calls(
     """Re-check this window's recorded calls; mark the ones now gone.
 
     A call whose tweet now 404s on ApiPass (tweet-detail → None) is
-    retracted. Bounded detail checks per tick (3 max). Fail-open ``[]``.
+    retracted. Bounded detail checks per tick (3 max). Calls with synthetic
+    ``rug-`` storage keys (documented rug-history evidence, no live tweet)
+    are skipped — they cannot 404 as tweets. Fail-open ``[]``.
     """
     try:
         from rugmunchbot.tools.apipass_x import fetch_tweet_detail
@@ -631,6 +633,8 @@ async def detect_deleted_calls(
 
     deleted: list[KolCall] = []
     for call in calls[:3]:
+        if str(call.tweet_id or "").startswith("rug-"):
+            continue  # synthetic evidence key, not a live tweet
         detail = await fetch_tweet_detail(call.tweet_id)
         if detail is None:
             deleted.append(call)
@@ -761,12 +765,7 @@ async def run_kol_scoreboard_watch(ctx: Any = None) -> int:
         handle_calls = [KolCall.from_row(r) for r in list_kol_calls(handle=handle, limit=100)]
         identity = KolIdentity.from_row(resolve_handle(handle))
         name_changes = len(
-            [
-                r
-                for r in list_kol_name_changes(
-                    kol_id=(identity.kol_id if identity else handle.lower())
-                )
-            ]
+            list(list_kol_name_changes(kol_id=(identity.kol_id if identity else handle.lower())))
         )
         card = compute_report_card(handle_calls, name_changes=name_changes, identity=identity)
         upsert_kol_score(

@@ -86,7 +86,9 @@ DEDUP_MAX_VECTORS = int(os.getenv("APIPASS_DEDUP_MAX_VECTORS", "200"))
 #: Canonical key file for the ApiPass key (never in git). Defaults to the
 #: fleet secret-store location; overridable so tests/containers can point
 #: elsewhere.
-_KEY_FILE = os.getenv("RMI_APIPASS_KEY_FILE") or os.path.join(os.getenv("RMI_SECRETS_DIR", "/srv/secrets"), "apipass_api_key")
+_KEY_FILE = os.getenv("RMI_APIPASS_KEY_FILE") or os.path.join(
+    os.getenv("RMI_SECRETS_DIR", "/srv/secrets"), "apipass_api_key"
+)
 #: Canonical gopass path for the ApiPass key (never in git).
 _GOPASS_PATH = "rmi/apipass/api_key"
 _ENV_KEYS = ("APIPASS_API_KEY",)

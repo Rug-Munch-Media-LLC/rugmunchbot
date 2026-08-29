@@ -71,12 +71,26 @@ CURATED_EXTRA: list[tuple[str, str, str, str, str, str]] = [
     ("cobie", "Cobie", "analyst", "ct_known", "watch", "CT personality"),
     ("GCRClassic", "GCR", "analyst", "ct_known", "watch", "famous contrarian; track call history"),
     ("TheMoonCarl", "MoonCarl", "analyst", "ct_known", "watch", "calls + paid promos"),
-    ("CryptoGodJohn", "Crypto God John", "shiller", "ct_known", "watch", "meme-coin evangelist; heavy shill patterns"),
+    (
+        "CryptoGodJohn",
+        "Crypto God John",
+        "shiller",
+        "ct_known",
+        "watch",
+        "meme-coin evangelist; heavy shill patterns",
+    ),
     ("CryptoRover", "Crypto Rover", "shiller", "ct_known", "watch", "YouTube KOL; altcoin promos"),
     ("TheCryptoDog", "The Crypto Dog", "analyst", "ct_known", "watch", "long-running CT trader"),
     ("CanteringClark", "Cantering Clark", "analyst", "ct_known", "watch", "trader; calls tokens"),
     ("Pentoshi", "Pentoshi", "analyst", "ct_known", "watch", "CT trader/analyst"),
-    ("AltcoinGordon", "Altcoin Gordon", "shiller", "ct_known", "watch", "paid-shill accusations; name-change resolution test case"),
+    (
+        "AltcoinGordon",
+        "Altcoin Gordon",
+        "shiller",
+        "ct_known",
+        "watch",
+        "paid-shill accusations; name-change resolution test case",
+    ),
     ("WolfOfAllStreets", "Wolf Of All Streets", "analyst", "ct_known", "watch", "trader/podcaster"),
     ("CryptoTony__", "CryptoTony", "analyst", "ct_known", "watch", "calls + signals"),
     ("CryptoWendyO", "Wendy O", "media", "ct_known", "watch", "podcast/CT personality"),
@@ -101,7 +115,14 @@ CURATED_EXTRA: list[tuple[str, str, str, str, str, str]] = [
     ("TylerDurden", "Tyler D", "analyst", "ct_known", "watch", "CT trader"),
     ("TheCryptoLark", "The Crypto Lark", "shiller", "ct_known", "watch", "YouTube KOL; alt promos"),
     ("LarkDavis", "Lark Davis", "shiller", "ct_known", "watch", "YouTube KOL (alt handle)"),
-    ("NicholasMerten", "Nicholas Merten", "shiller", "ct_known", "watch", "DataDash host; alt shills"),
+    (
+        "NicholasMerten",
+        "Nicholas Merten",
+        "shiller",
+        "ct_known",
+        "watch",
+        "DataDash host; alt shills",
+    ),
     ("DataDash", "DataDash", "shiller", "ct_known", "watch", "altcoin YT channel"),
     ("CryptoBanter", "CryptoBanter", "media", "ct_known", "watch", "show; guest promos"),
     ("RanNeuner", "Ran Neuner", "media", "ct_known", "watch", "CryptoBanter host"),
@@ -123,12 +144,26 @@ CURATED_EXTRA: list[tuple[str, str, str, str, str, str]] = [
     ("CryptoArmy", "Crypto Army", "analyst", "ct_known", "watch", "trader"),
     # ── Call channels / known shill rails ─────────────────────────────────
     ("thepumpalert", "The Pump Alert", "call_chan", "scam_watch", "scammer", "call-out channel"),
-    ("walloftrophies", "KOL Trending", "call_chan", "zachxbt_post", "scammer", "named in zachxbt exposé"),
+    (
+        "walloftrophies",
+        "KOL Trending",
+        "call_chan",
+        "zachxbt_post",
+        "scammer",
+        "named in zachxbt exposé",
+    ),
     ("kamocalls", "Kamo Calls", "call_chan", "ct_known", "watch", "calls"),
     ("CryptoCapoTG", "CryptoCapo", "call_chan", "ct_known", "watch", "calls + analysis"),
     ("shahlito", "Shah", "call_chan", "ct_known", "watch", "calls"),
     ("cryptowhaletrades", "Crypto Whale Trading", "call_chan", "ct_known", "watch", "whale calls"),
-    ("gabrielhaines", "Gabriel Haines", "shiller", "ct_known", "watch", "entertainment-adjacent token promos"),
+    (
+        "gabrielhaines",
+        "Gabriel Haines",
+        "shiller",
+        "ct_known",
+        "watch",
+        "entertainment-adjacent token promos",
+    ),
     ("CallAnalyser", "CallAnalyser", "call_chan", "ct_known", "watch", "call analysis"),
 ]
 
@@ -144,7 +179,10 @@ def _load_json(name: str) -> dict | list | None:
             continue
         try:
             with open(path, encoding="utf-8") as fh:
-                return json.load(fh)
+                data = json.load(fh)
+            if isinstance(data, (dict, list)):
+                return data
+            return None
         except (OSError, ValueError):
             continue
     return None

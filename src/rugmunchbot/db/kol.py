@@ -775,7 +775,6 @@ def apipass_usage_summary() -> dict[str, Any]:
     ``RMI_APIPASS_FREE_CREDITS`` (default 50) is the free allowance; each
     task creation meters ``RMI_APIPASS_CREDITS_PER_CALL`` (default 0.5).
     """
-    import json as _json
     import os
 
     free_credits = float(os.getenv("RMI_APIPASS_FREE_CREDITS", "50"))

@@ -296,7 +296,8 @@ def test_name_change_resolution(tmp_db):
     assert resolve_handle("altcoingordon")["kol_id"] == "altcoingordon"
     assert resolve_handle("newhandle_now")["kol_id"] == "altcoingordon"
     ident = resolve_identity("@ALTCOINGORDON")  # case/@-insensitive
-    assert ident is not None and ident.kol_id == "altcoingordon"
+    assert ident is not None
+    assert ident.kol_id == "altcoingordon"
 
     # Sweep detects a NEW transition: swept 'altcoingordon' → payload 'renamed_again'.
     assert detect_name_change("altcoingordon", "renamed_again") is True
@@ -354,8 +355,12 @@ def test_seed_registry_has_500_real_rows():
     assert len(rows) >= 500
     handles = [r[0].lower() for r in rows]
     assert len(set(handles)) == len(handles)  # no duplicate primary handles
-    for handle, name, category, source, risk, notes in rows:
-        assert handle and name and category and source and risk
+    for handle, name, category, source, risk, _notes in rows:
+        assert handle
+        assert name
+        assert category
+        assert source
+        assert risk
         assert source in {
             "influential_registry",
             "scammer_list",
