@@ -504,6 +504,60 @@ def build_rug_history() -> list[dict[str, str]]:
     return _rug_history_rows()
 
 
+def build_baddies() -> list[dict[str, str]]:
+    """Evidence-backed baddies (name-and-shame) from ``baddies.json``.
+
+    Additive source that does NOT alter ``build_seed_rows`` counts. Each row
+    carries the handle, name, category, severity, risk_level, syndicate group
+    and the evidence URL so the baddies list renders as handle + wallet +
+    evidence. ``wallet`` is the highest-confidence traced wallet when known.
+    """
+    data = _load_json("baddies.json")
+    rows = data.get("baddies") if isinstance(data, dict) else None
+    out: list[dict[str, str]] = []
+    for b in rows or []:
+        if not isinstance(b, dict):
+            continue
+        out.append(
+            {
+                "handle": str(b.get("handle_id") or b.get("handle") or "").lstrip("@").lower(),
+                "name": str(b.get("handle") or b.get("name") or ""),
+                "category": str(b.get("category") or "scammer"),
+                "severity": str(b.get("severity") or "medium"),
+                "risk_level": str(b.get("risk_level") or "high"),
+                "group": str(b.get("group") or ""),
+                "evidence_url": str(b.get("evidence_url") or ""),
+                "wallet": str(b.get("wallet") or ""),
+            }
+        )
+    return out
+
+
+def build_scraped() -> list[dict[str, str]]:
+    """Newly scraped KOL wallets/usernames from ``scraped_kol.json``.
+
+    Additive wallet-KB rows (kolscan/gmgn/mwayers list scrapes) so a re-seed
+    extends the registry with the handles/wallets found by the scrape pass.
+    """
+    data = _load_json("scraped_kol.json")
+    recs = data.get("records") if isinstance(data, dict) else None
+    out: list[dict[str, str]] = []
+    for r in recs or []:
+        if not isinstance(r, dict):
+            continue
+        out.append(
+            {
+                "handle": str(r.get("handle") or "").lstrip("@"),
+                "name": str(r.get("name") or r.get("handle") or ""),
+                "address": str(r.get("address") or ""),
+                "chain": str(r.get("chain") or "solana"),
+                "source": str(r.get("source") or "scrape"),
+                "evidence_url": str(r.get("evidence_url") or ""),
+            }
+        )
+    return out
+
+
 def seed_stats() -> dict[str, int]:
     """Counts per source for reporting (identities + wallets + call evidence)."""
     scammers = len(_scammer_rows())
@@ -529,8 +583,10 @@ __all__ = [
     "KOL_SEED",
     "SCAMMER_GROUPS",
     "SCAMMER_GROUP_MAP",
+    "build_baddies",
     "build_rug_history",
     "build_scammer_group_map",
+    "build_scraped",
     "build_seed_rows",
     "build_wallet_kb",
     "group_label",
