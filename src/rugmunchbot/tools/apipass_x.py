@@ -86,7 +86,7 @@ DEDUP_MAX_VECTORS = int(os.getenv("APIPASS_DEDUP_MAX_VECTORS", "200"))
 #: Canonical key file for the ApiPass key (never in git). Defaults to the
 #: fleet secret-store location; overridable so tests/containers can point
 #: elsewhere.
-_KEY_FILE = os.getenv("RMI_APIPASS_KEY_FILE", "/srv/secrets/apipass_api_key")
+_KEY_FILE = os.getenv("RMI_APIPASS_KEY_FILE") or os.path.join(os.getenv("RMI_SECRETS_DIR", "/srv/secrets"), "apipass_api_key")
 #: Canonical gopass path for the ApiPass key (never in git).
 _GOPASS_PATH = "rmi/apipass/api_key"
 _ENV_KEYS = ("APIPASS_API_KEY",)
@@ -160,8 +160,8 @@ def _meter_usage(endpoint: str = "", task_id: str = "") -> None:
 
 
 def _resolve_api_key() -> str:
-    """ApiPass key: env ``APIPASS_API_KEY`` → key file ``/srv/secrets/
-    apipass_api_key`` → gopass ``rmi/apipass/api_key``.
+    """ApiPass key: env ``APIPASS_API_KEY`` → key file
+    ``$RMI_SECRETS_DIR/apipass_api_key`` → secrets manager.
 
     UNCACHED so a key added while the bot runs is picked up on the next tick
     without a restart. Returns "" when none is configured — callers fail
