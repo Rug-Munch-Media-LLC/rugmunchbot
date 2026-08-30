@@ -44,9 +44,8 @@ from rugmunchbot.channels.scheduler._core import (
     logger,
 )
 from rugmunchbot.channels.scheduler._posts_rag import (
-    _quality_gate,
-    _recency_gate,
-    _source_gate,
+    RMI_RAG_POST_MIN_SCORE,
+    gather_main_drafts,
     mirror_post_to_feed,
 )
 
@@ -85,82 +84,16 @@ async def _fresh_main_drafts() -> list[dict[str, Any]]:
     Fail-open → []: the RAG content-distribution lane is the primary source
     (drafts already past rugbrain's quality/recency/source selection). But if
     the lane is empty, disabled (no ``RMI_RAG_API_KEY``), or its drafts all
-    fail the bot-side gates, we fall back to the bot's OWN curated content
-    (``fetch_trending_news`` — real sourced headlines) so the daily MAIN
-    update still fires. Silence is never the default (2026-08-29 doctrine).
+    fail the bot-side gates, we fall back to the bot's OWN curated content.
+
+    2026-08-30 unify (task 1): no longer a parallel lane — this delegates to
+    ``_posts_rag.gather_main_drafts``, the SINGLE gather→score→gate path
+    shared with ``channel_rag``. The fallback (``_fallback_main_drafts``) is
+    folded in there and routed through the reranker so the 0.30 importance
+    floor applies uniformly (no unscored bypass). Silence is never the
+    default.
     """
-    try:
-        from rugmunchbot.channels.content import fetch_rag_drafts
-
-        drafts = await fetch_rag_drafts("main", limit=DAILY_QUALITY_CANDIDATES)
-    except Exception as exc:  # fail-open by contract
-        logger.debug("daily_quality:fetch_failed err=%s", str(exc)[:120])
-        drafts = []
-    fresh: list[dict[str, Any]] = []
-    for item in drafts:
-        gate = _quality_gate(item) or _recency_gate(item) or _source_gate(item)
-        if gate:
-            logger.debug(
-                "daily_quality:gated reason=%s ref=%s",
-                gate,
-                str(item.get("story_ref") or "")[:60],
-            )
-            continue
-        fresh.append(item)
-    if fresh:
-        return fresh
-    # RAG lane empty/gated → bot-owned fallback so the 10-post day still fills.
-    fallback = await _fallback_main_drafts()
-    if fallback:
-        logger.info(
-            "daily_quality:rag_lane_empty falling_back_to_bot_sources candidates=%s",
-            len(fallback),
-        )
-    return fallback
-
-
-async def _fallback_main_drafts() -> list[dict[str, Any]]:
-    """Bot-owned content candidates for the daily quality slot (fail-open → []).
-
-    Uses our own ``fetch_trending_news`` (real backend headlines with writer
-    + source URL) so the daily MAIN update posts even when rugbrain's
-    content-distribution lane is down or silent. Each item is shaped into a
-    draft the existing lane gates accept (a ``ts`` so the recency gate passes
-    and an http(s) link in the text so the source gate passes), and carries a
-    stable ``story_ref`` so the global dedupe can never double-post it.
-    """
-    from datetime import UTC, datetime
-
-    try:
-        from rugmunchbot.channels.content import fetch_trending_news
-
-        items = await fetch_trending_news(limit=DAILY_QUALITY_CANDIDATES)
-    except Exception as exc:  # fail-open by contract
-        logger.debug("daily_quality:fallback_fetch_failed err=%s", str(exc)[:120])
-        return []
-    now = datetime.now(UTC).isoformat()
-    drafts: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for it in items:
-        url = str(it.get("url") or "").strip()
-        if not url or url in seen:
-            continue
-        seen.add(url)
-        text = f"{it.get('title') or it.get('summary') or ''} {url}".strip()
-        if not text:
-            continue
-        drafts.append(
-            {
-                "story_ref": url,
-                "title": str(it.get("title") or url)[:120],
-                "text": text,
-                "source": str(it.get("source") or "rugmunch")[:80],
-                "ts": now,
-                "kind": "quality",
-                "url": url,
-            }
-        )
-    return drafts
+    return await gather_main_drafts(limit=DAILY_QUALITY_CANDIDATES)
 
 
 async def post_daily_quality(ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -199,6 +132,20 @@ async def post_daily_quality(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     entry = quality_entries[0]
     item = entry.item or {}
     ref = item.get("story_ref") or item.get("text", "")[:60]
+
+    # 2026-08-30 unify (task 2): the 0.30 importance floor applies HERE too —
+    # after the score (rerank) step, before the post. ``gather_main_drafts``
+    # already floors its output, but the schedule re-reranks, so a candidate
+    # re-scored below the floor here must never post. Gate-after-score, not
+    # the old gate-before-score bypass.
+    if entry.importance < RMI_RAG_POST_MIN_SCORE:
+        logger.info(
+            "daily_quality:below_floor importance=%.3f min=%.3f ref=%s",
+            entry.importance,
+            RMI_RAG_POST_MIN_SCORE,
+            ref[:60],
+        )
+        return 0
 
     # WO-2 hard cap: shared with every main lane — overflow skips this run
     # (the draft stays unposted, retried next run).

@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: MIT
+# rugmunchbot — import-linter architecture boundary contract.
+#
+# Canonical source of truth: standards/ARCHITECTURE.md + standards/import-linter.contract.yaml
+# This file is copied from the canonical contract per-repo. The pre-push
+# `import-boundaries` lefthook hook runs `lint-imports` when [importlinter] is present.
+#
+# rugmunchbot is an API-CONSUMER-ONLY thin Telegram client. It owns the Telegram
+# send/receive + formatting layer and may ONLY reach rmi-backend through its public
+# HTTP API. It must NEVER import backend/rag Python internals, never vendor a copy
+# of them, and never reach into backend's DB / Redis / ClickHouse / Qdrant.
+# One domain -> one repo -> one owner.
+
+[importlinter]
+root_package = rugmunchbot
+include_external_packages = True
+
+[importlinter:contract:api-consumer-only]
+name = Bot is API-consumer-only — never imports backend/rag/product internals
+type = forbidden
+source_modules =
+    rugmunchbot
+forbidden_modules =
+    app
+    rugbrain
+    pry
+    walletpress
+ignore_imports =
+    # NOTE: `rugmunch_scanner` is intentionally NOT forbidden here. The bot's
+    # `scanner` extra installs the local rugmunch_scanner engine and it is
+    # reached directly from formatters/handlers/commands beyond a thin adapter.
+    # That is a contract-vs-reality mismatch vs ARCHITECTURE.md "backend HTTP
+    # only" — tracked as [REVIEW] in standards/ARCHITECTURE.md, not blocked here
+    # (it would break the build). app/rugbrain/pry/walletpress REMAIN hard-forbidden.

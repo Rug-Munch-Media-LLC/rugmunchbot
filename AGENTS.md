@@ -31,6 +31,23 @@ rugmunchbot — ACTIVE product: Telegram bot for the Rug Munch Intelligence plat
 5. **Coordinate merges with rmi-backend.** When the merge happens, this repo will be archived on Forgejo.
 6. **Check docs/ before non-trivial changes.** Coordinate via open issues.
 
+## Domain Boundaries (one domain -> one repo -> one owner)
+Canonical contract: [standards/ARCHITECTURE.md](../standards/ARCHITECTURE.md) +
+`standards/repo-domains.json`. Enforced by `.importlinter` (pre-push) and
+`scripts/repo-boundary-check.sh` (pre-commit).
+
+- **OWNS:** the thin Telegram client — send/receive, command/handler routing,
+  formatters, keyboards, channels. API-consumer-only.
+- **DOES NOT own:** scanner engine / detectors (rugmunch-scanner), RAG / retrieval
+  (rugbrain), the crypto-intelligence API + DataBus (rmi-backend), frontend
+  (rmi-frontend), the crawling framework (pryscraper), wallet management
+  (walletpress).
+- **Boundary:** the bot reaches rmi-backend through its public HTTP API only. It
+  never imports `app`, `rugbrain`, `pry`, or `walletpress` internals. [REVIEW]
+  the bot still reaches `rugmunch_scanner` directly via its `scanner` extra in
+  formatters/handlers/commands — ARCHITECTURE.md says "backend HTTP only"; this
+  coupling should be isolated behind `tools/scanner`.
+
 ## Commands
 
 There is no live build/test/dev cycle for this repo. It exists only to preserve the code history for reference during the merge into `rmi-backend`.

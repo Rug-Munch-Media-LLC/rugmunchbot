@@ -320,6 +320,14 @@ async def test_scans_lane_posts_scanner_drafts(monkeypatch):
         seen.append((chat_id, text))
         return True
 
+    # The main channel is empty in this fixture, so the unified main gather
+    # would otherwise hit the LIVE trending-news backend + reranker. Stub it
+    # to [] to keep the test isolated on the scans lane (the fallback path has
+    # its own dedicated tests).
+    async def _no_news(limit=5):
+        return []
+
+    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _no_news)
     _patch_env(
         monkeypatch,
         chat_id="-100scans",
@@ -332,3 +340,111 @@ async def test_scans_lane_posts_scanner_drafts(monkeypatch):
     assert posted == 1
     assert len(seen) == 1
     assert seen[0][1].startswith("[SCAN]")
+
+
+# ── 2026-08-30 unified main content path (task 1/2/3) ──────────────────────
+
+
+def test_quality_gate_floors_reranked_importance():
+    """Task 2: the 0.30 importance floor must read ``importance`` too.
+
+    The fallback drafts used to carry NO score, so ``_quality_gate`` waved
+    them through even though the live reranker scored them 0.01–0.12. Routing
+    them through ``rerank_quality`` writes ``importance``; this proves the
+    gate now floors it (no unscored bypass)."""
+    below = _draft("ref-low", text="Altcoin tape. Source: https://example.com/low")
+    below["importance"] = 0.12
+    assert _posts_rag._quality_gate(below) == "below_threshold(0.12)"
+
+    # A score under the floor is rejected regardless of which key it lives in.
+    low_score = _draft("ref-score", text="Headline. Source: https://x.site/a")
+    low_score["score"] = 0.05
+    assert _posts_rag._quality_gate(low_score) == "below_threshold(0.05)"
+
+    # Above the floor or unscored → allowed (missing score = no signal, pass).
+    ok = _draft("ref-ok", text="Headline. Source: https://x.site/b")
+    ok["importance"] = 0.62
+    assert _posts_rag._quality_gate(ok) == ""
+    assert _posts_rag._quality_gate(_draft("ref-none")) == ""
+
+
+@pytest.mark.asyncio
+async def test_main_empty_falls_back_scored_and_warns(monkeypatch, caplog):
+    """Task 3 + task 1: when rugbrain returns 0 main drafts, the unified
+    pipeline WARNs and folds in the scored bot-sourced fallback (not a silent
+    no-op), and the fallback draft posts carrying a real ``importance``."""
+    import logging
+
+    async def _news(limit=5):
+        return [
+            {
+                "title": "Bridge exploit drains $190M",
+                "summary": "Cross-chain bridge compromised; ~$190M drained.",
+                "url": "https://rekt.news/bridge-190m",
+                "source": "rekt",
+                "sentiment_label": "",
+                "factual_rating": "",
+            }
+        ]
+
+    async def _rerank(items):
+        for it in items:
+            it["importance"] = 0.66
+        return sorted(items, key=lambda i: i.get("importance", 0.0), reverse=True)
+
+    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
+    monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
+    sender = _Recorder(succeed=True)
+    _patch_env(
+        monkeypatch,
+        chat_id="-100main",
+        drafts={"main": [], "news": [], "alerts": [], "scans": []},
+        sender=sender,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="rmi_bot.channels"):
+        posted = await _posts_rag.post_rag_drafts(_Ctx())
+
+    assert posted == 1
+    assert len(sender.calls) == 1
+    assert sender.calls[0][0] == "-100main"
+    # The fallback draft now CARRIES a score (no unscored bypass).
+    assert any("rag_lane_empty" in r.message for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_main_empty_and_fallback_all_below_floor_posts_nothing(monkeypatch):
+    """Task 2: if every fallback headline reranks below 0.30, the floor
+    discards ALL of them — low-signal fresh headlines never reach main."""
+
+    async def _news(limit=5):
+        return [
+            {
+                "title": "Altcoin tape chatter",
+                "summary": "A quiet day in a thinly-traded microcap.",
+                "url": "https://example.com/low",
+                "source": "example",
+                "sentiment_label": "",
+                "factual_rating": "",
+            }
+        ]
+
+    async def _rerank(items):
+        for it in items:
+            it["importance"] = 0.04  # below every floor
+        return sorted(items, key=lambda i: i.get("importance", 0.0), reverse=True)
+
+    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
+    monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
+    sender = _Recorder(succeed=True)
+    _patch_env(
+        monkeypatch,
+        chat_id="-100main",
+        drafts={"main": [], "news": [], "alerts": [], "scans": []},
+        sender=sender,
+    )
+
+    posted = await _posts_rag.post_rag_drafts(_Ctx())
+
+    assert posted == 0
+    assert sender.calls == []

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-30T16:30:00+00:00",
+  "updated": "2026-08-30T21:23:40.204794+00:00",
   "count": 65,
   "wall_of_shame": [
     {
@@ -753,7 +753,7 @@
     "scammer": "confirmed fraud (SEC/DOJ action or equivalent)",
     "rug_puller": "confirmed deployer/operator of a rugged token",
     "rug_pusher": "celebrity/influencer who promoted a token that rugged (enforcement action or credible exposure)",
-    "shiller": "active KOL promoter; followers incurred losses on promoted tokens (NOT necessarily confirmed fraud)",
+    "shiller": "active KOL promoter; followers incurred losses (NOT necessarily confirmed fraud)",
     "ponzi_founder": "operator of a ponzi/MLM scheme",
     "impersonator": "fake/impersonating account"
   }

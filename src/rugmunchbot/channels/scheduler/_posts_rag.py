@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from rugmunchbot.channels.content import fetch_rag_drafts
+from rugmunchbot.channels.quality_schedule import rerank_quality
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -187,6 +188,14 @@ def _quality_gate(item: dict[str, Any]) -> str:
     2026-08-25), the template signature heuristic (covers containers built
     before the marker shipped), and the rerank-score floor. Pure — never
     raises; unparsable scores pass.
+
+    2026-08-30 unify (task 2): the importance floor now reads ``importance``
+    too, not just ``score``/``rerank_score``. Rugbrain pre-scores its drafts
+    into ``score``/``rerank_score``; the bot's own reranker
+    (``quality_schedule.rerank_quality`` — used on the fallback lane) writes
+    ``importance``. Checking all three means the 0.30 floor applies uniformly
+    — a reranked fallback headline scoring 0.01-0.12 can no longer slip
+    through just because it had no ``score`` field (the old unscored bypass).
     """
     writer = str(item.get("writer") or "").strip().lower()
     if writer == "template":
@@ -201,12 +210,19 @@ def _quality_gate(item: dict[str, Any]) -> str:
         return "template_signature"
     if _PLACEHOLDER_SOURCE_RE.search(text):
         return "placeholder_source"
-    raw_score = item.get("score", item.get("rerank_score"))
-    if raw_score is not None:
+    # Confirmed-score keys: rugbrain ("score"/"rerank_score") + bot reranker
+    # ("importance"). Any explicit score under the floor is DISCARDED; a
+    # missing/unparsable score means "no signal" and passes (the rugbrain
+    # importance metadata is sparse today) — but once WE rerank a fallback
+    # draft it carries a real ``importance``, so it never slips unscored.
+    for key in ("score", "rerank_score", "importance"):
+        raw_score = item.get(key)
+        if raw_score is None:
+            continue
         try:
             score = float(raw_score)
         except (TypeError, ValueError):
-            return ""
+            return ""  # unparsable → no usable signal → pass
         if score > 0 and score < RMI_RAG_POST_MIN_SCORE:
             return f"below_threshold({score:.2f})"
     return ""
@@ -338,6 +354,101 @@ def _note_mirror_success() -> None:
     _mirror_fail_streak = 0
 
 
+async def _fallback_main_drafts(limit: int = 6) -> list[dict[str, Any]]:
+    """Bot-owned content candidates for the main lane (fail-open → []).
+
+    Uses our own ``fetch_trending_news`` (real backend headlines with writer
+    + source URL) so the main lane posts even when rugbrain's
+    content-distribution lane is down, disabled, or silent. Each item is shaped
+    into a draft the lane gates accept (a ``ts`` so the recency gate passes,
+    an http(s) link in the text so the source gate passes), and carries a
+    stable ``story_ref`` so the global dedupe can never double-post it.
+
+    2026-08-30 unify: moved here from ``_posts_daily`` so it is a SINGLE
+    source of truth for the folded-in daily-quality fallback shared by BOTH
+    the channel_rag lane and the daily_quality job.
+    """
+    try:
+        from rugmunchbot.channels.content import fetch_trending_news
+
+        items = await fetch_trending_news(limit=limit)
+    except Exception as exc:  # fail-open by contract
+        logger.debug("main_gather:fallback_fetch_failed err=%s", str(exc)[:120])
+        return []
+    now = datetime.now(UTC).isoformat()
+    drafts: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for it in items:
+        url = str(it.get("url") or "").strip()
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        text = f"{it.get('title') or it.get('summary') or ''} {url}".strip()
+        if not text:
+            continue
+        drafts.append(
+            {
+                "story_ref": url,
+                "title": str(it.get("title") or url)[:120],
+                "text": text,
+                "source": str(it.get("source") or "rugmunch")[:80],
+                "ts": now,
+                "kind": "quality",
+                "url": url,
+            }
+        )
+    return drafts
+
+
+async def gather_main_drafts(limit: int = 8) -> list[dict[str, Any]]:
+    """Single unified main-content gather: RAG primary → scored fallback → gate.
+
+    2026-08-30 unify (task 1): the ``channel_rag`` lane and the ``daily_quality``
+    job now share ONE gather→generate→score→gate→post path instead of two
+    divergent lanes. This is that shared gather:
+
+    * **Primary** — channel_rag's drafts (rugbrain ``/content/drafts`` on the
+      ``main`` channel) via ``fetch_rag_drafts``.
+    * **Fallback** — when the RAG lane returns nothing (writer down / lagging /
+      disabled), we fold in the bot's own curated headlines.
+    * **Score** — the fallback is routed through ``rerank_quality`` so every
+      fallback draft *carries* a real ``importance`` (task 2: no unscored
+      bypass).
+    * **Gate** — each surviving candidate is checked by the unified gates
+      (quality / recency / source), which now apply the 0.30 importance floor
+      uniformly to scored drafts.
+
+    Returns drafts already scored + past every main gate. Fail-open → [] on
+    any error (silence beats slop, never a crash).
+    """
+    try:
+        primary = await fetch_rag_drafts("main", limit=max(1, limit))
+    except Exception as exc:  # fail-open by contract
+        logger.warning("main_gather:rag_fetch_failed channel=main err=%s", str(exc)[:120])
+        primary = []
+    if primary:
+        drafts = [dict(d) for d in primary]
+    else:
+        # 2026-08-30 unify (task 3): a silent RAG lane must be VISIBLE — WARN
+        # and fall back into the scored bot-sourced candidates, never no-op.
+        logger.warning("main_gather:rag_lane_empty channel=main falling_back_to_bot_sources")
+        drafts = await _fallback_main_drafts(limit)
+        if drafts:
+            drafts = await rerank_quality(drafts)
+    kept: list[dict[str, Any]] = []
+    for item in drafts:
+        gate = _quality_gate(item) or _recency_gate(item) or _source_gate(item)
+        if gate:
+            logger.info(
+                "main_gather:gated channel=main reason=%s ref=%s",
+                gate,
+                str(item.get("story_ref") or "")[:60],
+            )
+            continue
+        kept.append(item)
+    return kept
+
+
 async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """Route RAG-ranked drafts to their channels. Returns posted count.
 
@@ -355,8 +466,15 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # main FIRST: when rugbrain queues the same story for several channels,
     # the global dedupe (_remember strips one lane prefix) keeps only the
     # first lane to claim it — the flagship channel + feed mirror must win.
+    # 2026-08-30 unify: the main channel sources through the SINGLE
+    # gather→score→gate path (``gather_main_drafts``) shared with
+    # channel_daily_quality — so RAG-empty WARNs and folds in the scored
+    # fallback instead of silently posting zero.
     for channel in ("main", "news", "alerts", "scans"):
-        drafts = await fetch_rag_drafts(channel, limit=MAX_PER_CHANNEL_PER_TICK + 2)
+        if channel == "main":
+            drafts = await gather_main_drafts(limit=MAX_PER_CHANNEL_PER_TICK + 2)
+        else:
+            drafts = await fetch_rag_drafts(channel, limit=MAX_PER_CHANNEL_PER_TICK + 2)
         chat_id = _chat_id(channel)
         if not chat_id:
             logger.debug("rag_drafts_skipped channel=%s reason=no_chat_id", channel)
@@ -488,10 +606,12 @@ async def post_rag_fast_lane(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
 __all__ = [
     "_alert_mirror_failure",
+    "_fallback_main_drafts",
     "_note_mirror_success",
     "_quality_gate",
     "_recency_gate",
     "_source_gate",
+    "gather_main_drafts",
     "mirror_post_to_feed",
     "post_rag_drafts",
     "post_rag_fast_lane",
