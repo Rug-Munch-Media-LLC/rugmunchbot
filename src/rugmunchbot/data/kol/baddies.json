@@ -1,6 +1,6 @@
 {
-  "updated": "2026-08-30",
-  "count": 55,
+  "updated": "2026-08-30T07:50:23.157658+00:00",
+  "count": 65,
   "baddies": [
     {
       "handle": "Akon (Aliaune Thiam)",
@@ -612,6 +612,126 @@
       "risk_level": "watch",
       "group": "solana_kol_syndicate",
       "evidence_url": "https://x.com/waleswoosh"
+    },
+    {
+      "handle": "ban_val",
+      "name": "ban",
+      "wallet": "EqiFgyNw6kgrmYstWyrP8VjKhka7XEmKTZzHSmwpr1Zb",
+      "category": "shill_loss",
+      "severity": "medium",
+      "risk_level": "watch",
+      "group": "",
+      "evidence_url": "https://kolscan.io/account/EqiFgyNw6kgrmYstWyrP8VjKhka7XEmKTZzHSmwpr1Zb",
+      "reason": "Losing > winning trader on a public KOL leaderboard.",
+      "source_rule": "kolscan_loss_dominant"
+    },
+    {
+      "handle": "korean_bags",
+      "name": "KOREAN",
+      "wallet": "6KR7SorsUQtNH6CB6JpAnWCAKeTysa95iyXeWihdNeGT",
+      "category": "shill_loss",
+      "severity": "medium",
+      "risk_level": "watch",
+      "group": "",
+      "evidence_url": "https://kolscan.io/account/6KR7SorsUQtNH6CB6JpAnWCAKeTysa95iyXeWihdNeGT",
+      "reason": "Losing > winning trader on a public KOL leaderboard.",
+      "source_rule": "kolscan_loss_dominant"
+    },
+    {
+      "handle": "xkaaox",
+      "name": "Kaaox",
+      "wallet": "3j5c4aD1aznxQXJ3DWw1b7UD8kKuaqXVbpaVeWPR83TG",
+      "category": "shill_loss",
+      "severity": "medium",
+      "risk_level": "watch",
+      "group": "",
+      "evidence_url": "https://kolscan.io/account/3j5c4aD1aznxQXJ3DWw1b7UD8kKuaqXVbpaVeWPR83TG",
+      "reason": "Losing > winning trader on a public KOL leaderboard.",
+      "source_rule": "kolscan_loss_dominant"
+    },
+    {
+      "handle": "g_free9",
+      "name": "Gfree",
+      "wallet": "4yo9CUuTBbds9NFhZd4MzPiZZkUvveXdTnAH8qMsE8ku",
+      "category": "shill_loss",
+      "severity": "medium",
+      "risk_level": "watch",
+      "group": "",
+      "evidence_url": "https://kolscan.io/account/4yo9CUuTBbds9NFhZd4MzPiZZkUvveXdTnAH8qMsE8ku",
+      "reason": "Losing > winning trader on a public KOL leaderboard.",
+      "source_rule": "kolscan_loss_dominant"
+    },
+    {
+      "handle": "swonzon",
+      "name": "Swan",
+      "wallet": "CXVJewdc79TYR55sz4SGLSWUPz3r4LBJ9Mn93bZ8ZyAz",
+      "category": "shill_loss",
+      "severity": "medium",
+      "risk_level": "watch",
+      "group": "",
+      "evidence_url": "https://kolscan.io/account/CXVJewdc79TYR55sz4SGLSWUPz3r4LBJ9Mn93bZ8ZyAz",
+      "reason": "Losing > winning trader on a public KOL leaderboard.",
+      "source_rule": "kolscan_loss_dominant"
+    },
+    {
+      "handle": "xapex0",
+      "name": "Apex 屮",
+      "wallet": "HYSq1KBAvqWpEv1pCbV31muKM1za5A1WSHGdiVLUoNhb",
+      "category": "shill_loss",
+      "severity": "medium",
+      "risk_level": "watch",
+      "group": "",
+      "evidence_url": "https://kolscan.io/account/HYSq1KBAvqWpEv1pCbV31muKM1za5A1WSHGdiVLUoNhb",
+      "reason": "Losing > winning trader on a public KOL leaderboard.",
+      "source_rule": "kolscan_loss_dominant"
+    },
+    {
+      "handle": "quantjb",
+      "name": "JB",
+      "wallet": "BY58Z7N5Adarkx5ed78AzKvR7Kxrq795aa1boZsYyVBT",
+      "category": "shill_loss",
+      "severity": "medium",
+      "risk_level": "watch",
+      "group": "",
+      "evidence_url": "https://kolscan.io/account/BY58Z7N5Adarkx5ed78AzKvR7Kxrq795aa1boZsYyVBT",
+      "reason": "Losing > winning trader on a public KOL leaderboard.",
+      "source_rule": "kolscan_loss_dominant"
+    },
+    {
+      "handle": "kriptohako99",
+      "name": "Hako",
+      "wallet": "2JptG7VJTuohCNrEE2iVT43UtjTNqRTVMsgNs8xeotbC",
+      "category": "shill_loss",
+      "severity": "medium",
+      "risk_level": "watch",
+      "group": "",
+      "evidence_url": "https://kolscan.io/account/2JptG7VJTuohCNrEE2iVT43UtjTNqRTVMsgNs8xeotbC",
+      "reason": "Losing > winning trader on a public KOL leaderboard.",
+      "source_rule": "kolscan_loss_dominant"
+    },
+    {
+      "handle": "0xwarlord",
+      "name": "alex",
+      "wallet": "H1TLERBQyQzSd5gbvbWwP97GjeL9txzWoN5BK4UG7xYm",
+      "category": "shill_loss",
+      "severity": "medium",
+      "risk_level": "watch",
+      "group": "",
+      "evidence_url": "https://kolscan.io/account/H1TLERBQyQzSd5gbvbWwP97GjeL9txzWoN5BK4UG7xYm",
+      "reason": "Losing > winning trader on a public KOL leaderboard.",
+      "source_rule": "kolscan_loss_dominant"
+    },
+    {
+      "handle": "bigjapbitch",
+      "name": "japbitch",
+      "wallet": "DemfvB4iwd3NmVquvWqWbB92yVZWFFqybqBeJGdyEeM6",
+      "category": "shill_loss",
+      "severity": "medium",
+      "risk_level": "watch",
+      "group": "",
+      "evidence_url": "https://kolscan.io/account/DemfvB4iwd3NmVquvWqWbB92yVZWFFqybqBeJGdyEeM6",
+      "reason": "Losing > winning trader on a public KOL leaderboard.",
+      "source_rule": "kolscan_loss_dominant"
     }
   ]
 }

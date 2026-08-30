@@ -1,6 +1,6 @@
 {
   "updated": "2026-08-30",
-  "count": 484,
+  "count": 504,
   "records": [
     {
       "handle": "Schoen_xyz",
@@ -5325,6 +5325,226 @@
       "profit": null,
       "wins": null,
       "losses": null
+    },
+    {
+      "handle": "ban_val",
+      "name": "ban",
+      "address": "EqiFgyNw6kgrmYstWyrP8VjKhka7XEmKTZzHSmwpr1Zb",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/Ban_Val",
+      "profit": 81.8772332160474,
+      "wins": 43,
+      "losses": 104
+    },
+    {
+      "handle": "paincrypt0",
+      "name": "Pain",
+      "address": "J6TDXvarvpBdPXTaTU8eJbtso1PUCYKGkVtMKUUY8iEa",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/PainCrypt0",
+      "profit": 41.1135078941368,
+      "wins": 8,
+      "losses": 3
+    },
+    {
+      "handle": "korean_bags",
+      "name": "KOREAN",
+      "address": "6KR7SorsUQtNH6CB6JpAnWCAKeTysa95iyXeWihdNeGT",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/Korean_bags",
+      "profit": 35.4410844983821,
+      "wins": 55,
+      "losses": 96
+    },
+    {
+      "handle": "xkaaox",
+      "name": "Kaaox",
+      "address": "3j5c4aD1aznxQXJ3DWw1b7UD8kKuaqXVbpaVeWPR83TG",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/xKaaox",
+      "profit": 33.9680305235008,
+      "wins": 6,
+      "losses": 20
+    },
+    {
+      "handle": "g_free9",
+      "name": "Gfree",
+      "address": "4yo9CUuTBbds9NFhZd4MzPiZZkUvveXdTnAH8qMsE8ku",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/G_free9",
+      "profit": 19.5462544027145,
+      "wins": 16,
+      "losses": 23
+    },
+    {
+      "handle": "swonzon",
+      "name": "Swan",
+      "address": "CXVJewdc79TYR55sz4SGLSWUPz3r4LBJ9Mn93bZ8ZyAz",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/swonzon",
+      "profit": 16.7981881279734,
+      "wins": 12,
+      "losses": 26
+    },
+    {
+      "handle": "xapex0",
+      "name": "Apex 屮",
+      "address": "HYSq1KBAvqWpEv1pCbV31muKM1za5A1WSHGdiVLUoNhb",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/xApex0",
+      "profit": 131.743141672949,
+      "wins": 9,
+      "losses": 17
+    },
+    {
+      "handle": "quantjb",
+      "name": "JB",
+      "address": "BY58Z7N5Adarkx5ed78AzKvR7Kxrq795aa1boZsYyVBT",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/quantJB",
+      "profit": 51.2577656140652,
+      "wins": 18,
+      "losses": 28
+    },
+    {
+      "handle": "kriptohako99",
+      "name": "Hako",
+      "address": "2JptG7VJTuohCNrEE2iVT43UtjTNqRTVMsgNs8xeotbC",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/KriptoHako99",
+      "profit": 47.5423785023763,
+      "wins": 32,
+      "losses": 52
+    },
+    {
+      "handle": "0xwarlord",
+      "name": "alex",
+      "address": "H1TLERBQyQzSd5gbvbWwP97GjeL9txzWoN5BK4UG7xYm",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/0xWarlord",
+      "profit": 45.4609522203438,
+      "wins": 22,
+      "losses": 33
+    },
+    {
+      "handle": "xwugi_wara",
+      "name": "Wugi",
+      "address": "862TYSvRYoiHAK3F3WwTRYAfuGiQaGdxedN9AGvRGWo2",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/xWugi_wara",
+      "profit": 36.344446026,
+      "wins": 3,
+      "losses": 0
+    },
+    {
+      "handle": "bigjapbitch",
+      "name": "japbitch",
+      "address": "DemfvB4iwd3NmVquvWqWbB92yVZWFFqybqBeJGdyEeM6",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/bigjapbitch",
+      "profit": 384.697794937886,
+      "wins": 113,
+      "losses": 245
+    },
+    {
+      "handle": "log100x",
+      "name": "Log",
+      "address": "2pUUZYtokRgDV2YzL6M5pjb1jyoHE367yU1sdQ7ac3ea",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/Log100x",
+      "profit": 0.0,
+      "wins": 0,
+      "losses": 0
+    },
+    {
+      "handle": "risk100x",
+      "name": "Risk",
+      "address": "BHREKFkPQgAtDs8Vb1UfLkUpjG6ScidTjHaCWFuG2AtX",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/risk100x",
+      "profit": 0.0,
+      "wins": 0,
+      "losses": 0
+    },
+    {
+      "handle": "appiesol_",
+      "name": "appie",
+      "address": "AR3QzJbzXkZY7YJrVNmFdD3GBCDspSM99MMQ3visijo5",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/appiesol_",
+      "profit": 0.0,
+      "wins": 0,
+      "losses": 0
+    },
+    {
+      "handle": "freakyfawi",
+      "name": "fawi",
+      "address": "6NGN6KyYdzptusgeg3fWSC1CKMDz3b9nSGDrxYAjzUWa",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/freakyfawi",
+      "profit": 0.0,
+      "wins": 0,
+      "losses": 0
+    },
+    {
+      "handle": "lyftical",
+      "name": "lyftical",
+      "address": "2hN82SXLUffhG3vxpezRmae1sGrCBMqHHBDxjmjpagqk",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/lyftical",
+      "profit": 0.0,
+      "wins": 0,
+      "losses": 0
+    },
+    {
+      "handle": "yodefv",
+      "name": "yode",
+      "address": "J1XAE4onKYG1kTghgaytnyFgR3otQs1xEnJRRWM3djSQ",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/yodefv",
+      "profit": 0.0,
+      "wins": 0,
+      "losses": 0
+    },
+    {
+      "handle": "wabsiee",
+      "name": "Wabsie",
+      "address": "3HRospuJFML9mDRYGvtr7Bw2Gewzd8bPPZzAy6Yqcm1T",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/wabsiee",
+      "profit": 0.0,
+      "wins": 0,
+      "losses": 0
+    },
+    {
+      "handle": "quarsays",
+      "name": "Alpha wallet 4",
+      "address": "5fM9cY5GMo8QtTmxuvNx7bWFUoNhdQ1H5w8bMdXGVtaH",
+      "chain": "solana",
+      "source": "kolscan_leaderboard",
+      "twitter": "https://x.com/quarsays",
+      "profit": 0.0,
+      "wins": 0,
+      "losses": 0
     }
   ]
 }
