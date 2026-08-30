@@ -32,7 +32,7 @@ from rugmunchbot._vendor.logging_shim import get_logger
 
 logger = get_logger("alert_pipeline")
 
-REDIS_HOST = os.getenv("REDIS_HOST", "rmi-redis")
+REDIS_HOST = os.getenv("REDIS_HOST", "rugmunchbot-redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_PW = os.getenv("REDIS_PASSWORD", "")
 

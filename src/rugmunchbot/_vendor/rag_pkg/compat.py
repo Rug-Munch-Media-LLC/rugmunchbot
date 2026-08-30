@@ -32,7 +32,7 @@ async def _get_redis() -> Any:
     global _redis_pool
     if _redis_pool is None:
         _redis_pool = aioredis.from_url(
-            os.getenv("REDIS_URL", "redis://rmi-redis:6379/0"),
+            os.getenv("REDIS_URL", "redis://rugmunchbot-redis:6379/0"),
             decode_responses=True,
         )
     return _redis_pool

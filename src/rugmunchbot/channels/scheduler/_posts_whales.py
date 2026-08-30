@@ -283,7 +283,7 @@ async def build_whale_post() -> str | None:
     rclient = None
     try:
         rclient = aioredis.Redis(
-            host=os.getenv("REDIS_HOST", "rmi-redis"),
+            host=os.getenv("REDIS_HOST", "rugmunchbot-redis"),
             port=int(os.getenv("REDIS_PORT", "6379")),
             password=os.getenv("REDIS_PASSWORD", ""),
             decode_responses=True,

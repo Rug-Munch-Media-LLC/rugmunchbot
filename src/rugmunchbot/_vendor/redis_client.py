@@ -57,7 +57,7 @@ def _get_redis_url() -> str:
             if pw:
                 url = url.replace("redis://", f"redis://:{pw}@")
                 # Normalize hostname for host-based processes
-                url = url.replace("@rmi-redis:", "@localhost:")
+                url = url.replace("@rugmunchbot-redis:", "@localhost:")
         except Exception:  # noqa: S110 — gopass may not be installed
             pass
     return url

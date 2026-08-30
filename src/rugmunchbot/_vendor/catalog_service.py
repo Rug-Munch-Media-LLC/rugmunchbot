@@ -9,7 +9,7 @@ write catalog data. Domain facades call this; they never touch stores directly.
 Architecture:
   - Lazy store clients (init on first use, retry on failure)
   - Graceful degradation: unreachable stores return None/empty, not crash
-  - Redis cache layer (always available since rmi-redis is up)
+  - Redis cache layer (always available since rugmunchbot-redis is up)
   - Cross-store ID conventions from app.catalog.models
 
 Recipe coverage:
@@ -48,7 +48,7 @@ log = get_logger(__name__)
 # Override via env vars in docker-compose.yml for production.
 DEFAULT_CONFIG: dict[str, Any] = {
     "redis": {
-        "host": os.getenv("REDIS_HOST", "rmi-redis"),
+        "host": os.getenv("REDIS_HOST", "rugmunchbot-redis"),
         "port": int(os.getenv("REDIS_PORT", "6379")),
         "password": os.getenv("REDIS_PASSWORD", ""),
         "db": int(os.getenv("REDIS_DB", "0")),

@@ -165,7 +165,7 @@ async def _get_redis() -> Any | None:
         if redis_url and "://" in redis_url:
             url = redis_url
         else:
-            r_host = os.getenv("REDIS_HOST", "rmi-redis")
+            r_host = os.getenv("REDIS_HOST", "rugmunchbot-redis")
             r_port = os.getenv("REDIS_PORT", "6379")
             r_db = os.getenv("REDIS_DB", "0")
             r_pass = os.getenv("REDIS_PASSWORD", "")

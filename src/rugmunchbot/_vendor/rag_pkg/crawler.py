@@ -352,7 +352,7 @@ def _hostname_resolves(hostname: str) -> bool:
 def _ensure_host_connectivity() -> None:
     """Pre-flight host-side connectivity for cron runs (executed OUTSIDE Docker).
 
-    Inside the rmi-backend container ``llama.cpp qwen3`` and ``rmi-redis``
+    Inside the rmi-backend container ``llama.cpp qwen3`` and ``rugmunchbot-redis``
     resolve and Redis needs no password. When this module runs on the host
     (``crawl-crypto-news.sh`` cron) those Docker-internal names fail DNS and
     Redis requires auth, which previously made every sweep item fail

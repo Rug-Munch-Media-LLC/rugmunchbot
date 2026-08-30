@@ -36,7 +36,7 @@ from rugmunchbot._vendor.crypto_embeddings.providers import (  # noqa: E402 — 
     Qwen3Embedder,
 )
 
-REDIS_HOST = os.getenv("REDIS_HOST", "rmi-redis")
+REDIS_HOST = os.getenv("REDIS_HOST", "rugmunchbot-redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_PW = os.getenv("REDIS_PASSWORD", "")
 OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY", "")

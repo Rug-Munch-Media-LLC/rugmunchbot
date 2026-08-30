@@ -244,7 +244,7 @@ async def _get_redis() -> Any | None:
     try:
         import redis.asyncio as aioredis
 
-        host = os.getenv("REDIS_HOST", "rmi-redis")
+        host = os.getenv("REDIS_HOST", "rugmunchbot-redis")
         port = int(os.getenv("REDIS_PORT", "6379"))
         password = os.getenv("REDIS_PASSWORD") or None
         _redis_client = aioredis.Redis(
