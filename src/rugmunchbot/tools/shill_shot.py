@@ -21,7 +21,6 @@ Design:
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import os
 from typing import Any
@@ -29,11 +28,15 @@ from typing import Any
 import httpx
 
 DEEPINFRA_OPENAI = os.getenv("DEEPINFRA_BASE", "https://api.deepinfra.com/v1/openai")
-# 2026-08-29: Qwen3-VL-4B-Instruct is the cheapest vision model on DeepInfra
-# that still nails shill OCR (tickers/handles/addresses) — same extraction
-# quality as the 30B/235B VLs at a fraction of the price. Bump via
-# DEEPINFRA_VISION_MODEL if a heavier model is ever needed for dense tables.
-DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-4B-Instruct")
+# 2026-09-01: default vision model is the operator-specified Qwen3-VL-30B-A3B
+# (DeepInfra) — MoE, ~3B active params, nails shill OCR (tickers/handles/
+# addresses) while staying cheap. Tune via DEEPINFRA_VISION_MODEL; to route
+# the OpenRouter GLM-5V-Turbo lane (``z-ai/glm-5v-turbo``) instead, set
+# DEEPINFRA_BASE to the OpenRouter OpenAI-compatible endpoint and
+# DEEPINFRA_API_KEY to the OpenRouter key (vision_ocr posts to
+# ``{DEEPINFRA_BASE}/chat/completions``). [REVIEW] OpenRouter GLM fallback is
+# not yet auto-wired — the DeepInfra lane is the canonical cheap-vision path.
+DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-30B-A3B-Instruct")
 VISION_TIMEOUT = float(os.getenv("DEEPINFRA_VISION_TIMEOUT", "60"))
 #: Canonical key file for the DeepInfra key (never in git). Defaults to the
 #: fleet secret-store location; overridable so tests/containers can point
@@ -73,7 +76,7 @@ async def capture_screenshot(url: str, out_path: str, *, timeout_ms: int = 20000
             await page.screenshot(path=out_path, full_page=False)
             await browser.close()
         return os.path.isfile(out_path) and os.path.getsize(out_path) > 0
-    except Exception:  # noqa: BLE001 — screenshot is best-effort evidence
+    except Exception:
         return False
 
 
@@ -122,7 +125,7 @@ async def vision_ocr(image_path: str, prompt: str | None = None) -> str:
         if resp.status_code != 200:
             return ""
         return resp.json()["choices"][0]["message"].get("content", "") or ""
-    except Exception:  # noqa: BLE001
+    except Exception:
         return ""
 
 

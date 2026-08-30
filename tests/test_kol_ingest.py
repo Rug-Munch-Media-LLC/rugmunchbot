@@ -2,8 +2,8 @@
 
 Uses a temp SQLite DB (monkeypatched via the db package ``DB_PATH``) so no
 production data is touched. Verifies dedup, persistence to
-``kol_identities``/``kol_aliases``, wallet attachment, baddies flagging and
-the Qdrant embedding fail-open path (embedder + qdrant are monkeypatched).
+``kol_identities``/``kol_aliases``, wallet attachment, Wall of Shame flagging
+and the Qdrant embedding fail-open path (embedder + qdrant are monkeypatched).
 """
 
 from __future__ import annotations
@@ -94,7 +94,7 @@ def test_ingest_treats_new_wallet_as_new(temp_db):
     assert summary["wallets_attached"] == 1
 
 
-def test_flag_baddies_appends_evidence_row(temp_db, tmp_path, monkeypatch):
+def test_flag_wall_of_shame_appends_evidence_row(temp_db, tmp_path, monkeypatch):
     rec = _rec(
         handle="loser",
         addr="33333333333333333333333333333333333333333333",
@@ -102,17 +102,16 @@ def test_flag_baddies_appends_evidence_row(temp_db, tmp_path, monkeypatch):
         losses=20,
         evidence_url="https://kolscan.io/account/x",
     )
-    baddies_path = kol_ingest._DATA_DIR / "baddies.json"
-    # Point baddies at a temp dir so we don't mutate the real data.
-    data_dir = tmp_path / "baddies"
+    # Point Wall of Shame at a temp dir so we don't mutate the real data.
+    data_dir = tmp_path / "wall_of_shame"
     data_dir.mkdir()
     monkeypatch.setattr(kol_ingest, "_DATA_DIR", data_dir)
-    count = kol_ingest.flag_baddies([rec])
+    count = kol_ingest.flag_wall_of_shame([rec])
     assert count == 1
-    baddies_path = data_dir / "baddies.json"
-    data = json.loads(baddies_path.read_text())
+    wall_of_shame_path = data_dir / "wall_of_shame.json"
+    data = json.loads(wall_of_shame_path.read_text())
     assert data["count"] == 1
-    assert data["baddies"][0]["handle"] == "loser"
+    assert data["wall_of_shame"][0]["handle"] == "loser"
 
 
 def test_upsert_kol_embedding_fail_open(monkeypatch):

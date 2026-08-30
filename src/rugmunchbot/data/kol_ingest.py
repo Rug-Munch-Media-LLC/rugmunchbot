@@ -14,8 +14,8 @@ Additive consumer for the pryscraper KOL leaderboard spiders
    write path.
 3. **Embeds** each new identity (handle + name + wallet + P&L summary text)
    into Qdrant ``kol_identities_v1`` (2560-dim cosine) for semantic lookup.
-4. **Flags** serial-deployer / shill-group wallets into the baddies list
-   (``data/kol/baddies.json``, name-and-shame with an evidence URL).
+4. **Flags** serial-deployer / shill-group wallets into the Wall of Shame
+   list (``data/kol/wall_of_shame.json``, name-and-shame with an evidence URL).
 
 Fail-open: every stage degrades to ``False``/no-op rather than raising, so a
 dead embedder or Qdrant never breaks the DB write.
@@ -233,11 +233,11 @@ def _is_new(rec: dict[str, Any], known: dict[str, set[str]], seen: set[tuple[str
     return bool(handle) and handle not in known["handles"]
 
 
-# ── Baddies flagging ────────────────────────────────────────────────────
+# ── Wall of Shame flagging ───────────────────────────────────────────────
 #: Heuristics for a serial-deployer / shill-group flag on a scraped KOL.
-#: A record is promoted to the baddies list when it matches any rule AND
-#: carries an evidence URL (never a fabricated bankroll).
-_BADDY_RULES: list[dict[str, Any]] = [
+#: A record is promoted to the Wall of Shame list when it matches any rule
+#: AND carries an evidence URL (never a fabricated bankroll).
+_WALL_OF_SHAME_RULES: list[dict[str, Any]] = [
     {
         "name": "kolscan_loss_dominant",
         "when": lambda r: (
@@ -260,9 +260,9 @@ _BADDY_RULES: list[dict[str, Any]] = [
 ]
 
 
-def _flag_baddies(rec: dict[str, Any]) -> dict[str, str] | None:
-    """Return a baddies row when the record matches a named rule, else None."""
-    for rule in _BADDY_RULES:
+def _flag_wall_of_shame(rec: dict[str, Any]) -> dict[str, str] | None:
+    """Return a Wall of Shame row when the record matches a named rule, else None."""
+    for rule in _WALL_OF_SHAME_RULES:
         try:
             if rule["when"](rec):
                 return {
@@ -278,28 +278,28 @@ def _flag_baddies(rec: dict[str, Any]) -> dict[str, str] | None:
                     "source_rule": rule["name"],
                 }
         except Exception as e:  # a rule must never sink the batch
-            logger.debug("kol_baddy_rule_failed rule=%s err=%s", rule["name"], e)
+            logger.debug("kol_wall_of_shame_rule_failed rule=%s err=%s", rule["name"], e)
     return None
 
 
-def flag_baddies(records: list[dict[str, Any]], evidence_url: str = "") -> int:
-    """Append rule-matched baddies to ``data/kol/baddies.json``.
+def flag_wall_of_shame(records: list[dict[str, Any]], evidence_url: str = "") -> int:
+    """Append rule-matched names to ``data/kol/wall_of_shame.json``.
 
     Idempotent per (handle, wallet): a duplicate row is skipped. Returns the
-    number of NEW baddies appended. `evidence_url` is used when a record has
-    no per-record evidence link. Never raises.
+    number of NEW Wall of Shame entries appended. `evidence_url` is used when
+    a record has no per-record evidence link. Never raises.
     """
-    path = _DATA_DIR / "baddies.json"
+    path = _DATA_DIR / "wall_of_shame.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        baddies = data.get("baddies", []) if isinstance(data, dict) else []
+        wall_of_shame = data.get("wall_of_shame", []) if isinstance(data, dict) else []
         existing = {
             (_norm_addr(b.get("wallet") or ""), _norm_handle(b.get("handle") or ""))
-            for b in baddies
+            for b in wall_of_shame
         }
         added = 0
         for rec in records:
-            row = _flag_baddies(rec)
+            row = _flag_wall_of_shame(rec)
             if not row:
                 continue
             if not row["wallet"] and not row["handle"]:
@@ -309,14 +309,18 @@ def flag_baddies(records: list[dict[str, Any]], evidence_url: str = "") -> int:
             key = (_norm_addr(row["wallet"]), _norm_handle(row["handle"]))
             if key in existing:
                 continue
-            baddies.append(row)
+            wall_of_shame.append(row)
             existing.add(key)
             added += 1
-        data = {"updated": _now_iso(), "count": len(baddies), "baddies": baddies}
+        data = {
+            "updated": _now_iso(),
+            "count": len(wall_of_shame),
+            "wall_of_shame": wall_of_shame,
+        }
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         return added
     except OSError as e:
-        logger.warning("kol_baddies_write_failed err=%s", e)
+        logger.warning("kol_wall_of_shame_write_failed err=%s", e)
         return 0
 
 
@@ -331,8 +335,8 @@ async def ingest_scraped(records: list[dict[str, Any]], *, embed: bool = True) -
     """Persist NEW scraped KOL records into the bot DB + Qdrant.
 
     Returns a summary dict: new identities, new aliases, wallets attached,
-    qdrant points upserted, baddies flagged, dedup counts. Fail-open at every
-    stage.
+    qdrant points upserted, Wall of Shame entries flagged, dedup counts.
+    Fail-open at every stage.
     """
     from rugmunchbot.db import (
         attach_kol_wallet,
@@ -415,7 +419,7 @@ async def ingest_scraped(records: list[dict[str, Any]], *, embed: bool = True) -
             if await upsert_kol_embedding(doc_id, vec, payload):
                 qdrant += 1
 
-    baddies = flag_baddies(new_records)
+    wall_of_shame = flag_wall_of_shame(new_records)
 
     return {
         "scanned": len(records),
@@ -426,7 +430,7 @@ async def ingest_scraped(records: list[dict[str, Any]], *, embed: bool = True) -
         "aliases_registered": aliases,
         "wallets_attached": wallets,
         "qdrant_points_upserted": qdrant,
-        "baddies_flagged": baddies,
+        "wall_of_shame_flagged": wall_of_shame,
         "collection": KOL_QDRANT_COLLECTION,
         "embed_dim": KOL_EMBED_DIM,
     }
@@ -435,7 +439,7 @@ async def ingest_scraped(records: list[dict[str, Any]], *, embed: bool = True) -
 __all__ = [
     "KOL_QDRANT_COLLECTION",
     "existing_registry",
-    "flag_baddies",
+    "flag_wall_of_shame",
     "ingest_scraped",
     "upsert_kol_embedding",
 ]

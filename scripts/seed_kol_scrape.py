@@ -9,7 +9,7 @@ and runs :func:`rugmunchbot.data.kol_ingest.ingest_scraped` to:
 * persist NEW identities to ``kol_identities`` + ``kol_aliases`` and attach
   their wallets via the existing DB accessors,
 * embed each new identity into Qdrant ``kol_identities_v1`` (2560-dim),
-* flag serial-deployer / shill-group candidates into ``baddies.json``.
+* flag serial-deployer / shill-group candidates into ``wall_of_shame.json``.
 
 Additive and idempotent — re-running never un-verifies an identity and never
 duplicates a wallet / alias / baddy.

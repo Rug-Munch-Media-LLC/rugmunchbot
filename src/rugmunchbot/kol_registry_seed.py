@@ -87,7 +87,7 @@ _SOLANA_SYNDICATE_HANDLES = frozenset(
     }
 )
 
-#: Scammer syndicates — group attribution for the scoreboard's Hall of Shame.
+#: Scammer syndicates — group attribution for the scoreboard's Wall of Shame.
 #: Every membership below is grounded in the vendored evidence
 #: (``known_scammers.json`` / ``verified_kol_wallets.json``), NOT fabricated:
 #: the "Solana KOL syndicate" members are named in the file's community
@@ -504,16 +504,16 @@ def build_rug_history() -> list[dict[str, str]]:
     return _rug_history_rows()
 
 
-def build_baddies() -> list[dict[str, str]]:
-    """Evidence-backed baddies (name-and-shame) from ``baddies.json``.
+def build_wall_of_shame() -> list[dict[str, str]]:
+    """Evidence-backed Wall of Shame (name-and-shame) from ``wall_of_shame.json``.
 
     Additive source that does NOT alter ``build_seed_rows`` counts. Each row
     carries the handle, name, category, severity, risk_level, syndicate group
-    and the evidence URL so the baddies list renders as handle + wallet +
+    and the evidence URL so the Wall of Shame list renders as handle + wallet +
     evidence. ``wallet`` is the highest-confidence traced wallet when known.
     """
-    data = _load_json("baddies.json")
-    rows = data.get("baddies") if isinstance(data, dict) else None
+    data = _load_json("wall_of_shame.json")
+    rows = data.get("wall_of_shame") if isinstance(data, dict) else None
     out: list[dict[str, str]] = []
     for b in rows or []:
         if not isinstance(b, dict):
@@ -583,11 +583,11 @@ __all__ = [
     "KOL_SEED",
     "SCAMMER_GROUPS",
     "SCAMMER_GROUP_MAP",
-    "build_baddies",
     "build_rug_history",
     "build_scammer_group_map",
     "build_scraped",
     "build_seed_rows",
+    "build_wall_of_shame",
     "build_wallet_kb",
     "group_label",
     "seed_stats",

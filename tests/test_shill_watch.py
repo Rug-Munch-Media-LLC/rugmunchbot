@@ -172,6 +172,9 @@ async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
     monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
     # Screenshot capture is disabled in the runner unit test (no X URLs anyway).
     monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+    # Scanner-evidence pass must be off in unit tests (fake addresses would
+    # otherwise trigger real scan calls against the network).
+    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
 
     addr = "0x" + "e" * 40
     articles = [
@@ -226,6 +229,9 @@ async def test_run_releases_mark_on_failed_send(monkeypatch):
 
     monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
     monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+    # Scanner-evidence pass must be off in unit tests (fake addresses would
+    # otherwise trigger real scan calls against the network).
+    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
 
     addr = "0x" + "f" * 40
     articles = [
@@ -321,6 +327,9 @@ async def test_run_holds_below_importance_floor(monkeypatch):
 
     monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
     monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+    # Scanner-evidence pass must be off in unit tests (fake addresses would
+    # otherwise trigger real scan calls against the network).
+    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
 
     addr = "0x" + "d" * 40
     articles = [
@@ -366,6 +375,9 @@ async def test_run_escalates_main_at_gate(monkeypatch):
 
     monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
     monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+    # Scanner-evidence pass must be off in unit tests (fake addresses would
+    # otherwise trigger real scan calls against the network).
+    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
 
     addr = "0x" + "c" * 40
     articles = [
@@ -401,3 +413,134 @@ async def test_run_escalates_main_at_gate(monkeypatch):
     assert posted == 1
     assert len(sent) == 2  # alerts + main
     assert {chat for chat, _ in sent} == {"-100alerts", "-100main"}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 2026-09-01 — shill→scanner evidence ("why this is likely a scam")
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_looks_like_address():
+    """Only real chain addresses resolve to a scanner run; tickers do not."""
+    from rugmunchbot.channels.shill_watch import _looks_like_address
+
+    assert _looks_like_address("0x" + "a" * 40)
+    assert _looks_like_address("11111111111111111111111111111111111111111111")  # solana base58
+    assert not _looks_like_address("$MEME")
+    assert not _looks_like_address("PEPE")
+    assert not _looks_like_address("0x1234")  # too short
+    assert not _looks_like_address("")
+
+
+def test_evidence_bullets_v2_payload():
+    """v2 payload shape → defensible on-chain bullets (no fabrication)."""
+    from rugmunchbot.channels.shill_watch import _evidence_bullets
+
+    data = {
+        "risk_level": "HIGH",
+        "safety_score": 22.0,
+        "flags": ["Bundled launch", "Owner renounced late"],
+        "evidence": {
+            "liquidity": {"locked_pct": 8.0},
+            "holders": {"top_10_pct": 72.0},
+            "funding_analysis": {"fresh_wallet_pct": 65.0, "mixer_funded_pct": 12.0},
+            "deployer": {"risk_label": "REPEAT_RUG", "total_deployments": 12, "rug_count": 9},
+        },
+    }
+    bullets = _evidence_bullets(data)
+    assert any("HIGH risk" in b for b in bullets)
+    assert any("LP only 8% locked" in b for b in bullets)
+    assert any("Top 10 holders control 72%" in b for b in bullets)
+    assert any("65% of supply held by fresh wallets" in b for b in bullets)
+    assert any("Deployer history: REPEAT_RUG" in b for b in bullets)
+
+
+def test_evidence_bullets_legacy_payload():
+    """Legacy scan shape (honeypot/taxes/bundle/lp) → bullets too."""
+    from rugmunchbot.channels.shill_watch import _evidence_bullets
+
+    data = {
+        "honeypot": True,
+        "sell_tax": 30.0,
+        "buy_tax": 5.0,
+        "bundle_detected": True,
+        "lp_locked": False,
+        "owner_renounced": False,
+        "mintable": True,
+        "fresh_wallet_pct": 55.0,
+    }
+    bullets = _evidence_bullets(data)
+    assert any("Honeypot detected" in b for b in bullets)
+    assert any("Bundled launch detected" in b for b in bullets)
+    assert any("Sell tax 30%" in b for b in bullets)
+    assert any("LP not locked" in b for b in bullets)
+    assert any("mintable" in b for b in bullets)
+    assert any("55% of supply in fresh wallets" in b for b in bullets)
+
+
+def test_evidence_bullets_empty_on_no_finding():
+    """No red-line finding present → no bullets (never fabricate)."""
+    from rugmunchbot.channels.shill_watch import _evidence_bullets
+
+    assert _evidence_bullets({"risk_level": "LOW", "safety_score": 82, "evidence": {}}) == []
+
+
+@pytest.mark.asyncio
+async def test_build_scanner_evidence_off_for_ticker(monkeypatch):
+    """Ticker-only shills never resolve a scanner run ({})."""
+    from rugmunchbot.channels import shill_watch
+
+    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", True)
+    assert await shill_watch.build_scanner_evidence("$MEME", "ticker") == {}
+
+
+@pytest.mark.asyncio
+async def test_build_scanner_evidence_run_and_attach(monkeypatch):
+    """An address-token campaign gets a scanner evidence dict attached."""
+    import rugmunchbot.scanner
+    from rugmunchbot.channels import shill_watch
+
+    async def _fake_scan_v2(address, chain):
+        return {
+            "risk_level": "CRITICAL",
+            "safety_score": 12.0,
+            "flags": ["Bundled launch"],
+            "evidence": {"deployer": {"risk_label": "PROLIFIC", "total_deployments": 20}},
+        }
+
+    async def _fake_scan_legacy(address, chain):
+        return {}
+
+    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", True)
+    # build_scanner_evidence does a lazy `from rugmunchbot.scanner import ...`
+    # at call time — patch the underlying module, not the shill_watch namespace.
+    monkeypatch.setattr(rugmunchbot.scanner, "scan_token_v2", _fake_scan_v2)
+    monkeypatch.setattr(rugmunchbot.scanner, "scan_token", _fake_scan_legacy)
+
+    ev = await shill_watch.build_scanner_evidence("0x" + "1" * 40, "ethereum")
+    assert ev["scanned"] is True
+    assert ev["risk_level"] == "CRITICAL"
+    assert any("CRITICAL risk" in b for b in ev["bullets"])
+    assert "Deployer history: PROLIFIC" in ev["note"]
+
+
+def test_format_alert_renders_scanner_evidence():
+    """The alert card surfaces on-chain evidence bullet(s) when present."""
+    from rugmunchbot.channels.shill_watch import ShillCampaign, format_shill_alert
+
+    campaign = ShillCampaign(
+        token="0x" + "9" * 40,
+        chain="ethereum",
+        accounts=["a_call", "b_alpha"],
+        mentions=[{"channel": "a_call", "title": "MOON 100x", "url": "https://x.com/a/status/123"}],
+        scanner_evidence={
+            "scanned": True,
+            "risk_level": "HIGH",
+            "bullets": ["Scanner verdict: HIGH risk", "Sell tax 30% — exit is taxed"],
+            "note": "Scanner verdict: HIGH risk. Sell tax 30% — exit is taxed.",
+        },
+    )
+    alert = format_shill_alert(campaign)
+    assert "On-chain evidence (scanned):" in alert
+    assert "Scanner verdict: HIGH risk" in alert
+    assert "Sell tax 30%" in alert

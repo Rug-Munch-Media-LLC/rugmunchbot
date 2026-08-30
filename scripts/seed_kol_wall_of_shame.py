@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Seed the KOL baddies list + scraped KOL wallets into the bot DB.
+"""Seed the KOL Wall of Shame list + scraped KOL wallets into the bot DB.
 
 Additive to the canonical seed (scripts/seed_kol_registry.py): loads
-``data/kol/baddies.json`` (name-and-shame: handle + wallet + evidence) and
-``data/kol/scraped_kol.json`` (new kolscan/gmgn/mwayers KOL wallets) and
+``data/kol/wall_of_shame.json`` (name-and-shame: handle + wallet + evidence)
+and ``data/kol/scraped_kol.json`` (new kolscan/gmgn/mwayers KOL wallets) and
 persists them via the existing identity / wallet-KB accessors. Never
 un-verifies an identity and never fabricates a wallet.
 
 Idempotent. Usage:
-    .venv/bin/python scripts/seed_kol_baddies.py
+    .venv/bin/python scripts/seed_kol_wall_of_shame.py
 """
 
 from __future__ import annotations
@@ -26,19 +26,19 @@ def main() -> int:
         register_alias,
         upsert_kol_identity,
     )
-    from rugmunchbot.kol_registry_seed import build_baddies, build_scraped
+    from rugmunchbot.kol_registry_seed import build_scraped, build_wall_of_shame
 
-    baddies = build_baddies()
+    wall_of_shame = build_wall_of_shame()
     scraped = build_scraped()
-    baddies_seeded = 0
+    wall_of_shame_seeded = 0
     wallets_attached = 0
 
-    for b in baddies:
+    for b in wall_of_shame:
         handle = (b.get("handle") or "").strip()
         if not handle:
             continue
         existing = get_kol_identity(handle)
-        notes = f"BADDY: {b.get('category')} ({b.get('severity')})."
+        notes = f"WALL OF SHAME: {b.get('category')} ({b.get('severity')})."
         if b.get("group"):
             notes += f" Group: {b['group']}."
         if b.get("evidence_url"):
@@ -50,7 +50,7 @@ def main() -> int:
                 existing["screen_name"] if existing else (b.get("name") or handle)
             ).strip(),
             category=(b.get("category") or "scammer"),
-            source="baddies_intel",
+            source="wall_of_shame_intel",
             verified=bool(existing and existing.get("verified")),
             risk_level=(b.get("risk_level") or "high"),
             scammer_group=(b.get("group") or ""),
@@ -61,12 +61,12 @@ def main() -> int:
             handle,
             b["wallet"],
             chain="solana",
-            source="baddies_intel",
+            source="wall_of_shame_intel",
             evidence_url=b.get("evidence_url") or "",
             confidence="strong_heuristic",
         ):
             wallets_attached += 1
-        baddies_seeded += 1
+        wall_of_shame_seeded += 1
 
     for r in scraped:
         handle = (r.get("handle") or "").strip().lstrip("@")
@@ -94,7 +94,7 @@ def main() -> int:
         ):
             wallets_attached += 1
 
-    print(f"baddies seeded: {baddies_seeded}")
+    print(f"wall of shame seeded: {wall_of_shame_seeded}")
     print(f"scraped KOL records processed: {len(scraped)}")
     print(f"wallets attached: {wallets_attached}")
     return 0

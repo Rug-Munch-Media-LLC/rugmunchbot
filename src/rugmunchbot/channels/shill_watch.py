@@ -28,12 +28,14 @@ Pipeline:
      >= ``SHILL_MIN_MENTIONS`` total mentions.
   3. ``run_shill_watch`` scores each campaign via the reranker
      (``channels.importance.score_importance``), captures X screenshots,
-     persists evidence, and posts the routed alert (alerts / alerts+main,
-     held below the floor).
+     runs address-token campaigns through the canonical scanner
+     (``build_scanner_evidence`` — honeypot/deployer/bundled-supply/LP
+     evidence for the "why this is likely a scam" note), persists evidence,
+     and posts the routed alert (alerts / alerts+main, held below the floor).
 
 Fail-open everywhere: a dead sweep client, empty sweep, missing X URL,
-unreachable vision lane, Redis outage, or DB write failure never crashes
-the tick — silence is a valid outcome.
+unreachable vision lane, scanner outage, Redis outage, or DB write failure
+never crashes the tick — silence is a valid outcome.
 """
 
 from __future__ import annotations
@@ -134,6 +136,9 @@ class ShillCampaign:
     score: float = 0.0
     importance: float = 0.0  # rerank importance (2026-08-30 routing)
     screenshots: list[dict[str, str]] = field(default_factory=list)  # {url, image_path, text}
+    scanner_evidence: dict[str, Any] = field(
+        default_factory=dict
+    )  # {scanned, risk_level, safety_score, bullets, note}
 
     @property
     def key(self) -> str:
@@ -521,6 +526,189 @@ async def _score_shill_campaign(campaign: ShillCampaign) -> float:
     return 0.0
 
 
+# ── Shill→scanner evidence (2026-09-01) ────────────────────────────────────
+# A detected campaign that names a REAL token address is run through the
+# canonical scanner (``scan_token_v2`` → legacy ``scan_token`` fallback) so
+# the alert can carry a concrete "why this is likely a scam" note — honeypot,
+# deployer history, bundled supply, LP risk — instead of a static boilerplate
+# sentence. Fail-open: a scanner outage returns ``{}`` and the alert posts on
+# the text-only evidence it already has. Only address tokens resolve; a
+# ``$TICKER``-only shill has nothing to scan.
+SHILL_SCANNER_EVIDENCE_ENABLED = os.getenv("RMI_SHILL_SCANNER_EVIDENCE", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+
+def _looks_like_address(token: str) -> bool:
+    """True when ``token`` is a chain address (0x hex / Solana base58 mint).
+
+    Ticker-only shills (``$PEPE``) cannot be scanned — there is no address
+    to resolve. Solana mints are base58 (~32-44 chars); EVM are 0x + 40 hex.
+    """
+    t = str(token or "").strip()
+    if not t:
+        return False
+    if t.startswith("0x"):
+        body = t[2:]
+        return len(t) >= 34 and all(c in "0123456789abcdefABCDEF" for c in body)
+    return 32 <= len(t) <= 44
+
+
+def _pct(value: object) -> float | None:
+    """Coerce a 0..100 percentage to float; None when absent/not a number."""
+    try:
+        f = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return f if 0 <= f <= 100 else None
+
+
+def _evidence_bullets(data: dict[str, Any]) -> list[str]:
+    """Build a short, defensible "why this is likely a scam" bullet list.
+
+    Reads BOTH the v2 payload (``risk_level``/``flags``/``evidence``) and the
+    legacy scan dict (``honeypot``/``buy_tax``/``bundle_detected``/``lp_locked``
+    ...). Only renders a bullet when the scanner returned an actual value that
+    crosses a clear red line — never a fabricated or guessed number. Returns
+    ``[]`` when nothing defensible is present.
+    """
+    bullets: list[str] = []
+
+    # ── v2 top-level verdict ──
+    risk_level = str(data.get("risk_level") or "").upper()
+    safety = data.get("safety_score")
+    if risk_level in ("CRITICAL", "HIGH"):
+        if isinstance(safety, (int, float)):
+            bullets.append(f"Scanner verdict: {risk_level} risk (safety {float(safety):.0f}/100)")
+        else:
+            bullets.append(f"Scanner verdict: {risk_level} risk")
+    flags = data.get("flags") or data.get("risk_flags") or []
+    if isinstance(flags, list) and flags:
+        bullets.append(f"Scanner flags: {', '.join(str(f)[:60] for f in flags[:4])}")
+
+    evidence = data.get("evidence")
+    if isinstance(evidence, dict):
+        # Honeypot / security checks.
+        sec = evidence.get("security")
+        if isinstance(sec, dict):
+            try:
+                for check in sec.get("checks", {}).values():
+                    if isinstance(check, dict) and str(check.get("status", "")).lower() in (
+                        "honeypot",
+                        "buy_tax",
+                        "sell_tax",
+                        "can_take_back_ownership",
+                        "owner_change_balance",
+                    ):
+                        bullets.append(
+                            f"On-chain check {check.get('status', '?')}: {check.get('details', 'flagged')[:80]}"
+                        )
+            except Exception:  # defensive — no bullet on a malformed check
+                logger.debug("shill_watch:security_checks_parse_failed", exc_info=True)
+            rug = sec.get("rug_patterns")
+            if isinstance(rug, dict):
+                matches = rug.get("match_count") or len(rug.get("patterns") or [])
+                if matches:
+                    bullets.append(f"Matched {matches} known rug-pull signature(s)")
+        # Liquidity / LP risk.
+        liq = evidence.get("liquidity")
+        if isinstance(liq, dict):
+            locked = _pct(liq.get("locked_pct"))
+            if locked is not None and locked < 20:
+                bullets.append(f"LP only {locked:.0f}% locked — early-exit/removal risk")
+        # Holder concentration (bundled supply signal).
+        holders = evidence.get("holders")
+        if isinstance(holders, dict):
+            top10 = _pct(holders.get("top_10_pct"))
+            if top10 is not None and top10 >= 60:
+                bullets.append(f"Top 10 holders control {top10:.0f}% of supply")
+        # Fresh / mixer-funded supply.
+        funding = evidence.get("funding_analysis")
+        if isinstance(funding, dict):
+            fresh = _pct(funding.get("fresh_wallet_pct"))
+            if fresh is not None and fresh >= 40:
+                bullets.append(f"{fresh:.0f}% of supply held by fresh wallets")
+            mixer = _pct(funding.get("mixer_funded_pct"))
+            if mixer is not None and mixer >= 20:
+                bullets.append(f"{mixer:.0f}% of supply mixer-funded")
+        # Deployer history.
+        dep = evidence.get("deployer")
+        if isinstance(dep, dict):
+            label = str(dep.get("risk_label") or "").upper()
+            total = dep.get("total_deployments")
+            rug = dep.get("rug_count")
+            if label in ("REPEAT_RUG", "FARM", "PROLIFIC", "CRITICAL", "HIGH"):
+                bullets.append(f"Deployer history: {label}")
+            elif (
+                isinstance(total, (int, float))
+                and float(total) >= 5
+                and isinstance(rug, (int, float))
+                and float(rug) > 0
+            ):
+                bullets.append(f"Deployer made {total} token(s), {rug} rug/dump")
+
+    # ── Legacy scanner fields ──
+    if data.get("bundle_detected"):
+        bullets.append("Bundled launch detected (same-block buy cluster)")
+    hp = data.get("honeypot")
+    if hp is True or str(hp).lower() in ("true", "yes", "detected"):
+        bullets.append("Honeypot detected — cannot sell after buy")
+    buy_tax = _pct(data.get("buy_tax"))
+    sell_tax = _pct(data.get("sell_tax"))
+    if sell_tax is not None and sell_tax >= 20:
+        bullets.append(f"Sell tax {sell_tax:.0f}% — exit is taxed/dissuaded")
+    if buy_tax is not None and buy_tax >= 20:
+        bullets.append(f"Buy tax {buy_tax:.0f}% — entry is taxed")
+    if data.get("mintable") and not data.get("owner_renounced"):
+        bullets.append("Supply is mintable and ownership not renounced")
+    lp_locked = data.get("lp_locked")
+    if lp_locked is False or str(lp_locked).lower() in ("no", "false", "unlocked"):
+        bullets.append("LP not locked — liquidity can be pulled at any time")
+    fresh = _pct(data.get("fresh_wallet_pct"))
+    if fresh is not None and fresh >= 40:
+        bullets.append(f"{fresh:.0f}% of supply in fresh wallets")
+
+    return bullets
+
+
+async def build_scanner_evidence(token: str, chain: str) -> dict[str, Any]:
+    """Run ``token`` through the scanner; return a compact evidence dict.
+
+    Returns ``{"scanned", "risk_level", "safety_score", "bullets", "note"}``
+    or ``{}`` (no address / scanner unavailable / no defensible finding).
+    Fail-open by contract — a scanner outage never blocks the campaign alert.
+    """
+    if not SHILL_SCANNER_EVIDENCE_ENABLED or not _looks_like_address(token):
+        return {}
+    try:
+        from rugmunchbot.scanner import scan_token, scan_token_v2
+
+        data = await scan_token_v2(token, chain)
+        if data is None:
+            data = await scan_token(token, chain)
+    except Exception as exc:  # fail-open by contract
+        logger.debug("shill_watch:scanner_evidence_failed err=%s", str(exc)[:120])
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    bullets = _evidence_bullets(data)
+    risk_level = str(data.get("risk_level") or "").upper()
+    if not bullets and risk_level not in ("HIGH", "CRITICAL"):
+        # No defensible finding — don't attach a fabricated scare note.
+        return {}
+    note = " ".join(bullets[:4]) if bullets else f"Scanner verdict: {risk_level} risk."
+    safety = data.get("safety_score")
+    return {
+        "scanned": True,
+        "risk_level": risk_level or "unknown",
+        "safety_score": round(float(safety), 1) if isinstance(safety, (int, float)) else None,
+        "bullets": bullets,
+        "note": note,
+    }
+
+
 def format_shill_alert(campaign: ShillCampaign) -> str:
     """HTML alert card for one campaign (Telegram parse_mode=html).
 
@@ -557,6 +745,19 @@ def format_shill_alert(campaign: ShillCampaign) -> str:
             "these campaigns precede a dump the moment the bag-holders arrive.",
         ]
     )
+    # 2026-09-01 scanner evidence: when the campaign names a real token address
+    # the canonical scanner ran it (build_scanner_evidence) — surface the
+    # concrete on-chain findings (honeypot, deployer history, bundled supply,
+    # LP risk) instead of relying on the coordination boilerplate alone.
+    scanners = campaign.scanner_evidence or {}
+    sc_bullets = scanners.get("bullets") or []
+    if sc_bullets:
+        lines.append("")
+        lines.append("On-chain evidence (scanned):")
+        for b in sc_bullets[:5]:
+            lines.append(f"  • {_esc(b)}")
+        if scanners.get("note") and len(sc_bullets) > 5:
+            lines.append(f"  … {_esc(scanners['note'][:160])}")
     sample = campaign.mentions[:2]
     if sample:
         lines.append("")
@@ -695,6 +896,13 @@ async def run_shill_watch(ctx: Any = None) -> int:
             budget = min(per_campaign, len(campaign.mentions))
             captured = await _capture_campaign_shills(campaign, budget)
             remaining -= captured
+    # Scanner evidence (2026-09-01): a campaign naming a real token address
+    # is run through the canonical scanner so the alert carries concrete
+    # on-chain "why this is likely a scam" findings (honeypot, deployer
+    # history, bundled supply, LP risk). Fail-open → {} on any failure.
+    for campaign in campaigns[:SHILL_MAX_ALERTS]:
+        if not campaign.scanner_evidence and _looks_like_address(campaign.token):
+            campaign.scanner_evidence = await build_scanner_evidence(campaign.token, campaign.chain)
 
     today = datetime.now(UTC).strftime("%Y%m%d")
     posted = 0
@@ -769,6 +977,7 @@ __all__ = [
     "SHILL_MAX_ALERTS",
     "SHILL_MIN_ACCOUNTS",
     "SHILL_MIN_MENTIONS",
+    "SHILL_SCANNER_EVIDENCE_ENABLED",
     "SHILL_SCREENSHOT_BUDGET",
     "SHILL_SCREENSHOT_DIR",
     "SHILL_SCREENSHOT_ENABLED",
@@ -778,6 +987,7 @@ __all__ = [
     "SHILL_WATCH_ENABLED",
     "SHILL_WINDOW_HOURS",
     "ShillCampaign",
+    "build_scanner_evidence",
     "detect_shill_campaigns",
     "format_shill_alert",
     "run_shill_watch",
