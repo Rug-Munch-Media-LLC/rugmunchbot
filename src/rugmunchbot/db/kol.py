@@ -951,7 +951,7 @@ def record_apipass_usage(
     task_id: str = "",
     status: str = "created",
 ) -> bool:
-    """Meter one ApiPass task creation (the ≤3 credits/hr budget ledger)."""
+    """Meter one ApiPass task creation (the ≤5 credits/hr budget ledger)."""
     conn = get_db()
     try:
         conn.execute(
@@ -1005,7 +1005,7 @@ def apipass_usage_summary() -> dict[str, Any]:
             "free_allowance": free_credits,
             "credits_remaining": round(max(0.0, free_credits - credits_used), 2),
             "calls_today": int(today_row["n"] or 0) if today_row else 0,
-            "calls_per_hour_budget": int(os.getenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", "6")),
+            "calls_per_hour_budget": int(os.getenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", "5")),
             "credits_per_call": credits_per_call,
             "estimated_calls_remaining": int((free_credits - credits_used) / credits_per_call),
             "by_endpoint": [

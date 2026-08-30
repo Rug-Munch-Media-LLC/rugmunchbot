@@ -322,6 +322,178 @@ def test_rerank_tweets_fails_open_keeps_order(monkeypatch):
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Rich-profile normalization + persistent cache (2026-08-30 richer pull)
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_normalize_profile_active_rich_shape():
+    """Active user-by-screen-name node -> full profile + metrics."""
+    raw = {
+        "data": {
+            "user": {
+                "result": {
+                    "rest_id": "973261472",
+                    "id": "973261472",
+                    "__typename": "User",
+                    "core": {
+                        "name": "Ansem",
+                        "screen_name": "blknoiz06",
+                        "created_at": "Tue Nov 27 04:41:51 +0000 2012",
+                    },
+                    "avatar": {"image_url": "https://pbs.twimg.com/.../x.jpg"},
+                    "location": {"location": "solangeles"},
+                    "verification": {"verified": False},
+                    "is_blue_verified": True,
+                    "verification_info": {"reason": {"description": {"text": "premium affiliate"}}},
+                    "legacy": {
+                        "description": "coldest nigga breathing | @BullpenFi",
+                        "followers_count": 1375590,
+                        "friends_count": 9285,
+                        "statuses_count": 263388,
+                        "favourites_count": 137054,
+                        "listed_count": 14523,
+                        "media_count": 19042,
+                        "profile_banner_url": "https://pbs.twimg.com/banner.png",
+                        "pinned_tweet_ids_str": ["2077815810458870267"],
+                    },
+                }
+            }
+        }
+    }
+    p = m.normalize_profile(raw)
+    assert p is not None
+    assert p["available"] is True
+    assert p["handle"] == "blknoiz06"
+    assert p["user_id"] == "973261472"
+    assert p["name"] == "Ansem"
+    assert p["metrics"]["followers"] == 1375590
+    assert p["metrics"]["statuses"] == 263388
+    assert p["is_blue_verified"] is True
+    assert p["pinned_url"] == "https://x.com/blknoiz06/status/2077815810458870267"
+    assert p["url"] == "https://x.com/blknoiz06"
+
+
+def test_normalize_profile_unavailable_suspended_verbatim():
+    """Suspended account -> available:False with the verbatim reason/message."""
+    raw = {
+        "data": {
+            "user": {
+                "result": {
+                    "reason": "Suspended",
+                    "message": "User is suspended",
+                    "__typename": "UserUnavailable",
+                }
+            }
+        }
+    }
+    p = m.normalize_profile(raw)
+    assert p is not None
+    assert p["available"] is False
+    assert p["reason"] == "Suspended"
+    assert p["message"] == "User is suspended"
+    assert p["__typename"] == "UserUnavailable"
+
+
+def test_normalize_profile_no_node_returns_none():
+    assert m.normalize_profile({"data": {}}) is None
+    assert m.normalize_profile(None) is None
+
+
+def test_decode_user_id_relay_and_numeric():
+    """X relay ids (base64 'User:N' / 'User:N') normalize to a numeric id."""
+    assert m._decode_user_id("VXNlcjo5NzMyNjE0NzI=") == "973261472"  # base64('User:973261472')
+    assert m._decode_user_id("User:973261472") == "973261472"
+    assert m._decode_user_id("973261472") == "973261472"
+    assert m._decode_user_id("") == ""
+
+
+def test_model_catalog_includes_confirmed_lane():
+    assert m.MODEL_CATALOG["twitter/graphql/user-by-screen-name"]["confirmed"] is True
+    assert m.MODEL_CATALOG["twitter/simple/user-tweets"]["confirmed"] is True
+    # Unverified graphql ops are flagged, not claimed — [REVIEW].
+    assert m.MODEL_CATALOG["twitter/graphql/user-followers"]["confirmed"] is False
+
+
+def test_fetch_x_profile_caches_and_reuses(tmp_path, monkeypatch):
+    """First pull hits API+cache; second pulls from cache (zero createTask)."""
+    monkeypatch.setattr(m, "APIPASS_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(m, "_CACHE_PROBED", False)
+    monkeypatch.setattr(m, "_CACHE_OK", False)
+    fetched = {}
+
+    async def _fake_run(model, input_body, **kw):
+        fetched["hits"] = fetched.get("hits", 0) + 1
+        return {
+            "data": {
+                "user": {
+                    "result": {
+                        "rest_id": "111",
+                        "core": {"name": "x", "screen_name": "handle", "created_at": ""},
+                        "avatar": {"image_url": ""},
+                        "location": {},
+                        "verification": {"verified": True},
+                        "is_blue_verified": False,
+                        "verification_info": {},
+                        "legacy": {"followers_count": 9},
+                    }
+                }
+            }
+        }
+
+    monkeypatch.setattr(m, "run_task", _fake_run)
+    monkeypatch.setenv("APIPASS_API_KEY", "apk_test_key")
+
+    p1 = asyncio.run(m.fetch_x_profile("handle"))
+    assert p1 is not None
+    assert p1["available"] is True
+    assert fetched["hits"] == 1
+    # Second call: cache hit, no new createTask.
+    p2 = asyncio.run(m.fetch_x_profile("handle"))
+    assert p2 is not None
+    assert p2["handle"] == "handle"
+    assert fetched["hits"] == 1  # unchanged — reused from cache
+
+
+def test_fetch_x_profile_suspended_cached_long(tmp_path, monkeypatch):
+    """A suspended answer is cached for the long suspension TTL."""
+    monkeypatch.setattr(m, "APIPASS_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(m, "_CACHE_PROBED", False)
+    monkeypatch.setattr(m, "_CACHE_OK", False)
+    monkeypatch.setattr(m, "APIPASS_SUSPEND_CACHE_TTL", 604800)
+
+    async def _fake_run(model, input_body, **kw):
+        return {
+            "data": {
+                "user": {
+                    "result": {
+                        "reason": "Suspended",
+                        "message": "User is suspended",
+                        "__typename": "UserUnavailable",
+                    }
+                }
+            }
+        }
+
+    monkeypatch.setattr(m, "run_task", _fake_run)
+    monkeypatch.setenv("APIPASS_API_KEY", "apk_test_key")
+    p = asyncio.run(m.fetch_x_profile("banned"))
+    assert p is not None
+    assert p["available"] is False
+    data = _read_cache_json(tmp_path)
+    assert data["ttl"] == 604800
+
+
+def _read_cache_json(cache_dir):
+    import glob
+    import json
+
+    for f in glob.glob(str(cache_dir / "*.json")):
+        with open(f, encoding="utf-8") as fh:
+            return json.load(fh)
+    return {}
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # Key resolution
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -360,12 +532,12 @@ def test_key_resolution_env_beats_file(monkeypatch, tmp_path):
     assert m._resolve_api_key() == "apk_env_key"
 
 
-def test_default_budget_is_twelve_per_hour(monkeypatch):
+def test_default_budget_is_five_per_hour(monkeypatch):
     monkeypatch.delenv("RMI_APIPASS_MAX_CALLS_PER_HOUR", raising=False)
     import importlib
 
     importlib.reload(m)
-    assert m.MAX_CALLS_PER_HOUR == 12  # under the account's 15/hr cap (2026-08-29)
+    assert m.MAX_CALLS_PER_HOUR == 5  # modest governor (2026-08-30) — $9 envelope
 
 
 def test_key_resolution_empty_when_unconfigured(monkeypatch, tmp_path):

@@ -24,7 +24,7 @@ How it works (bounty-hunter model)
 1. ``run_kol_scoreboard_watch`` sweeps the seeded KOL registry
    (``kol_registry_seed`` — ~565 real accounts from the fleet's curated
    registries) via the ApiPass X source, one handle per tick
-   (round-robin, ≤6 task-creations/hr ≈ 3 credits/hr).
+   (round-robin, ≤5 task-creations/hr ≈ 3 credits/hr).
 2. Every call-looking tweet is recorded via ``db.kol.record_kol_call``
    (upsert by tweet_id).
 3. ``detect_name_change`` — when a swept handle's payload carries a
@@ -674,7 +674,7 @@ async def sweep_tracked_kol_tweets() -> list[KolCall]:
     """Fetch recent tweets from one tracked KOL via ApiPass (budget-bounded).
 
     Round-robin over the sweep pool — one handle per tick — so no tick
-    exceeds the ≤6 task-creations/hr burn. Fail-open ``[]``.
+    exceeds the ≤5 task-creations/hr burn. Fail-open ``[]``.
     """
     try:
         from rugmunchbot.tools.apipass_x import fetch_user_tweets

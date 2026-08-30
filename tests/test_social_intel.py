@@ -20,8 +20,13 @@ def test_no_signals_degrades_honestly(monkeypatch):
     async def empty_buzz(sym):
         return {}
 
+    # X rail is patched too: offline test — never hits a real ApiPass task.
+    async def empty_x(sym):
+        return {}
+
     monkeypatch.setattr(m, "_feed_sentiment", empty_feed)
     monkeypatch.setattr(m, "_buzz", empty_buzz)
+    monkeypatch.setattr(m, "_x_intel", empty_x)
     r = asyncio.run(m.social_intel(symbol="XYZ"))
     assert not r.ok
     assert "no social signals" in (r.data or {}).get("error", "")
