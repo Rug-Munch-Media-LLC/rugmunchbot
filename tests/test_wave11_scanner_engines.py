@@ -7,16 +7,7 @@ no network, no Redis.
 
 from __future__ import annotations
 
-from rugmunchbot._vendor.scanner_engines._holder_clusters_helpers import (
-    _build_bundle_clusters,
-    _build_funder_clusters,
-    _build_same_block_clusters,
-    _classify_concentration,
-    _classify_holder,
-    _compute_gini,
-    _compute_hhi,
-)
-from rugmunchbot._vendor.scanner_engines.behavioral_fingerprint import (
+from rugmunch_scanner.unified.engines.behavioral_fingerprint import (
     _DOW_BINS,
     _HOURS_BINS,
     _confidence,
@@ -29,6 +20,16 @@ from rugmunchbot._vendor.scanner_engines.behavioral_fingerprint import (
     compare_fingerprints,
     matched_features,
 )
+from rugmunch_scanner.unified.engines.holder_clusters import (
+    _build_bundle_clusters,
+    _build_funder_clusters,
+    _build_same_block_clusters,
+    _classify_concentration,
+    _classify_holder,
+    _compute_gini,
+    _compute_hhi,
+)
+
 from rugmunchbot._vendor.scanner_engines.wallet_flow import (
     _classify_node,
     _rank_counterparties,

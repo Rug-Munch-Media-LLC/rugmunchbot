@@ -6,7 +6,7 @@ no ClickHouse, no network.
 
 from __future__ import annotations
 
-from rugmunchbot._vendor.scanner_engines.deployer_profiles import (
+from rugmunch_scanner.unified.engines.deployer_profiles import (
     _row_to_profile,
     build_deployer_label,
 )

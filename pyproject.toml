@@ -18,7 +18,9 @@ dependencies = [
 # Operator-provided adapters: scanner backends, billing, LLM routers.
 # The base install ships with public-API defaults (DexScreener/GoPlus/Honeypot)
 # and no-op fallbacks — see src/rugmunchbot/plugins/.
-scanner = []
+scanner = [
+    "rugmunch-scanner>=0.2.0",
+]
 billing = []
 dev = [
     "pytest>=8.0",

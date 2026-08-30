@@ -3,9 +3,9 @@
 Primary scan engine for ``/scan``, ``/deepscan`` and the scans-of-interest
 churn rail (2026-08-29). Eliminates the flaky HTTP hop to rmi-backend
 (``localhost:8000``): the full engine is vendored under
-``rugmunchbot._vendor.unified_scanner`` (holder_data, bundle_detect,
+``rugmunch_scanner.unified.unified`` (holder_data, bundle_detect,
 deployer, liquidity, wallet_analysis, deep_profile) with its own-data
-engines under ``rugmunchbot._vendor.scanner_engines``.
+engines under ``rugmunch_scanner.unified.engines``.
 
 The vendored copy was frozen from rmi-backend and still references
 backend-only modules at import time — SQLAlchemy Postgres persistence
@@ -237,7 +237,7 @@ def _normalize_dex_pair(pair: dict[str, Any], token: str) -> dict[str, Any]:
 async def _local_dex_pairs(token: str, chain: str) -> list[dict[str, Any]]:
     """Best-effort DexScreener-compatible pair list (own ClickHouse first)."""
     try:
-        from rugmunchbot._vendor.scanner_engines.own_dex_data import get_own_dex_data
+        from rugmunch_scanner.unified.engines.own_dex_data import get_own_dex_data
 
         dex = await asyncio.wait_for(get_own_dex_data(token, chain), timeout=_ENGINE_TIMEOUT_S)
         pairs = (dex or {}).get("pairs") or []
@@ -247,7 +247,7 @@ async def _local_dex_pairs(token: str, chain: str) -> list[dict[str, Any]]:
         logger.debug("local_dex_data_failed addr=%.40s err=%s", token[:40], str(exc)[:80])
     # Fallback: raw DexScreener API (provider stub above / _data_sources).
     try:
-        from rugmunchbot._vendor.unified_scanner._data_sources import get_dexscreener_pairs
+        from rugmunch_scanner.unified.unified._data_sources import get_dexscreener_pairs
 
         raw = await asyncio.wait_for(get_dexscreener_pairs(token), timeout=10.0)
         pairs = (raw or {}).get("pairs") or []
@@ -278,7 +278,7 @@ async def _local_token_price(token: str, chain: str) -> dict[str, Any]:
         return _MISS
     payload: dict[str, Any] = {}
     try:
-        from rugmunchbot._vendor.scanner_engines.price_oracle import get_token_price
+        from rugmunch_scanner.unified.engines.price_oracle import get_token_price
 
         price = await asyncio.wait_for(get_token_price(token, chain), timeout=12.0)
         if isinstance(price, dict) and price.get("price_usd") is not None:
@@ -374,7 +374,7 @@ async def _local_token_security(token: str, chain: str) -> dict[str, Any]:
     if not token:
         return _MISS
     try:
-        from rugmunchbot._vendor.scanner_engines.own_security_analysis import get_own_security
+        from rugmunch_scanner.unified.engines.own_security_analysis import get_own_security
 
         sec = await asyncio.wait_for(get_own_security(token, chain), timeout=_ENGINE_TIMEOUT_S)
     except Exception as exc:
@@ -393,7 +393,7 @@ async def _local_holder_data(token: str, chain: str) -> dict[str, Any]:
     if not token:
         return _MISS
     try:
-        from rugmunchbot._vendor.scanner_engines.own_holder_analysis import (
+        from rugmunch_scanner.unified.engines.own_holder_analysis import (
             get_own_holder_analysis,
         )
 
@@ -413,7 +413,7 @@ async def _local_volume_authenticity(token: str, chain: str) -> dict[str, Any]:
     if not token:
         return _MISS
     try:
-        from rugmunchbot._vendor.scanner_engines.own_volume_authenticity import (
+        from rugmunch_scanner.unified.engines.own_volume_authenticity import (
             get_own_volume_authenticity,
         )
 
@@ -438,7 +438,7 @@ async def _local_cross_chain_entity(token: str, chain: str) -> dict[str, Any]:
     if not token:
         return _MISS
     try:
-        from rugmunchbot._vendor.scanner_engines.cross_chain_entity import (
+        from rugmunch_scanner.unified.engines.cross_chain_entity import (
             resolve_cross_chain_entity,
         )
 
@@ -509,7 +509,7 @@ def _to_v2_payload(result: Any, address: str, chain: str) -> dict[str, Any] | No
     on the backend payload. Returns ``None`` when the engine produced no
     usable core data (callers then fall back to the backend HTTP scan).
     """
-    from rugmunchbot._vendor.unified_scanner._legacy import _to_legacy_dict
+    from rugmunch_scanner.unified.unified._legacy import _to_legacy_dict
 
     payload = _to_legacy_dict(result)
     payload["status"] = "ok"
@@ -595,7 +595,7 @@ async def scan_token_v2_local(
         return None
     install_import_bridge()
     try:
-        from rugmunchbot._vendor.unified_scanner import get_token_scanner
+        from rugmunch_scanner.unified.unified import get_token_scanner
 
         scanner = get_token_scanner()
         result = await asyncio.wait_for(

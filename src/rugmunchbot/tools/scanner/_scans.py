@@ -307,7 +307,7 @@ async def _local_scan_first(
     """Run the VENDORED unified scanner in-process; ``None`` → HTTP fallback.
 
     Primary scan execution path (2026-08-29): the full engine is vendored
-    under ``rugmunchbot._vendor.unified_scanner``, so /scan, /deepscan and
+    under ``rugmunch_scanner.unified.unified``, so /scan, /deepscan and
     the scans-of-interest churn rail run LOCALLY — no HTTP hop to
     localhost:8000. The backend HTTP scan remains fallback-only. Applies the
     same fail-open enrichment chain as the HTTP path.

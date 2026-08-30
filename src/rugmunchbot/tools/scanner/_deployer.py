@@ -276,7 +276,7 @@ async def _supplement_deployer_socials(
     deployer_final = str(result.get("deployer_address") or result.get("dev_wallet") or "").strip()
     if deployer_final and not result.get("deployer_profile"):
         try:
-            from rugmunchbot._vendor.scanner_engines.deployer_profiles import (
+            from rugmunch_scanner.unified.engines.deployer_profiles import (
                 get_deployer_profile,
             )
 
@@ -306,7 +306,7 @@ async def _supplement_deployer_socials(
 
     if not result.get("bundle_analysis"):
         try:
-            from rugmunchbot._vendor.scanner_engines.own_bundle_detect import (
+            from rugmunch_scanner.unified.engines.own_bundle_detect import (
                 get_own_bundle_analysis,
             )
 

@@ -60,7 +60,7 @@ def _format_deployer_section(r: dict[str, Any]) -> list[str]:
 
     # Launchpad detection
     try:
-        from rugmunchbot._vendor.scanner_engines.launchpad_registry import detect_launchpad
+        from rugmunch_scanner.unified.engines.launchpad_registry import detect_launchpad
 
         launchpad = detect_launchpad(deployer_addr, chain)
         if launchpad:

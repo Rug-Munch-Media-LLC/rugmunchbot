@@ -299,7 +299,7 @@ async def _poll_v2_scan_completion(
             from rugmunchbot.tools.scanner._local_v2 import install_import_bridge
 
             install_import_bridge()
-            from rugmunchbot._vendor.unified_scanner.scanner import scan_status as _local_status
+            from rugmunch_scanner.unified.unified.scanner import scan_status as _local_status
 
             local = await _local_status(chain, address)
             if isinstance(local, dict) and local.get("state") == "complete":

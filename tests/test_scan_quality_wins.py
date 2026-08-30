@@ -69,7 +69,7 @@ async def test_enrichment_fills_deployer_profile_from_clickhouse(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "rugmunchbot._vendor.scanner_engines.deployer_profiles.get_deployer_profile",
+        "rugmunch_scanner.unified.engines.deployer_profiles.get_deployer_profile",
         _fake_profile,
     )
     # DexScreener leg unreachable — enrichment must still complete.
@@ -86,7 +86,7 @@ async def test_enrichment_fills_deployer_profile_from_clickhouse(monkeypatch):
 async def test_enrichment_never_clobbers_scan_provided_profile(monkeypatch):
     existing = {"total_tokens_launched": 1, "label": "FROM SCAN"}
     monkeypatch.setattr(
-        "rugmunchbot._vendor.scanner_engines.deployer_profiles.get_deployer_profile",
+        "rugmunch_scanner.unified.engines.deployer_profiles.get_deployer_profile",
         None,  # would explode if called → proves it isn't
     )
     with patch.object(dep, "http_get_json", side_effect=ConnectionError("offline")):
@@ -112,7 +112,7 @@ async def test_enrichment_bundle_from_own_engine_maps_shape(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "rugmunchbot._vendor.scanner_engines.own_bundle_detect.get_own_bundle_analysis",
+        "rugmunch_scanner.unified.engines.own_bundle_detect.get_own_bundle_analysis",
         _fake_bundle,
     )
     with patch.object(dep, "http_get_json", side_effect=ConnectionError("offline")):
@@ -131,10 +131,10 @@ async def test_enrichment_indexer_legs_timeboxed_and_fail_open(monkeypatch):
         raise TimeoutError()
 
     monkeypatch.setattr(
-        "rugmunchbot._vendor.scanner_engines.deployer_profiles.get_deployer_profile", _cancel
+        "rugmunch_scanner.unified.engines.deployer_profiles.get_deployer_profile", _cancel
     )
     monkeypatch.setattr(
-        "rugmunchbot._vendor.scanner_engines.own_bundle_detect.get_own_bundle_analysis", _cancel
+        "rugmunch_scanner.unified.engines.own_bundle_detect.get_own_bundle_analysis", _cancel
     )
     with patch.object(dep, "http_get_json", side_effect=ConnectionError("offline")):
         out = await dep._supplement_deployer_socials(

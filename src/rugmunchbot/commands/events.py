@@ -96,7 +96,7 @@ async def cmd_events(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     status = await msg.reply_text("📰 <b>Correlating news with price...</b>", parse_mode=ParseMode.HTML)
 
     try:
-        from rugmunchbot._vendor.scanner_engines.event_correlation import correlate_news_with_price
+        from rugmunch_scanner.unified.engines.event_correlation import correlate_news_with_price
 
         result = await correlate_news_with_price(token, chain, lookback_hours=24)
         events = result.get("events") or []
