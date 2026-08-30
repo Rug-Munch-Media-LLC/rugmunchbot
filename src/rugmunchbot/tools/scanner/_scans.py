@@ -28,6 +28,7 @@ from rugmunchbot.states import get_sol_price
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools import scanner as _scanner
 from rugmunchbot.tools._client import http_get_json
+from rugmunchbot.tools.scanner import _backend
 from rugmunchbot.tools.scanner._deployer import _extract_pair_intel
 from rugmunchbot.tools.scanner._market import _ds_market_snapshot
 from rugmunchbot.tools.scanner._providers import (
@@ -298,19 +299,43 @@ async def scan_token(
     return result
 
 
+async def _apply_scan_enrichment(
+    data: dict[str, Any], address: str, chain_norm: str, *, source: str
+) -> dict[str, Any]:
+    """Shared fail-open enrichment chain applied to any v2 scan payload.
+
+    Every leg is best-effort + non-blocking with its own hard internal budget
+    (see scan_token for the budget/fail-open contract); a broken enricher
+    never fails the scan. GMGN → risk-signal → Solana ground truth →
+    token-scoped smart money, then scan-to-RAG memory (background, fail-open).
+    """
+    # GMGN holder/smart-money enrichment — best-effort + non-blocking.
+    data = await _scanner.enrich_scan_with_gmgn(data, address, chain_norm)
+    # Risk-signal enrichment — best-effort + non-blocking, see scan_token.
+    if _scanner.enrich_scan is not None:
+        data = await _scanner.enrich_scan(data, address, chain_norm)
+    # Solana on-chain ground truth + token-scoped smart money (fail-open).
+    data = await _scanner.enrich_scan_solana(data, address, chain_norm)
+    data = await _scanner.enrich_scan_smart_money(data, address, chain_norm)
+    # Scan-to-RAG memory (background, fail-open) — see scan_token.
+    if _scanner.should_index_scan(data, source=source):
+        _scanner.schedule_scan_memory_index(data, source=source)
+    return data
+
+
 async def _local_scan_first(
     address: str,
     chain_norm: str,
     *,
     deep: bool = False,
 ) -> dict[str, Any] | None:
-    """Run the VENDORED unified scanner in-process; ``None`` → HTTP fallback.
+    """Run the VENDORED unified scanner in-process (resilient FALLBACK).
 
-    Primary scan execution path (2026-08-29): the full engine is vendored
-    under ``rugmunch_scanner.unified.unified``, so /scan, /deepscan and
-    the scans-of-interest churn rail run LOCALLY — no HTTP hop to
-    localhost:8000. The backend HTTP scan remains fallback-only. Applies the
-    same fail-open enrichment chain as the HTTP path.
+    ARCHITECTURE.md ("bot calls backend HTTP API only") makes the backend the
+    primary scan path; this in-process engine is retained as a graceful
+    fallback for when the backend is unreachable. It is the last remaining
+    direct ``rugmunch_scanner`` touchpoint and is flagged [REVIEW] for removal
+    when the backend is authoritative.
     """
     try:
         from rugmunchbot.tools.scanner._local_v2 import scan_token_v2_local
@@ -321,20 +346,7 @@ async def _local_scan_first(
         return None
     if not isinstance(data, dict) or data.get("status") != "ok":
         return None
-    # GMGN holder/smart-money enrichment — best-effort + non-blocking
-    # (hard 6s internal budget, fail-open; never raises).
-    data = await _scanner.enrich_scan_with_gmgn(data, address, chain_norm)
-    # Risk-signal enrichment — best-effort + non-blocking, see scan_token.
-    if _scanner.enrich_scan is not None:
-        data = await _scanner.enrich_scan(data, address, chain_norm)
-    # Solana on-chain ground truth + token-scoped smart money (fail-open,
-    # see scan_token for the budget/fail-open contract).
-    data = await _scanner.enrich_scan_solana(data, address, chain_norm)
-    data = await _scanner.enrich_scan_smart_money(data, address, chain_norm)
-    # Scan-to-RAG memory (background, fail-open) — see scan_token.
-    if _scanner.should_index_scan(data, source="scan_v2"):
-        _scanner.schedule_scan_memory_index(data, source="scan_v2")
-    return data
+    return await _apply_scan_enrichment(data, address, chain_norm, source="scan_v2")
 
 
 async def scan_token_v2(
@@ -345,60 +357,31 @@ async def scan_token_v2(
 ) -> dict[str, Any] | None:
     """Canonical v2 UnifiedTokenScanner — explainable multi-dimensional scoring.
 
-    Runs the VENDORED unified scanner IN-PROCESS first (2026-08-29 — no HTTP
-    hop to localhost:8000). The backend HTTP scan is fallback-only: when the
-    local engine produces no usable data, POSTs to ``/api/v2/scanner/token/scan``
-    through the tools' shared ``backend_json_post`` client. Returns the raw
-    v2 payload (safety_score, confidence, risk_level, risk_flags, green_flags,
-    breakdown, evidence, modules_run). Returns None on any failure so
-    callers can fall back to the legacy scanner.
+    BACKEND-FIRST (2026-08-30 isolation; ARCHITECTURE.md "bot calls backend
+    HTTP API only"): POSTs to ``/api/v2/scanner/token/scan`` on rmi-backend
+    through the thin ``_backend`` client. The vendored in-process engine
+    (``_local_v2``) is a resilient FALLBACK only, kept so a backend outage
+    never hard-fails ``/scan``; it is flagged [REVIEW] for removal when the
+    backend is authoritative. Returns the raw v2 payload (safety_score,
+    confidence, risk_level, risk_flags, green_flags, breakdown, evidence,
+    modules_run). Returns None on any failure so callers fall through to the
+    legacy scanner.
 
-    ``deep=True`` (used by ``/deepscan``, 2026-08-29 depth push) runs the
-    engine's SENTINEL deep tier locally; the backend's ``/token/deepscan``
-    endpoint (elite tier — forces premium/SENTINEL modules + the full
-    250-wallet first-buyers cohort) is the fallback.
+    ``deep=True`` (used by ``/deepscan``) POSTs the backend's deep/elite tier
+    first (``/token/deepscan`` — forces premium/SENTINEL modules + the full
+    250-wallet first-buyers cohort) and falls back to the local SENTINEL tier.
     """
     chain_norm = chain or detect_chain(address)
     if deep:
-        data = await _local_scan_first(address, chain_norm, deep=True)
+        data = await _deep_scan_token_v2(address, chain_norm)
         if data is not None:
             return data
-        return await _deep_scan_token_v2(address, chain_norm)
-    data = await _local_scan_first(address, chain_norm)
+        return await _local_scan_first(address, chain_norm, deep=True)
+    data = await _backend.backend_scan_token(address, chain_norm)
     if data is not None:
-        return data
-    try:
-        data = await _scanner.backend_json_post(
-            "/api/v2/scanner/token/scan",
-            json={"address": address, "chain": chain_norm},
-            timeout=45.0,
-        )
-    except _scanner.BackendApiError as exc:
-        # Fail-loud helper, but scan_token_v2 is the FIRST leg of a
-        # fallback chain (v2 → legacy bot scan → DexScreener): degrade to a
-        # miss with the status logged, let the callers fall back.
-        logger.warning("scan_token_v2 backend error %s for %s: %s", exc.status_code, address, exc)
-        return None
-    if data is None:
-        logger.warning("scan_token_v2 failed for %s", address)
-        return None
-    if data.get("status") != "ok":
-        logger.warning("scan_token_v2 non-ok status for %s", address)
-        return None
-    # GMGN holder/smart-money enrichment — best-effort + non-blocking
-    # (hard 6s internal budget, fail-open; never raises).
-    data = await _scanner.enrich_scan_with_gmgn(data, address, chain_norm)
-    # Risk-signal enrichment — best-effort + non-blocking, see scan_token.
-    if _scanner.enrich_scan is not None:
-        data = await _scanner.enrich_scan(data, address, chain_norm)
-    # Solana on-chain ground truth + token-scoped smart money (fail-open,
-    # see scan_token for the budget/fail-open contract).
-    data = await _scanner.enrich_scan_solana(data, address, chain_norm)
-    data = await _scanner.enrich_scan_smart_money(data, address, chain_norm)
-    # Scan-to-RAG memory (background, fail-open) — see scan_token.
-    if _scanner.should_index_scan(data, source="scan_v2"):
-        _scanner.schedule_scan_memory_index(data, source="scan_v2")
-    return data
+        return await _apply_scan_enrichment(data, address, chain_norm, source="scan_v2")
+    # Backend unreachable → resilient in-process fallback.
+    return await _local_scan_first(address, chain_norm)
 
 
 async def _deep_scan_token_v2(address: str, chain_norm: str) -> dict[str, Any] | None:

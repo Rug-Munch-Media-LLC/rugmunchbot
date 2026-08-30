@@ -7,13 +7,29 @@ from typing import Any
 
 import pytest
 
-from rugmunchbot.channels.scheduler import _core, _posts_daily as pd
+from rugmunchbot.channels.scheduler import _core, _posts_daily as pd, _posts_rag
 
 
 @pytest.fixture(autouse=True)
 def _fresh_state(monkeypatch):
     monkeypatch.setattr(_core, "_posted_keys", {})
     pd._QUALITY_POSTED_TODAY.clear()
+    return
+
+
+@pytest.fixture(autouse=True)
+def _isolate_feed_data(monkeypatch, tmp_path):
+    """Redirect the feed mirror to a temp dir for EVERY test.
+
+    The 2026-08-30 feed incident re-leaked a ``ref-1`` / ``example.com``
+    fixture into the LIVE store (``/var/www/feed.rugmunch.io/data/posts.json``)
+    because ``post_daily_quality`` mirrors every successful main post through
+    ``mirror_post_to_feed`` and the posting tests did not stub it. ``FEED_DATA``
+    is a module global read at call time by ``mirror_post_to_feed``; pinning it
+    to a per-test temp dir makes it structurally impossible for a successful
+    daily-quality post in this module to reach the live mirror.
+    """
+    monkeypatch.setattr(_posts_rag, "FEED_DATA", str(tmp_path))
     return
 
 

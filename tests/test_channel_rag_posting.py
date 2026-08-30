@@ -30,6 +30,22 @@ def _fresh_dedupe(monkeypatch):
     return
 
 
+@pytest.fixture(autouse=True)
+def _isolate_feed_data(monkeypatch, tmp_path):
+    """Redirect the feed mirror to a temp dir for EVERY test.
+
+    The 2026-08-30 feed incident leaked a ``ref-1`` / ``example.com`` fixture
+    into the LIVE store (``/var/www/feed.rugmunch.io/data/posts.json``)
+    because a mirror test wrote through the production ``FEED_DATA`` default.
+    ``FEED_DATA`` is a module global read at call time by
+    ``mirror_post_to_feed``; pinning it to a per-test temp dir makes it
+    structurally impossible for any ``mirror=True`` draft in this module to
+    reach the live mirror.
+    """
+    monkeypatch.setattr(_posts_rag, "FEED_DATA", str(tmp_path))
+    return
+
+
 def _draft(
     ref: str, text: str = "t — Source: https://example.com/x", mirror: bool = False
 ) -> dict[str, Any]:
@@ -349,8 +365,8 @@ def test_quality_gate_floors_reranked_importance():
     """Task 2: the 0.30 importance floor must read ``importance`` too.
 
     The fallback drafts used to carry NO score, so ``_quality_gate`` waved
-    them through even though the live reranker scored them 0.01–0.12. Routing
-    them through ``rerank_quality`` writes ``importance``; this proves the
+     them through even though the live reranker scored them 0.01-0.12. Routing
+     them through ``rerank_quality`` writes ``importance``; this proves the
     gate now floors it (no unscored bypass)."""
     below = _draft("ref-low", text="Altcoin tape. Source: https://example.com/low")
     below["importance"] = 0.12
