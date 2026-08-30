@@ -70,6 +70,12 @@ SHILL_MAX_ALERTS = int(os.getenv("RMI_SHILL_MAX_ALERTS", "3"))
 #: Detection window for grouping (hours).
 SHILL_WINDOW_HOURS = int(os.getenv("RMI_SHILL_WINDOW_HOURS", "24"))
 
+#: 2026-08-30: campaign detection is now served by the BACKEND
+#: (``/api/v1/shill/campaigns/detect``). ``RMI_SHILL_USE_BACKEND`` gates
+#: whether the bot is a thin consumer (default) or falls back to the local
+#: pure detector. The local detector stays as an offline/degraded rail.
+SHILL_USE_BACKEND = os.getenv("RMI_SHILL_USE_BACKEND", "true").lower() in ("1", "true", "yes")
+
 #: 2026-08-30 screenshot capture knobs. A shill deletes its tweet, so the
 #: Wall of Shame attaches evidence. The capture is one DeepInfra VL-4B vision
 #: call per shill mention and is strictly bounded so a busy campaign can
@@ -354,10 +360,14 @@ def _ensure_shill_table() -> None:
 
 
 async def _persist_shill_evidence(campaign: ShillCampaign, shot: dict[str, str]) -> bool:
-    """Persist one screenshot's reference + OCR text to DB + Qdrant.
+    """Persist one screenshot's reference + OCR text to the backend evidence store.
 
-    ``shot`` should carry ``url``/``image_path``/``text`` (the capture output).
-    Returns True when at least the DB row landed. Never raises.
+    Shill evidence now lives in the BACKEND (``/api/v1/shill/evidence`` —
+    Qdrant ``threat_intel_v2`` + the ``shill_evidence`` DB). This is the bot's
+    thin-consumer path: it POSTs the capture to the backend first and only
+    falls back to the legacy local DB/Qdrant write when the backend is
+    unreachable (so evidence capture never drops offline). The return value
+    is True when the evidence landed (backend or local). Never raises.
     """
     token = str(campaign.token or "")
     chain = str(campaign.chain or "")
@@ -366,6 +376,29 @@ async def _persist_shill_evidence(campaign: ShillCampaign, shot: dict[str, str])
     image_path = str(shot.get("image_path") or "")
     ocr = str(shot.get("text") or "")[:_SHILL_OCR_MAX_CHARS]
 
+    # ── Backend-first (thin consumer) ──
+    try:
+        from rugmunchbot.services import shill_api
+
+        result = await shill_api.add_evidence(
+            {
+                "token": token,
+                "chain": chain,
+                "account": account,
+                "x_url": x_url,
+                "url": x_url,
+                "image_path": image_path,
+                "text": ocr,
+                "ocr_text": ocr,
+            }
+        )
+        if result and result.get("saved"):
+            logger.debug("shill_watch:evidence_backend_saved token=%s account=%s", token, account)
+            return True
+    except Exception as exc:  # fail-open — degrade to local write
+        logger.debug("shill_watch:evidence_backend_failed err=%s", str(exc)[:120])
+
+    # ── Legacy local fallback (offline / backend unreachable) ──
     saved = False
     if image_path or ocr:
         _ensure_shill_table()
@@ -394,12 +427,6 @@ async def _persist_shill_evidence(campaign: ShillCampaign, shot: dict[str, str])
         except Exception as exc:  # fail-open by contract
             logger.debug("shill_watch:db_evidence_failed err=%s", str(exc)[:120])
 
-    # Qdrant (scam-intel lane) — source link always rides the metadata so the
-    # evidence is traceable back to the original shill. We upsert DIRECTLY to
-    # the canonical Qdrant endpoint (``RMI_QDRANT_URL``, default :6334) into
-    # ``threat_intel_v2`` (2560-dim Cosine) rather than going through the
-    # engine's logical-collection resolver, which can redirect to
-    # ``rag_documents`` on a cached probe miss.
     if x_url or ocr:
         try:
             import hashlib
@@ -788,6 +815,65 @@ def format_shill_alert(campaign: ShillCampaign) -> str:
 # ── focused sweep + runner ────────────────────────────────────────────────
 
 
+def _article_to_dict(article: Any) -> dict[str, Any]:
+    """Map a NewsArticle/object to the backend ``ArticleIn`` shape (fail-open)."""
+    title, channel, url, entities = _article_fields(article)
+    body = ""
+    if isinstance(article, dict):
+        body = str(article.get("text") or article.get("body") or "")
+    else:
+        body = str(getattr(article, "body", "") or getattr(article, "text", "") or "")
+    posted = getattr(article, "posted_at", None)
+    if isinstance(article, dict):
+        posted = article.get("posted_at", posted)
+    return {
+        "title": title,
+        "text": body[:500],
+        "source_channel": channel,
+        "channel": channel,
+        "url": url,
+        "source_url": url,
+        "entities": entities,
+        "posted_at": str(posted) if posted else "",
+    }
+
+
+def _campaign_from_dict(data: dict[str, Any]) -> ShillCampaign:
+    """Build a ``ShillCampaign`` from a backend ``/campaigns/detect`` item."""
+    return ShillCampaign(
+        token=str(data.get("token") or ""),
+        chain=str(data.get("chain") or ""),
+        accounts=[str(a) for a in (data.get("accounts") or [])],
+        mentions=[dict(m) for m in (data.get("mentions") or [])],
+        window_start=str(data.get("window_start") or ""),
+        window_end=str(data.get("window_end") or ""),
+        score=float(data.get("score") or 0.0),
+        importance=float(data.get("importance") or 0.0),
+    )
+
+
+async def _detect_via_backend(articles: list[Any]) -> list[ShillCampaign] | None:
+    """Post the sweep to the backend detector; return campaigns or None.
+
+    None means the backend is unreachable / errored — the caller falls back to
+    the local pure detector. Fail-open by contract.
+    """
+    try:
+        from rugmunchbot.services import shill_api
+
+        items = await shill_api.detect_campaigns(
+            [_article_to_dict(a) for a in articles or []],
+            window_hours=SHILL_WINDOW_HOURS,
+            min_accounts=SHILL_MIN_ACCOUNTS,
+            min_mentions=SHILL_MIN_MENTIONS,
+        )
+        if items:
+            return [_campaign_from_dict(d) for d in items]
+    except Exception as exc:  # fail-open by contract
+        logger.debug("shill_watch:backend_detect_failed err=%s", str(exc)[:120])
+    return None
+
+
 async def _sweep_shill_sources(
     client: Any | None = None, lookback_hours: int | None = None
 ) -> list[Any]:
@@ -878,7 +964,13 @@ async def run_shill_watch(ctx: Any = None) -> int:
         logger.debug("shill_watch:no_fresh_articles")
         return 0
 
-    campaigns = detect_shill_campaigns(articles)
+    campaigns: list[ShillCampaign] | None = None
+    if SHILL_USE_BACKEND:
+        campaigns = await _detect_via_backend(articles)
+    if campaigns is None:
+        # Offline / backend unreachable — the local pure detector is the
+        # degraded rail (kept for startup safety + island mode).
+        campaigns = detect_shill_campaigns(articles)
     if not campaigns:
         logger.info("shill_watch:no_campaigns articles=%s", len(articles))
         return 0
