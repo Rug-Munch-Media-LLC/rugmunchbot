@@ -135,6 +135,45 @@ async def test_post_skips_without_chat_id(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_post_without_chat_id_is_loud_error(monkeypatch):
+    """Unconfigured @rmiupdates must never silently no-op (2026-08-30 fix).
+
+    The ``updates`` role has no documented fallback and no env/gopass value in
+    the deployment, so ``_chat_id("updates")`` resolves to None. That gap must
+    be surfaced at ERROR (not the old buried warning) so monitoring catches it;
+    a config gap is not a transient failure and should never read as silence.
+    """
+
+    class _LogRecorder:
+        def __init__(self) -> None:
+            self.error_calls: list[tuple[str, dict[str, str]]] = []
+
+        def error(self, event: str, **kw: str) -> None:
+            self.error_calls.append((event, kw))
+
+        def warning(self, event: str, **kw: str) -> None:
+            return
+
+        def info(self, event: str, **kw: str) -> None:
+            return
+
+        def debug(self, event: str, **kw: str) -> None:
+            return
+
+    log = _LogRecorder()
+    monkeypatch.setattr(up, "logger", log)
+    monkeypatch.setattr(up, "_chat_id", lambda ch: None)
+    monkeypatch.setattr(up, "_safe_send", _Recorder())
+    assert await up.post_updates_digest(_Ctx()) == 0
+    events = [e for e, _ in log.error_calls]
+    assert "channels:updates_no_chat_id" in events, (
+        "missing chat id must log at ERROR, not silently drop"
+    )
+    any_reason = any("RMI_UPDATES_CHANNEL_ID" in str(kw) for _, kw in log.error_calls)
+    assert any_reason, "the ERROR must name the config source so it is actionable"
+
+
+@pytest.mark.asyncio
 async def test_post_once_per_day_and_release_on_failure(monkeypatch):
     monkeypatch.setattr(up, "_chat_id", lambda ch: "-100upd")
 

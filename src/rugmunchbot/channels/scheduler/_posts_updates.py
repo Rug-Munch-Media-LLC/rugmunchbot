@@ -271,14 +271,22 @@ async def post_updates_digest(ctx: Any) -> int:
     """
     chat_id = _chat_id("updates")
     if not chat_id:
-        # 2026-08-30: the ``updates`` role has fallback=None and no env/gopass
-        # id in production, so this digest silently no-ops every day at info
-        # level. Loud warn so an unconfigured @rmiupdates is actionable, not
-        # buried — silence must be visible, not merely absent.
-        logger.warning(
+        # 2026-08-30 root cause (verified on Talos): the ``updates`` role has
+        # ``fallback=None``, no env var in the deployment, and gopass
+        # ``rmi/rmi/CHANNEL_RMI_UPDATES`` is NOT in the password store, so
+        # ``_resolve_channel_id("updates")`` returns None and the digest
+        # no-ops. The @rmiupdates channel id genuinely does not exist yet on
+        # this deployment. This is a configuration gap (not transient), so it
+        # must be LOUD: log at ERROR (not the old warning) so monitoring
+        # catches an unconfigured @rmiupdates instead of it silently dropping
+        # once a day. Silence must be visible, not merely absent. No
+        # documented fallback id exists for this role by design — the value
+        # can only come from RMI_UPDATES_CHANNEL_ID or the gopass secret.
+        logger.error(
             "channels:updates_no_chat_id",
             job="channel_updates",
-            reason="set RMI_UPDATES_CHANNEL_ID or gopass CHANNEL_RMI_UPDATES",
+            reason="set RMI_UPDATES_CHANNEL_ID, or seed gopass rmi/rmi/CHANNEL_RMI_UPDATES "
+            "(no documented fallback for the @rmiupdates role)",
         )
         return 0
     today = datetime.now(UTC).strftime("%Y%m%d")
