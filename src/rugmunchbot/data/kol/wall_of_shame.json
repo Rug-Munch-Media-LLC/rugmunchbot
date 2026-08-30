@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-30T10:16:56.011937+00:00",
+  "updated": "2026-08-30T16:30:00+00:00",
   "count": 65,
   "wall_of_shame": [
     {
@@ -44,7 +44,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Ansem",
@@ -53,11 +54,13 @@
       "wallets": [
         "AVAZvHLR2PcWpDf8BXY4rVxNHYRBytycHkcB5z5QNXYm"
       ],
-      "category": "scammer",
-      "severity": "medium",
+      "category": "shiller",
+      "severity": "low",
       "risk_level": "high",
       "group": "solana_kol_syndicate",
-      "evidence_url": "https://x.com/blknoiz06"
+      "evidence_url": "",
+      "evidence_status": "needs_evidence",
+      "note": "KOL syndicate promoter (not confirmed scammer); recategorized from scammer per audit"
     },
     {
       "handle": "Broox Bauer",
@@ -156,7 +159,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Altcoin Gordon",
@@ -266,7 +270,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Kim Kardashian",
@@ -288,7 +293,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Lindsay Lohan",
@@ -387,7 +393,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "John McAfee",
@@ -409,7 +416,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Raqeem Saudi",
@@ -442,7 +450,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Sahil Arora",
@@ -475,7 +484,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "SeongWoo",
@@ -510,7 +520,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Soulja Boy (DeAndre Cortez Way)",
@@ -554,7 +565,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Dave Portnoy",
@@ -567,7 +579,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Tiffany Milanovich",
@@ -589,7 +602,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Squid Game token promoters (unidentified)",
@@ -600,7 +614,8 @@
       "severity": "high",
       "risk_level": "critical",
       "group": "",
-      "evidence_url": ""
+      "evidence_url": "",
+      "evidence_status": "needs_evidence"
     },
     {
       "handle": "Wale.moca",
@@ -617,7 +632,7 @@
       "handle": "ban_val",
       "name": "ban",
       "wallet": "EqiFgyNw6kgrmYstWyrP8VjKhka7XEmKTZzHSmwpr1Zb",
-      "category": "shill_loss",
+      "category": "shiller",
       "severity": "medium",
       "risk_level": "watch",
       "group": "",
@@ -629,7 +644,7 @@
       "handle": "korean_bags",
       "name": "KOREAN",
       "wallet": "6KR7SorsUQtNH6CB6JpAnWCAKeTysa95iyXeWihdNeGT",
-      "category": "shill_loss",
+      "category": "shiller",
       "severity": "medium",
       "risk_level": "watch",
       "group": "",
@@ -641,7 +656,7 @@
       "handle": "xkaaox",
       "name": "Kaaox",
       "wallet": "3j5c4aD1aznxQXJ3DWw1b7UD8kKuaqXVbpaVeWPR83TG",
-      "category": "shill_loss",
+      "category": "shiller",
       "severity": "medium",
       "risk_level": "watch",
       "group": "",
@@ -653,7 +668,7 @@
       "handle": "g_free9",
       "name": "Gfree",
       "wallet": "4yo9CUuTBbds9NFhZd4MzPiZZkUvveXdTnAH8qMsE8ku",
-      "category": "shill_loss",
+      "category": "shiller",
       "severity": "medium",
       "risk_level": "watch",
       "group": "",
@@ -665,7 +680,7 @@
       "handle": "swonzon",
       "name": "Swan",
       "wallet": "CXVJewdc79TYR55sz4SGLSWUPz3r4LBJ9Mn93bZ8ZyAz",
-      "category": "shill_loss",
+      "category": "shiller",
       "severity": "medium",
       "risk_level": "watch",
       "group": "",
@@ -677,7 +692,7 @@
       "handle": "xapex0",
       "name": "Apex 屮",
       "wallet": "HYSq1KBAvqWpEv1pCbV31muKM1za5A1WSHGdiVLUoNhb",
-      "category": "shill_loss",
+      "category": "shiller",
       "severity": "medium",
       "risk_level": "watch",
       "group": "",
@@ -689,7 +704,7 @@
       "handle": "quantjb",
       "name": "JB",
       "wallet": "BY58Z7N5Adarkx5ed78AzKvR7Kxrq795aa1boZsYyVBT",
-      "category": "shill_loss",
+      "category": "shiller",
       "severity": "medium",
       "risk_level": "watch",
       "group": "",
@@ -701,7 +716,7 @@
       "handle": "kriptohako99",
       "name": "Hako",
       "wallet": "2JptG7VJTuohCNrEE2iVT43UtjTNqRTVMsgNs8xeotbC",
-      "category": "shill_loss",
+      "category": "shiller",
       "severity": "medium",
       "risk_level": "watch",
       "group": "",
@@ -713,7 +728,7 @@
       "handle": "0xwarlord",
       "name": "alex",
       "wallet": "H1TLERBQyQzSd5gbvbWwP97GjeL9txzWoN5BK4UG7xYm",
-      "category": "shill_loss",
+      "category": "shiller",
       "severity": "medium",
       "risk_level": "watch",
       "group": "",
@@ -725,7 +740,7 @@
       "handle": "bigjapbitch",
       "name": "japbitch",
       "wallet": "DemfvB4iwd3NmVquvWqWbB92yVZWFFqybqBeJGdyEeM6",
-      "category": "shill_loss",
+      "category": "shiller",
       "severity": "medium",
       "risk_level": "watch",
       "group": "",
@@ -733,5 +748,13 @@
       "reason": "Losing > winning trader on a public KOL leaderboard.",
       "source_rule": "kolscan_loss_dominant"
     }
-  ]
+  ],
+  "category_taxonomy": {
+    "scammer": "confirmed fraud (SEC/DOJ action or equivalent)",
+    "rug_puller": "confirmed deployer/operator of a rugged token",
+    "rug_pusher": "celebrity/influencer who promoted a token that rugged (enforcement action or credible exposure)",
+    "shiller": "active KOL promoter; followers incurred losses on promoted tokens (NOT necessarily confirmed fraud)",
+    "ponzi_founder": "operator of a ponzi/MLM scheme",
+    "impersonator": "fake/impersonating account"
+  }
 }

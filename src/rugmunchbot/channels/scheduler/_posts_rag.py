@@ -57,6 +57,24 @@ _TEMPLATE_SIGNATURE_RE = re.compile(
     r"^\[(?:CRITICAL|HIGH|MEDIUM|LOW)\]\s+.+\n\nSource:\s+", re.DOTALL
 )
 
+#: Second rugbrain template-writer variant (2026-08-30 feed incident): a
+#: headline placeholder of exactly ``Story`` followed by a dash and a
+#: ``Source:`` link — no real headline, no real writer. This shipped as a
+#: "quality" post to @cryptorugmuncher + the feed mirror because the
+#: ``_TEMPLATE_SIGNATURE_RE`` only needed ``[SEV] Title`` to match. Same
+#: rule: template output must never post, silence beats slop.
+_STORY_TEMPLATE_RE = re.compile(r"^Story\s*[—-]\s*Source:", re.IGNORECASE | re.DOTALL)
+
+#: Placeholder source-link gate (2026-08-30 feed incident): the rugbrain
+#: template writer emits numbered reference URLs (``/ref-1``, ``/ref-2``)
+#: on reserved demo hosts. A real sourced story never links ``/ref-N``. This
+#: catches the template variant regardless of its prefix, without flagging
+#: ordinary ``example.com/…`` fixture links (different path).
+_PLACEHOLDER_SOURCE_RE = re.compile(
+    r"https?://(?:example\.(?:com|org|net)|[^\s/]*placeholder[^\s/]*)/ref-\d+",
+    re.IGNORECASE,
+)
+
 #: Recency gate (2026-08-26 stale-news incident): a draft older than this is
 #: DISCARDED, and an undated draft is discarded too — we proved undated
 #: drafts are how 2022-2024 exploits reached main. Strategy v2: silence
@@ -174,8 +192,15 @@ def _quality_gate(item: dict[str, Any]) -> str:
     if writer == "template":
         return "template_writer"
     text = str(item.get("text") or "")
-    if not writer and _TEMPLATE_SIGNATURE_RE.match(text.strip()):
+    # Template-fallback output has many shapes: "[SEV] Title\n\nSource:" AND
+    # the "Story — Source:" headline-placeholder variant. Both are the LLM
+    # writer being down — neither ever posts (silence beats slop). The
+    # placeholder ref-URL gate is applied regardless of the ``writer`` label —
+    # a template that slipped through unlabeled still must not publish.
+    if _TEMPLATE_SIGNATURE_RE.match(text.strip()) or _STORY_TEMPLATE_RE.match(text.strip()):
         return "template_signature"
+    if _PLACEHOLDER_SOURCE_RE.search(text):
+        return "placeholder_source"
     raw_score = item.get("score", item.get("rerank_score"))
     if raw_score is not None:
         try:
@@ -220,11 +245,7 @@ def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
         _ref = str(item.get("story_ref") or item.get("source") or "")
         _text = str(item.get("text", ""))
         _existing = next(
-            (
-                p
-                for p in posts
-                if p.get("source") == _ref and p.get("text") == _text
-            ),
+            (p for p in posts if p.get("source") == _ref and p.get("text") == _text),
             None,
         )
         if _existing is not None:

@@ -201,6 +201,21 @@ def test_gate_passes_normal_draft_without_writer() -> None:
     assert _posts_rag._quality_gate({"text": "A perfectly normal draft."}) == ""
 
 
+def test_gate_blocks_story_template_variant() -> None:
+    # 2026-08-30 feed incident: the rugbrain template writer emits a
+    # "Story — Source: https://example.com/ref-1" headline-placeholder that
+    # slipped past the [SEV]-only signature and posted to main + feed mirror.
+    text = "Story — Source: https://example.com/ref-1"
+    assert _posts_rag._quality_gate({"text": text}) != ""
+
+
+def test_gate_allows_demo_source_url_fixture() -> None:
+    # The shared test fixture uses "t — Source: https://example.com/x" as
+    # generic (non-template) text — it must NOT be caught by the placeholder
+    # gate (path /x, not /ref-N, no "Story —" prefix).
+    assert _posts_rag._quality_gate({"text": "t — Source: https://example.com/x"}) == ""
+
+
 def test_gate_blocks_below_threshold_score(monkeypatch) -> None:
     monkeypatch.setattr(_posts_rag, "RMI_RAG_POST_MIN_SCORE", 0.5)
     assert _posts_rag._quality_gate({"text": "ok", "score": 0.2}).startswith("below_threshold")

@@ -271,14 +271,14 @@ async def post_updates_digest(ctx: Any) -> int:
     """
     chat_id = _chat_id("updates")
     if not chat_id:
-        logger.info(
-            "channels:tick",
+        # 2026-08-30: the ``updates`` role has fallback=None and no env/gopass
+        # id in production, so this digest silently no-ops every day at info
+        # level. Loud warn so an unconfigured @rmiupdates is actionable, not
+        # buried — silence must be visible, not merely absent.
+        logger.warning(
+            "channels:updates_no_chat_id",
             job="channel_updates",
-            items_swept=0,
-            items_scored=0,
-            items_posted=0,
-            items_failed=0,
-            reason="no_chat_id (set RMI_UPDATES_CHANNEL_ID or secrets-manager CHANNEL_RMI_UPDATES)",
+            reason="set RMI_UPDATES_CHANNEL_ID or gopass CHANNEL_RMI_UPDATES",
         )
         return 0
     today = datetime.now(UTC).strftime("%Y%m%d")
