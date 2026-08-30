@@ -151,6 +151,27 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             if ok:
                 posted += 1
                 await _record_main_post()
+                # W30 top-of-food-chain mirror: every main post also lands on
+                # feed.rugmunch.io (scanner risk-alert escalations ≥0.7).
+                try:
+                    from rugmunchbot.channels.scheduler._posts_rag import mirror_post_to_feed
+
+                    mirror_post_to_feed(
+                        {
+                            "text": str(main_text),
+                            "story_ref": str(
+                                item.get("url")
+                                or item.get("address")
+                                or item.get("name")
+                                or item.get("summary")
+                                or ""
+                            ),
+                            "source": "scanner",
+                            "kind": "alert",
+                        }
+                    )
+                except Exception as exc:
+                    logger.warning("alert_feed_mirror_failed err=%s", str(exc)[:120])
     if posted:
         logger.info(
             "channels:alerts posted=%s main=%s",

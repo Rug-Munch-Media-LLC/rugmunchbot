@@ -203,17 +203,39 @@ def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
         if os.path.exists(path):
             with open(path) as f:
                 try:
-                    posts = json.load(f)
+                    loaded = json.load(f)
                 except json.JSONDecodeError:
-                    posts = []
+                    loaded = None
+            # Tolerant read: the deployed store was seeded as a dict wrapper
+            # ({"posts": []}) — the canonical shape is a top-level array.
+            if isinstance(loaded, dict):
+                posts = list(loaded.get("posts") or [])
+            elif isinstance(loaded, list):
+                posts = list(loaded)
         slug = f"post-{int(time.time())}"
+        # Dedup guard (stable-key): a re-post of the same story_ref/source
+        # into both surfaces must not double-post on the feed. The Telegram
+        # lane already dedupes its sends; this keeps the static feed store
+        # idempotent as a second line of defense.
+        _ref = str(item.get("story_ref") or item.get("source") or "")
+        _text = str(item.get("text", ""))
+        _existing = next(
+            (
+                p
+                for p in posts
+                if p.get("source") == _ref and p.get("text") == _text
+            ),
+            None,
+        )
+        if _existing is not None:
+            return str(_existing.get("slug") or slug)
         posts.insert(
             0,
             {
                 "slug": slug,
                 "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "text": item.get("text", ""),
-                "source": item.get("story_ref", item.get("source", "")),
+                "text": _text,
+                "source": _ref,
                 "kind": item.get("kind", "story"),
             },
         )

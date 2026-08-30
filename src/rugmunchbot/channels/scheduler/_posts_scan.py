@@ -203,6 +203,27 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             if ok:
                 posted += 1
                 await _record_main_post()
+                # W30 top-of-food-chain mirror: high-importance scan cards
+                # (≥0.7) that escalate to main also land on feed.rugmunch.io.
+                try:
+                    from rugmunchbot.channels.scheduler._posts_rag import mirror_post_to_feed
+
+                    mirror_post_to_feed(
+                        {
+                            "text": str(format_scan_card(item)),
+                            "story_ref": str(
+                                item.get("address")
+                                or item.get("url")
+                                or item.get("title")
+                                or item.get("name")
+                                or ""
+                            ),
+                            "source": "scanner",
+                            "kind": "scan",
+                        }
+                    )
+                except Exception as exc:
+                    logger.warning("scan_feed_mirror_failed err=%s", str(exc)[:120])
     logger.info(
         "channels:tick",
         job="channel_scans",
