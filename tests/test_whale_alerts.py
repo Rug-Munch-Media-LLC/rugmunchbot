@@ -35,14 +35,34 @@ def test_fmt_doc_transfer_with_route():
                 "symbol": "ETH",
                 "from": "0x1111111111111111111111111111111111111111",
                 "to": "0x2222222222222222222222222222222222222222",
+                "published": "2026-08-30T14:32:00+00:00",
+                "tx_hash": "0xabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc1",
             },
         },
     )
     assert line is not None
     assert "Whale transfer" in line
     assert "500 ETH" in line
-    assert "0x111111" in line
-    assert "0x222222" in line
+    # Wallet addresses (the actual signal) — full, copy-able.
+    assert "0x1111111111111111111111111111111111111111" in line
+    assert "0x2222222222222222222222222222222222222222" in line
+    # Timestamp present.
+    assert "🕐 Aug 30, 14:32 UTC" in line
+    # Source link present (tx explorer).
+    assert "etherscan.io/tx/" in line
+
+
+def test_fmt_doc_wallet_less_transfer_dropped():
+    """A whale transfer with NO wallet on either end is DROPPED (None) — a
+    whale alert without the wallet is worthless noise, never posted."""
+    line = _fmt_doc(
+        "pid-x",
+        {
+            "content": "Whale transfer: 200 SOL on solana",
+            "metadata": {"chain": "solana", "type": "large_transfer", "amount_sol": 200},
+        },
+    )
+    assert line is None
 
 
 def test_fmt_doc_positioning():

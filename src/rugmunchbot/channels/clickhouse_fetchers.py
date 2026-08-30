@@ -92,7 +92,9 @@ def _run_ch_query(sql: str, params: dict[str, Any] | None = None) -> list[tuple[
         client = _get_ch_client()
         if client is None:
             return []
-        return client.execute(sql, params or {}, settings={"max_execution_time": _QUERY_TIMEOUT_SECONDS})
+        return client.execute(
+            sql, params or {}, settings={"max_execution_time": _QUERY_TIMEOUT_SECONDS}
+        )
     except Exception as exc:  # fail-open by contract
         logger.debug("channels:clickhouse_query_failed err=%s", str(exc)[:200])
         return []
@@ -119,24 +121,31 @@ def _chain_filter(chain: str) -> tuple[str, dict[str, Any]]:
 # ── Whale moves (token_transfers) ─────────────────────────────────────────
 
 
-def _rows_to_whale_moves(rows: list[tuple[Any, ...]], chain: str, limit: int) -> list[dict[str, Any]]:
+def _rows_to_whale_moves(
+    rows: list[tuple[Any, ...]], chain: str, limit: int
+) -> list[dict[str, Any]]:
     """Normalize token_transfers rows into whale-move channel items."""
     moves: list[dict[str, Any]] = []
     for row in rows[:limit]:
         chain_id = str(row[0] or chain)
+        block_ts = str(row[1] or "")
         tx_hash = str(row[2] or "")
         from_addr = str(row[3] or "")
         to_addr = str(row[4] or "")
         token_addr = str(row[5] or "")
         value = float(row[6]) if row[6] else 0.0
-        if not token_addr or value <= 0:
+        # Whale-signal gate: every transfer has a from AND a to on-chain; a
+        # row missing both is a broken payload — never post wallet-less noise.
+        if not token_addr or value <= 0 or not (from_addr or to_addr):
             continue
         from_label = _entity_label(from_addr)
         to_label = _entity_label(to_addr)
         symbol = _short_addr(token_addr)
         body_bits = [f"{_fmt_usd(value)} moved"]
         if from_addr:
-            body_bits.append(f"from {_short_addr(from_addr)}{f' ({from_label})' if from_label else ''}")
+            body_bits.append(
+                f"from {_short_addr(from_addr)}{f' ({from_label})' if from_label else ''}"
+            )
         if to_addr:
             body_bits.append(f"to {_short_addr(to_addr)}{f' ({to_label})' if to_label else ''}")
         if tx_hash:
@@ -157,6 +166,7 @@ def _rows_to_whale_moves(rows: list[tuple[Any, ...]], chain: str, limit: int) ->
                 "to_address": to_addr,
                 "to_entity": to_label,
                 "transaction_hash": tx_hash,
+                "timestamp": block_ts,
                 "image_url": "",
             }
         )

@@ -2,7 +2,15 @@
 
 Reads recent ``whale_transfers`` docs from Qdrant v2 (the firehose's 18-source
 ingestion), filters to a fresh window, dedupes against a Redis seen-set, and
-formats degen-grade alert lines: chain badge, amount, direction when known.
+formats degen-grade alert lines: chain badge, amount, wallet route when known.
+
+WHALE-SIGNAL CONTRACT (2026-08-30 — fix-whale-signal): every whale alert MUST
+carry the actual signal — a wallet address (from/to), the token + chain, the
+amount (USD + native when known), a timestamp, and an explorer/tx source link.
+A transfer payload with NO wallet address is DROPPED (``None``): a whale alert
+without the wallet is worthless noise. Positioning/HL summaries are a separate
+genre (market analysis, not a transfer) and render their content + timestamp
+as-is.
 
 Cadence: 30 min via scheduler registration (``channel_whale_alerts``).
 Fail-open at every stage — a dead qdrant never breaks the tick.
@@ -10,7 +18,9 @@ Fail-open at every stage — a dead qdrant never breaks the tick.
 
 from __future__ import annotations
 
+import html
 import os
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -38,40 +48,155 @@ _CHAIN_EMOJI = {
     "hyperliquid": "⚡",
 }
 
+#: Explorer base URLs per chain (tx + account) for the source-link contract.
+_EXPLORER_TX: dict[str, str] = {
+    "solana": "https://solscan.io/tx/",
+    "ethereum": "https://etherscan.io/tx/",
+    "base": "https://basescan.org/tx/",
+    "arbitrum": "https://arbiscan.io/tx/",
+    "bsc": "https://bscscan.com/tx/",
+    "polygon": "https://polygonscan.com/tx/",
+    "avalanche": "https://snowtrace.io/tx/",
+}
+_EXPLORER_ACCOUNT: dict[str, str] = {
+    "solana": "https://solscan.io/account/",
+    "ethereum": "https://etherscan.io/address/",
+    "base": "https://basescan.org/address/",
+    "arbitrum": "https://arbiscan.io/address/",
+    "bsc": "https://bscscan.com/address/",
+    "polygon": "https://polygonscan.com/address/",
+    "avalanche": "https://snowtrace.io/address/",
+}
+
 
 def _fmt_amount(meta: dict[str, Any]) -> str:
-    if meta.get("amount_usd"):
-        return f"${meta['amount_usd'] / 1e6:.1f}M {meta.get('token', 'stables')}"
+    """Full amount + token line: USD value + native amount together.
+
+    A whale doc can report BOTH a USD estimate and the native token amount;
+    combine every field the metadata actually carries into one line so the
+    reader sees the size in both terms (e.g. ``$12.5M USDT · 4,000 SOL``).
+    Empty → the honest fallback phrase. Pure — never raises.
+    """
+    parts: list[str] = []
+    usd = meta.get("amount_usd")
+    if usd:
+        token = str(meta.get("token") or "").strip()
+        with suppress(TypeError, ValueError):
+            m = f"${float(usd) / 1e6:.1f}M"
+            parts.append(f"{m} {token}".rstrip() if token else m)
     if meta.get("amount_btc"):
-        return f"{meta['amount_btc']:.1f} BTC"
+        with suppress(TypeError, ValueError):
+            parts.append(f"{float(meta['amount_btc']):.1f} BTC")
     if meta.get("amount_sol"):
-        return f"{meta['amount_sol']:,.0f} SOL"
+        with suppress(TypeError, ValueError):
+            parts.append(f"{float(meta['amount_sol']):,.0f} SOL")
     if meta.get("amount_native"):
-        return f"{meta['amount_native']:,.0f} {meta.get('symbol', '')}"
-    return "sizeable move"
+        sym = str(meta.get("symbol") or "").strip()
+        with suppress(TypeError, ValueError):
+            raw = f"{float(meta['amount_native']):,.0f} {sym}".rstrip()
+            parts.append(raw)
+    return " · ".join(parts) if parts else "sizeable move"
+
+
+def _explorer_tx_url(chain: str, tx_hash: str) -> str:
+    """Per-chain transaction explorer URL ("" when chain/tx unknown)."""
+    tx_hash = (tx_hash or "").strip()
+    if not tx_hash:
+        return ""
+    prefix = _EXPLORER_TX.get((chain or "").lower())
+    return f"{prefix}{tx_hash}" if prefix else ""
+
+
+def _explorer_account_url(chain: str, address: str) -> str:
+    """Per-chain wallet/account explorer URL ("" when chain/addr unknown)."""
+    address = (address or "").strip()
+    if not address:
+        return ""
+    prefix = _EXPLORER_ACCOUNT.get((chain or "").lower())
+    return f"{prefix}{address}" if prefix else ""
+
+
+def _fmt_time(meta: dict[str, Any]) -> str:
+    """Readable timestamp from the doc's ``published`` field ("" when absent)."""
+    raw = str(meta.get("published") or "").strip()
+    if not raw:
+        return ""
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return f"🕐 {dt.strftime('%b %d, %H:%M UTC')}"
+    except ValueError:
+        return f"🕐 {raw}"
+
+
+def _source_link(meta: dict[str, Any]) -> str:
+    """One explorer/tx source link for a whale doc ("" when unknown).
+
+    Prefers the transaction hash (solscan/etherscan tx link); falls back to
+    the wallet account explorer when we only have an address. Pure.
+    """
+    chain = str(meta.get("chain") or "").lower()
+    tx = str(meta.get("tx_hash") or meta.get("hash") or meta.get("transaction_hash") or "").strip()
+    if tx:
+        url = _explorer_tx_url(chain, tx)
+        if url:
+            return f'🔗 <a href="{html.escape(url, quote=True)}">View tx</a>'
+    addr = str(meta.get("from") or meta.get("to") or "").strip()
+    if addr:
+        url = _explorer_account_url(chain, addr)
+        if url:
+            return f'🔗 <a href="{html.escape(url, quote=True)}">Explorer</a>'
+    return ""
 
 
 def _fmt_doc(point_id: str, payload: dict[str, Any]) -> str | None:
+    """One whale-alert line, guaranteed to carry the actual signal.
+
+    Every transfer alert renders: the wallet address(es) (from/to, full and
+    copy-able), the token + chain, the amount (USD + native when known), a
+    timestamp, and an explorer/tx source link. A transfer payload with NO
+    wallet address is DROPPED (returns ``None``) — a whale alert without the
+    wallet is worthless noise. Positioning/HL summaries are market-analysis
+    (not a transfer) and render their content + timestamp as-is. Pure —
+    never raises.
+    """
     meta = payload.get("metadata") or {}
     chain = str(meta.get("chain", "?")).lower()
     badge = _CHAIN_EMOJI.get(chain, "🌐")
     mtype = meta.get("type", "large_transfer")
-    amount = _fmt_amount(meta)
 
     if mtype == "positioning":
-        # HL positioning docs are summaries — post as-is, trimmed.
+        # HL positioning docs are summaries — post content + timestamp as-is.
         content = str(payload.get("content", ""))[:280]
+        ts = _fmt_time(meta)
+        if ts:
+            return f"⚡ <b>Hyperliquid whales</b>\n{content}\n{ts}"
         return f"⚡ <b>Hyperliquid whales</b>\n{content}"
-    if mtype == "stablecoin_whale":
-        to = str(meta.get("to", ""))
-        to_short = f" → <code>{to[:8]}…{to[-6:]}</code>" if len(to) > 16 else ""
-        return f"{badge} <b>Stablecoin whale</b> ({chain})\n{amount} moved{to_short}"
-    frm = str(meta.get("from", ""))
-    to = str(meta.get("to", ""))
-    route = ""
-    if len(frm) > 16 and len(to) > 16:
-        route = f"\n<code>{frm[:8]}…{frm[-6:]}</code> → <code>{to[:8]}…{to[-6:]}</code>"
-    return f"{badge} <b>Whale transfer</b> ({chain})\n{amount}{route}"
+
+    frm = str(meta.get("from", "") or "").strip()
+    to = str(meta.get("to", "") or "").strip()
+    # Whale-signal gate — a transfer without a wallet on either end is dropped.
+    if not (frm or to):
+        return None
+
+    amount = _fmt_amount(meta)
+    label = "Stablecoin whale" if mtype == "stablecoin_whale" else "Whale transfer"
+    lines = [f"{badge} <b>{label}</b> ({chain})", amount]
+
+    # Wallet route (full, copy-able addresses — the actual signal).
+    if frm and to:
+        lines.append(f"👛 <code>{html.escape(frm)}</code> → <code>{html.escape(to)}</code>")
+    elif to:
+        lines.append(f"👛 → <code>{html.escape(to)}</code>")
+    elif frm:
+        lines.append(f"👛 <code>{html.escape(frm)}</code> →")
+
+    ts = _fmt_time(meta)
+    if ts:
+        lines.append(ts)
+    link = _source_link(meta)
+    if link:
+        lines.append(link)
+    return "\n".join(lines)
 
 
 async def _fetch_webhook_whales(limit: int = 8) -> list[str]:
@@ -79,11 +204,13 @@ async def _fetch_webhook_whales(limit: int = 8) -> list[str]:
 
     The alerts gate (channels.content) EXCLUDES whale_move/token_transfer/
     transfer from @rmialerts by doctrine — those events land here instead:
-    they're exactly the whales-lane genre. Fail-open to [].
+    they're exactly the whales-lane genre. Every line carries the wallet
+    route, token, amount, timestamp and a source link; a webhook event with
+    no wallet on either end is DROPPED (no wallet-less noise). Fail-open to [].
     """
     try:
-        from rugmunchbot.channels.content import WHALE_EVENT_TYPES
         from rugmunchbot._vendor.alert_pipeline import get_recent_alerts
+        from rugmunchbot.channels.content import WHALE_EVENT_TYPES
 
         entries = await get_recent_alerts(limit=limit * 2, severity="")
     except Exception as exc:
@@ -95,16 +222,42 @@ async def _fetch_webhook_whales(limit: int = 8) -> list[str]:
         event_type = str(entry.get("event_type") or "").strip()
         if event_type not in WHALE_EVENT_TYPES:
             continue
-        amount = str(entry.get("amount_usd") or entry.get("amount") or "").strip()
-        token = str(entry.get("token_symbol") or entry.get("token") or "tokens").strip()
         chain = str(entry.get("chain") or "").strip().lower()
         badge = _CHAIN_EMOJI.get(chain, "•")
-        side = str(entry.get("attribution", {}).get("from") or "") if isinstance(
-            entry.get("attribution"), dict
-        ) else ""
+        token = str(entry.get("token_symbol") or entry.get("token") or "tokens").strip()
+        token_addr = str(entry.get("token") or entry.get("token_address") or "").strip()
+        attribution = entry.get("attribution")
+        attribution = attribution if isinstance(attribution, dict) else {}
+        frm = str(attribution.get("from") or "").strip()
+        to = str(attribution.get("to") or "").strip()
+        # Whale-signal gate — drop wallet-less webhook events.
+        if not (frm or to):
+            continue
+        amount = str(entry.get("amount_usd") or entry.get("amount") or "").strip()
         amt_s = f"${amount}" if amount.replace(".", "").replace(",", "").isdigit() else amount
-        lines.append(f"{badge} <b>{token}</b> move{f' ({amt_s})' if amt_s else ''}"
-                     f"{f' from {side}' if side else ''}")
+        header = f"{badge} <b>{token}</b> move" + (f" ({amt_s})" if amt_s else "")
+        if token_addr:
+            header += f" <code>{html.escape(token_addr)}</code>"
+        lines.append(header)
+        if frm and to:
+            lines.append(f"👛 <code>{html.escape(frm)}</code> → <code>{html.escape(to)}</code>")
+        elif to:
+            lines.append(f"👛 → <code>{html.escape(to)}</code>")
+        elif frm:
+            lines.append(f"👛 <code>{html.escape(frm)}</code> →")
+        created = str(entry.get("created_at") or "").strip()
+        if created:
+            try:
+                dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                lines.append(f"🕐 {dt.strftime('%b %d, %H:%M UTC')}")
+            except ValueError:
+                lines.append(f"🕐 {created}")
+        tx = str(entry.get("tx_hash") or entry.get("hash") or entry.get("id") or "").strip()
+        url = _explorer_tx_url(chain, tx)
+        if not url:
+            url = _explorer_account_url(chain, frm or to)
+        if url:
+            lines.append(f'🔗 <a href="{html.escape(url, quote=True)}">Source</a>')
         if len(lines) >= limit:
             break
     return lines
@@ -174,7 +327,8 @@ async def build_whale_post() -> str | None:
             await rclient.aclose()
         return None
 
-    header = f"🐋 <b>WHALE WATCH</b> — last {FRESH_HOURS:.0f}h"
+    now = datetime.now(UTC).strftime("%b %d, %H:%M UTC")
+    header = f"🐋 <b>WHALE WATCH</b> — last {FRESH_HOURS:.0f}h\n🕐 {now}"
     post = header + "\n\n" + "\n\n".join(lines)
 
     if rclient and new_ids:

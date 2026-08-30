@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 from contextlib import suppress
+from datetime import UTC, datetime
 from typing import Any
 
 from rugmunchbot.channels.formatters._alerts import (
@@ -207,6 +208,109 @@ def _fmt_wallet_short(addr: str) -> str:
     return short_addr(addr) if addr else "?"
 
 
+#: Per-chain tx explorer host (hostname, no scheme/path) for whale-move links.
+_TX_EXPLORER: tuple[tuple[str, str], ...] = (
+    ("solana", "https://solscan.io/tx/"),
+    ("ethereum", "https://etherscan.io/tx/"),
+    ("base", "https://basescan.org/tx/"),
+    ("arbitrum", "https://arbiscan.io/tx/"),
+    ("bsc", "https://bscscan.com/tx/"),
+    ("polygon", "https://polygonscan.com/tx/"),
+    ("avalanche", "https://snowtrace.io/tx/"),
+)
+
+
+def _tx_url(chain: str, tx_hash: str) -> str:
+    """Per-chain transaction explorer URL ("" when unknown)."""
+    tx_hash = (tx_hash or "").strip()
+    if not tx_hash:
+        return ""
+    for c, prefix in _TX_EXPLORER:
+        if c == (chain or "").lower():
+            return f"{prefix}{tx_hash}"
+    return ""
+
+
+def _fmt_move_time(value: Any) -> str:
+    """Readable timestamp from a whale move (ISO or epoch; "" when absent)."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if raw.replace(".", "", 1).isdigit():  # epoch seconds/millis
+        try:
+            ts = float(raw)
+            if ts > 1e12:
+                ts /= 1000.0
+            return f"🕐 {datetime.fromtimestamp(ts, tz=UTC).strftime('%b %d, %H:%M UTC')}"
+        except (ValueError, OSError):
+            return f"🕐 {raw}"
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return f"🕐 {dt.strftime('%b %d, %H:%M UTC')}"
+    except ValueError:
+        return f"🕐 {raw}"
+
+
+def _whale_move_lines(move: dict[str, Any]) -> list[str] | None:
+    """The whale-move lines for the alpha digest, with the ACTUAL signal.
+
+    Whale-signal gate: a whale move with NO wallet address (from/to) on
+    either end is DROPPED (``None``) — a whale alert without the wallet is
+    worthless noise. Every rendered move carries: wallet route (full,
+    copy-able addresses), amount (USD + token), token + chain, a timestamp,
+    and a scan/chart/tx source link. Pure — never raises.
+    """
+    frm = str(move.get("from_address") or "").strip()
+    to = str(move.get("to_address") or "").strip()
+    if not (frm or to):
+        return None
+    title = _esc(move.get("title") or "Whale move")
+    chain = _esc(move.get("chain") or "solana")
+    lines = [f"\u2022 {title} ({chain})"]
+
+    # Amount + token (USD value first, then token symbol).
+    usd = _fmt_usd(move.get("value_usd"))
+    token = str(move.get("token_symbol") or "").strip()
+    bits: list[str] = []
+    if usd:
+        bits.append(usd)
+    if token and token not in ("?", "unknown"):
+        bits.append(_esc(token))
+    if bits:
+        lines.append("   \U0001f4b0 " + " ".join(bits))
+
+    # Wallet route (full addresses — the actual wallet signal).
+    if frm and to:
+        lines.append(f"   \U0001f45b <code>{_esc(frm)}</code> → <code>{_esc(to)}</code>")
+    elif to:
+        lines.append(f"   \U0001f45b → <code>{_esc(to)}</code>")
+    elif frm:
+        lines.append(f"   \U0001f45b <code>{_esc(frm)}</code> →")
+
+    body = _esc(_takeaway(move.get("body") or move.get("summary"), _ALPHA_TAKEAWAY_CHARS))
+    if body:
+        lines.append(f"   \U0001f4ac {body}")
+
+    addr = str(move.get("token_address") or "")
+    links = ""
+    if addr:
+        lines.append(f"   \U0001f916 /scan <code>{_esc(addr)}</code>")
+        links = _item_links(move, addr=addr, chain=str(move.get("chain") or "solana"))
+    tx = str(move.get("transaction_hash") or "").strip()
+    if tx:
+        tx_link = _tx_url(str(move.get("chain") or ""), tx)
+        if tx_link:
+            tx_bit = f'<a href="{html.escape(tx_link, quote=True)}">Tx</a>'
+            links = f"{links} · {tx_bit}" if links else tx_bit
+    if links:
+        lines.append(f"   {links}")
+
+    ts = _fmt_move_time(move.get("timestamp"))
+    if ts:
+        lines.append(f"   {ts}")
+    return lines
+
+
 def _launch_verdict(launch: dict[str, Any]) -> str:
     """One-line "why it matters" for a launch, honest to its scan verdict."""
     risk = str(launch.get("risk_level") or "unknown").lower()
@@ -246,21 +350,14 @@ def format_alpha_post(
         "",
     ]
 
-    if whale_moves:
+    rendered_whales: list[str] = []
+    for move in whale_moves[:4]:
+        move_lines = _whale_move_lines(move)
+        if move_lines:
+            rendered_whales.extend(move_lines)
+    if rendered_whales:
         lines.append("\u26a1 <b>Whale Moves</b>")
-        for move in whale_moves[:4]:
-            title = _esc(move.get("title") or "Whale move")
-            chain = _esc(move.get("chain") or "solana")
-            addr = str(move.get("token_address") or "")
-            lines.append(f"\u2022 {title} ({chain})")
-            body = _esc(_takeaway(move.get("body") or move.get("summary"), _ALPHA_TAKEAWAY_CHARS))
-            if body:
-                lines.append(f"   \U0001f4ac {body}")
-            if addr:
-                lines.append(f"   \U0001f916 /scan <code>{_esc(addr)}</code>")
-            links = _item_links(move, addr=addr, chain=str(move.get("chain") or "solana"))
-            if links:
-                lines.append(f"   {links}")
+        lines.extend(rendered_whales)
         lines.append("")
 
     if smart_money:
@@ -310,7 +407,10 @@ def format_alpha_post(
                 lines.append(f"   {links}")
         lines.append("")
 
-    if not whale_moves and not smart_money and not launches and not kol_trades:
+    # Empty-window honesty: render the fallback only when NO section actually
+    # produced content. A whale list whose only move was dropped (wallet-less)
+    # does NOT keep the section header, and a fully-empty digest says so.
+    if not rendered_whales and not smart_money and not launches and not kol_trades:
         lines.append("No fresh alpha signals in this window \u2014 checking again soon.")
         lines.append("")
 

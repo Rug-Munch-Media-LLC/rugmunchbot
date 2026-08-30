@@ -197,18 +197,54 @@ def test_alpha_post_empty_window_has_no_invented_sections() -> None:
     assert post.image_url == ""
 
 
-def test_alpha_post_whale_section_renders_signal_first() -> None:
+def test_alpha_post_whale_section_renders_full_signal() -> None:
+    """A whale move renders the ACTUAL signal: wallet route, amount, token,
+    timestamp, scan/tx source link — not just a bare 'Whale moved' title."""
     move = {
         "title": "Whale bought PEPE",
         "chain": "ethereum",
         "token_address": _A,
+        "value_usd": 250000,
+        "token_symbol": "PEPE",
+        "from_address": "0x1111111111111111111111111111111111111111",
+        "to_address": "0x2222222222222222222222222222222222222222",
+        "transaction_hash": "0xabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc1",
+        "timestamp": "2026-08-30T14:32:00+00:00",
         "body": "Accumulated **4.2T** tokens in one sweep.",
     }
     post = format_alpha_post([move], [], [])
     assert "⚡ <b>Whale Moves</b>" in post
     assert "• Whale bought PEPE (ethereum)" in post
-    assert "💬 Accumulated 4.2T tokens in one sweep." in post  # markup stripped
+    # Wallet addresses present (from and to).
+    assert "<code>0x1111111111111111111111111111111111111111</code>" in post
+    assert "<code>0x2222222222222222222222222222222222222222</code>" in post
+    # Amount + token present.
+    assert "$250,000" in post
+    assert "PEPE" in post
+    # Timestamp present.
+    assert "🕐 Aug 30, 14:32 UTC" in post
+    # Source link present (tx explorer).
+    assert "etherscan.io/tx/" in post
+    # Body hook still renders (markup stripped).
+    assert "💬 Accumulated 4.2T tokens in one sweep." in post
     assert f"🤖 /scan <code>{_A}</code>" in post
+
+
+def test_alpha_whale_move_without_wallet_is_dropped() -> None:
+    """A whale move with NO wallet address on either end is DROPPED — a whale
+    alert without the wallet is worthless noise, never posted."""
+    move = {
+        "title": "Whale bought PEPE",
+        "chain": "ethereum",
+        "token_address": _A,
+        "value_usd": 250000,
+        "body": "Accumulated 4.2T tokens in one sweep.",
+    }
+    post = format_alpha_post([move], [], [])
+    # The whale section is omitted entirely (no wallet → no signal to post).
+    assert "Whale Moves" not in post
+    assert "Whale bought PEPE" not in post
+    assert "No fresh alpha signals" in post
 
 
 def test_alpha_post_smart_money_tags_pnl_explorer() -> None:
