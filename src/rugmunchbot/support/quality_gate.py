@@ -44,11 +44,11 @@ if TYPE_CHECKING:
 #: fallback) — Telegram rejects it and every "placeholder" post silently
 #: shipped text-only. /brand/banner.jpg is the real og:image the site
 #: itself declares (verified 200 image/jpeg).
-#: 2026-08-31 (operator doctrine): the placeholder is the PLATFORM BADGE
-#: (rmi-badge.png, 1024x1024) — the old banner.jpg is the operator's
+#: 2026-09-01 (operator doctrine): the placeholder is the PLATFORM BADGE v2
+#: (rmi_badgev2.png, 1024x1024) — the old banner.jpg is the operator's
 # personal X header and must never ship as site content. Logo used
 # sparingly: only as the last-resort fallback, never as content.
-PLACEHOLDER_IMAGE_URL: Final = "https://rugmunch.io/rmi-badge.png"
+PLACEHOLDER_IMAGE_URL: Final = "https://rugmunch.io/brand/rmi_badgev2.png"
 
 _ANCHOR_RE: Final = re.compile(r'<a\s+href="([^"]+)"[^>]*>(.*?)</a>', re.DOTALL)
 _BARE_URL_RE: Final = re.compile(r"https?://[^\s)<>\"']+")

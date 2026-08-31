@@ -89,8 +89,21 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
     # Durability: hydrate the dedupe sets + last-run timestamps from Redis
     # once at startup (one-shot job) so a restart resumes cleanly. Guarded
     # for queues that predate PTB run_once (and test fakes).
+    #
+    # 2026-09-01 P0 fix: when=1.0 fired BEFORE the PTB job queue finished
+    # starting, so APScheduler marked the run MISSED (~5s late) and never
+    # executed it — the Redis dedupe state was NEVER restored and every
+    # restart re-posted the same roundup/drafts to @cryptorugmuncher
+    # (observed 3x on 2026-08-31, one per deploy restart). when=10 gives
+    # the queue time to come up; misfire_grace_time=300 means a late job
+    # still runs instead of being dropped.
     if hasattr(job_queue, "run_once"):
-        job_queue.run_once(_load_channel_state, when=1.0, name="channel_state_load")
+        job_queue.run_once(
+            _load_channel_state,
+            when=10.0,
+            name="channel_state_load",
+            misfire_grace_time=300,
+        )
 
     # DEPRECATED 2026-08-16 — legacy 4h news digest job (``channel_news``).
     # Superseded by the routed tg_news path (``channel_tg_news`` below):

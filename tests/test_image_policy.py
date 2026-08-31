@@ -20,8 +20,12 @@ from rugmunchbot.support.image_policy import (
 
 @pytest.mark.asyncio
 async def test_carried_image_wins() -> None:
+    """Carried images win — and are proxied through the backend thumb
+    endpoint so Telegram always gets bytes even when the publisher
+    hotlink-blocks (2026-09-01 always-real-bytes doctrine)."""
     img = await resolve_post_image("scans", image_url="https://img.example/x.png")
-    assert img == "https://img.example/x.png"
+    assert "img.example%2Fx.png" in img
+    assert "/api/v1/media/thumb?url=" in img
 
 
 @pytest.mark.asyncio
@@ -51,8 +55,9 @@ async def test_news_kind_fetches_og_image(monkeypatch: pytest.MonkeyPatch) -> No
 
     monkeypatch.setattr(src, "_fetch_og_image", _og)
     img = await resolve_post_image("news", source_url="https://example.com/story")
-    assert img == "https://og.example/story.png" or img == "https://og.example/story.png"
-    assert img == "https://og.example/story.png"
+    # og:image result is proxied through the backend thumb endpoint
+    assert "og.example%2Fstory.png" in img
+    assert "/api/v1/media/thumb?url=" in img
 
 
 @pytest.mark.asyncio

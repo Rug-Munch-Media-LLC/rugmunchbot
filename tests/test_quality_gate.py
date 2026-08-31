@@ -249,8 +249,11 @@ def test_lint_double_link_canonical_variants() -> None:
 def test_placeholder_image_url_is_real_image_path() -> None:
     """The placeholder must NOT be the old /og/ SPA-fallback path that
     served text/html — Telegram rejected it and every placeholder post
-    silently shipped text-only (2026-08-31 no-image incident)."""
-    assert PLACEHOLDER_IMAGE_URL == "https://rugmunch.io/brand/banner.jpg"
+    silently shipped text-only (2026-08-31 no-image incident).
+    2026-09-01: it must also NOT be the operator's personal X header
+    (/brand/banner.jpg) — the platform badge v2 is the only sub image."""
+    assert PLACEHOLDER_IMAGE_URL == "https://rugmunch.io/brand/rmi_badgev2.png"
+    assert "banner.jpg" not in PLACEHOLDER_IMAGE_URL
     assert PLACEHOLDER_IMAGE_URL.startswith("https://")
 
 
