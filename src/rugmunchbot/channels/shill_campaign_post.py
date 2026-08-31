@@ -282,7 +282,18 @@ async def run_shill_campaign_poster(ctx: Any) -> int:
                 )
                 sent = True
             elif text:
-                sent = await _safe_send(ctx.bot, chat_id, text)
+                # Image doctrine (2026-08-31): no local screenshot → ship the
+                # gate-resolved image (branded placeholder) as photo + caption
+                # instead of a naked text message.
+                from rugmunchbot.channels._media import send_news_photo
+
+                image_url = str(gate.image_url or "").strip()
+                if image_url.startswith(("http://", "https://")):
+                    sent = await send_news_photo(
+                        ctx.bot, chat_id, caption=text, photo_url=image_url
+                    )
+                if not sent:
+                    sent = await _safe_send(ctx.bot, chat_id, text)
         except Exception as exc:
             logger.warning("shill_campaign_post:send_failed err=%s", str(exc)[:120])
         if sent:

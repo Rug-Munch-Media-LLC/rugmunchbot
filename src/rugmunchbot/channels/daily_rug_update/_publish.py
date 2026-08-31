@@ -11,6 +11,7 @@ logs and the run no-ops; the Telegram post is never blocked by the feed.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -303,10 +304,17 @@ async def post_daily_rug_update(ctx: Any) -> int:
         logger.info("daily_rug_update:feed_published slug=%s url=%s", slug, feed_url)
 
     # Deterministic closer: one link to the exact mirrored post (never a
-    # duplicate — the report body never links the feed URL).
+    # duplicate — the closer is skipped when the body already links the feed
+    # URL, compared canonically so http/https / tracking params / trailing
+    # slash variants still count as linked).
+    from rugmunchbot.support.content_lint import canonical_url
+
+    already_linked = bool(feed_url) and canonical_url(feed_url) in {
+        canonical_url(u) for u in re.findall(r"https?://[^\s)>\"']+", report)
+    }
     closer = (
         f"📖 <b>{EDITION}</b> — full write-up on rugmunch.io"
-        + (f' — <a href="{feed_url}">read it here</a>.' if feed_url else ".")
+        + (f' — <a href="{feed_url}">read it here</a>.' if feed_url and not already_linked else ".")
         + "\n🤖 Live token intel, scans &amp; alerts: @rugmunchbot"
     )
     parts = _split_for_telegram(report)

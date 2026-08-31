@@ -248,10 +248,45 @@ async def post_scammer_warning(bot: Any, call: dict[str, Any]) -> dict[str, Any]
     if is_high_signal(call):
         main_chat = _resolve_channel_id("main")
         if main_chat:
-            from rugmunchbot.channels.formatters._primitives import enforce_site_link
+            from rugmunchbot.channels.formatters._primitives import (
+                NewsPost,
+                enforce_site_link,
+            )
+            from rugmunchbot.support.image_policy import resolve_post_image
+            from rugmunchbot.support.quality_gate import pre_post_quality_gate
 
             main_text = enforce_site_link(text, site="feed")
-            result["routes"]["main"] = await _safe_send(bot, main_chat, main_text)
+            # HARD quality gate + photo-aware delivery (2026-08-31): the main
+            # route is a flagship channel post — gate → autofix → photo
+            # (branded placeholder when no og:image), never naked text.
+            resolved_image = await resolve_post_image(
+                "main",
+                image_url=call.get("image_url") or call.get("image") or "",
+                source_url=str(call.get("source_url") or ""),
+                logger=logger,
+            )
+            gate = await pre_post_quality_gate(
+                main_text,
+                image_url=resolved_image,
+                source=handle[:80],
+                kind="scammer_warning:main",
+                min_words=8,
+                require_image=True,
+                allow_placeholder_image=True,
+                logger=logger,
+            )
+            if gate.ok:
+                from rugmunchbot.channels.scheduler._core import _post_photo_aware
+
+                post = NewsPost(gate.text)
+                post.image_url = gate.image_url
+                result["routes"]["main"] = await _post_photo_aware(bot, main_chat, post, _safe_send)
+            else:
+                logger.warning(
+                    "scammer_main_gated handle=%s violations=%d",
+                    handle[:60],
+                    len(gate.violations),
+                )
         else:
             logger.warning("scammer_warning_skipped reason=no_chat_id channel=main")
         slug = mirror_post_to_feed(

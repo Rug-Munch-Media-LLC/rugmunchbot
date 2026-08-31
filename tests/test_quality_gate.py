@@ -218,3 +218,100 @@ async def test_min_words_override_relaxes_bland_check() -> None:
 
 def test_default_min_words_is_canonical() -> None:
     assert BLAND_MIN_WORDS == 20
+
+
+# ── 2026-08-31 regression: canonical URL dedupe ─────────────────────────────
+
+
+def test_strip_duplicate_urls_canonical_variants() -> None:
+    """http/https, tracking params and trailing slashes are the SAME link."""
+    text = (
+        "Story https://example.com/post/1?utm_source=tg and again "
+        "http://example.com/post/1/ and once more "
+        "https://example.com/post/1?fbclid=abc."
+    )
+    out = strip_duplicate_urls(text)
+    assert out.count("example.com/post/1") == 1
+
+
+def test_lint_double_link_canonical_variants() -> None:
+    from rugmunchbot.support.content_lint import lint_text
+
+    text = (
+        "ETF flows hit records again today. https://example.com/a?utm_source=x "
+        "and the same story at http://example.com/a/ — the tape does not lie "
+        "about institutional demand this quarter, and the desk knows it."
+    )
+    rules = [v.rule for v in lint_text(text)]
+    assert "double-link" in rules
+
+
+def test_placeholder_image_url_is_real_image_path() -> None:
+    """The placeholder must NOT be the old /og/ SPA-fallback path that
+    served text/html — Telegram rejected it and every placeholder post
+    silently shipped text-only (2026-08-31 no-image incident)."""
+    assert PLACEHOLDER_IMAGE_URL == "https://rugmunch.io/brand/banner.jpg"
+    assert PLACEHOLDER_IMAGE_URL.startswith("https://")
+
+
+# ── 2026-08-31 integration: full main-channel posting path ─────────────────
+
+
+class _FakeBot:
+    def __init__(self) -> None:
+        self.photos: list[dict[str, Any]] = []
+        self.messages: list[dict[str, Any]] = []
+
+    async def send_photo(self, **kwargs: Any) -> None:
+        self.photos.append(kwargs)
+
+    async def send_message(self, **kwargs: Any) -> None:
+        self.messages.append(kwargs)
+
+
+@pytest.mark.asyncio
+async def test_main_channel_double_link_no_image_payload_is_fixed_before_send() -> None:
+    """Full main-lane contract: draft with a double link (in canonical
+    variants) and no image → gate → single link + placeholder image →
+    delivered via the photo-aware sender, never as a naked text message."""
+    from rugmunchbot.channels.scheduler._core import _post_photo_aware
+    from rugmunchbot.support.image_policy import ensure_post_image
+
+    draft = (
+        "TokenX drained its LP overnight and the deployer wallet is bridging "
+        "the proceeds through a mixer right now. Full trace: "
+        "https://example.com/trace?utm_source=rugbrain — same trace mirrored "
+        "at http://example.com/trace/ for the archive."
+    )
+    gate = await pre_post_quality_gate(
+        draft,
+        image_url="",
+        source="integration",
+        kind="rag:main",
+        min_words=8,
+        require_image=True,
+        allow_placeholder_image=True,
+        logger=_Logger(),
+    )
+    assert gate.ok, [str(v) for v in gate.violations]
+    assert gate.auto_fixed
+    # single link (canonical dedupe collapsed all three variants)
+    assert gate.text.count("example.com/trace") == 1
+    # image attached (placeholder doctrine)
+    assert gate.image_url == PLACEHOLDER_IMAGE_URL
+
+    bot = _FakeBot()
+    post = ensure_post_image(gate.text)
+    post.image_url = gate.image_url
+    sent_calls: list[str] = []
+
+    async def _safe_send(b: Any, chat: Any, text: Any) -> bool:
+        sent_calls.append("text")
+        return True
+
+    ok = await _post_photo_aware(bot, "@cryptorugmuncher", post, _safe_send)
+    assert ok
+    assert not sent_calls, "post must ship photo-aware, never text-only"
+    assert len(bot.photos) == 1
+    assert bot.photos[0]["photo"] == PLACEHOLDER_IMAGE_URL
+    assert bot.photos[0]["caption"] == gate.text

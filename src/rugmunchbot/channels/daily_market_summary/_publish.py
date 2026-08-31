@@ -366,6 +366,7 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # (dedupe links, placeholder image) runs first; a still-dirty report
     # gets ONE stricter-prompt LLM regeneration; if it STILL fails the
     # edition is skipped — crap never ships to @cryptorugmuncher.
+    from rugmunchbot.support.content_lint import canonical_url
     from rugmunchbot.support.quality_gate import pre_post_quality_gate
 
     async def _regenerate_report(bad_text: str, violations: list[Any]) -> str:
@@ -423,8 +424,12 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     parts = _split_for_telegram(report)
     # One-link-per-source: only append the feed link when the report body
     # does not already link it (the LLM is instructed to link each source
-    # once; the closer must never duplicate an existing link).
-    already_linked = bool(feed_url) and feed_url in report
+    # once; the closer must never duplicate an existing link). Comparison is
+    # canonical-URL (http/https, trailing slash, tracking params) so a
+    # differently-formatted copy of the same link still counts as linked.
+    already_linked = bool(feed_url) and canonical_url(feed_url) in {
+        canonical_url(u) for u in re.findall(r"https?://[^\s)>\"']+", report)
+    }
     closer = (
         f"📖 <b>{edition}</b> — full write-up on feed.rugmunch.io"
         + (f' — <a href="{feed_url}">read it here</a>.' if feed_url and not already_linked else ".")

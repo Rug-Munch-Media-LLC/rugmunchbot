@@ -29,12 +29,14 @@ from typing import TYPE_CHECKING, Any
 from rugmunchbot.channels.formatters._primitives import SITE_FEED_POST_URL
 from rugmunchbot.channels.scheduler._core import (
     _chat_id,
+    _post_photo_aware,
     _release,
     _remember,
     _safe_send,
     logger,
 )
 from rugmunchbot.support.content_lint import BANNED_PHRASES
+from rugmunchbot.support.image_policy import ensure_post_image
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -176,7 +178,12 @@ async def post_roundup(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     if not gate.ok:
         return 0
     text = gate.text
-    if not await _safe_send(ctx.bot, chat_id, text):
+    # Image doctrine (2026-08-31): the roundup ships photo + caption like
+    # every other main-channel post — never a naked text message. The gate
+    # resolved the placeholder; _post_photo_aware attaches it.
+    post = ensure_post_image(text)
+    post.image_url = gate.image_url or post.image_url
+    if not await _post_photo_aware(ctx.bot, chat_id, post, _safe_send):
         _release("roundup", dedupe_key)
         return 0
     logger.info("roundup:posted items=%d", len(items))

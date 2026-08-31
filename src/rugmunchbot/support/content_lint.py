@@ -71,6 +71,48 @@ _URL_RE: Final = re.compile(r"https?://\S+")
 _HTML_RE: Final = re.compile(r"<[^>]+>")
 _WORD_RE: Final = re.compile(r"[A-Za-z0-9'\-]+")
 
+#: Query params that never change a link's destination (tracking junk).
+#: Two URLs differing only in these are the SAME link for double-link
+#: detection — this is what let "same link twice" posts slip past the old
+#: exact-string dedupe (utm-suffixed / http-vs-https / trailing-slash).
+_TRACKING_PARAM_RE: Final = re.compile(
+    r"^(utm_[a-z_]+|ref|ref_src|ref_url|fbclid|gclid|mc_cid|mc_eid|igshid|"
+    r"si|s|spm|share_id|source)$",
+    re.IGNORECASE,
+)
+
+
+def canonical_url(url: str) -> str:
+    """Normalize a URL so trivially-identical links compare equal.
+
+    Lowercases scheme + host, treats http == https, strips default ports,
+    strips tracking params, strips a trailing slash (except bare root).
+    Pure — never raises; unparsable input returns a lowercased fallback.
+    """
+    raw = str(url or "").strip().rstrip(".,;:")
+    m = re.match(r"^(https?)://([^/?#]+)([^#]*)", raw, re.IGNORECASE)
+    if not m:
+        return raw.lower()
+    scheme, host, rest = m.group(1).lower(), m.group(2), m.group(3)
+    host = host.lower()
+    if host.endswith(":80") and scheme == "http":
+        host = host[:-3]
+    elif host.endswith(":443"):
+        host = host[:-4]
+    path_query = rest
+    if "?" in path_query:
+        path, query = path_query.split("?", 1)
+        kept = [
+            kv
+            for kv in query.split("&")
+            if kv and not _TRACKING_PARAM_RE.match(kv.split("=", 1)[0])
+        ]
+        path_query = path + ("?" + "&".join(kept) if kept else "")
+    if len(path_query) > 1 and path_query.endswith("/"):
+        path_query = path_query.rstrip("/")
+    # http and https are the same destination for dedupe purposes.
+    return f"https://{host}{path_query}"
+
 
 @dataclass(frozen=True)
 class Violation:
@@ -135,13 +177,18 @@ def lint_text(text: str, *, min_words: int = BLAND_MIN_WORDS) -> list[Violation]
         )
 
     # Double-linking: the same URL must never appear twice in one post.
+    # Comparison uses canonical_url() so http/https, trailing slashes and
+    # tracking params cannot smuggle a duplicate past the check.
     urls = re.findall(r"https?://[^\s)>\"']+", raw)
     seen: dict[str, int] = {}
+    first_raw: dict[str, str] = {}
     for url in urls:
-        key = url.rstrip(".,;:")
+        key = canonical_url(url)
         seen[key] = seen.get(key, 0) + 1
-    for url, count in seen.items():
+        first_raw.setdefault(key, url)
+    for key, count in seen.items():
         if count > 1:
+            url = first_raw[key]
             line, col = _line_col(raw, raw.find(url))
             violations.append(
                 Violation(

@@ -24,6 +24,7 @@ from rugmunchbot.channels.shill_campaign_post import (
     fetch_shill_campaigns,
     run_shill_campaign_poster,
 )
+from rugmunchbot.support.quality_gate import PLACEHOLDER_IMAGE_URL
 
 
 def _campaign(**over: Any) -> dict[str, Any]:
@@ -224,7 +225,9 @@ class TestRunPoster:
             assert await run_shill_campaign_poster(ctx=_FakeCtx(bot)) == 0
         assert len(bot.photos) + len(bot.messages) == 1
 
-    async def test_text_only_when_no_screenshot(self) -> None:
+    async def test_placeholder_photo_when_no_screenshot(self) -> None:
+        """Image doctrine (2026-08-31): no local screenshot → the gate's
+        branded placeholder ships as photo + caption, never naked text."""
         camp = _campaign()
         bot = _FakeBot()
         with (
@@ -232,8 +235,9 @@ class TestRunPoster:
             patch.object(scp, "fetch_shill_campaigns", AsyncMock(return_value=[camp])),
         ):
             assert await run_shill_campaign_poster(ctx=_FakeCtx(bot)) == 1
-        assert not bot.photos
-        assert len(bot.messages) == 1
+        assert len(bot.photos) == 1
+        assert bot.photos[0]["photo"] == PLACEHOLDER_IMAGE_URL
+        assert not bot.messages
 
     async def test_max_posts_cap(self) -> None:
         camps = [_campaign(token=f"T{i}", handles=[f"@h{i}"]) for i in range(5)]
@@ -250,6 +254,10 @@ class TestRunPoster:
         with (
             self._patch_core(),
             patch.object(scp, "fetch_shill_campaigns", AsyncMock(return_value=[camp])),
+            patch(
+                "rugmunchbot.channels._media.send_news_photo",
+                AsyncMock(return_value=False),
+            ),
             patch.object(sched_core, "_safe_send", AsyncMock(return_value=False)),
         ):
             assert await run_shill_campaign_poster(ctx=_FakeCtx(bot)) == 0

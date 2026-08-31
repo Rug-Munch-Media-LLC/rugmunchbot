@@ -225,9 +225,13 @@ class _FakeBot:
 
     def __init__(self) -> None:
         self.sent: list[tuple[str, str]] = []
+        self.photos: list[dict] = []
 
     async def send_message(self, **kwargs) -> None:
         self.sent.append((kwargs.get("chat_id", ""), kwargs.get("text", "")))
+
+    async def send_photo(self, **kwargs) -> None:
+        self.photos.append(kwargs)
 
 
 async def test_post_scammer_warning_routes(tmp_db, monkeypatch):
@@ -260,12 +264,14 @@ async def test_post_scammer_warning_routes(tmp_db, monkeypatch):
         lambda item: "post-123",
     )
 
-    result = await post_scammer_warning(_FakeBot(), call)
+    bot = _FakeBot()
+    result = await post_scammer_warning(bot, call)
     assert result["routes"]["alerts"] is True
     assert result["routes"]["main"] is True
     assert result["routes"]["feed"] is True
     assert "chat-alerts" in sent
-    assert "chat-main" in sent
+    # Image doctrine (2026-08-31): main ships photo + caption, never text.
+    assert any(p["chat_id"] == "chat-main" for p in bot.photos)
 
 
 async def test_plain_buy_stays_on_alerts(tmp_db, monkeypatch):

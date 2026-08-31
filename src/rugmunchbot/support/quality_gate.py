@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any, Final
 from rugmunchbot.support.content_lint import (
     BLAND_MIN_WORDS,
     Violation,
+    canonical_url,
     lint_post,
 )
 
@@ -39,7 +40,15 @@ if TYPE_CHECKING:
 
 #: Brand placeholder attached to image-less posts so the main channel never
 #: ships a naked text post. Must be a real, publicly served http(s) image.
-PLACEHOLDER_IMAGE_URL: Final = "https://rugmunch.io/og/rugmunch-intel.png"
+#: 2026-08-31: the old /og/rugmunch-intel.png path serves text/html (SPA
+#: fallback) — Telegram rejects it and every "placeholder" post silently
+#: shipped text-only. /brand/banner.jpg is the real og:image the site
+#: itself declares (verified 200 image/jpeg).
+#: 2026-08-31 (operator doctrine): the placeholder is the PLATFORM BADGE
+#: (rmi-badge.png, 1024x1024) — the old banner.jpg is the operator's
+# personal X header and must never ship as site content. Logo used
+# sparingly: only as the last-resort fallback, never as content.
+PLACEHOLDER_IMAGE_URL: Final = "https://rugmunch.io/rmi-badge.png"
 
 _ANCHOR_RE: Final = re.compile(r'<a\s+href="([^"]+)"[^>]*>(.*?)</a>', re.DOTALL)
 _BARE_URL_RE: Final = re.compile(r"https?://[^\s)<>\"']+")
@@ -77,7 +86,7 @@ def strip_duplicate_urls(text: str) -> str:
     seen: set[str] = set()
 
     def _sub_anchor(m: re.Match[str]) -> str:
-        url = m.group(1).rstrip(".,;:")
+        url = canonical_url(m.group(1))
         if url in seen:
             return m.group(2)
         seen.add(url)
@@ -94,7 +103,7 @@ def strip_duplicate_urls(text: str) -> str:
     out = _ANCHOR_RE.sub(_hold, out)
 
     def _sub_bare(m: re.Match[str]) -> str:
-        url = m.group(0).rstrip(".,;:")
+        url = canonical_url(m.group(0))
         if url in seen:
             return ""
         seen.add(url)

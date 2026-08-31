@@ -1,0 +1,66 @@
+{
+ "updated": "2026-08-31T19:03:24.533670+00:00",
+ "count": 3,
+ "discovered": [
+  {
+   "handle": "kain",
+   "status": "discovered",
+   "discovered_at": "2026-08-31T19:01:30.567591+00:00",
+   "tokens_shilled": [
+    "0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+   ],
+   "evidence": [
+    {
+     "tweet_id": "1415556915912855557",
+     "url": "https://x.com/kain/status/1415556915912855557",
+     "text": "Seems weird we don’t use 0xffffffffffffffffffffffffffffffffffffffff as the burn address 🤷‍♂️",
+     "likes": "201",
+     "retweets": "6",
+     "engagement": "207",
+     "captured_at": "2026-08-31T19:01:30.567451+00:00"
+    }
+   ],
+   "last_seen_at": "2026-08-31T19:03:24.531258+00:00"
+  },
+  {
+   "handle": "m4573rch",
+   "status": "discovered",
+   "discovered_at": "2026-08-31T19:01:30.568587+00:00",
+   "tokens_shilled": [
+    "0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+   ],
+   "evidence": [
+    {
+     "tweet_id": "1664302858735603712",
+     "url": "https://x.com/M4573RCH/status/1664302858735603712",
+     "text": "0xffffffffffffffffffffffffffffffffffffffff off if you don’t understand elastic supply.",
+     "likes": "87",
+     "retweets": "14",
+     "engagement": "101",
+     "captured_at": "2026-08-31T19:01:30.568438+00:00"
+    }
+   ],
+   "last_seen_at": "2026-08-31T19:03:24.532138+00:00"
+  },
+  {
+   "handle": "z0age",
+   "status": "discovered",
+   "discovered_at": "2026-08-31T19:01:30.569538+00:00",
+   "tokens_shilled": [
+    "0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+   ],
+   "evidence": [
+    {
+     "tweet_id": "1577764620097310720",
+     "url": "https://x.com/z0age/status/1577764620097310720",
+     "text": "PUSH20 0xffffffffffffffffffffffffffffffffffffffff should be a dedicated opcode; it's present numerous times in every solidity contract that deals with addresses \n\nchange my mind (good luck)",
+     "likes": "68",
+     "retweets": "2",
+     "engagement": "70",
+     "captured_at": "2026-08-31T19:01:30.569382+00:00"
+    }
+   ],
+   "last_seen_at": "2026-08-31T19:03:24.533670+00:00"
+  }
+ ]
+}

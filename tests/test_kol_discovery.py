@@ -133,6 +133,21 @@ class _FakeApipass:
         return list(self._tweets)
 
 
+def _install_fake_apipass(monkeypatch, fake: _FakeApipassModule) -> None:
+    """Install the fake apipass module for BOTH resolution paths.
+
+    ``from rugmunchbot.tools import apipass_x`` resolves via the package
+    attribute once the real submodule has been imported by any earlier test
+    (e.g. test_apipass_x) — sys.modules alone is not enough. Patching the
+    package attribute keeps the test hermetic (no real X API calls, which
+    WOULD fire on a machine with a configured key).
+    """
+    import sys
+
+    monkeypatch.setitem(sys.modules, "rugmunchbot.tools.apipass_x", fake)
+    monkeypatch.setattr("rugmunchbot.tools.apipass_x", fake, raising=False)
+
+
 async def test_run_kol_discovery_adds_new_kol(tmp_path, monkeypatch) -> None:
     path = str(tmp_path / "discovered_kols.json")
     monkeypatch.setattr(kd, "DISCOVERED_KOLS_PATH", path)
@@ -142,9 +157,8 @@ async def test_run_kol_discovery_adds_new_kol(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(kd, "_seed_tokens", lambda limit: ["$RUGG"])
     monkeypatch.setattr(kd, "_is_risky_token", fake_risky)
-    monkeypatch.setitem(
-        __import__("sys").modules,
-        "rugmunchbot.tools.apipass_x",
+    _install_fake_apipass(
+        monkeypatch,
         _FakeApipassModule(
             tweets=[
                 _tweet("brandnewkol", "$RUGG 100x call", likes=200, retweets=50, tweet_id="999")
@@ -161,11 +175,7 @@ async def test_run_kol_discovery_adds_new_kol(tmp_path, monkeypatch) -> None:
 
 
 async def test_run_kol_discovery_no_key_noop(monkeypatch) -> None:
-    monkeypatch.setitem(
-        __import__("sys").modules,
-        "rugmunchbot.tools.apipass_x",
-        _FakeApipassModule(configured=False),
-    )
+    _install_fake_apipass(monkeypatch, _FakeApipassModule(configured=False))
     assert await kd.run_kol_discovery(ctx=None) == 0
 
 
@@ -179,9 +189,8 @@ async def test_run_kol_discovery_safe_token_not_added(monkeypatch, tmp_path) -> 
 
     monkeypatch.setattr(kd, "_seed_tokens", lambda limit: ["$SAFE"])
     monkeypatch.setattr(kd, "_is_risky_token", fake_risky)
-    monkeypatch.setitem(
-        __import__("sys").modules,
-        "rugmunchbot.tools.apipass_x",
+    _install_fake_apipass(
+        monkeypatch,
         _FakeApipassModule(
             tweets=[_tweet("someone", "$SAFE moon", likes=500, retweets=100, tweet_id="7")]
         ),
