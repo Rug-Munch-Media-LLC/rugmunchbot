@@ -101,9 +101,12 @@ _SHILL_OCR_MAX_CHARS = 1200
 #: logical-collection resolver (``_vendor.rag_pkg._qdrant``) can redirect a
 #: request for ``threat_intel_v2`` to ``rag_documents`` when the existence
 #: probe is cached/missed, so we upsert DIRECTLY to the canonical endpoint
-#: (```RMI_QDRANT_URL``, default ``http://127.0.0.1:6334`` — the fleet's
-#: canonical Qdrant) with the physical collection name.
-_QDRANT_URL = os.getenv("RMI_QDRANT_URL", "http://127.0.0.1:6334").rstrip("/")
+#: (``RMI_QDRANT_URL`` or the fleet ``QDRANT_URL`` chain) with the physical
+#: collection name. 2026-09-01: default is ``rmi-qdrant-v2:6333`` (canonical)
+#: — the old ``127.0.0.1:6334`` is unreachable in-container.
+_QDRANT_URL = os.getenv("RMI_QDRANT_URL") or os.getenv(
+    "QDRANT_URL", os.getenv("QDRANT_FALLBACK", "http://rmi-qdrant-v2:6333")
+).rstrip("/")
 _SHILL_EVIDENCE_COLLECTION = os.getenv("RMI_SHILL_EVIDENCE_COLLECTION", "threat_intel_v2")
 
 #: Focused KOL/alpha/call-analysis channels the shill watcher sweeps.

@@ -57,7 +57,7 @@ async def probe_all() -> dict[str, Any]:
         "reranker": (f"http://{host}:8003/health", {}, None),
         "chat": (f"http://{host}:8009/health", {}, None),
         "rag_api": ("http://127.0.0.1:8012/health", {}, None),
-        "qdrant": ("http://localhost:6333/collections", {}, None),
+        "qdrant": ("http://localhost:6334/collections", {}, None),
     }
 
     async def _probe(name: str, url: str, headers: dict, body: dict | None):

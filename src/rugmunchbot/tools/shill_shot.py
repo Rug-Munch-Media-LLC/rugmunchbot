@@ -22,6 +22,7 @@ Design:
 from __future__ import annotations
 
 import base64
+import contextlib
 import os
 from typing import Any
 
@@ -55,6 +56,45 @@ def _load_key() -> str:
             return fh.read().strip()
     except OSError:
         return ""
+
+
+#: X (and nitter mirrors) are Cloudflare-hardened + login-walled. When a
+#: capture hits that wall, the PNG is a challenge page (or a nitter "security
+#: verification" interstitial), not the tweet. OCR of such a page reads one of
+#: these markers; we MUST NOT store it as screenshot evidence. Keep the list
+#: tight so a real shill tweet that merely mentions "security" is not dropped.
+_CHALLENGE_MARKERS: tuple[str, ...] = (
+    "performing security verification",
+    "security verification",
+    "just a moment",
+    "please turn javascript on",
+    "enable javascript and cookies to continue",
+    "verify you are human",
+    "confirm you are human",
+    "checking your browser",
+    "we've detected unusual activity",
+    "log in to x",
+    "sign in to x",
+    "log in to twitter",
+    "please log in",
+    "see more on x",
+    # Historical artifact (audit 2026-09-01): a raw ApiPass JSON dump was
+    # stored as ``image_path`` with OCR prefixed ``[raw apipass evidence ...]``.
+    # That is not a screenshot — never present it as one.
+    "[raw apipass evidence",
+)
+
+
+def _is_challenge_page(text: str) -> bool:
+    """True when OCR'd text reads as a Cloudflare/login/JSON-dump wall.
+
+    A challenge page is NOT tweet evidence. Callers must not persist its
+    ``image_path``; they should degrade to text-only evidence instead.
+    """
+    if not text:
+        return False
+    lowered = text.lower()
+    return any(marker in lowered for marker in _CHALLENGE_MARKERS)
 
 
 async def capture_screenshot(url: str, out_path: str, *, timeout_ms: int = 20000) -> bool:
@@ -132,9 +172,23 @@ async def vision_ocr(image_path: str, prompt: str | None = None) -> str:
 async def capture_and_ocr(
     url: str, *, out_path: str = "/tmp/opencode/shill_shot.png"
 ) -> dict[str, str]:
-    """Convenience: capture a URL then OCR it. Returns {url, image_path, text}."""
+    """Convenience: capture a URL then OCR it. Returns {url, image_path, text}.
+
+    Fail-quiet on Cloudflare/login walls: if the captured PNG OCRs to a
+    challenge page (``_is_challenge_page``), we delete it and report an empty
+    ``image_path``/``text`` so no challenge screenshot is ever stored as
+    evidence. The caller then keeps text-only rails — never a fake screenshot.
+    """
     ok = await capture_screenshot(url, out_path)
-    text = await vision_ocr(out_path) if ok else ""
+    text = ""
+    if ok:
+        text = await vision_ocr(out_path)
+        if _is_challenge_page(text):
+            # Drop the challenge PNG so it can't be archived/surfaced later.
+            with contextlib.suppress(OSError):
+                os.unlink(out_path)
+            ok = False
+            text = ""
     return {
         "url": url,
         "image_path": out_path if ok else "",

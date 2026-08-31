@@ -49,8 +49,8 @@ KOL_EMBED_DIM = 2560
 EMBEDDER_URL = os.getenv("EMBEDDER_URL", "http://127.0.0.1:8004/v1")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "qwen3-embedding-4b")
 
-#: Qdrant gRPC/HTTP host (6334 gRPC, 6333 HTTP). Uses the standard env var.
-QDRANT_URL = os.getenv("RAG_QDRANT_URL", "http://127.0.0.1:6333")
+#: Qdrant gRPC/HTTP host (canonical rmi-qdrant-v2 :6334). Uses the standard env var.
+QDRANT_URL = os.getenv("RAG_QDRANT_URL", "http://127.0.0.1:6334")
 
 #: Duplicate / near-duplicate guard threshold for the same handle+wallet.
 _DEDUP_TTL = 60.0
