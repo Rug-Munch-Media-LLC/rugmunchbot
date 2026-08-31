@@ -36,6 +36,11 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
+    # Host-loopback bind so a HOST process (the systemd bot) can reach the
+    # bot-owned redis without touching the shared host redis-server (:6379).
+    # 6380 is the published host port; the container-internal port stays 6379.
+    ports:
+      - "127.0.0.1:6380:6379"
     volumes:
       - bot-redis-data:/data
     healthcheck:

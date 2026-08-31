@@ -26,7 +26,7 @@ Design notes
 - Fail-open: any Qdrant error returns ``[]`` / ``False`` — never raises into
   the caller (the engine then falls back to the legacy pillar path).
 - Env-driven config: ``RAG_QDRANT_URL`` (default ``settings.qdrant_url`` →
-  ``http://127.0.0.1:6333``) and ``RAG_QDRANT_COLLECTION`` (default
+  ``http://127.0.0.1:6334``) and ``RAG_QDRANT_COLLECTION`` (default
   ``"rag_documents"``).
 
 No secrets, no RPC URLs. Qdrant URL comes from env with the same
@@ -65,12 +65,12 @@ _store_cache: dict[str, QdrantStore] = {}
 
 
 def _resolve_url() -> str:
-    """Env-driven Qdrant URL: RAG_QDRANT_URL → settings.qdrant_url → 127.0.0.1:6333."""
+    """Env-driven Qdrant URL: RAG_QDRANT_URL → settings.qdrant_url → 127.0.0.1:6334."""
     env = os.getenv("RAG_QDRANT_URL", "").strip().rstrip("/")
     if env:
         return env
     base = (getattr(settings, "qdrant_url", "") or "").rstrip("/")
-    return base or "http://127.0.0.1:6333"
+    return base or "http://127.0.0.1:6334"
 
 
 def _resolve_collection() -> str:
@@ -110,7 +110,9 @@ def _build_filter(filters: dict[str, Any] | None) -> models.Filter | None:
         if isinstance(value, (list, tuple, set)):
             any_values = [v for v in value if v is not None]
             if any_values:
-                conditions.append(models.FieldCondition(key=key, match=models.MatchAny(any=any_values)))
+                conditions.append(
+                    models.FieldCondition(key=key, match=models.MatchAny(any=any_values))
+                )
         else:
             conditions.append(models.FieldCondition(key=key, match=models.MatchValue(value=value)))
     if not conditions:
@@ -144,7 +146,16 @@ def _point_to_hit(point: Any) -> dict[str, Any]:
     """
     payload = getattr(point, "payload", None) or {}
     metadata = dict(payload.get("metadata") or {})
-    for _k in ("source", "severity", "verdict", "library_id", "library_name", "category", "ecosystem", "pattern"):
+    for _k in (
+        "source",
+        "severity",
+        "verdict",
+        "library_id",
+        "library_name",
+        "category",
+        "ecosystem",
+        "pattern",
+    ):
         _v = payload.get(_k)
         if _v and _k not in metadata:
             metadata[_k] = _v
@@ -200,7 +211,9 @@ class QdrantStore:
         if self._client is None:
             # qdrant-client's stub types timeout as int|None but accepts floats at
             # runtime; keep the caller-facing float timeout without truncation.
-            self._client = AsyncQdrantClient(url=self.url, timeout=cast("int | None", self._timeout))
+            self._client = AsyncQdrantClient(
+                url=self.url, timeout=cast("int | None", self._timeout)
+            )
         return self._client
 
     async def close(self) -> None:

@@ -26,7 +26,7 @@ def resolve_service_url(name: str, docker: str | None = None, local: str | None 
 
 class _Settings:
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
+    qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6334")
     # Qwen3-Embedding-4B via llama.cpp (replaces old llama.cpp qwen3 qwen3-embedding-4b, 2560d)
     qwen_embed_url: str = os.getenv("QWEN_EMBED_URL", "http://127.0.0.1:8004/v1")
     # Qwen3-Reranker-4B via llama.cpp (separate process, port 8003, docker bridge)

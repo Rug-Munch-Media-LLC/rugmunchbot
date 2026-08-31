@@ -15,10 +15,10 @@ try:
     from rugmunchbot._vendor.settings_shim import settings as _s
 
     REDIS_URL = _s.redis_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    PG_URL = _s.database_url or os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
+    PG_URL = _s.database_url or os.getenv("DATABASE_URL", "")
 except Exception:
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    PG_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
+    PG_URL = os.getenv("DATABASE_URL", "")
 
 _redis_pool = None
 _pg_pool = None

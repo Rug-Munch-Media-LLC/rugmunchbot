@@ -88,7 +88,12 @@ def _new_ch_client() -> Any | None:
     their own connection from this factory; the shared ``_get_ch_client``
     singleton is only safe for strictly-sequential callers.
     """
-    ch_host = os.getenv("CLICKHOUSE_HOST") or os.getenv("CH_HOST", "rmi-clickhouse")
+    ch_host = os.getenv("CLICKHOUSE_HOST") or os.getenv("CH_HOST", "")
+    # Fail closed: never default to an rmi-owned store. Chain-indexer data must
+    # be configured explicitly (bot-local store) or routed via the backend API.
+    if not ch_host:
+        logger.debug("chain-indexer ClickHouse host not configured; skipping")
+        return None
     ch_port = int(os.getenv("CLICKHOUSE_PORT") or os.getenv("CH_PORT") or "9000")
     ch_user = os.getenv("CLICKHOUSE_USER") or os.getenv("CH_USER", "rmi")
     ch_pass = os.getenv("CLICKHOUSE_PASSWORD") or os.getenv("CH_PASSWORD", "")
@@ -112,7 +117,14 @@ def _new_ch_client() -> Any | None:
             send_receive_timeout=20,
         )
         candidate.execute("SELECT 1")
-    except (ConnectionError, TimeoutError, RuntimeError, OSError, AttributeError, CHDriverError) as e:
+    except (
+        ConnectionError,
+        TimeoutError,
+        RuntimeError,
+        OSError,
+        AttributeError,
+        CHDriverError,
+    ) as e:
         logger.warning("Chain-indexer ClickHouse unavailable: %s", str(e).splitlines()[0][:200])
         return None
     return candidate
@@ -270,7 +282,9 @@ async def _lite_chain_indexer_token_transfers(**kwargs: Any) -> dict[str, Any] |
                 "to_address": row[4],
                 "token_address": row[5],
                 "value": row[6],
-                "block_timestamp": row[7].isoformat() if hasattr(row[7], "isoformat") else str(row[7]),
+                "block_timestamp": row[7].isoformat()
+                if hasattr(row[7], "isoformat")
+                else str(row[7]),
                 "log_index": row[8],
                 "token_symbol": row[9],
                 "token_name": row[10],
@@ -354,7 +368,9 @@ async def _lite_chain_indexer_dex_events(**kwargs: Any) -> dict[str, Any] | None
                 "type": row[0],
                 "chain": row[1],
                 "block_number": row[2],
-                "block_timestamp": row[3].isoformat() if hasattr(row[3], "isoformat") else str(row[3]),
+                "block_timestamp": row[3].isoformat()
+                if hasattr(row[3], "isoformat")
+                else str(row[3]),
                 "tx_hash": row[4],
                 "log_index": row[5],
                 "contract_address": row[6],
@@ -456,7 +472,9 @@ async def _lite_chain_indexer_deployer_history(**kwargs: Any) -> dict[str, Any] 
                 "token_address": row[1],
                 "chain": row[2],
                 "block_number": row[3],
-                "block_timestamp": row[4].isoformat() if hasattr(row[4], "isoformat") else str(row[4]),
+                "block_timestamp": row[4].isoformat()
+                if hasattr(row[4], "isoformat")
+                else str(row[4]),
                 "tx_hash": row[5],
                 "type": row[6],
                 "factory": row[7],
@@ -527,7 +545,9 @@ async def _lite_chain_indexer_solana_balance_changes(**kwargs: Any) -> dict[str,
         changes.append(
             {
                 "slot": row[0],
-                "block_timestamp": row[1].isoformat() if hasattr(row[1], "isoformat") else str(row[1]),
+                "block_timestamp": row[1].isoformat()
+                if hasattr(row[1], "isoformat")
+                else str(row[1]),
                 "tx_hash": row[2],
                 "token_account": row[3],
                 "mint": row[4],

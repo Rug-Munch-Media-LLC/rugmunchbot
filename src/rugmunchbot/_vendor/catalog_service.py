@@ -38,9 +38,9 @@ from rugmunchbot._vendor.catalog_models import (
     Wallet,
     utcnow,
 )
-from rugmunchbot._vendor.settings_shim import resolve_service_url
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.rugbrain_client import rugbrain_search
+from rugmunchbot._vendor.settings_shim import resolve_service_url
 
 log = get_logger(__name__)
 
@@ -66,7 +66,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "password": os.getenv("NEO4J_PASSWORD", ""),
     },
     "qdrant": {
-        "url": resolve_service_url("QDRANT_URL", docker="http://rmi-qdrant:6333", local="http://localhost:6333"),
+        "url": resolve_service_url(
+            "QDRANT_URL", docker="http://rmi-qdrant-v2:6334", local="http://localhost:6334"
+        ),
         "api_key": os.getenv("QDRANT_API_KEY", ""),
     },
     "minio": {
@@ -508,7 +510,9 @@ class CatalogService:
             return {"entity_id": None, "wallets": [], "error": str(e)}
 
     # ── RAG bridge: wire app/rag/engine.py into the catalog ─────────
-    async def rag_search(self, query: str, collection: str = "scam_intel", top_k: int = 5) -> list[dict[str, Any]]:
+    async def rag_search(
+        self, query: str, collection: str = "scam_intel", top_k: int = 5
+    ) -> list[dict[str, Any]]:
         """Search the RAG system. Returns raw hits (catalog-agnostic).
 
         Use this when you want RAG results as raw search hits.
@@ -572,7 +576,9 @@ class CatalogService:
             try:
                 async with self._neo_driver.session() as s:
                     wallets = await (await s.run("MATCH (w:Wallet) RETURN COUNT(w) AS c")).single()
-                    deployers = await (await s.run("MATCH (d:Deployer) RETURN COUNT(d) AS c")).single()
+                    deployers = await (
+                        await s.run("MATCH (d:Deployer) RETURN COUNT(d) AS c")
+                    ).single()
                     out["wallets"] = wallets["c"] or 0
                     out["deployers"] = deployers["c"] or 0
             except Exception as e:

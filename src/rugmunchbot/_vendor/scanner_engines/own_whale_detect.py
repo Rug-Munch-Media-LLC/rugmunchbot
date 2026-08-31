@@ -109,7 +109,7 @@ def _get_ch_client() -> Any | None:
     if _ch_client is not None:
         return _ch_client
 
-    ch_host = os.getenv("CLICKHOUSE_HOST") or os.getenv("CH_HOST", "rmi-clickhouse")
+    ch_host = os.getenv("CLICKHOUSE_HOST") or os.getenv("CH_HOST", "")
     ch_port = int(os.getenv("CLICKHOUSE_PORT") or os.getenv("CH_PORT") or "9000")
     ch_user = os.getenv("CLICKHOUSE_USER") or os.getenv("CH_USER", "rmi")
     ch_pass = (os.getenv("CLICKHOUSE_PASSWORD") or os.getenv("CH_PASSWORD")) or ""
