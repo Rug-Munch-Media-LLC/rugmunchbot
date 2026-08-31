@@ -95,14 +95,15 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
     # executed it — the Redis dedupe state was NEVER restored and every
     # restart re-posted the same roundup/drafts to @cryptorugmuncher
     # (observed 3x on 2026-08-31, one per deploy restart). when=10 gives
-    # the queue time to come up; misfire_grace_time=300 means a late job
-    # still runs instead of being dropped.
+    # the queue time to come up; misfire_grace_time=300 (via job_kwargs —
+    # PTB 21 passes it through to APScheduler) means a late job still runs
+    # instead of being dropped.
     if hasattr(job_queue, "run_once"):
         job_queue.run_once(
             _load_channel_state,
             when=10.0,
             name="channel_state_load",
-            misfire_grace_time=300,
+            job_kwargs={"misfire_grace_time": 300},
         )
 
     # DEPRECATED 2026-08-16 — legacy 4h news digest job (``channel_news``).
