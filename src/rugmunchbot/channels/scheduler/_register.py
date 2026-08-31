@@ -409,6 +409,21 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             days=tuple(range(7)),
             name="channel_updates",
         )
+    # Channel roundup (2026-08-31, owner content doctrine): periodic SUMMARY
+    # post on the main channel linking 3-6 recent individual posts (feed
+    # deep links, one link per source). Runs 3x daily alongside the
+    # standalone one-off posters. Env knob: RMI_ROUNDUP_INTERVAL_MIN (0
+    # disables). See ``scheduler/_posts_roundup.py``.
+    from rugmunchbot.channels.scheduler._posts_roundup import post_roundup
+
+    roundup_min = int(os.getenv("RMI_ROUNDUP_INTERVAL_MIN", "480"))
+    if roundup_min > 0 and _chat_id("main"):
+        job_queue.run_repeating(
+            _tick_wrapper("channel_roundup", post_roundup, envelope=True),
+            interval=roundup_min * 60,
+            first=_FIRST_RUN_SECONDS["news"] + 30,
+            name="channel_roundup",
+        )
     # Breaking-news fast lane (strategy v2): critical+fresh intel on a short
     # tick. 0 disables; shares dedupe with the slow lane so no double-post.
     from rugmunchbot.channels.scheduler._posts_rag import post_rag_fast_lane

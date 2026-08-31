@@ -11,6 +11,7 @@ from telegram.error import TelegramError
 from rugmunchbot.bot._commands import (
     _BOT_COMMANDS,
     _COMMAND_SECTIONS,
+    check_menu_coverage,
 )
 from rugmunchbot.config import (
     BOT_DESCRIPTION,
@@ -32,6 +33,9 @@ if TYPE_CHECKING:
 
 async def setup_bot_profile(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     """Set bot description, about text, and command list via BotFather API."""
+    # Menu-drift check FIRST: the menu is the source of truth; log loudly
+    # (not crash) when the registry has unadvertised or phantom commands.
+    check_menu_coverage(app)
     bot = app.bot
     # Resolve the bot's own identity (get_me) so ``bot.username`` is populated
     # for the free-text group gate (@mention matching in _is_bot_addressed).

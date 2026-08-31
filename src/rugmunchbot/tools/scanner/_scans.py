@@ -711,3 +711,66 @@ async def analyze_wallet(address: str, chain: str | None = None) -> dict[str, An
         ) as e:
             result["errors"].append(f"Solana.fm: {e}")
     return result
+
+
+# ── Prior-intel recall (scan-memory read-back) ─────────────────────────
+# /scan and /deepscan WRITE scan memory to Qdrant (schedule_scan_memory_index)
+# but never read it back. This closes the loop: before rendering a report we
+# query the ``scanned_tokens`` collection for the same token and surface a
+# one-line "prior intel" note when we have scanned it before. Follows the
+# rag_lookup direct-Qdrant lane pattern (embed once → points/search), is
+# fail-open and bounded (~6s worst case), and never blocks a scan.
+
+_SCAN_MEMORY_COLLECTION = "scanned_tokens"
+_PRIOR_INTEL_TOP_K = 5
+
+
+async def lookup_prior_scan_intel(address: str, chain: str | None = None) -> str | None:
+    """Return a one-line "prior intel" note for *address*, or ``None``.
+
+    Searches the scan-memory Qdrant collection (same store
+    ``schedule_scan_memory_index`` writes to) for prior scans of this exact
+    token address. Fail-open: returns ``None`` on any failure or no hit —
+    never raises, never blocks the scan path for long.
+    """
+    if not address:
+        return None
+    try:
+        from rugmunchbot.tools.rag_lookup import (
+            _embed_query,
+            _qdrant_collection_search,
+        )
+
+        vector = await _embed_query(f"Token {address} scan risk history")
+        if not vector:
+            return None
+        hits = await _qdrant_collection_search(
+            _SCAN_MEMORY_COLLECTION, vector, _PRIOR_INTEL_TOP_K
+        )
+    except Exception:
+        logger.debug("prior_intel_lookup_failed", exc_info=True)
+        return None
+
+    addr_l = address.lower()
+    best: dict[str, Any] | None = None
+    for hit in hits:
+        payload = hit.get("metadata") if isinstance(hit, dict) else None
+        meta = (payload or {}).get("metadata") or {}
+        if str(meta.get("address") or "").lower() != addr_l:
+            continue
+        if best is None or float(hit.get("score") or 0) > float(best.get("score") or 0):
+            best = hit
+    if best is None:
+        return None
+
+    meta = (best.get("metadata") or {}) if isinstance(best, dict) else {}
+    ts = str(meta.get("timestamp") or "")[:10]
+    risk = meta.get("risk_score")
+    threats = meta.get("threats") or []
+    date_part = f" on {ts}" if ts else ""
+    if risk is not None:
+        line = f"Prior intel: scanned before{date_part} — risk {float(risk):.0f}/100"
+        if threats:
+            line += f"; {threats[0]}"
+        return line
+    return f"Prior intel: scanned before{date_part}."

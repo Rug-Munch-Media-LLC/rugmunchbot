@@ -172,6 +172,7 @@ async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
     monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
     # Screenshot capture is disabled in the runner unit test (no X URLs anyway).
     monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", False)
     # Scanner-evidence pass must be off in unit tests (fake addresses would
     # otherwise trigger real scan calls against the network).
     monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
@@ -229,6 +230,7 @@ async def test_run_releases_mark_on_failed_send(monkeypatch):
 
     monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
     monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", False)
     # Scanner-evidence pass must be off in unit tests (fake addresses would
     # otherwise trigger real scan calls against the network).
     monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
@@ -327,6 +329,7 @@ async def test_run_holds_below_importance_floor(monkeypatch):
 
     monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
     monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", False)
     # Scanner-evidence pass must be off in unit tests (fake addresses would
     # otherwise trigger real scan calls against the network).
     monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
@@ -375,6 +378,7 @@ async def test_run_escalates_main_at_gate(monkeypatch):
 
     monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
     monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
+    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", False)
     # Scanner-evidence pass must be off in unit tests (fake addresses would
     # otherwise trigger real scan calls against the network).
     monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
@@ -544,3 +548,109 @@ def test_format_alert_renders_scanner_evidence():
     assert "On-chain evidence (scanned):" in alert
     assert "Scanner verdict: HIGH risk" in alert
     assert "Sell tax 30%" in alert
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 2026-09-01 — Telegram KOL post capture (same pipeline, source='telegram')
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_tg_post_url_parses():
+    """t.me post links normalize to the public t.me/s/ web-preview URL."""
+    from rugmunchbot.channels.shill_watch import _tg_post_url
+
+    assert _tg_post_url("https://t.me/CallAnalyser/123") == "https://t.me/s/CallAnalyser/123"
+    assert _tg_post_url("https://t.me/CryptoCapoTG/456?single") == "https://t.me/s/CryptoCapoTG/456"
+    assert _tg_post_url("https://t.me/CryptoCapoTG") == ""  # no message id
+    assert _tg_post_url("https://x.com/foo/status/1") == ""  # not Telegram
+    assert _tg_post_url("") == ""
+
+
+@pytest.mark.asyncio
+async def test_capture_telegram_kol_posts_persists_with_source(monkeypatch):
+    """A swept KOL t.me post is captured + persisted with source='telegram'."""
+    from rugmunchbot.channels import shill_watch
+
+    captured_urls: list[str] = []
+    persisted: list[tuple[dict[str, str], dict[str, str]]] = []
+
+    async def fake_capture_and_ocr(url, *, out_path=""):
+        captured_urls.append(url)
+        return {"url": url, "image_path": out_path, "text": "PUMP $MOON now", "captured": "true"}
+
+    async def fake_persist(campaign, shot):
+        persisted.append({"token": campaign.token, "chain": campaign.chain, **shot})
+        return True
+
+    monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", fake_capture_and_ocr)
+    monkeypatch.setattr(shill_watch, "_persist_shill_evidence", fake_persist)
+    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", True)
+
+    article = NewsArticle(
+        title="PUMP $MOON now",
+        body="PUMP $MOON now",
+        source_channel="CallAnalyser",
+        source_url="https://t.me/CallAnalyser/123",
+        category="alpha",
+        entities=["$MOON"],
+    )
+    n = await shill_watch.capture_telegram_kol_posts([article], budget=2)
+    assert n == 1
+    assert captured_urls == ["https://t.me/s/CallAnalyser/123"]
+    assert len(persisted) == 1
+    assert persisted[0]["source"] == "telegram"
+    assert persisted[0]["account"] == "CallAnalyser"
+    assert persisted[0]["token"] == "$MOON"
+
+
+@pytest.mark.asyncio
+async def test_capture_telegram_kol_posts_disabled_and_budget_zero(monkeypatch):
+    """Disabled flag or zero budget → no captures, no pipeline calls."""
+    from rugmunchbot.channels import shill_watch
+
+    called = {"n": 0}
+
+    async def fail_capture(url, *, out_path=""):
+        called["n"] += 1
+        return {"url": url, "image_path": "", "text": "", "captured": "false"}
+
+    monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", fail_capture)
+    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", False)
+    assert await shill_watch.capture_telegram_kol_posts([_article("ch", "hi", ["$MOON"])]) == 0
+    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", True)
+    assert await shill_watch.capture_telegram_kol_posts([_article("ch", "hi", [])], budget=0) == 0
+    assert called["n"] == 0
+
+
+@pytest.mark.asyncio
+async def test_campaign_capture_uses_tg_preview_for_telegram_mentions(monkeypatch):
+    """A campaign mention with only a t.me URL captures the t.me/s/ preview."""
+    from rugmunchbot.channels import shill_watch
+
+    captured_urls: list[str] = []
+    sources: list[str] = []
+
+    async def fake_capture_and_ocr(url, *, out_path=""):
+        captured_urls.append(url)
+        return {"url": url, "image_path": out_path, "text": "MOON call", "captured": "true"}
+
+    async def fake_persist(campaign, shot):
+        sources.append(shot.get("source", ""))
+        return True
+
+    monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", fake_capture_and_ocr)
+    monkeypatch.setattr(shill_watch, "_persist_shill_evidence", fake_persist)
+    monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", True)
+
+    campaign = ShillCampaign(
+        token="$MOON",
+        chain="ticker",
+        accounts=["CallAnalyser"],
+        mentions=[
+            {"channel": "CallAnalyser", "title": "MOON", "url": "https://t.me/CallAnalyser/7"}
+        ],
+    )
+    n = await shill_watch._capture_campaign_shills(campaign, budget=1)
+    assert n == 1
+    assert captured_urls == ["https://t.me/s/CallAnalyser/7"]
+    assert sources == ["telegram"]

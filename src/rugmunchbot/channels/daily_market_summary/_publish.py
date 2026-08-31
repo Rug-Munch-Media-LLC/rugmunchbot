@@ -151,7 +151,11 @@ HARD RULES:
   Run your own intel: <a href="https://t.me/rugmunchbot">@rugmunchbot</a>
 - Cite-or-omit: if a number is not in the data, do NOT invent it. Missing sections render as "N/A".
 - Every token/project gets its ticker or address.
-- Link sources inline. If a story has a URL, link it.
+- ONE LINK PER SOURCE (hard rule): the same URL may appear AT MOST ONCE in
+  the whole report. If a source was already linked in an earlier section,
+  reference it by name only — never emit a second <a href> to the same URL.
+- Link sources inline. If a story has a URL and it is not already linked,
+  link it.
 - One emoji max in the opening line (📊). Section headers use the tags above. No other emojis."""
 
 
@@ -299,6 +303,7 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # Lazy import keeps the scheduler ↔ this module import graph acyclic
     # (scheduler.py imports this module at module scope for registration).
     from rugmunchbot.channels.scheduler import _chat_id, _safe_send
+    from rugmunchbot.channels.scheduler._core import _post_photo_aware
 
     chat_id = _chat_id("main")  # registry ``main`` → @cryptorugmuncher
     if not chat_id:
@@ -373,16 +378,33 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             logger.info("daily_market_summary:feed_published url=%s", feed_url)
 
     parts = _split_for_telegram(report)
+    # One-link-per-source: only append the feed link when the report body
+    # does not already link it (the LLM is instructed to link each source
+    # once; the closer must never duplicate an existing link).
+    already_linked = bool(feed_url) and feed_url in report
     closer = (
         f"📖 <b>{edition}</b> — full write-up on feed.rugmunch.io"
-        + (f' — <a href="{feed_url}">read it here</a>.' if feed_url else ".")
+        + (f' — <a href="{feed_url}">read it here</a>.' if feed_url and not already_linked else ".")
         + "\n🤖 Live token intel, scans &amp; alerts: @rugmunchbot"
     )
     parts[-1] = parts[-1].rstrip() + "\n\n" + closer
 
+    # Photo-aware delivery (2026-09): the flagship report leads with an image
+    # when the gathered context carries one (top news story's og:image). The
+    # first part goes through the shared photo-aware path — a caption-too-long
+    # or bad-URL failure falls back to plain text inside send_news_photo, so
+    # delivery is never blocked by the image.
+    image_url = _pick_report_image(context)
+
     sent = 0
     for idx, part in enumerate(parts, 1):
-        if await _safe_send(ctx.bot, chat_id, part):
+        if idx == 1 and image_url:
+            sent_ok = await _post_photo_aware(
+                ctx.bot, chat_id, _ImagePost(part, image_url), _safe_send
+            )
+        else:
+            sent_ok = await _safe_send(ctx.bot, chat_id, part)
+        if sent_ok:
             sent += 1
             logger.info(
                 "daily_market_summary:posted_part %d/%d chars=%s",
@@ -407,11 +429,39 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 or f"{_edition_slug(edition)}-{datetime.now(UTC).strftime('%Y%m%d')}",
                 "source": feed_url or "rugmunch.io",
                 "kind": "market-summary",
+                "image_url": _pick_report_image(context),
             }
         )
     except Exception as exc:
         logger.warning("daily_market_summary:feed_mirror_failed err=%s", str(exc)[:120])
     return 1
+
+
+class _ImagePost(str):
+    """A report part carrying an ``image_url`` — duck-types ``NewsPost`` so
+    the shared ``_post_photo_aware`` sender attaches the photo."""
+
+    image_url: str = ""
+
+    def __new__(cls, text: str, image_url: str) -> _ImagePost:
+        obj = super().__new__(cls, text)
+        obj.image_url = image_url
+        return obj
+
+
+def _pick_report_image(context: dict[str, Any]) -> str:
+    """First usable http(s) story image from the gathered context (or "").
+
+    Reads the RAG news hits (``context["news"]`` — each carries ``image_url``
+    from stored metadata). Fail-open: no image → "" → plain-text posting.
+    """
+    for item in context.get("news") or []:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("image_url") or "").strip()
+        if url.startswith(("http://", "https://")):
+            return url
+    return ""
 
 
 def _edition_slug(edition: str) -> str:

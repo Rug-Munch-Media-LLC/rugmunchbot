@@ -212,6 +212,18 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             min_elapsed=3.0,
         )
         report = format_scan_report(result)
+        # Prior-intel recall: if we've scanned this token before, surface the
+        # scan-memory hit as one line (fail-open, bounded ~6s).
+        try:
+            from rugmunchbot.tools.scanner._scans import lookup_prior_scan_intel
+
+            prior = await asyncio.wait_for(
+                lookup_prior_scan_intel(target, chain), timeout=6.0
+            )
+            if prior:
+                report += f"\n\U0001f9f0 {prior}"
+        except Exception:
+            logger.debug("prior_intel_append_failed", exc_info=True)
         # AI verdict summary on top: the snappy LLM reads the structured scan
         # facts into a 2-4 sentence plain-English verdict + "what to watch".
         # Fail-open — when the LLM is unavailable the report's existing

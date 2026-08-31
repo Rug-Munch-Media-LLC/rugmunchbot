@@ -97,6 +97,17 @@ SHILL_SCREENSHOT_BUDGET = int(os.getenv("RMI_SHILL_SCREENSHOT_BUDGET", "6"))
 SHILL_SCREENSHOT_PER_CAMPAIGN = int(os.getenv("RMI_SHILL_SCREENSHOT_PER_CAMPAIGN", "3"))
 #: Max total OCR text chars persisted per screenshot (bounded payload).
 _SHILL_OCR_MAX_CHARS = 1200
+#: 2026-09-01 Telegram KOL capture: monitored KOL channel/group posts are
+#: captured through the SAME screenshot+OCR pipeline (public ``t.me/s/``
+#: web preview via ``tools.shill_shot``) and persisted with
+#: ``source='telegram'`` so the site can distinguish origin.
+TG_CAPTURE_ENABLED = os.getenv("RMI_SHILL_TG_CAPTURE_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+#: Max Telegram post captures per run (bounded — one vision call each).
+TG_CAPTURE_BUDGET = int(os.getenv("RMI_SHILL_TG_CAPTURE_BUDGET", "4"))
 #: Canonical Qdrant URL + collection for shill/screenshot evidence. The
 #: logical-collection resolver (``_vendor.rag_pkg._qdrant``) can redirect a
 #: request for ``threat_intel_v2`` to ``rag_documents`` when the existence
@@ -323,6 +334,26 @@ def _x_status_url(url: str) -> str:
     return _X_STATUS_CANON.format(id=m.group(1)) if m else ""
 
 
+# ── Telegram post URL detection (2026-09-01, KOL Telegram capture) ─────────
+# A monitored KOL channel/group post is captured from its PUBLIC web preview
+# ``https://t.me/s/<channel>/<msg_id>`` — the same Playwright + VL-4B OCR
+# pipeline used for X posts (``tools.shill_shot.capture_and_ocr``), so one
+# code path serves both origins. The bot's ``NewsArticle.source_url`` already
+# carries the ``https://t.me/<channel>/<msg_id>`` fallback for channel posts.
+_TG_POST_RE = re.compile(r"https?://t\.me/([^/?#]+)(?:/(\d+))?", re.IGNORECASE)
+
+
+def _tg_post_url(url: str) -> str:
+    """Public ``t.me/s/`` web-preview URL for a t.me post link (or "")."""
+    m = _TG_POST_RE.search(str(url or ""))
+    if not m:
+        return ""
+    channel, msg_id = m.group(1), m.group(2)
+    if not channel or not msg_id:
+        return ""
+    return f"https://t.me/s/{channel}/{msg_id}"
+
+
 def _esc(value: object) -> str:
     """HTML-escape for Telegram parse_mode=html."""
     return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -501,23 +532,108 @@ async def _capture_campaign_shills(campaign: ShillCampaign, budget: int) -> int:
         if captured >= budget:
             break
         x_url = _x_status_url(str(mention.get("url") or ""))
-        if not x_url:
+        # 2026-09-01: Telegram KOL mentions are captured through the SAME
+        # pipeline — the public ``t.me/s/<channel>/<id>`` web preview — and
+        # persisted with ``source='telegram'`` so the site can distinguish
+        # origin. X mentions keep ``source='x'``.
+        tg_url = "" if x_url else _tg_post_url(str(mention.get("url") or ""))
+        if not x_url and not tg_url:
             continue
         out_path = os.path.join(
             SHILL_SCREENSHOT_DIR,
             f"{campaign.key.replace(':', '_')[:48]}_{captured}_{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}.png",
         )
         account = str(mention.get("channel") or "")
-        shot = await capture_and_ocr(x_url, out_path=out_path)
+        shot = await capture_and_ocr(x_url or tg_url, out_path=out_path)
         if shot.get("text"):
             shot["account"] = account
+            shot["source"] = "telegram" if tg_url else "x"
             campaign.screenshots.append(
-                {k: shot.get(k, "") for k in ("url", "image_path", "text", "account")}
+                {k: shot.get(k, "") for k in ("url", "image_path", "text", "account", "source")}
             )
             mention["image_path"] = shot.get("image_path", "")
             mention["ocr_text"] = str(shot.get("text", ""))[:_SHILL_OCR_MAX_CHARS]
             await _persist_shill_evidence(campaign, shot)
             captured += 1
+    return captured
+
+
+# ── Telegram KOL post capture (2026-09-01) ─────────────────────────────────
+# Deleted-post detection: the sweep is POLL-based (``read_channel_messages``
+# over the headless client) and never sees deletions. Detecting a deleted
+# KOL post requires a Telethon ``events.MessageDeleted`` handler on a live
+# client plus a "seen vs gone" diff against the last sweep — the headless
+# client used here exposes no event loop for that.
+# TODO(deleted-posts): register a MessageDeleted handler on the live client
+# (``_build_headless_client`` consumer) that, on deletion of a message from a
+# ``SHILL_WATCH_CHANNELS`` channel captured in a prior sweep, re-persists the
+# already-captured screenshot/OCR with ``deleted=True`` so the site can show
+# a "deleted posts" surface. Until that handler exists, deletion evidence is
+# limited to the screenshots already captured before the delete.
+
+
+async def capture_telegram_kol_posts(articles: list[Any], budget: int | None = None) -> int:
+    """Capture screenshot + OCR for monitored Telegram KOL posts (bounded).
+
+    For each swept article that carries a ``t.me/<channel>/<msg_id>`` source
+    URL, captures the public ``t.me/s/`` web preview through the SAME
+    pipeline as X captures (``tools.shill_shot.capture_and_ocr`` — Playwright
+    + one DeepInfra VL-4B vision call) and persists the reference + OCR with
+    ``source='telegram'``. Token/chain come from the article's extracted
+    entities when present (empty otherwise — never fabricated). Bounded by
+    ``budget`` (default ``TG_CAPTURE_BUDGET``). Fail-open: any capture/OCR
+    error is logged and skipped. Returns the number captured.
+    """
+    if not TG_CAPTURE_ENABLED:
+        return 0
+    budget = TG_CAPTURE_BUDGET if budget is None else max(0, int(budget))
+    if budget == 0:
+        return 0
+    try:
+        from rugmunchbot.tools.shill_shot import capture_and_ocr
+    except Exception as exc:  # fail-open by contract
+        logger.debug("shill_watch:shill_shot_import_failed err=%s", str(exc)[:120])
+        return 0
+    try:
+        os.makedirs(SHILL_SCREENSHOT_DIR, exist_ok=True)
+    except OSError as exc:  # fail-open — a read-only home must not crash the tick
+        logger.debug("shill_watch:screenshot_dir_failed err=%s", str(exc)[:120])
+        return 0
+    captured = 0
+    seen_urls: set[str] = set()
+    for article in articles or []:
+        if captured >= budget:
+            break
+        _, channel, url, entities = _article_fields(article)
+        tg_url = _tg_post_url(url)
+        if not tg_url or tg_url in seen_urls:
+            continue
+        seen_urls.add(tg_url)
+        # Token identity from the canonical entity extraction when present.
+        token = next((e for e in entities if e.startswith(("$", "0x")) or len(e) >= 32), "")
+        chain = (
+            "ticker" if token.startswith("$") else ("ethereum" if token.startswith("0x") else "")
+        )
+        out_path = os.path.join(
+            SHILL_SCREENSHOT_DIR,
+            f"tg_{(channel or 'unknown').replace('/', '_')[:32]}_{captured}_"
+            f"{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}.png",
+        )
+        shot = await capture_and_ocr(tg_url, out_path=out_path)
+        if not shot.get("text"):
+            continue
+        shot["account"] = channel
+        shot["source"] = "telegram"
+        stub = ShillCampaign(
+            token=token,
+            chain=chain,
+            accounts=[channel or "telegram"],
+            mentions=[{"channel": channel, "title": "", "url": tg_url}],
+        )
+        await _persist_shill_evidence(stub, shot)
+        captured += 1
+    if captured:
+        logger.info("shill_watch:tg_captured count=%s", captured)
     return captured
 
 
@@ -999,6 +1115,15 @@ async def run_shill_watch(ctx: Any = None) -> int:
         if not campaign.scanner_evidence and _looks_like_address(campaign.token):
             campaign.scanner_evidence = await build_scanner_evidence(campaign.token, campaign.chain)
 
+    # 2026-09-01 Telegram KOL capture: monitored KOL channel/group posts are
+    # captured through the same screenshot+OCR pipeline (public t.me/s/
+    # preview) and persisted with source='telegram', independent of campaign
+    # detection — so KOL posts are evidenced even when no campaign fires.
+    # Deleted-post detection is NOT possible in this poll-based sweep — see
+    # the TODO(deleted-posts) note above ``capture_telegram_kol_posts``.
+    if TG_CAPTURE_ENABLED:
+        await capture_telegram_kol_posts(articles, TG_CAPTURE_BUDGET)
+
     today = datetime.now(UTC).strftime("%Y%m%d")
     posted = 0
     for campaign in campaigns[:SHILL_MAX_ALERTS]:
@@ -1081,8 +1206,11 @@ __all__ = [
     "SHILL_WATCH_CHANNELS",
     "SHILL_WATCH_ENABLED",
     "SHILL_WINDOW_HOURS",
+    "TG_CAPTURE_BUDGET",
+    "TG_CAPTURE_ENABLED",
     "ShillCampaign",
     "build_scanner_evidence",
+    "capture_telegram_kol_posts",
     "detect_shill_campaigns",
     "format_shill_alert",
     "run_shill_watch",

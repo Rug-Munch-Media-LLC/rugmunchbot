@@ -125,6 +125,74 @@ _BOT_COMMANDS: list[BotCommand] = [
     BotCommand(cmd, desc) for _section, cmds in _COMMAND_SECTIONS for cmd, desc in cmds
 ]
 
+#: Advertised command names (menu = source of truth for user-facing surface).
+_MENU_COMMANDS: frozenset[str] = frozenset(bc.command for bc in _BOT_COMMANDS)
+
+
+def collect_registered_commands(app: Application[Any, Any, Any, Any, Any, Any]) -> set[str]:
+    """Collect every CommandHandler name registered on *app*.
+
+    Covers all registration paths (``_reg`` and the ``register_*`` helpers
+    that call ``app.add_handler`` directly).
+    """
+    names: set[str] = set()
+    for group in app.handlers.values():
+        for handler in group:
+            if isinstance(handler, CommandHandler):
+                names.update(handler.commands)
+    return names
+
+
+def check_menu_coverage(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
+    """Startup drift check: registry vs menu (log loudly, never crash).
+
+    The menu (``_COMMAND_SECTIONS``) is the source of truth for what users
+    see. Anything registered but unadvertised is drift; anything advertised
+    but not registered is a broken menu entry. Also verifies every ``/cmd``
+    mentioned in the /help and /menu texts is actually registered.
+    """
+    registered = collect_registered_commands(app)
+    unadvertised = sorted(registered - _MENU_COMMANDS)
+    if unadvertised:
+        logger.error(
+            "MENU_DRIFT: %d registered commands are not in the menu: %s",
+            len(unadvertised),
+            ", ".join(unadvertised),
+        )
+    phantom = sorted(_MENU_COMMANDS - registered)
+    if phantom:
+        logger.error(
+            "MENU_DRIFT: %d menu commands are NOT registered (broken menu): %s",
+            len(phantom),
+            ", ".join(phantom),
+        )
+    if not unadvertised and not phantom:
+        logger.info(
+            "Menu coverage OK: %d registered, %d advertised",
+            len(registered),
+            len(_MENU_COMMANDS),
+        )
+    _check_help_text_coverage(registered)
+
+
+def _check_help_text_coverage(registered: set[str]) -> None:
+    """Every ``/cmd`` mentioned in /help or /menu text must be registered."""
+    import re
+
+    from rugmunchbot.handlers._help_text import HELP_TEXT, MENU_TEXT
+
+    # Negative lookbehind skips URL paths (t.me/x, rugmunch.io/pricing) —
+    # only bare command mentions count.
+    mentioned = set(
+        re.findall(r"(?<![\w./@<])/([a-z_]{2,30})\b", HELP_TEXT + MENU_TEXT)
+    )
+    unknown = sorted(mentioned - registered)
+    if unknown:
+        logger.error(
+            "HELP_DRIFT: /help or /menu reference unregistered commands: %s",
+            ", ".join(unknown),
+        )
+
 
 def _reg(app: Application[Any, Any, Any, Any, Any, Any], name: str, handler) -> None:
     """Register a command with per-command activity tracking (for /admin_stats).

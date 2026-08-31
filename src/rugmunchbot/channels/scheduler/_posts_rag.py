@@ -254,6 +254,12 @@ def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
             elif isinstance(loaded, list):
                 posts = list(loaded)
         slug = f"post-{int(time.time())}"
+        # Thumbnail (2026-09): carry the story image (og:image / evidence
+        # screenshot) into the static feed store so the SPA can render it.
+        # http(s)-only — a server-side path is useless to the browser.
+        _image = str(item.get("image_url") or item.get("image") or "").strip()
+        if not _image.startswith(("http://", "https://")):
+            _image = ""
         # Dedup guard (stable-key): a re-post of the same story_ref/source
         # into both surfaces must not double-post on the feed. The Telegram
         # lane already dedupes its sends; this keeps the static feed store
@@ -266,16 +272,16 @@ def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
         )
         if _existing is not None:
             return str(_existing.get("slug") or slug)
-        posts.insert(
-            0,
-            {
-                "slug": slug,
-                "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "text": _text,
-                "source": _ref,
-                "kind": item.get("kind", "story"),
-            },
-        )
+        _payload = {
+            "slug": slug,
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "text": _text,
+            "source": _ref,
+            "kind": item.get("kind", "story"),
+        }
+        if _image:
+            _payload["image"] = _image
+        posts.insert(0, _payload)
         tmp = path + ".tmp"
         with open(tmp, "w") as f:
             json.dump(posts[:500], f, indent=1)

@@ -300,6 +300,17 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # (RugMap cluster, market snapshot, wallet composition) rendered
         # INSIDE the report — before the footer, never appended after it.
         report = format_deep_scan_report(result, extra_sections=enrichment_lines)
+        # Prior-intel recall (same as /scan): surface prior scan-memory hits.
+        try:
+            from rugmunchbot.tools.scanner._scans import lookup_prior_scan_intel
+
+            prior = await asyncio.wait_for(
+                lookup_prior_scan_intel(target, result.get("chain")), timeout=6.0
+            )
+            if prior:
+                report += f"\n\U0001f9f0 {prior}"
+        except Exception:
+            logger.debug("prior_intel_append_failed", exc_info=True)
         # AI-assisted interpretation of the wallet data on top (2026-08-29
         # depth push): the snappy LLM reads the structured deep-scan facts —
         # including the 250-wallet first-buyer cohort, bundle/cluster engines

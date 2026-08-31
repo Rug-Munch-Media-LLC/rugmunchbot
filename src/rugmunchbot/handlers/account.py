@@ -65,8 +65,6 @@ async def cmd_account(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f"{BETA_STATUS_LINE}\n"
             f"\u2b50 The \U0001f52c <b>Deep Scan</b> button costs "
             f"250\u2605 (Telegram Stars); everything else is free.\n"
-            f"\U0001f4c5 <b>Premium plans coming soon</b> \u2014 "
-            f"beta users get launch discounts."
         )
 
     text = (
