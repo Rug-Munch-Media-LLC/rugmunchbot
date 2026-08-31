@@ -104,7 +104,7 @@ class TestFetch:
 
 
 class TestDelivery:
-    async def test_new_alert_posts(self, monkeypatch) -> None:
+    async def test_new_alert_posts(self, monkeypatch, isolate) -> None:
         async def _fetch(minutes: int | None = None) -> list[dict[str, Any]]:
             return [_alert()]
 
@@ -114,7 +114,7 @@ class TestDelivery:
         assert stats["posted"] == 1
         assert bot.messages[0][0] == "-100alerts"
 
-    async def test_skips_duplicate_incident(self, monkeypatch) -> None:
+    async def test_skips_duplicate_incident(self, monkeypatch, isolate) -> None:
         """Second sweep with the same alert id is deduped (no re-post)."""
         store: list[dict[str, Any]] = [_alert("dup-1")]
 

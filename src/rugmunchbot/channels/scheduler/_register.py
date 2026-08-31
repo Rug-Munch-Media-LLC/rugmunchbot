@@ -176,6 +176,27 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_shill_watch",
         )
 
+    # Shill-campaign auto-poster (2026-08-31): rugbrain's clustered shill
+    # campaigns (POST /rag/shill-campaigns) → main channel with screenshot +
+    # commentary. Dedup on campaign signature; fail-open. Env knobs:
+    # ``RMI_SHILL_CAMPAIGN_POST_ENABLED`` / ``_INTERVAL_MIN`` / ``_MAX_POSTS``.
+    if (
+        os.getenv("RMI_SHILL_CAMPAIGN_POST_ENABLED", "true").lower() in ("1", "true", "yes")
+        and _chat_id("main")
+        and hasattr(job_queue, "run_repeating")
+    ):
+        from rugmunchbot.channels.shill_campaign_post import (
+            SHILL_CAMPAIGN_INTERVAL_MIN,
+            run_shill_campaign_poster,
+        )
+
+        job_queue.run_repeating(
+            _tick_wrapper("channel_shill_campaign", run_shill_campaign_poster, envelope=True),
+            interval=SHILL_CAMPAIGN_INTERVAL_MIN * 60,
+            first=480,
+            name="channel_shill_campaign",
+        )
+
     # Scanner-alert rail (2026-08-31): polls RugBrain live detections
     # (GET /api/v1/alerts/recent) → @rmialerts. Wires the scanner →
     # rugbrain → bot → Telegram pipeline end-to-end. Env knobs:

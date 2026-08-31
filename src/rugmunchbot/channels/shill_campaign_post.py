@@ -28,14 +28,16 @@ screenshot, or a failed send never crashes the tick — silence is valid.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
+from telegram.constants import ParseMode
 
-from rugmunchbot.channels.formatters._primitives import NewsPost, _esc
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.channels.shill_campaign_post")
@@ -85,7 +87,6 @@ _BANNED_PHRASES: tuple[str, ...] = (
     "as an ai",
     "per my data",
     "in this chat",
-    "stay tuned",
 )
 
 
@@ -105,7 +106,7 @@ def campaign_signature(campaign: dict[str, Any]) -> str:
             if str(h or "").strip()
         )
     )
-    return hashlib_sha256(f"{token}|{window}|{handles}")[:24]
+    return hashlib.sha256(f"{token}|{window}|{handles}".encode()).hexdigest()[:24]
 
 
 def _span_hours(window_start: str, window_end: str) -> float:
@@ -134,7 +135,7 @@ def commentary(campaign: dict[str, Any]) -> str:
     span_txt = f"{span:.0f}h" if span >= 1 else "under an hour"
     if kols >= 5:
         return (
-            f"{kols} separate call channels pushed this inside {span_txt:.0f}h "
+            f"{kols} separate call channels pushed this inside {span_txt} "
             f"— {evidence} posts total. Coordination this tight is rarely "
             f"conviction; it is usually a coordinated exit ramp. Watch who "
             f"exits first."
@@ -151,13 +152,6 @@ def commentary(campaign: dict[str, Any]) -> str:
         f"voices on one ticker, too little time between them. That "
         f"pattern rhymes with paid promotion, not independent research."
     )
-
-
-def _esc(value: object) -> str:
-    """HTML-escape for Telegram parse_mode=HTML."""
-    import html
-
-    return html.escape(str(value), quote=False)
 
 
 def build_shill_campaign_post(campaign: dict[str, Any]) -> str:
@@ -237,7 +231,12 @@ async def run_shill_campaign_poster(ctx: Any) -> int:
     """
     if not SHILL_CAMPAIGN_ENABLED:
         return 0
-    from rugmunchbot.channels.scheduler._core import _chat_id, _post_photo_aware, _remember
+    from rugmunchbot.channels.scheduler._core import (
+        _chat_id,
+        _release,
+        _remember,
+        _safe_send,
+    )
 
     chat_id = _chat_id("main")
     if not chat_id:
@@ -251,34 +250,39 @@ async def run_shill_campaign_poster(ctx: Any) -> int:
             break
         try:
             key = f"shillcamp:{campaign_signature(campaign)}"
-            text = post_text(campaign)
+            text = build_shill_campaign_post(campaign)
         except Exception as exc:  # malformed campaign — skip, never crash
             logger.warning("shill_campaign_post:build_failed err=%s", str(exc)[:120])
             continue
-        if not remember_key(key):
+        if not _remember("shillcamp", key):
             continue  # already posted
-        image = _pick_screenshot(campaign)
+        image_path = _pick_screenshot(campaign)
         sent = False
         try:
-            if text and image_path:
-                with open(image_path, "rb") as fh:
-                    await ctx.bot.send_photo(
-                        chat_id=chat_id, photo=photo, caption=caption, parse_mode=ParseMode.HTML
-                    )
+            if image_path:
+                photo = await asyncio.to_thread(Path(image_path).read_bytes)
+                await ctx.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=photo,
+                    caption=text,
+                    parse_mode=ParseMode.HTML,
+                )
                 sent = True
             elif text:
-                sent = await _post_photo_aware(bot, chat_id, text, _remember)
+                sent = await _safe_send(ctx.bot, chat_id, text)
         except Exception as exc:
-            logger.warning("shill_post send failed: %s", str(exc)[:120])
+            logger.warning("shill_campaign_post:send_failed err=%s", str(exc)[:120])
         if sent:
             posted += 1
         else:
-            _forget("shill", key)  # allow retry next tick
+            _release("shillcamp", key)  # allow retry next tick
     return posted
 
 
 __all__ = [
+    "build_shill_campaign_post",
     "campaign_signature",
+    "commentary",
+    "fetch_shill_campaigns",
     "run_shill_campaign_poster",
-    "style_guide",
 ]
