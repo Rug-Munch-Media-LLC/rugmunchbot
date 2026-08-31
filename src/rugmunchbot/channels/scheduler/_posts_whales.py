@@ -175,6 +175,49 @@ def _wallet_context(meta: dict[str, Any]) -> str:
     return ""
 
 
+def _alpha_signal_lines(meta: dict[str, Any]) -> list[str]:
+    """Alpha-signal lines from the doc metadata ([] when no signal).
+
+    The backend whale feed (``/api/v1/whales/feed``) flags unusual moves as
+    structured ``alpha_signal`` objects: type (large_swap / new_token_entry /
+    exit_after_pump), why-notable context, and the wallet's historical
+    performance (round trips, win rate, realized PnL). When the firehose
+    ingests that feed the signal lands in the doc metadata — render it here
+    as the deep, pay-worthy context line ("who called the pump 3 days early",
+    not "whale swapped X for Y"). Accepts either a nested dict under
+    ``alpha_signal`` or flat ``alpha_*`` keys. Pure.
+    """
+    sig = meta.get("alpha_signal")
+    if not isinstance(sig, dict):
+        # Flat fallback: enrichment fields written directly on the doc.
+        why = str(meta.get("alpha_why") or meta.get("why_notable") or "").strip()
+        if not why:
+            return []
+        sig = {"type": meta.get("alpha_type") or "signal", "why_notable": why}
+    sig_type = str(sig.get("type") or "signal").replace("_", " ")
+    why = str(sig.get("why_notable") or "").strip()
+    track = sig.get("track_record") if isinstance(sig.get("track_record"), dict) else {}
+    lines: list[str] = []
+    if why:
+        lines.append(f"⚡ <b>ALPHA ({html.escape(sig_type)})</b> — {html.escape(why[:220])}")
+    if track:
+        trips = track.get("round_trips")
+        wr = track.get("win_rate")
+        pnl = track.get("realized_pnl_usd")
+        bits: list[str] = []
+        if trips:
+            bits.append(f"{trips} tracked round trips")
+        if wr is not None:
+            with suppress(TypeError, ValueError):
+                bits.append(f"{float(wr):.0%} win rate")
+        if pnl:
+            with suppress(TypeError, ValueError):
+                bits.append(f"${float(pnl):,.0f} banked")
+        if bits:
+            lines.append(f"📈 Track record: {html.escape(' · '.join(bits))}")
+    return lines
+
+
 def _deep_dive_link(meta: dict[str, Any]) -> str:
     """rugmunch.io full-analysis link for the wallet ("" when no wallet).
 
@@ -244,6 +287,9 @@ def _fmt_doc(point_id: str, payload: dict[str, Any]) -> str | None:
     if ctx:
         lines.append(f"📊 {html.escape(ctx)}")
 
+    # Alpha signal (why notable + track record) — the paid-product depth.
+    lines.extend(_alpha_signal_lines(meta))
+
     ts = _fmt_time(meta)
     if ts:
         lines.append(ts)
@@ -312,6 +358,7 @@ async def _fetch_webhook_whales(limit: int = 8) -> list[str]:
         ctx = str(entry.get("context") or entry.get("history") or "").strip()
         if ctx:
             lines.append(f"📊 {html.escape(ctx[:160])}")
+        lines.extend(_alpha_signal_lines(entry))
         tx = str(entry.get("tx_hash") or entry.get("hash") or entry.get("id") or "").strip()
         url = _explorer_tx_url(chain, tx)
         if not url:

@@ -287,7 +287,15 @@ def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
         with open(tmp, "w") as f:
             json.dump(posts[:500], f, indent=1)
         os.replace(tmp, path)
-        return slug
+        # Ghost CMS mirror (2026-08-31): posts.json write succeeded — now
+        # push to Ghost (canonical store for feed.rugmunch.io). Fail-open:
+        # a Ghost outage returns None and the local slug is used.
+        try:
+            ghost_slug = ghost_mirror_post(item, slug)
+        except Exception as ghost_err:  # belt-and-braces: never lose the slug
+            logger.warning("ghost_mirror_unexpected err=%s", str(ghost_err)[:200])
+            ghost_slug = None
+        return ghost_slug or slug
     except Exception as e:
         # W30: mirror is MANDATORY (CONTENT-STRATEGY-CANONICAL v2) — a
         # failure must be visible, not a debug whisper. The operator alert
@@ -298,6 +306,118 @@ def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
 
 
 _mirror_to_feed = mirror_post_to_feed  # backward-compatible alias
+
+
+# ── Ghost CMS mirror (feed.rugmunch.io, 2026-08-31) ─────────────────────────
+
+#: Ghost Admin API base. Defaults to the canonical feed host; the Admin key
+#: (``<id>:<secret>``) comes from the environment — never hardcoded.
+GHOST_ADMIN_API_URL = os.getenv("GHOST_ADMIN_API_URL", "https://feed.rugmunch.io")
+GHOST_ADMIN_API_KEY = os.getenv("GHOST_ADMIN_API_KEY", "")
+
+_ghost_no_key_logged = False
+
+
+def _ghost_admin_jwt(api_key: str) -> str:
+    """Sign a short-lived Ghost Admin API JWT (HS256, aud=/admin/)."""
+    import base64
+    import hashlib
+    import hmac
+
+    parts = api_key.split(":")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError("GHOST_ADMIN_API_KEY must be <id>:<secret>")
+    key_id, secret = parts
+    iat = int(time.time())
+
+    def _b64url(data: bytes) -> str:
+
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+    header = _b64url(
+        json.dumps({"alg": "HS256", "typ": "JWT", "kid": key_id}, separators=(",", ":")).encode()
+    )
+    payload = _b64url(
+        json.dumps({"iat": iat, "exp": iat + 300, "aud": "/admin/"}, separators=(",", ":")).encode()
+    )
+    signing_input = f"{header}.{payload}".encode()
+    signature = _b64url(hmac.new(secret.encode(), signing_input, hashlib.sha256).digest())
+    return f"{header}.{payload}.{signature}"
+
+
+def _ghost_text_to_html(text: str) -> str:
+    """Plain text → minimal safe HTML paragraphs (escape everything)."""
+    import html as _html
+
+    paras = [p.strip() for p in text.split("\n\n") if p.strip()]
+    return "".join(f"<p>{_html.escape(p).replace(chr(10), '<br>')}</p>" for p in paras) or "<p></p>"
+
+
+def ghost_mirror_post(item: dict[str, Any], slug: str) -> str | None:
+    """Push one mirrored post to Ghost via the Admin API (fail-open).
+
+    Called from :func:`mirror_post_to_feed` after the posts.json write
+    succeeds. Ghost is the canonical store for feed.rugmunch.io going
+    forward; posts.json stays as the fallback payload. Returns the Ghost
+    slug (``/p/{slug}`` link) or None on any failure — posting to Telegram
+    is never blocked by the Ghost mirror.
+    """
+    global _ghost_no_key_logged
+    if not GHOST_ADMIN_API_KEY:
+        if not _ghost_no_key_logged:
+            _ghost_no_key_logged = True
+            logger.info("ghost_mirror_skipped_no_admin_key")
+        return None
+    try:
+
+        import httpx
+
+        token = _ghost_admin_jwt(GHOST_ADMIN_API_KEY)
+        _image = str(item.get("image_url") or item.get("image") or "").strip()
+        payload = {
+            "posts": [
+                {
+                    "title": str(item.get("title") or item.get("text", "")[:80] or slug),
+                    "html": _ghost_text_to_html(str(item.get("text", ""))),
+                    "status": "published",
+                    "visibility": "public",
+                    "slug": slug,
+                    "tags": [{"name": str(item.get("kind", "story"))}],
+                    **(
+                        {"feature_image": _image}
+                        if _image.startswith(("http://", "https://"))
+                        else {}
+                    ),
+                    **(
+                        {"custom_excerpt": str(item.get("text", ""))[:300]}
+                        if item.get("text")
+                        else {}
+                    ),
+                }
+            ]
+        }
+        resp = httpx.post(
+            f"{GHOST_ADMIN_API_URL.rstrip('/')}/ghost/api/admin/posts/",
+            headers={
+                "Authorization": f"Ghost {token}",
+                "Content-Type": "application/json",
+                "Accept-Version": "v5.0",
+            },
+            json=payload,
+            timeout=8.0,
+        )
+        if resp.status_code in (200, 201):
+            post = resp.json().get("posts", [{}])[0]
+            ghost_slug = str(post.get("slug") or slug)
+            logger.info("ghost_mirror_published slug=%s", ghost_slug)
+            return ghost_slug
+        logger.warning(
+            "ghost_mirror_http_error status=%s body=%s", resp.status_code, resp.text[:200]
+        )
+        return None
+    except Exception as exc:  # fail-open: Ghost outage must never break posting
+        logger.warning("ghost_mirror_failed err=%s", str(exc)[:200])
+        return None
 
 
 def _rag_post_with_image(text: str, item: dict[str, Any]) -> NewsPost | str:

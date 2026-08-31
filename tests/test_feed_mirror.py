@@ -114,3 +114,68 @@ def test_tg_news_main_path_imports_the_mirror():
 
     assert _scheduler  # module imports cleanly
     assert callable(mirror_post_to_feed)
+
+
+# ── Ghost CMS mirror (2026-08-31) ───────────────────────────────────────────
+
+
+def test_ghost_mirror_skips_without_admin_key(monkeypatch):
+    """No GHOST_ADMIN_API_KEY → skip silently (None), never touch network."""
+    import rugmunchbot.channels.scheduler._posts_rag as rag
+
+    monkeypatch.setattr(rag, "GHOST_ADMIN_API_KEY", "")
+    assert rag.ghost_mirror_post({"text": "x"}, "post-1") is None
+
+
+def test_ghost_admin_jwt_shape(monkeypatch):
+    """JWT is header.payload.signature with kid + aud=/admin/."""
+    import base64
+    import json
+
+    import rugmunchbot.channels.scheduler._posts_rag as rag
+
+    token = rag._ghost_admin_jwt("abc123:secretsecret")
+    header, payload, sig = token.split(".")
+    pad = lambda s: s + "=" * (-len(s) % 4)  # noqa: E731
+    hdr = json.loads(base64.urlsafe_b64decode(pad(header)))
+    pl = json.loads(base64.urlsafe_b64decode(pad(payload)))
+    assert hdr["alg"] == "HS256"
+    assert hdr["kid"] == "abc123"
+    assert pl["aud"] == "/admin/"
+    assert pl["exp"] > pl["iat"]
+    assert sig  # signature present
+
+
+def test_ghost_admin_jwt_rejects_malformed_key():
+    import rugmunchbot.channels.scheduler._posts_rag as rag
+
+    with pytest.raises(ValueError, match="<id>:<secret>"):
+        rag._ghost_admin_jwt("no-colon-here")
+
+
+def test_mirror_uses_ghost_slug_when_published(tmp_path, monkeypatch):
+    """When Ghost accepts the post, mirror_post_to_feed returns the Ghost slug."""
+    import rugmunchbot.channels.scheduler._posts_rag as rag
+
+    monkeypatch.setattr(rag, "FEED_DATA", str(tmp_path))
+    monkeypatch.setattr(rag, "GHOST_ADMIN_API_KEY", "id:secret")
+    monkeypatch.setattr(rag, "ghost_mirror_post", lambda item, slug: "ghost-slug-1")
+    slug = mirror_post_to_feed({"text": "ghosted", "story_ref": "g1", "kind": "story"})
+    assert slug == "ghost-slug-1"
+
+
+def test_mirror_falls_back_to_local_slug_on_ghost_failure(tmp_path, monkeypatch):
+    """Ghost outage → posts.json still written, local slug returned (fail-open)."""
+    import rugmunchbot.channels.scheduler._posts_rag as rag
+
+    monkeypatch.setattr(rag, "FEED_DATA", str(tmp_path))
+    monkeypatch.setattr(rag, "GHOST_ADMIN_API_KEY", "id:secret")
+
+    def _boom(item, slug):
+        raise RuntimeError("ghost down")
+
+    monkeypatch.setattr(rag, "ghost_mirror_post", _boom)
+    slug = mirror_post_to_feed({"text": "still posts", "story_ref": "g2"})
+    assert slug is not None
+    posts = json.loads((tmp_path / "posts.json").read_text())
+    assert posts[0]["slug"] == slug
