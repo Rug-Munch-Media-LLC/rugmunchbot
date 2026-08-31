@@ -240,8 +240,8 @@ def _reg(app: Application[Any, Any, Any, Any, Any, Any], name: str, handler) -> 
 
 _CHANNELS_TEXT = (
     "🥊 <b>The RugMunch Network</b>\n\n"
-    "📢 @cryptorugmuncher — main: The Morning Rug Market Report, "
-    "The Midday Rug Market Report, top signals (mirrored to feed.rugmunch.io)\n"
+    "📢 @cryptorugmuncher — main: The Morning Rug, "
+    "Midday Market Update, top signals (mirrored to feed.rugmunch.io)\n"
     "🚨 @rmialerts — imminent rugs, hacks & exploits ONLY. If it posts, act.\n"
     "🐋 whales — whale moves & large transfers\n"
     "🧠 alpha — alpha-category stories under the main gate\n"
@@ -263,7 +263,7 @@ async def cmd_feed(update: Any, context: Any) -> None:
     if update.effective_message:
         await update.effective_message.reply_text(
             "📖 feed.rugmunch.io — every main-channel story, written long-form.\n"
-            "The Morning Rug Market Report + The Midday Rug Market Report publish there first."
+            "The Morning Rug + Midday Market Update publish there first."
         )
 
 

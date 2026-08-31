@@ -65,12 +65,32 @@ async def _fetch_rag_context() -> list[dict[str, Any]]:
     return out
 
 
+async def _fetch_ranked_stories() -> list[dict[str, Any]]:
+    """Top reranker-ranked stories since the last Morning Rug (fail-open).
+
+    The rugbrain consumer reranker (``POST /api/v1/rag/news-rerank``) ranks
+    news_v2 over the timeframe between the two flagship posts — the Midday
+    Update leads with those stories, not "everything in the last 24h".
+    """
+    from rugmunchbot.channels._news_rerank import (
+        fetch_top_ranked_stories,
+        midday_window_hours,
+    )
+
+    try:
+        return await fetch_top_ranked_stories(window_hours=midday_window_hours())
+    except Exception as exc:  # fail-open — never block the update
+        logger.warning("daily_rug_update:ranked_stories_failed err=%s", str(exc)[:140])
+        return []
+
+
 async def gather_rug_update_data() -> dict[str, Any]:
     """Pull every update block in parallel; never raises.
 
-    Returns ``{alerts, campaigns, rag_intel, sources, generated_at}`` where
-    ``sources`` lists the lanes that returned data. Every block degrades to
-    an empty value — a broken lane contributes nothing.
+    Returns ``{alerts, campaigns, rag_intel, ranked_stories, sources,
+    generated_at}`` where ``sources`` lists the lanes that returned data.
+    Every block degrades to an empty value — a broken lane contributes
+    nothing.
     """
     from rugmunchbot.channels.scanner_alerts import fetch_rag_alerts
     from rugmunchbot.channels.shill_campaign_post import fetch_shill_campaigns
@@ -79,15 +99,17 @@ async def gather_rug_update_data() -> dict[str, Any]:
         fetch_rag_alerts(minutes=_SCANNER_ALERT_MINUTES),
         fetch_shill_campaigns(window_hours=24, min_kols=3),
         _fetch_rag_context(),
+        _fetch_ranked_stories(),
         return_exceptions=True,
     )
     cleaned: list[list[dict[str, Any]]] = [r if isinstance(r, list) else [] for r in results]
-    names = ["alerts", "campaigns", "rag_intel"]
+    names = ["alerts", "campaigns", "rag_intel", "ranked_stories"]
     sources = [n for n, v in zip(names, cleaned, strict=True) if v]
     return {
         "alerts": cleaned[0],
         "campaigns": cleaned[1],
         "rag_intel": cleaned[2],
+        "ranked_stories": cleaned[3],
         "sources": sources,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
@@ -141,6 +163,30 @@ def _serialize_context(context: dict[str, Any]) -> str:
                 line += f" [url={urls[0]}]"
             c_lines.append(line)
         parts.append("SHILL CAMPAIGNS (clustered, last 24h): " + " | ".join(c_lines))
+
+    ranked = context.get("ranked_stories") or []
+    if ranked:
+        r_lines = []
+        for it in ranked[:8]:
+            title = str(it.get("title") or "").strip()
+            summary = str(it.get("summary") or "").strip()[:200]
+            src = str(it.get("source") or "").strip()
+            url = str(it.get("url") or "").strip()
+            bits = [title or summary[:80]]
+            if src:
+                bits.append(f"source {src}")
+            if summary and title:
+                bits.append(summary)
+            line = " — ".join(b for b in bits if b)
+            if url.startswith(("http://", "https://")):
+                line += f" [url={url}]"
+            if line.strip():
+                r_lines.append(line)
+        if r_lines:
+            parts.append(
+                "RANKED TOP STORIES (reranker-ranked since last Morning Rug, highest "
+                "first — build BREAKING NEWS from these): " + " || ".join(r_lines)
+            )
 
     rag_intel = context.get("rag_intel") or []
     if rag_intel:

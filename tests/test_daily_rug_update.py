@@ -107,6 +107,10 @@ class TestGather:
                 "rugmunchbot.channels.daily_rug_update._fetch._fetch_rag_context",
                 new=AsyncMock(return_value=[_rag_hit()]),
             ),
+            patch(
+                "rugmunchbot.channels.daily_rug_update._fetch._fetch_ranked_stories",
+                new=AsyncMock(return_value=[]),
+            ),
         ):
             data = await gather_rug_update_data()
         assert data["sources"] == ["alerts", "campaigns", "rag_intel"]
@@ -127,6 +131,10 @@ class TestGather:
             ),
             patch(
                 "rugmunchbot.channels.daily_rug_update._fetch._fetch_rag_context",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "rugmunchbot.channels.daily_rug_update._fetch._fetch_ranked_stories",
                 new=AsyncMock(return_value=[]),
             ),
         ):
@@ -303,6 +311,6 @@ class TestRegistration:
         from rugmunchbot.channels.scheduler import _register
 
         src = inspect.getsource(_register.register_channel_jobs)
-        assert "channel_daily_rug_update" in src
+        assert "channel_midday_update" in src
         assert "post_daily_rug_update" in src
         assert "rug_update_run_time" in src

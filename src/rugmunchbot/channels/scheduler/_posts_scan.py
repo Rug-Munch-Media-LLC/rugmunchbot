@@ -22,6 +22,7 @@ from rugmunchbot.config import (
     SCAN_CHANNEL_LIMIT,
     SCAN_CHANNEL_TICK_LIMIT,
 )
+from rugmunchbot.support.image_policy import ensure_post_image
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -158,7 +159,9 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     ]:
         # One bounded witty one-liner per card (fail-open to no line).
         item = await attach_scan_commentary(item)
-        ok = await _post_photo_aware(ctx.bot, chat_id, format_scan_card(item), _safe_send)
+        ok = await _post_photo_aware(
+            ctx.bot, chat_id, ensure_post_image(format_scan_card(item)), _safe_send
+        )
         if ok:
             posted += 1
     # Pending "Scanning…" teasers — bounded by the tick cap, own dedupe
@@ -168,7 +171,9 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     for item in sorted(pending_fresh, key=lambda i: i.get("importance", 0.0), reverse=True)[
         :remaining
     ]:
-        ok = await _post_photo_aware(ctx.bot, chat_id, format_scan_card(item), _safe_send)
+        ok = await _post_photo_aware(
+            ctx.bot, chat_id, ensure_post_image(format_scan_card(item)), _safe_send
+        )
         if ok:
             posted += 1
     # Escalate high-importance scans (≥0.7) to the main channel @cryptorugmuncher
@@ -199,7 +204,9 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             if await _main_admission("scan") != "main":
                 continue
             item = await attach_scan_commentary(item)
-            ok = await _post_photo_aware(ctx.bot, main_chat_id, format_scan_card(item), _safe_send)
+            ok = await _post_photo_aware(
+                ctx.bot, main_chat_id, ensure_post_image(format_scan_card(item)), _safe_send
+            )
             if ok:
                 posted += 1
                 await _record_main_post()

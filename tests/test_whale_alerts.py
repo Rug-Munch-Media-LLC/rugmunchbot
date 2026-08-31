@@ -96,3 +96,90 @@ async def test_build_post_fail_open(monkeypatch):
 
     monkeypatch.setattr(httpx, "AsyncClient", Dead)
     assert await build_whale_post() is None
+
+
+# ── Alpha-quality contract (2026-08-31) ───────────────────────────────
+
+
+def test_fmt_doc_carries_wallet_label():
+    """A labeled wallet renders its label in the header line."""
+    line = _fmt_doc(
+        "pid-3",
+        {
+            "content": "Whale transfer",
+            "metadata": {
+                "chain": "ethereum",
+                "type": "large_transfer",
+                "amount_usd": 5_000_000,
+                "token": "USDC",
+                "from": "0x1111111111111111111111111111111111111111",
+                "to": "0x2222222222222222222222222222222222222222",
+                "label": "Binance Hot Wallet",
+            },
+        },
+    )
+    assert line is not None
+    assert "Binance Hot Wallet" in line
+
+
+def test_fmt_doc_carries_context():
+    """Enrichment context (history / accumulating) renders as a 📊 line."""
+    line = _fmt_doc(
+        "pid-4",
+        {
+            "content": "Whale transfer",
+            "metadata": {
+                "chain": "base",
+                "type": "large_transfer",
+                "amount_usd": 1_200_000,
+                "token": "USDC",
+                "from": "0x1111111111111111111111111111111111111111",
+                "to": "0x2222222222222222222222222222222222222222",
+                "context": "smart-money wallet (5 trips · 80% win) · accumulating",
+            },
+        },
+    )
+    assert line is not None
+    assert "📊" in line
+    assert "accumulating" in line
+
+
+def test_fmt_doc_carries_deep_dive_link():
+    """Every whale alert links to the full analysis on rugmunch.io."""
+    line = _fmt_doc(
+        "pid-5",
+        {
+            "content": "Whale transfer",
+            "metadata": {
+                "chain": "ethereum",
+                "type": "large_transfer",
+                "amount_usd": 900_000,
+                "token": "USDT",
+                "from": "0x1111111111111111111111111111111111111111",
+                "to": "0x2222222222222222222222222222222222222222",
+            },
+        },
+    )
+    assert line is not None
+    assert "rugmunch.io/wallet/0x1111111111111111111111111111111111111111" in line
+    assert "Full analysis" in line
+
+
+def test_deep_dive_link_empty_without_wallet():
+    from rugmunchbot.channels.scheduler._posts_whales import _deep_dive_link
+
+    assert _deep_dive_link({"chain": "ethereum"}) == ""
+
+
+def test_wallet_label_helpers_pure():
+    from rugmunchbot.channels.scheduler._posts_whales import (
+        _wallet_context,
+        _wallet_label,
+    )
+
+    assert _wallet_label({}) == ""
+    assert _wallet_label({"entity": "Coinbase"}) == "Coinbase"
+    assert _wallet_context({}) == ""
+    assert (
+        _wallet_context({"history": "bought PEPE 3x before pumps"}) == "bought PEPE 3x before pumps"
+    )

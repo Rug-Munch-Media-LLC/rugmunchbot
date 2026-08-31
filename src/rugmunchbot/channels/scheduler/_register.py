@@ -143,9 +143,33 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
                 text = await build_whale_post()
                 alpha_chat = _chat_id("alpha")
                 if text and alpha_chat:
-                    from rugmunchbot.channels.scheduler._core import _safe_send
+                    from rugmunchbot.channels.scheduler._core import _post_photo_aware, _safe_send
 
-                    await _safe_send(ctx.bot, alpha_chat, text)
+                    # HARD quality gate (2026-08-31): whale alpha is paid-product
+                    # content — lint → autofix → skip, same as every other lane.
+                    # Image doctrine: resolve before the gate (branded placeholder
+                    # fallback) so the gate can never block on a missing image.
+                    from rugmunchbot.support.image_policy import resolve_post_image
+                    from rugmunchbot.support.quality_gate import pre_post_quality_gate
+
+                    resolved_image = await resolve_post_image("alpha", logger=logger)
+                    gate = await pre_post_quality_gate(
+                        text,
+                        image_url=resolved_image,
+                        source="whale_alerts",
+                        kind="whale_alert",
+                        min_words=8,  # structured alert format — terse by design
+                        require_image=True,
+                        allow_placeholder_image=True,
+                        logger=logger,
+                    )
+                    if not gate.ok:
+                        logger.warning(
+                            "whale_alerts_tick blocked by quality gate: %s",
+                            [v.rule for v in gate.violations],
+                        )
+                        return
+                    await _post_photo_aware(ctx.bot, alpha_chat, gate.text, _safe_send)
             except Exception as exc:
                 logger.warning("whale_alerts_tick failed: %s", str(exc)[:120])
 
@@ -423,7 +447,7 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             first=_FIRST_RUN_SECONDS["personal"],
             name="channel_personal",
         )
-    # Daily Market Summary — 7:00 AM America/New_York, 7 days/week, on the
+    # The Morning Rug (branded 2026-08-31, formerly "Daily Market Summary") — 7:00 AM America/New_York, 7 days/week, on the
     # main channel (@cryptorugmuncher). Writes an editorial market breakdown
     # via ``chat_with_fallback(messages, "long")`` and posts it to the main
     # channel + the rugmunch.io feed (both fail-open) — see
@@ -431,10 +455,10 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
     # ``RMI_DAILY_MARKET_SUMMARY_ENABLED`` / ``_TIME`` / ``_TZ``.
     if DAILY_MARKET_SUMMARY_ENABLED and _chat_id("main"):
         job_queue.run_daily(
-            _tick_wrapper("daily_market_summary", post_daily_market_summary, envelope=True),
+            _tick_wrapper("channel_morning_rug", post_daily_market_summary, envelope=True),
             time=summary_run_time(),
             days=tuple(range(7)),
-            name="daily_market_summary",
+            name="channel_morning_rug",
         )
         # Midday edition (2026-08-26): same pipeline, fresher data — the
         # closing block auto-labels it "Midday edition" by post hour.
@@ -448,12 +472,12 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
         except ValueError:
             _mh, _mm = 13, 0
         job_queue.run_daily(
-            _tick_wrapper("daily_market_summary_midday", post_daily_market_summary, envelope=True),
+            _tick_wrapper("channel_morning_rug_midday", post_daily_market_summary, envelope=True),
             time=_dtime(hour=_mh, minute=_mm, tzinfo=summary_run_time().tzinfo),
             days=tuple(range(7)),
-            name="daily_market_summary_midday",
+            name="channel_morning_rug_midday",
         )
-    # Daily Rug Update (2026-08-31): midday rug/scam intelligence brief on
+    # Midday Market Update (branded 2026-08-31, formerly "Daily Rug Update"): midday rug/scam intelligence brief on
     # the main channel (@cryptorugmuncher). RAG-served (rugbrain news_v2 +
     # threat_intel_v2 + scanner memory + shill campaigns + scanner alerts),
     # quality-gated via support/content_lint, mirrored to feed.rugmunch.io
@@ -467,10 +491,10 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
 
     if DAILY_RUG_UPDATE_ENABLED and _chat_id("main"):
         job_queue.run_daily(
-            _tick_wrapper("channel_daily_rug_update", post_daily_rug_update, envelope=True),
+            _tick_wrapper("channel_midday_update", post_daily_rug_update, envelope=True),
             time=rug_update_run_time(),
             days=tuple(range(7)),
-            name="channel_daily_rug_update",
+            name="channel_midday_update",
         )
     # @rmiupdates changelog — daily system-progress digest (strategy v2).
     # Fires once per day at UPDATES_POST_HOUR_UTC; the poster dedupes per
@@ -514,5 +538,5 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_rag_fast",
         )
     logger.info(
-        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/daily_rug_update/updates/shill_watch/kol_scoreboard/scammer_warning/daily_quality)"
+        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/channel_morning_rug/channel_midday_update/updates/shill_watch/kol_scoreboard/scammer_warning/daily_quality)"
     )

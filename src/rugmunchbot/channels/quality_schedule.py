@@ -4,10 +4,9 @@ Channel-quality overhaul (2026-08-29): @cryptorugmuncher runs a strict
 daily editorial budget of 10 high-quality posts:
 
 * **2 fixed market-update slots** — morning (07:00 ET) + midday (13:00 ET)
-  market briefs ("The Morning Rug Market Report" / "The Midday Rug Market
-  Report"). Those are separate JobQueue jobs
-  (``channels/scheduler/_register.py``: ``daily_market_summary`` /
-  ``daily_market_summary_midday``); this module RESERVES their slots in the
+  market briefs ("The Morning Rug" / "Midday Market Update"). Those are separate JobQueue jobs
+  (``channels/scheduler/_register.py``: ``channel_morning_rug`` /
+  ``channel_morning_rug_midday``); this module RESERVES their slots in the
   schedule so the operator dry-run and any UI see the full 10-post day.
 * **8 reranked quality-content slots** — the best fresh stories from the
   RAG content-distribution lane (``channels/scheduler/_posts_rag.py``),
@@ -71,8 +70,8 @@ MARKET_SLOT_DEFS: tuple[tuple[str, str], ...] = (
 
 #: Human edition names for the two reserved market slots (dry-run titles).
 MARKET_EDITION_LABELS: dict[str, str] = {
-    "market-morning": "The Morning Rug Market Report",
-    "market-midday": "The Midday Rug Market Report",
+    "market-morning": "The Morning Rug",
+    "market-midday": "Midday Market Update",
 }
 
 #: Embedding-cosine threshold above which two candidates are the "same
@@ -387,7 +386,7 @@ async def build_daily_quality_schedule(
 
     # 1) Fixed market slots (reserved — their jobs run independently).
     for idx, (kind, slot_time) in enumerate(MARKET_SLOT_DEFS[:MARKET_SLOTS_PER_DAY]):
-        edition_label = MARKET_EDITION_LABELS.get(kind, "The Morning Rug Market Report")
+        edition_label = MARKET_EDITION_LABELS.get(kind, "The Morning Rug")
         schedule.append(
             ScheduleEntry(
                 slot_index=idx,

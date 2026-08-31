@@ -13,6 +13,7 @@ from rugmunchbot.channels.formatters import (
 from rugmunchbot.config import (
     ALERTS_CHANNEL_LIMIT,
 )
+from rugmunchbot.support.image_policy import ensure_post_image
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -113,7 +114,7 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     posted = 0
     if channel_items:
         ok = await _post_photo_aware(
-            ctx.bot, chat_id, format_alerts_post(channel_items), _safe_send
+            ctx.bot, chat_id, ensure_post_image(format_alerts_post(channel_items)), _safe_send
         )
         if ok:
             posted += 1
@@ -126,14 +127,13 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             # digest above already carries the item natively).
             if await _main_admission("alert") != "main":
                 continue
-            from rugmunchbot.channels.formatters._primitives import (
-                enforce_main_link_contract,
-            )
-
             # STORY-FIRST doctrine: main gets the founder-voice narrative,
             # not a raw alert card. AI story generated async; falls back to
             # the standard escalation card on any failure.
             from rugmunchbot.channels._alert_story import write_alert_story
+            from rugmunchbot.channels.formatters._primitives import (
+                enforce_main_link_contract,
+            )
 
             story = await write_alert_story(item)
             if story is not None:
@@ -147,7 +147,9 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                     "main_link_contract_blocked type=alert name=%s", str(item.get("name"))[:40]
                 )
                 continue
-            ok = await _post_photo_aware(ctx.bot, main_chat_id, main_text, _safe_send)
+            ok = await _post_photo_aware(
+                ctx.bot, main_chat_id, ensure_post_image(main_text), _safe_send
+            )
             if ok:
                 posted += 1
                 await _record_main_post()

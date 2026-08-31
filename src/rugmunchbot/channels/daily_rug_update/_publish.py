@@ -26,12 +26,12 @@ from rugmunchbot.channels.daily_rug_update._fetch import (
 
 logger = logging.getLogger("rmi_bot.channels.daily_rug_update")
 
-EDITION = "The Daily Rug Update"
+EDITION = "Midday Market Update"
 
 #: feed.rugmunch.io deep-link base for a mirrored post slug.
 FEED_POST_URL_FMT = "https://feed.rugmunch.io/p/{slug}"
 
-SYSTEM_PROMPT = """You write "{EDITION}" — the midday rug/scam intelligence brief for Crypto Rug Muncher (@cryptorugmuncher). Published to Telegram AND rugmunch.io in long form.
+SYSTEM_PROMPT = """You write "{EDITION}" — the midday market update for Crypto Rug Muncher (@cryptorugmuncher). It leads with the highest-ranked stories from the reranker over the window since the last Morning Rug, then layers the rug/scam intelligence desk on top. Published to Telegram AND rugmunch.io in long form.
 
 VOICE (non-negotiable):
 - You are a sharp crypto intelligence analyst who has seen every cycle. Write with authority, never hype.
@@ -65,7 +65,7 @@ KOLs caught pushing scam tokens, from the shill-campaign handles and RAG INTEL s
 Notable whale movements from the RAG INTEL block only — cite-or-omit, never invent. "X,XXX ETH moved" style one-liners with direction if inferable. Absent = OMIT.
 
 ## BREAKING NEWS
-Breaking/market-moving items from the RAG INTEL news_v2 hits. Every item linked with its real URL. Absent = OMIT.
+The stories making waves right now, from the RANKED TOP STORIES block FIRST (reranker-ranked over the window since the last Morning Rug — highest-ranked first) and the RAG INTEL news_v2 hits to fill gaps. Every item linked with its real URL. Absent = OMIT.
 
 ## THE RUG TOOLKIT
 Tie 1-2 real RugMunchBot tools to TODAY'S data so the promo reads as intel, not an ad: "/scan answers if a token is a honeypot before you ape." Available: /scan, /whales, /launches, /lpcheck. One line each, dry tone.

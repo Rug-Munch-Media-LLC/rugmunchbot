@@ -569,20 +569,35 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             # that still fails after autofix does not ship and stays
             # retryable (dedupe mark not yet burned — the mark below is
             # taken only after a successful send).
+            # Image doctrine (2026-08-31): EVERY channel post carries an
+            # image. Resolve before the gate — carried image → og:image from
+            # the source URL (news lanes) → branded placeholder — so the
+            # gate's require_image check can never block on a missing image
+            # and _post_photo_aware always attaches a photo.
+            from rugmunchbot.support.image_policy import (
+                ensure_post_image,
+                resolve_post_image,
+            )
             from rugmunchbot.support.quality_gate import pre_post_quality_gate
 
+            resolved_image = await resolve_post_image(
+                channel,
+                image_url=item.get("image_url") or item.get("image") or "",
+                source_url=item.get("url") or item.get("source_url") or "",
+                logger=logger,
+            )
             gate = await pre_post_quality_gate(
                 text,
-                image_url=str(item.get("image_url") or item.get("image") or ""),
+                image_url=resolved_image,
                 source=str(item.get("story_ref") or "")[:80],
                 kind=f"rag:{channel}",
                 # Structured scan/alert formats are terse by design; only
                 # prose lanes (main/news) enforce the full 20-word floor.
-                # Image doctrine is main/news-only: alerts/scans stay
-                # text-first (payload images attach when present).
+                # Image doctrine is ALL channels: every post ships a photo
+                # (carried, og:image, or branded placeholder).
                 min_words=BLAND_MIN_WORDS if channel in ("main", "news") else 8,
-                require_image=channel in ("main", "news"),
-                allow_placeholder_image=channel in ("main", "news"),
+                require_image=True,
+                allow_placeholder_image=True,
                 regenerate=_regenerate_draft_text if channel in ("main", "news") else None,
                 logger=logger,
             )
@@ -594,7 +609,7 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             ok = await _post_photo_aware(
                 ctx.bot,
                 chat_id,
-                _rag_post_with_image(text, item),
+                ensure_post_image(_rag_post_with_image(text, item)),
                 _safe_send,
             )
             if not ok:
@@ -662,12 +677,20 @@ async def post_rag_fast_lane(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         dedupe_key = f"rag:{item.get('story_ref') or item.get('text', '')[:60]}"
         if not _remember("rag_alerts", dedupe_key):
             return 0  # slow lane already claimed it
-        # HARD quality gate (2026-08-31) — same contract as the slow lane.
+        # HARD quality gate (2026-08-31) — same contract as the slow lane,
+        # including the all-channel image doctrine (resolve → gate → photo).
+        from rugmunchbot.support.image_policy import ensure_post_image, resolve_post_image
         from rugmunchbot.support.quality_gate import pre_post_quality_gate
 
+        resolved_image = await resolve_post_image(
+            "alerts",
+            image_url=item.get("image_url") or item.get("image") or "",
+            source_url=item.get("url") or item.get("source_url") or "",
+            logger=logger,
+        )
         gate = await pre_post_quality_gate(
             str(item.get("text", "")),
-            image_url=str(item.get("image_url") or item.get("image") or ""),
+            image_url=resolved_image,
             source=str(item.get("story_ref") or "")[:80],
             kind="rag:fast_lane",
             logger=logger,
@@ -675,7 +698,16 @@ async def post_rag_fast_lane(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         if not gate.ok:
             _release("rag_alerts", dedupe_key)
             continue
-        if await _safe_send(ctx.bot, chat_id, gate.text):
+        # Photo-aware send (2026-08-31): the fast lane is a channel post too —
+        # it must never ship as a naked text message.
+        if await _post_photo_aware(
+            ctx.bot,
+            chat_id,
+            ensure_post_image(
+                _rag_post_with_image(gate.text, {**item, "image_url": gate.image_url})
+            ),
+            _safe_send,
+        ):
             logger.info(
                 "rag_fast_lane_posted ref=%s age_h=%.1f",
                 str(item.get("story_ref") or "")[:60],

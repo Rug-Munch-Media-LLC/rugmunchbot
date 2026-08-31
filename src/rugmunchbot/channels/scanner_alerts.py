@@ -117,6 +117,10 @@ async def _send_photo(bot: Any, chat_id: str, image_url: str) -> bool:
 
     Raises on failure so the caller can log; the text message is the
     authoritative delivery and is sent independently.
+
+    [REVIEW] Superseded by the 2026-08-31 photo-aware delivery
+    (``channels._media.send_news_photo`` with caption); kept for
+    backward-compatible imports/tests.
     """
     await bot.send_photo(
         chat_id=chat_id,
@@ -164,11 +168,15 @@ async def run_scanner_alert_watch(bot: Any) -> dict[str, Any]:
 
         gate = await pre_post_quality_gate(
             text,
+            image_url=str(alert.get("image_url") or "").strip(),
             source=alert_id[:80],
             kind="scanner_alert",
             min_words=8,
-            require_image=False,
-            allow_placeholder_image=False,
+            # Image doctrine (2026-08-31): every channel post carries an
+            # image — the alert payload's chart when present, else the
+            # branded placeholder.
+            require_image=True,
+            allow_placeholder_image=True,
             logger=logger,
         )
         if not gate.ok:
@@ -176,16 +184,21 @@ async def run_scanner_alert_watch(bot: Any) -> dict[str, Any]:
             stats["skipped"] += 1
             continue
         text = gate.text
-        # Text message is the authoritative delivery (always sent).
-        sent = await _safe_send(bot, alerts_chat, text)
-        # Best-effort chart attachment when the payload carries an image;
-        # a photo failure never fails the already-delivered text.
-        image_url = str(alert.get("image_url") or "").strip()
-        if sent and image_url:
+        # Photo-aware delivery (2026-08-31): the alert ships as photo +
+        # caption when the gate resolved an image (payload chart or branded
+        # placeholder); text-only is the fallback, never the default.
+        image_url = str(gate.image_url or "").strip()
+        sent = False
+        if image_url.startswith(("http://", "https://")):
             try:
-                await _send_photo(bot, alerts_chat, image_url)
+                from rugmunchbot.channels._media import send_news_photo
+
+                sent = await send_news_photo(bot, alerts_chat, caption=text, photo_url=image_url)
             except Exception as exc:
                 logger.debug("scanner_photo_failed %s", str(exc)[:80])
+        if not sent:
+            # Text message is the authoritative delivery fallback.
+            sent = await _safe_send(bot, alerts_chat, text)
         if sent:
             stats["posted"] += 1
             logger.info("scanner_alert_posted id=%s", alert_id[:60])

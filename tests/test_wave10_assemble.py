@@ -166,6 +166,12 @@ async def test_gather_collects_all_blocks(monkeypatch: pytest.MonkeyPatch) -> No
         return [{"content": "rag hit", "collection": "news_v2", "score": 0.9}]
 
     monkeypatch.setattr(asm, "_fetch_rag_intel", fake_rag_intel)
+
+    # hermetic: reranker lane must not hit live rugbrain in tests
+    async def fake_ranked(*a, **k):
+        return []
+
+    monkeypatch.setattr("rugmunchbot.channels._news_rerank.fetch_top_ranked_stories", fake_ranked)
     data = await gather_summary_data()
     assert set(data["sources"]) == {
         "prices",
@@ -204,6 +210,12 @@ async def test_gather_never_raises_on_fetcher_crash(monkeypatch: pytest.MonkeyPa
         boom_intel,
     )
     monkeypatch.setattr(asm, "_fetch_rag_intel", boom_intel)
+
+    # hermetic: reranker lane must not hit live rugbrain in tests
+    async def fake_ranked(*a, **k):
+        return []
+
+    monkeypatch.setattr("rugmunchbot.channels._news_rerank.fetch_top_ranked_stories", fake_ranked)
     data = await gather_summary_data()  # must not raise
     assert data["prices"] == {}
     assert data["trending"] == []

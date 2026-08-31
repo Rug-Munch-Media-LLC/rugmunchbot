@@ -148,6 +148,50 @@ def _source_link(meta: dict[str, Any]) -> str:
     return ""
 
 
+def _wallet_label(meta: dict[str, Any]) -> str:
+    """Human wallet label from the doc metadata ("" when unlabeled).
+
+    Checks the common label fields the firehose/enrichment layers write
+    (``label`` / ``wallet_label`` / ``entity`` / ``owner``). Pure.
+    """
+    for key in ("label", "wallet_label", "entity", "owner"):
+        val = str(meta.get(key) or "").strip()
+        if val:
+            return val
+    return ""
+
+
+def _wallet_context(meta: dict[str, Any]) -> str:
+    """One-line wallet context from the doc metadata ("" when absent).
+
+    Reads ``context`` / ``history`` / ``note`` — the enrichment fields the
+    backend whale feed (labels / accumulating-vs-distributing / smart-money)
+    writes into the firehose payload. Pure.
+    """
+    for key in ("context", "history", "note"):
+        val = str(meta.get(key) or "").strip()
+        if val:
+            return val[:160]
+    return ""
+
+
+def _deep_dive_link(meta: dict[str, Any]) -> str:
+    """rugmunch.io full-analysis link for the wallet ("" when no wallet).
+
+    Deep-dive contract (2026-08-31): every whale alert links to the wallet's
+    full analysis on rugmunch.io so the channel funnels to the paid product.
+    Pure.
+    """
+    addr = str(meta.get("from") or meta.get("to") or "").strip()
+    if not addr:
+        return ""
+    chain = str(meta.get("chain") or "").strip().lower()
+    url = f"https://rugmunch.io/wallet/{addr}"
+    if chain and chain != "?":
+        url += f"?chain={chain}"
+    return f'🔍 <a href="{html.escape(url, quote=True)}">Full analysis</a>'
+
+
 def _fmt_doc(point_id: str, payload: dict[str, Any]) -> str | None:
     """One whale-alert line, guaranteed to carry the actual signal.
 
@@ -180,7 +224,12 @@ def _fmt_doc(point_id: str, payload: dict[str, Any]) -> str | None:
 
     amount = _fmt_amount(meta)
     label = "Stablecoin whale" if mtype == "stablecoin_whale" else "Whale transfer"
-    lines = [f"{badge} <b>{label}</b> ({chain})", amount]
+    wallet_label = _wallet_label(meta)
+    lines = [
+        f"{badge} <b>{label}</b> ({chain})"
+        + (f" — {html.escape(wallet_label)}" if wallet_label else ""),
+        amount,
+    ]
 
     # Wallet route (full, copy-able addresses — the actual signal).
     if frm and to:
@@ -190,12 +239,20 @@ def _fmt_doc(point_id: str, payload: dict[str, Any]) -> str | None:
     elif frm:
         lines.append(f"👛 <code>{html.escape(frm)}</code> →")
 
+    # Wallet context (history / accumulating-vs-distributing / smart money).
+    ctx = _wallet_context(meta)
+    if ctx:
+        lines.append(f"📊 {html.escape(ctx)}")
+
     ts = _fmt_time(meta)
     if ts:
         lines.append(ts)
     link = _source_link(meta)
     if link:
         lines.append(link)
+    deep = _deep_dive_link(meta)
+    if deep:
+        lines.append(deep)
     return "\n".join(lines)
 
 
@@ -252,12 +309,21 @@ async def _fetch_webhook_whales(limit: int = 8) -> list[str]:
                 lines.append(f"🕐 {dt.strftime('%b %d, %H:%M UTC')}")
             except ValueError:
                 lines.append(f"🕐 {created}")
+        ctx = str(entry.get("context") or entry.get("history") or "").strip()
+        if ctx:
+            lines.append(f"📊 {html.escape(ctx[:160])}")
         tx = str(entry.get("tx_hash") or entry.get("hash") or entry.get("id") or "").strip()
         url = _explorer_tx_url(chain, tx)
         if not url:
             url = _explorer_account_url(chain, frm or to)
         if url:
             lines.append(f'🔗 <a href="{html.escape(url, quote=True)}">Source</a>')
+        deep_addr = frm or to
+        if deep_addr:
+            deep_url = f"https://rugmunch.io/wallet/{deep_addr}"
+            if chain:
+                deep_url += f"?chain={chain}"
+            lines.append(f'🔍 <a href="{html.escape(deep_url, quote=True)}">Full analysis</a>')
         if len(lines) >= limit:
             break
     return lines

@@ -70,6 +70,33 @@ async def _fetch_rag_intel() -> list[dict[str, Any]]:
     return out
 
 
+def _map_ranked_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Map rugbrain news-rerank items to the TOP NEWS hit shape.
+
+    ``{title, summary, url, source, score}`` → ``{content, canonical_url,
+    score}`` so the existing ``_serialize_context`` TOP NEWS renderer works
+    unchanged. Empty/undisplayable items are dropped.
+    """
+    out: list[dict[str, Any]] = []
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        title = str(it.get("title") or "").strip()
+        summary = str(it.get("summary") or "").strip()
+        content = f"{title}. {summary}".strip(". ") if title and summary else (title or summary)
+        if not content:
+            continue
+        out.append(
+            {
+                "content": content,
+                "canonical_url": str(it.get("url") or "").strip(),
+                "score": float(it.get("score") or 0.0),
+                "source": str(it.get("source") or "").strip(),
+            }
+        )
+    return out
+
+
 async def gather_summary_data() -> dict[str, Any]:
     """Pull every brief block from the existing data sources, in parallel.
 
@@ -187,6 +214,29 @@ async def gather_summary_data() -> dict[str, Any]:
         logger.warning("market_report:selection_failed fail_open err=%s", str(exc)[:140])
         top_stories = cleaned[4] if isinstance(cleaned[4], list) else []
 
+    # Reranker-driven selection (2026-08-31): the rugbrain consumer reranker
+    # (POST /api/v1/rag/news-rerank) ranks news_v2 over the timeframe since
+    # the last Midday Update (fallback 12h). When it returns stories, they
+    # ARE the TOP NEWS block — the post leads with the highest-ranked
+    # stories, not "everything in the last 24h". Fail-open to the pipeline
+    # above.
+    ranked_stories: list[dict[str, Any]] = []
+    try:
+        from rugmunchbot.channels._news_rerank import (
+            fetch_top_ranked_stories,
+            morning_window_hours,
+        )
+
+        ranked_items = await fetch_top_ranked_stories(window_hours=morning_window_hours())
+        ranked_stories = ranked_items
+        mapped = _map_ranked_items(ranked_items)
+        if mapped:
+            top_stories = mapped
+            if "ranked_stories" not in active:
+                active.append("ranked_stories")
+    except Exception as exc:
+        logger.debug("market_report:ranked_stories_failed err=%s", str(exc)[:120])
+
     return {
         "prices": cleaned[0] if isinstance(cleaned[0], dict) else {},
         "condition": cleaned[1] if isinstance(cleaned[1], dict) else {},
@@ -200,6 +250,7 @@ async def gather_summary_data() -> dict[str, Any]:
         "social_intel": social_data,
         "rugbrain_intel": rugbrain_intel,
         "rag_intel": rag_intel,
+        "ranked_stories": ranked_stories,
         "sources": active,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
@@ -297,6 +348,30 @@ def _serialize_context(context: dict[str, Any]) -> str:
             if content:
                 n_lines.append(f"{content} [url={url}]" if url else content)
         parts.append("TOP NEWS (RAG news_v2): " + " || ".join(n_lines))
+
+    ranked = context.get("ranked_stories") or []
+    if ranked:
+        r_lines = []
+        for it in ranked[:8]:
+            title = str(it.get("title") or "").strip()
+            summary = str(it.get("summary") or "").strip()[:200]
+            src = str(it.get("source") or "").strip()
+            url = str(it.get("url") or "").strip()
+            bits = [title or summary[:80]]
+            if src:
+                bits.append(f"source {src}")
+            if summary and title:
+                bits.append(summary)
+            line = " — ".join(b for b in bits if b)
+            if url.startswith(("http://", "https://")):
+                line += f" [url={url}]"
+            if line.strip():
+                r_lines.append(line)
+        if r_lines:
+            parts.append(
+                "RANKED TOP STORIES (reranker-ranked, highest first — build TOP NEWS "
+                "from these): " + " || ".join(r_lines)
+            )
 
     narratives = context.get("narratives") or []
     if narratives:

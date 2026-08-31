@@ -67,6 +67,16 @@ async def setup_bot_profile(app: Application[Any, Any, Any, Any, Any, Any]) -> N
     except (ValueError, TypeError, KeyError, OSError) as e:
         logger.debug("unknown_error", exc_info=True)
         logger.warning(f"Could not set commands: {e}")
+    # Channel housekeeping (2026-08-31): branded descriptions on every
+    # network channel (idempotent) + admin verification (warn-only). Both
+    # lanes fail-soft and never block startup.
+    try:
+        from rugmunchbot.bot._channels_setup import set_channel_descriptions, verify_channel_admin
+
+        await set_channel_descriptions(app)
+        await verify_channel_admin(app)
+    except Exception as e:
+        logger.warning(f"Channel housekeeping failed (non-fatal): {e}")
 
 
 async def daily_scam_tip(ctx: ContextTypes.DEFAULT_TYPE) -> None:

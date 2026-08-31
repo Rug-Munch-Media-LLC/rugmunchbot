@@ -5,10 +5,10 @@ Only reranked-to-main content gets pushed to feed.rugmunch.io.
 Quality > quantity: if fewer than 8 stories pass the bar, we post fewer.
 
 Content calendar (UTC):
-  06:00 — The Morning Rug Market Report (full market brief + AI analysis)
+  06:00 — The Morning Rug (full market brief + AI analysis)
   08:00 — Whale Watch (top HL + chain movements)
   10:00 — Security Spotlight (tokens matching rug DNA)
-  12:00 — The Midday Rug Market Report (condition + funding dislocations)
+  12:00 — Midday Market Update (condition + funding dislocations)
   14:00 — Cascade Alert (liquidation proximity warnings)
   16:00 — Smart Money Report (convergence + accumulation patterns)
   19:00 — Scam Exposure (new rugs, honeypots, wash tokens found)
@@ -31,7 +31,7 @@ CONTENT_SLOTS = [
     {
         "time_utc": "06:00",
         "type": "morning_market_report",
-        "label": "The Morning Rug Market Report",
+        "label": "The Morning Rug",
         "priority": "high",
     },
     {"time_utc": "08:00", "type": "whale_watch", "label": "Whale Watch", "priority": "medium"},
@@ -44,7 +44,7 @@ CONTENT_SLOTS = [
     {
         "time_utc": "12:00",
         "type": "market_pulse",
-        "label": "The Midday Rug Market Report",
+        "label": "Midday Market Update",
         "priority": "medium",
     },
     {"time_utc": "14:00", "type": "cascade_alert", "label": "Cascade Alert", "priority": "high"},

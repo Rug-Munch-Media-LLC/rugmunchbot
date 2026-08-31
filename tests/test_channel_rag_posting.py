@@ -399,11 +399,16 @@ async def test_scans_lane_posts_scanner_drafts(monkeypatch):
         sender=_send,
     )
 
-    posted = await _posts_rag.post_rag_drafts(_Ctx())
+    ctx = _Ctx()
+    posted = await _posts_rag.post_rag_drafts(ctx)
 
     assert posted == 1
-    assert len(seen) == 1
-    assert seen[0][1].startswith("[SCAN]")
+    # Image doctrine (2026-08-31): scans-lane drafts ship photo+caption via
+    # the photo-aware sender (the gate resolves a placeholder image), so the
+    # delivery lands on bot.send_photo, not the text-only _safe_send stub.
+    sends = seen + ctx.bot.calls
+    assert len(sends) == 1
+    assert sends[0][1].startswith("[SCAN]")
 
 
 # ── 2026-08-30 unified main content path (task 1/2/3) ──────────────────────

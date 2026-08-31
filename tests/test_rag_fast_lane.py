@@ -31,6 +31,18 @@ class _Recorder:
         return self.succeed
 
 
+class _PhotoRecorder:
+    """Records photo-aware sends (image doctrine: posts ship with images)."""
+
+    def __init__(self, succeed: bool = True):
+        self.calls: list[tuple[str, str, str]] = []
+        self.succeed = succeed
+
+    async def __call__(self, bot: Any, chat_id: str, post: Any, safe_send: Any) -> bool:
+        self.calls.append((chat_id, str(post), getattr(post, "image_url", "")))
+        return self.succeed
+
+
 class _Bot:
     # The quality gate attaches a placeholder image to image-less drafts,
     # so delivery may route through the photo-aware sender.
@@ -73,10 +85,13 @@ async def test_fast_lane_posts_critical_fresh(monkeypatch):
         "fetch_rag_drafts",
         _fake([_critical_draft()]),
     )
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
+    sender = _PhotoRecorder()
+    monkeypatch.setattr(_posts_rag, "_post_photo_aware", sender)
 
     assert await _posts_rag.post_rag_fast_lane(_Ctx()) == 1
     assert len(sender.calls) == 1
+    # Image doctrine: the fast lane ships a photo, never a naked text post.
+    assert sender.calls[0][2].startswith("https://")
 
 
 @pytest.mark.asyncio
@@ -101,7 +116,8 @@ async def test_fast_lane_shares_dedupe_with_slow_lane(monkeypatch):
     sender = _Recorder()
     monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: "-100alerts")
     monkeypatch.setattr(_posts_rag, "fetch_rag_drafts", _fake([draft]))
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
+    sender = _PhotoRecorder()
+    monkeypatch.setattr(_posts_rag, "_post_photo_aware", sender)
 
     assert await _posts_rag.post_rag_fast_lane(_Ctx()) == 1
 

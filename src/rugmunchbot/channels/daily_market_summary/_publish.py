@@ -14,11 +14,13 @@ from rugmunchbot.channels.daily_market_summary._config import (
     logger,
 )
 
-#: Edition names for the two daily market briefs. The morning brief is the
-#: flagship (07:00 ET); the midday brief re-runs the same pipeline on fresher
-#: data (13:00 ET). Both share this prompt — the edition name is injected.
-MORNING_EDITION = "The Morning Rug Market Report"
-MIDDAY_EDITION = "The Midday Rug Market Report"
+#: Edition names for the two daily market briefs (branded 2026-08-31).
+#: The morning brief is the flagship "The Morning Rug" (07:00 ET); the
+#: midday brief re-runs the same pipeline on fresher data as
+#: "Midday Market Update" (13:00 ET). Both share this prompt — the edition
+#: name is injected.
+MORNING_EDITION = "The Morning Rug"
+MIDDAY_EDITION = "Midday Market Update"
 
 #: UTC hour window the legacy hour-heuristic treats as "midday" (used only
 #: when the job name is unavailable, e.g. direct/test invocation).
@@ -60,7 +62,7 @@ def _resolve_edition(ctx: Any) -> str:
     return _edition_name()
 
 
-SYSTEM_PROMPT = """You write "{EDITION}" — the flagship intelligence brief for Crypto Rug Muncher (@cryptorugmunch). This is not a bot dump. This is a must-read market briefing that degens and institutions rely on. Published to Telegram AND rugmunch.io in long form.
+SYSTEM_PROMPT = """You write "{EDITION}" — the flagship intelligence brief for Crypto Rug Muncher (@cryptorugmunch). "The Morning Rug" is the morning edition; "Midday Market Update" is the midday edition of the same desk. This is not a bot dump. This is a must-read market briefing that degens and institutions rely on. Published to Telegram AND rugmunch.io in long form.
 
 VOICE (non-negotiable):
 - You are a sharp crypto intelligence analyst who has seen every cycle. Write with authority, never hype.
@@ -115,7 +117,7 @@ From the RUGBRAIN INTEL block ONLY — cite-or-omit, never invent:
 SEC/enforcement items from RUGBRAIN INTEL: who, what, why it matters to crypto. Absent = OMIT.
 
 ## TOP NEWS
-• <a href="URL">headline</a> (source) — 3-5 stories that move markets. Every bullet needs its real URL from data.
+• <a href="URL">headline</a> (source) — 3-5 stories that move markets. Build this section from the RANKED TOP STORIES block FIRST (reranker-ranked for the window since the last edition) — those are the stories making waves. Fall back to other news blocks only to fill gaps. Every bullet needs its real URL from data.
 
 ## RISK RADAR
 Hacks, exploits, depegs, rug warnings, suspicious launches from today's data (NEWS/NARRATIVE/TRENDING/RAG INTEL blocks — threat_intel_v2 hits in RAG INTEL are the primary source here). This is the signature section — every item linked, every claim sourced. Nothing to report = say the tape is clean today, one line, no filler.
@@ -506,8 +508,8 @@ def _pick_report_image(context: dict[str, Any]) -> str:
 
 
 def _edition_slug(edition: str) -> str:
-    """Stable dedupe slug per edition: 'The Morning Rug Market Report' →
-    'morning-rug-market-report'. Distinct per edition so the morning and
+    """Stable dedupe slug per edition: 'The Morning Rug' →
+    'morning-rug'. Distinct per edition so the morning and
     midday briefs never collide on the same calendar day."""
     slug = re.sub(r"^(?:the|a|an)\s+", "", edition.strip().lower())
     return re.sub(r"[^a-z0-9]+", "-", slug).strip("-")

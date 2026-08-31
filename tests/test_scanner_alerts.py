@@ -112,7 +112,13 @@ class TestDelivery:
         bot = _RecorderBot()
         stats = await sa.run_scanner_alert_watch(bot)
         assert stats["posted"] == 1
-        assert bot.messages[0][0] == "-100alerts"
+        # Image doctrine (2026-08-31): the alert ships photo+caption when the
+        # payload carries a chart — not a naked text message.
+        assert bot.photos, "expected a photo send"
+        chat_id, photo, caption = bot.photos[0]
+        assert chat_id == "-100alerts"
+        assert photo == "https://example.com/chart.png"
+        assert "Moonwell" in (caption or "")
 
     async def test_skips_duplicate_incident(self, monkeypatch, isolate) -> None:
         """Second sweep with the same alert id is deduped (no re-post)."""
@@ -127,7 +133,7 @@ class TestDelivery:
         stats2 = await sa.run_scanner_alert_watch(bot)
         assert stats1["posted"] == 1
         assert stats2["posted"] == 0
-        assert len(bot.messages) == 1
+        assert len(bot.photos) == 1
 
     async def test_failed_send_releases_mark(self, monkeypatch) -> None:
         async def _fetch(minutes: int | None = None) -> list[dict[str, Any]]:
