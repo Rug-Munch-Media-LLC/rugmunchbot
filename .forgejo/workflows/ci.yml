@@ -69,6 +69,35 @@ jobs:
       - name: Ruff format check
         run: source .venv/bin/activate && ruff format --check .
 
+  # ── Content quality lint (style-guide enforcement) ────────────
+  # Pulls the live feed store (posts.json — every main-channel post mirrors
+  # there) and runs the deterministic banned-phrase / double-link /
+  # bland-commentary lint over it. Catches regressions where generated
+  # content drifts from the style guide (or someone weakens it).
+  # Feed-store unavailability is NOT a CI failure (fail-open on fetch,
+  # fail-closed on violations).
+  content-lint:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Fetch feed store sample
+        run: |
+          if curl -fsSL --max-time 30 https://feed.rugmunch.io/data/posts.json -o /tmp/posts.json; then
+            echo "fetched $(python3 -c "import json;print(len(json.load(open('/tmp/posts.json'))))" 2>/dev/null || echo '?') posts"
+          else
+            echo "::warning::feed store unavailable — skipping content lint this run"
+            rm -f /tmp/posts.json
+          fi
+      - name: Run content lint on recent posts
+        run: |
+          if [ ! -s /tmp/posts.json ]; then
+            echo "no feed store sample — nothing to lint (fail-open on fetch)"
+            exit 0
+          fi
+          python -m rugmunchbot.tools.content_lint --posts /tmp/posts.json
+
   # ── Type check (mypy) ─────────────────────────────────────────
   typecheck:
     runs-on: docker-x64

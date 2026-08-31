@@ -104,7 +104,7 @@ BTC/ETH/SOL prices with 24h % — bold the numbers. Then the tape read: risk-on 
 Top-chain TVL 7d trend, total market volume, stablecoin/flow signals from GLOBAL METRICS. 1-2 paragraphs: where capital is moving and what it implies. Absent metrics = OMIT section.
 
 ## MARKET DRIVERS
-• event — why it matters. Macro, ETF flows, unlocks, listings, hacks. Ground in data, link each: <a href="URL">headline</a>.
+• event — why it matters. Macro, ETF flows, unlocks, listings, hacks. Ground in data, link each: <a href="URL">headline</a>. When the RAG INTEL block is present, its market events/alerts/shill-campaign items are prime driver material — cite them by collection label.
 
 ## WHALE & EXPLOIT DESK
 From the RUGBRAIN INTEL block ONLY — cite-or-omit, never invent:
@@ -118,7 +118,7 @@ SEC/enforcement items from RUGBRAIN INTEL: who, what, why it matters to crypto. 
 • <a href="URL">headline</a> (source) — 3-5 stories that move markets. Every bullet needs its real URL from data.
 
 ## RISK RADAR
-Hacks, exploits, depegs, rug warnings, suspicious launches from today's data (NEWS/NARRATIVE/TRENDING blocks). This is the signature section — every item linked, every claim sourced. Nothing to report = say the tape is clean today, one line, no filler.
+Hacks, exploits, depegs, rug warnings, suspicious launches from today's data (NEWS/NARRATIVE/TRENDING/RAG INTEL blocks — threat_intel_v2 hits in RAG INTEL are the primary source here). This is the signature section — every item linked, every claim sourced. Nothing to report = say the tape is clean today, one line, no filler.
 
 ## ON-CHAIN ANALYTICS
 2-3 paragraphs from the DUNE block only (cite query names). What real on-chain usage/flows say about the market read. If the block is absent or all-error, OMIT silently.

@@ -176,6 +176,28 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_shill_watch",
         )
 
+    # Scanner-alert rail (2026-08-31): polls RugBrain live detections
+    # (GET /api/v1/alerts/recent) → @rmialerts. Wires the scanner →
+    # rugbrain → bot → Telegram pipeline end-to-end. Env knobs:
+    # ``RMI_SCANNER_ALERTS_ENABLED`` / ``_INTERVAL_MIN``. Fail-open.
+    if (
+        ALERTS_CHANNEL_ENABLED
+        and _chat_id("alerts")
+        and hasattr(job_queue, "run_repeating")
+        and os.getenv("RMI_SCANNER_ALERTS_ENABLED", "true").lower() in ("1", "true", "yes")
+    ):
+        from rugmunchbot.channels.scanner_alerts import (
+            SCANNER_ALERT_INTERVAL_MIN,
+            run_scanner_alert_watch,
+        )
+
+        job_queue.run_repeating(
+            _tick_wrapper("channel_scanner_alerts", run_scanner_alert_watch, envelope=True),
+            interval=SCANNER_ALERT_INTERVAL_MIN * 60,
+            first=240,
+            name="channel_scanner_alerts",
+        )
+
     # KOL Scoreboard (2026-08-29, renamed from KOL Hall of Shame): track
     # KOL calls + deleted tweets + name changes + wallets from real X data
     # (ApiPass) → per-KOL report cards → ALERTS channel, deduped per card

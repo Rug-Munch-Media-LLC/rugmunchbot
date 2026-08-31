@@ -34,6 +34,7 @@ from rugmunchbot.channels.scheduler._core import (
     _safe_send,
     logger,
 )
+from rugmunchbot.support.content_lint import BANNED_PHRASES
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -46,34 +47,10 @@ ROUNDUP_MAX_ITEMS = 6
 #: (or a market brief, which carries its own edition links).
 _SUMMARY_KINDS = frozenset({"roundup", "market-summary"})
 
-#: Banned phrases (style_guides.py anti-slop lists + daily_market_summary
-#: SYSTEM_PROMPT). A bullet whose text contains any of these is dropped —
-#: the roundup must pass the same voice bar as every other channel post.
-_BANNED_PHRASES: tuple[str, ...] = (
-    "stay safe out there",
-    "nfa",
-    "not financial advice",
-    "dyor",
-    "gm",
-    "wagmi",
-    "mooning",
-    "wen lambo",
-    "hodl",
-    "delve into",
-    "ever-evolving landscape",
-    "ever-evolving world",
-    "the crypto landscape",
-    "robust",
-    "revolutionary",
-    "paradigm shift",
-    "the crypto space is buzzing",
-    "staying ahead of the curve",
-    "the future of finance",
-    "it's worth noting",
-    "at the end of the day",
-    "stay tuned",
-    "in the ever-evolving",
-)
+#: Banned phrases — canonical list lives in ``support.content_lint`` (the
+#: CI/audit lint enforces the same list; a single source of truth so the
+#: roundup and the linter can never drift apart).
+_BANNED_PHRASES: tuple[str, ...] = BANNED_PHRASES
 
 #: Max characters of post text surfaced per bullet (title-style lead line).
 _BULLET_MAX_CHARS = 110

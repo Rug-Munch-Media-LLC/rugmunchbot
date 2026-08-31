@@ -160,6 +160,12 @@ async def test_gather_collects_all_blocks(monkeypatch: pytest.MonkeyPatch) -> No
         "rugmunchbot.channels.daily_market_summary._fetch._fetch_rugbrain_intel",
         fake_intel,
     )
+
+    # hermetic: RAG intel lane must not hit live qdrant in tests
+    async def fake_rag_intel():
+        return [{"content": "rag hit", "collection": "news_v2", "score": 0.9}]
+
+    monkeypatch.setattr(asm, "_fetch_rag_intel", fake_rag_intel)
     data = await gather_summary_data()
     assert set(data["sources"]) == {
         "prices",
@@ -169,6 +175,7 @@ async def test_gather_collects_all_blocks(monkeypatch: pytest.MonkeyPatch) -> No
         "news",
         "global_metrics",
         "rugbrain_intel",
+        "rag_intel",
     }
     assert data["rugbrain_intel"]["whales"][0]["source"] == "etherscan"
     assert data["prices"] == {"btc_price": 1.0}
@@ -196,6 +203,7 @@ async def test_gather_never_raises_on_fetcher_crash(monkeypatch: pytest.MonkeyPa
         "rugmunchbot.channels.daily_market_summary._fetch._fetch_rugbrain_intel",
         boom_intel,
     )
+    monkeypatch.setattr(asm, "_fetch_rag_intel", boom_intel)
     data = await gather_summary_data()  # must not raise
     assert data["prices"] == {}
     assert data["trending"] == []

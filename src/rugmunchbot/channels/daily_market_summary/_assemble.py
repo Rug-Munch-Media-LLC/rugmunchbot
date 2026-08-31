@@ -26,6 +26,49 @@ from rugmunchbot.channels.daily_market_summary._fmt import (
 
 logger = logging.getLogger(__name__)
 
+#: RAG collections queried for the brief's intel context (rugbrain news_v2
+#: + threat_intel_v2 — market events, alerts, shill campaigns, last 24h).
+_RAG_INTEL_COLLECTIONS = ["news_v2", "threat_intel_v2"]
+_RAG_INTEL_QUERY = (
+    "crypto market events alerts shill campaigns exploits hacks rug warnings last 24 hours"
+)
+_RAG_INTEL_LIMIT = 4  # per collection — dedup keeps the prompt small
+_RAG_INTEL_SNIPPET_MAX = 300
+
+
+async def _fetch_rag_intel() -> list[dict[str, Any]]:
+    """Query rugbrain news_v2 + threat_intel_v2 for last-24h intel context.
+
+    Reuses the bot-side direct-Qdrant RAG lane (``rag_lookup._rag_direct_qdrant``
+    — one embed + per-collection vector search, ~1-3s total) so the brief's
+    commentary is grounded in RAG-served intel the same way ``chat_ai`` is.
+    Returns raw hits (deduped by content prefix) or ``[]`` — never raises.
+    """
+    from rugmunchbot.tools.rag_lookup import _rag_direct_qdrant, _rag_direct_search_multi
+
+    query = _RAG_INTEL_QUERY
+    hits = await _rag_direct_qdrant(query, _RAG_INTEL_COLLECTIONS, _RAG_INTEL_LIMIT)
+    if not hits:
+        # Fallback: rugbrain rag-api /search/multi (same lane chat_ai uses).
+        hits = await _rag_direct_search_multi(query, _RAG_INTEL_COLLECTIONS, _RAG_INTEL_LIMIT * 2)
+    if not hits:
+        return []
+    # Dedupe by normalized content prefix (chunked points share one story).
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for h in sorted(hits, key=lambda x: float(x.get("score") or 0.0), reverse=True):
+        content = str(h.get("content") or "").strip()
+        if not content:
+            continue
+        key = " ".join(content.lower().split())[:120]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(h)
+        if len(out) >= 6:
+            break
+    return out
+
 
 async def gather_summary_data() -> dict[str, Any]:
     """Pull every brief block from the existing data sources, in parallel.
@@ -83,6 +126,15 @@ async def gather_summary_data() -> dict[str, Any]:
     except Exception as exc:
         logger.debug("market_report:intel_failed err=%s", str(exc)[:120])
 
+    # RAG intel lane — rugbrain news_v2 + threat_intel_v2 (market events,
+    # alerts, shill campaigns in the last 24h) so the commentary references
+    # RAG-served intel, not just raw price data (2026-08-31). Fail-open.
+    rag_intel: list[dict[str, Any]] = []
+    try:
+        rag_intel = await _fetch_rag_intel()
+    except Exception as exc:
+        logger.debug("market_report:rag_intel_failed err=%s", str(exc)[:120])
+
     # Market-report doctrine: no lies survive to publication. Symbol-colliding
     # impostor pairs ("SOL" the $20M meme) and absurd volume prints are
     # rejected here with logged reasons.
@@ -113,6 +165,8 @@ async def gather_summary_data() -> dict[str, Any]:
             active.append("kol_signals")
     if rugbrain_intel:
         active.append("rugbrain_intel")
+    if rag_intel:
+        active.append("rag_intel")
 
     # Market-report story selection: freshness gate -> 4B reranker ranking.
     # Candidates = RAG news + web narratives; only market-moving, dated,
@@ -145,6 +199,7 @@ async def gather_summary_data() -> dict[str, Any]:
         "dune_intel": dune_data,
         "social_intel": social_data,
         "rugbrain_intel": rugbrain_intel,
+        "rag_intel": rag_intel,
         "sources": active,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
@@ -304,4 +359,16 @@ def _serialize_context(context: dict[str, Any]) -> str:
             intel_lines.append(f"[{label}] {item.get('content', '')}")
     if intel_lines:
         parts.append("RUGBRAIN INTEL (from live collections): " + " | ".join(intel_lines[:10]))
+
+    # RAG intel (news_v2 + threat_intel_v2, last 24h) — cite-or-omit.
+    rag_intel = context.get("rag_intel") or []
+    if rag_intel:
+        r_lines = []
+        for hit in rag_intel[:6]:
+            content = str(hit.get("content") or "").strip()[:_RAG_INTEL_SNIPPET_MAX]
+            col = str(hit.get("collection") or "rag")
+            if content:
+                r_lines.append(f"[{col}] {content}")
+        if r_lines:
+            parts.append("RAG INTEL (news_v2 + threat_intel_v2, last 24h): " + " | ".join(r_lines))
     return "\n".join(parts)
