@@ -1,0 +1,183 @@
+"""Daily rug update — RAG + intel gathering (all content RAG-served).
+
+Lanes (each fail-open, gathered in parallel):
+* RAG context — rugbrain ``news_v2`` + ``threat_intel_v2`` + scanner memory
+  via the bot-side direct-Qdrant lane (``rag_lookup._rag_direct_qdrant``,
+  one embed + per-collection vector search) with the rag-api ``/search/multi``
+  fallback — the same lane ``daily_market_summary._assemble`` uses.
+* Shill campaigns — rugbrain ``POST /rag/shill-campaigns`` (reuses
+  ``channels.shill_campaign_post.fetch_shill_campaigns``).
+* Scanner alerts — rugbrain ``GET /api/v1/alerts/recent`` (reuses
+  ``channels.scanner_alerts.fetch_rag_alerts``) — top rugs/scams of the
+  last 24h straight from the scanner pipeline.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from datetime import UTC, datetime
+from typing import Any
+
+logger = logging.getLogger("rmi_bot.channels.daily_rug_update")
+
+#: RAG collections queried for the update's intel context. ``scanner_memory``
+#: carries the scanner pipeline's detection write-ups; [REVIEW] if the
+#: deployed collection name differs, the lane degrades to [] harmlessly.
+_RAG_COLLECTIONS = ["news_v2", "threat_intel_v2", "scanner_memory"]
+_RAG_QUERY = (
+    "rug pull scam exploit honeypot shill campaign KOL promotion whale movement "
+    "breaking news last 24 hours"
+)
+_RAG_LIMIT = 4  # per collection — dedup keeps the prompt small
+_RAG_SNIPPET_MAX = 300
+
+#: Scanner-alert sweep window: the last 24 hours.
+_SCANNER_ALERT_MINUTES = 1440
+
+
+async def _fetch_rag_context() -> list[dict[str, Any]]:
+    """Query rugbrain news_v2 + threat_intel_v2 + scanner memory (fail-open).
+
+    Mirrors ``daily_market_summary._assemble._fetch_rag_intel``: direct-Qdrant
+    lane first, rag-api ``/search/multi`` fallback, dedupe by content prefix.
+    """
+    from rugmunchbot.tools.rag_lookup import _rag_direct_qdrant, _rag_direct_search_multi
+
+    hits = await _rag_direct_qdrant(_RAG_QUERY, _RAG_COLLECTIONS, _RAG_LIMIT)
+    if not hits:
+        hits = await _rag_direct_search_multi(_RAG_QUERY, _RAG_COLLECTIONS, _RAG_LIMIT * 2)
+    if not hits:
+        return []
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for h in sorted(hits, key=lambda x: float(x.get("score") or 0.0), reverse=True):
+        content = str(h.get("content") or "").strip()
+        if not content:
+            continue
+        key = " ".join(content.lower().split())[:120]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(h)
+        if len(out) >= 8:
+            break
+    return out
+
+
+async def gather_rug_update_data() -> dict[str, Any]:
+    """Pull every update block in parallel; never raises.
+
+    Returns ``{alerts, campaigns, rag_intel, sources, generated_at}`` where
+    ``sources`` lists the lanes that returned data. Every block degrades to
+    an empty value — a broken lane contributes nothing.
+    """
+    from rugmunchbot.channels.scanner_alerts import fetch_rag_alerts
+    from rugmunchbot.channels.shill_campaign_post import fetch_shill_campaigns
+
+    results = await asyncio.gather(
+        fetch_rag_alerts(minutes=_SCANNER_ALERT_MINUTES),
+        fetch_shill_campaigns(window_hours=24, min_kols=3),
+        _fetch_rag_context(),
+        return_exceptions=True,
+    )
+    cleaned: list[list[dict[str, Any]]] = [r if isinstance(r, list) else [] for r in results]
+    names = ["alerts", "campaigns", "rag_intel"]
+    sources = [n for n, v in zip(names, cleaned, strict=True) if v]
+    return {
+        "alerts": cleaned[0],
+        "campaigns": cleaned[1],
+        "rag_intel": cleaned[2],
+        "sources": sources,
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+
+
+def _serialize_context(context: dict[str, Any]) -> str:
+    """Compact, LLM-friendly text of the gathered data (cite-or-omit)."""
+    parts: list[str] = []
+
+    alerts = context.get("alerts") or []
+    if alerts:
+        a_lines = []
+        for a in alerts[:6]:
+            name = str(a.get("name") or a.get("title") or "Unknown token").strip()
+            symbol = str(a.get("symbol") or "").strip()
+            chain = str(a.get("chain") or "").strip()
+            severity = str(a.get("severity") or a.get("risk_level") or "").strip()
+            score = a.get("safety_score", a.get("risk_score"))
+            flags = a.get("risk_flags") or a.get("flags") or []
+            url = str(a.get("url") or "").strip()
+            image = str(a.get("image_url") or "").strip()
+            bits = [f"{name} ({symbol})" if symbol and symbol != name else name]
+            if chain:
+                bits.append(f"chain {chain}")
+            if severity:
+                bits.append(f"severity {severity}")
+            if score is not None:
+                bits.append(f"risk {score}")
+            if flags:
+                bits.append("flags: " + ", ".join(str(f) for f in flags[:4]))
+            line = " — ".join(bits)
+            if url:
+                line += f" [url={url}]"
+            if image:
+                line += f" [image={image}]"
+            a_lines.append(line)
+        parts.append("TOP RUGS & SCANNER ALERTS (last 24h): " + " | ".join(a_lines))
+
+    campaigns = context.get("campaigns") or []
+    if campaigns:
+        c_lines = []
+        for c in campaigns[:4]:
+            token = str(c.get("token") or "?").strip()
+            handles = [str(h or "").strip().lstrip("@") for h in (c.get("handles") or [])]
+            handles = [h for h in handles if h]
+            evidence = int(c.get("evidence_count") or 0)
+            urls = [str((e or {}).get("url") or "").strip() for e in (c.get("evidence") or [])]
+            urls = [u for u in urls if u.startswith(("http://", "https://"))]
+            line = f"{token}: {len(handles)} KOLs (@{', @'.join(handles[:6])}) {evidence} posts"
+            if urls:
+                line += f" [url={urls[0]}]"
+            c_lines.append(line)
+        parts.append("SHILL CAMPAIGNS (clustered, last 24h): " + " | ".join(c_lines))
+
+    rag_intel = context.get("rag_intel") or []
+    if rag_intel:
+        r_lines = []
+        for hit in rag_intel[:8]:
+            content = str(hit.get("content") or "").strip()[:_RAG_SNIPPET_MAX]
+            col = str(hit.get("collection") or "rag")
+            meta = hit.get("metadata") or {}
+            url = str(meta.get("url") or meta.get("source_url") or "").strip()
+            image = str(meta.get("image_url") or "").strip()
+            if content:
+                line = f"[{col}] {content}"
+                if url:
+                    line += f" [url={url}]"
+                if image:
+                    line += f" [image={image}]"
+                r_lines.append(line)
+        if r_lines:
+            parts.append(
+                "RAG INTEL (news_v2 + threat_intel_v2 + scanner memory): " + " || ".join(r_lines)
+            )
+    return "\n".join(parts)
+
+
+def pick_update_image(context: dict[str, Any]) -> str:
+    """First usable http(s) image for the post (or "").
+
+    Priority: scanner-alert evidence image → RAG hit metadata image. The
+    post MUST carry an image when any lane provides one.
+    """
+    for a in context.get("alerts") or []:
+        url = str((a or {}).get("image_url") or "").strip()
+        if url.startswith(("http://", "https://")):
+            return url
+    for hit in context.get("rag_intel") or []:
+        meta = (hit or {}).get("metadata") or {}
+        url = str(meta.get("image_url") or "").strip()
+        if url.startswith(("http://", "https://")):
+            return url
+    return ""

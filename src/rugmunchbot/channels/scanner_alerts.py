@@ -156,6 +156,26 @@ async def run_scanner_alert_watch(bot: Any) -> dict[str, Any]:
             stats["skipped"] += 1
             continue
         text = format_scanner_alert(alert)
+        # HARD quality gate (2026-08-31): lint → autofix → skip. The alert
+        # format is deliberately terse (structured flags, not prose), so the
+        # bland-commentary floor is relaxed here — [REVIEW] if alerts should
+        # carry full 20-word commentary instead.
+        from rugmunchbot.support.quality_gate import pre_post_quality_gate
+
+        gate = await pre_post_quality_gate(
+            text,
+            source=alert_id[:80],
+            kind="scanner_alert",
+            min_words=8,
+            require_image=False,
+            allow_placeholder_image=False,
+            logger=logger,
+        )
+        if not gate.ok:
+            _release("alerts", mark)
+            stats["skipped"] += 1
+            continue
+        text = gate.text
         # Text message is the authoritative delivery (always sent).
         sent = await _safe_send(bot, alerts_chat, text)
         # Best-effort chart attachment when the payload carries an image;

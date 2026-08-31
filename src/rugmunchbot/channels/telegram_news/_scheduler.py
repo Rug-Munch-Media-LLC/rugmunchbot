@@ -157,6 +157,22 @@ async def _post_backend_trending_fallback(
 
 
 async def _post_formatted(bot: Any, chat_id: str, post: NewsPost, safe_send: Any) -> bool:
+    # HARD quality gate (2026-08-31): no post ships without passing the
+    # deterministic content lint. Auto-fix (dedupe links, placeholder
+    # image) runs first; a still-dirty post is logged and skipped.
+    from rugmunchbot.support.quality_gate import pre_post_quality_gate
+
+    gate = await pre_post_quality_gate(
+        str(post),
+        image_url=getattr(post, "image_url", "") or "",
+        source="tg_news",
+        kind="digest",
+        logger=logger,
+    )
+    if not gate.ok:
+        return False
+    post = NewsPost(gate.text)
+    post.image_url = gate.image_url
     image_url = getattr(post, "image_url", "") or ""
     if image_url:
         return await send_news_photo(bot, chat_id, caption=post, photo_url=image_url)

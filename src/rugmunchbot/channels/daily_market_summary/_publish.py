@@ -358,6 +358,47 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     if not report:
         logger.info("daily_market_summary:cleaned_empty_skipped")
         return 0
+
+    # HARD quality gate (2026-08-31): the flagship report must pass the
+    # deterministic content lint before it touches the channel. Autofix
+    # (dedupe links, placeholder image) runs first; a still-dirty report
+    # gets ONE stricter-prompt LLM regeneration; if it STILL fails the
+    # edition is skipped — crap never ships to @cryptorugmuncher.
+    from rugmunchbot.support.quality_gate import pre_post_quality_gate
+
+    async def _regenerate_report(bad_text: str, violations: list[Any]) -> str:
+        del bad_text
+        detail = "; ".join(f"{v.rule}: {v.phrase}" for v in violations[:6])
+        retry_msgs = build_messages(context, edition=edition)
+        retry_msgs[1]["content"] += (
+            "\n\nSTRICT REWRITE REQUIRED — your previous draft failed the "
+            f"content quality lint ({detail[:300]}). Rules: no banned phrases, "
+            "each URL appears AT MOST ONCE, at least 20 words of original "
+            "commentary per story, no '[SEV] Title / Source:' template shape. "
+            "Rewrite the FULL report now."
+        )
+        from rugmunchbot.llm_config import chat_with_fallback
+
+        return await chat_with_fallback(retry_msgs, "long")
+
+    gate = await pre_post_quality_gate(
+        report,
+        image_url=_pick_report_image(context),
+        source=edition,
+        kind="market_summary",
+        regenerate=_regenerate_report,
+        logger=logger,
+    )
+    if not gate.ok:
+        logger.warning(
+            "daily_market_summary:quality_gate_blocked edition=%s violations=%d",
+            edition,
+            len(gate.violations),
+        )
+        return 0
+    report = gate.text
+    if gate.regenerated:
+        report = cleanup_html(report) or report
     logger.info(
         "daily_market_summary:report_ready chars=%s sources=%s",
         len(report),
@@ -394,7 +435,7 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # first part goes through the shared photo-aware path — a caption-too-long
     # or bad-URL failure falls back to plain text inside send_news_photo, so
     # delivery is never blocked by the image.
-    image_url = _pick_report_image(context)
+    image_url = gate.image_url or _pick_report_image(context)
 
     sent = 0
     for idx, part in enumerate(parts, 1):
@@ -429,7 +470,7 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 or f"{_edition_slug(edition)}-{datetime.now(UTC).strftime('%Y%m%d')}",
                 "source": feed_url or "rugmunch.io",
                 "kind": "market-summary",
-                "image_url": _pick_report_image(context),
+                "image_url": gate.image_url or _pick_report_image(context),
             }
         )
     except Exception as exc:

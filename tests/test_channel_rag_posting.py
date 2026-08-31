@@ -46,8 +46,28 @@ def _isolate_feed_data(monkeypatch, tmp_path):
     return
 
 
+_LONG_TEXT_A = (
+    "Whale wallet 0xabc moved 12,400 ETH to Binance hot wallets overnight, "
+    "the largest single transfer this month. Exchange inflows of this size "
+    "have preceded every major distribution window this quarter. "
+    "https://example.com/a"
+)
+_LONG_TEXT_B = (
+    "The same whale cluster rotated another 8,100 ETH into stablecoins this "
+    "morning, extending a three-day distribution streak that desks are now "
+    "tracking closely across every major venue. https://example.com/b"
+)
+
+
 def _draft(
-    ref: str, text: str = "t — Source: https://example.com/x", mirror: bool = False
+    ref: str,
+    text: str = (
+        "Whale wallet 0xabc moved 12,400 ETH to Binance hot wallets overnight, "
+        "the largest single transfer this month. Exchange inflows of this size "
+        "have preceded every major distribution window this quarter. "
+        "Source: https://example.com/x"
+    ),
+    mirror: bool = False,
 ) -> dict[str, Any]:
     # ts = now: the 2026-08-26 recency gate rejects undated/stale drafts,
     # so fixtures must present as fresh (that gate has its own tests).
@@ -98,31 +118,56 @@ def _fake_fetch(table: dict[str, list[dict[str, Any]]]):
 
 
 class _Bot:
-    pass
+    """Stub bot that records sends — the quality gate may attach a
+    placeholder image, routing delivery through the photo-aware path
+    (bot.send_photo) instead of the injected _safe_send recorder."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self._fail = fail
+
+    async def send_photo(self, chat_id, photo=None, caption=None, **k):
+        if self._fail:
+            raise RuntimeError("bot send_photo disabled")
+        self.calls.append((chat_id, str(caption or "")))
+        return True
+
+    async def send_message(self, chat_id, text=None, **k):
+        if self._fail:
+            raise RuntimeError("bot send_message disabled")
+        self.calls.append((chat_id, str(text or "")))
+        return True
 
 
 class _Ctx:
-    bot = _Bot()
+    def __init__(self, *, bot: _Bot | None = None) -> None:
+        self.bot = bot or _Bot()
+
+
+def _total_sends(sender: _Recorder, bot: _Bot) -> int:
+    return len(sender.calls) + len(bot.calls)
 
 
 @pytest.mark.asyncio
 async def test_successful_send_marks_and_posts(monkeypatch):
     sender = _Recorder(succeed=True)
+    ctx = _Ctx()
     _patch_env(monkeypatch, chat_id="-100123", drafts=[_draft("ref-1")], sender=sender)
 
-    posted = await _posts_rag.post_rag_drafts(_Ctx())
+    posted = await _posts_rag.post_rag_drafts(ctx)
 
     assert posted == 1
-    assert len(sender.calls) == 1
+    assert _total_sends(sender, ctx.bot) == 1
     # Marked seen: a second identical tick sends nothing more.
-    await _posts_rag.post_rag_drafts(_Ctx())
-    assert len(sender.calls) == 1
+    await _posts_rag.post_rag_drafts(ctx)
+    assert _total_sends(sender, ctx.bot) == 1
 
 
 @pytest.mark.asyncio
 async def test_failed_send_is_not_burned_next_tick_retries(monkeypatch):
     """THE blackhole regression: failed send must release the dedupe mark."""
     failing = _Recorder(succeed=False)
+    ctx = _Ctx(bot=_Bot(fail=True))  # photo path fails too → delivery fails
     _patch_env(
         monkeypatch,
         chat_id="-100123",
@@ -130,21 +175,21 @@ async def test_failed_send_is_not_burned_next_tick_retries(monkeypatch):
         sender=failing,
     )
 
-    posted = await _posts_rag.post_rag_drafts(_Ctx())
+    posted = await _posts_rag.post_rag_drafts(ctx)
     assert posted == 0
-    assert len(failing.calls) == 1
 
     # Next tick: same draft must be retried, not silently skipped.
     recovering = _Recorder(succeed=True)
+    ctx2 = _Ctx()
     _patch_env(
         monkeypatch,
         chat_id="-100123",
         drafts={"main": [_draft("ref-1")], "news": [], "alerts": []},
         sender=recovering,
     )
-    posted = await _posts_rag.post_rag_drafts(_Ctx())
+    posted = await _posts_rag.post_rag_drafts(ctx2)
     assert posted == 1
-    assert len(recovering.calls) == 1
+    assert _total_sends(recovering, ctx2.bot) == 1
 
 
 @pytest.mark.asyncio
@@ -170,6 +215,7 @@ async def test_per_tick_cap_and_mirror_only_on_main(monkeypatch, tmp_path):
     )
     # Production curation: only the main lane has drafts this tick.
     sender = _Recorder(succeed=True)
+    ctx = _Ctx()
     _patch_env(
         monkeypatch,
         chat_id="-100main",
@@ -177,10 +223,10 @@ async def test_per_tick_cap_and_mirror_only_on_main(monkeypatch, tmp_path):
         sender=sender,
     )
 
-    posted = await _posts_rag.post_rag_drafts(_Ctx())
+    posted = await _posts_rag.post_rag_drafts(ctx)
 
     assert posted == 1  # capped at 1/tick/channel
-    assert len(sender.calls) == 1
+    assert _total_sends(sender, ctx.bot) == 1
 
 
 @pytest.mark.asyncio
@@ -193,21 +239,23 @@ async def test_cross_channel_duplicate_posts_once_main_wins(monkeypatch):
         seen_channels.append(chat_id)
         return True
 
+    ctx = _Ctx()
     _patch_env(
         monkeypatch,
         chat_id="-100x",
         drafts={
-            "main": [_draft("dup-1", text="flagship https://example.com/a")],
-            "news": [_draft("dup-1", text="dupe https://example.com/b")],
+            "main": [_draft("dup-1", text=_LONG_TEXT_A)],
+            "news": [_draft("dup-1", text=_LONG_TEXT_B)],
             "alerts": [],
         },
         sender=_send,
     )
 
-    posted = await _posts_rag.post_rag_drafts(_Ctx())
+    posted = await _posts_rag.post_rag_drafts(ctx)
 
     assert posted == 1
-    assert seen_channels == ["-100x"]  # main's chat id — the news copy skipped
+    delivered = seen_channels + [c for c, _t in ctx.bot.calls]
+    assert delivered == ["-100x"]  # main's chat id — the news copy skipped
 
 
 @pytest.mark.asyncio
@@ -217,7 +265,7 @@ async def test_main_mirror_writes_feed_json(monkeypatch, tmp_path):
     _patch_env(
         monkeypatch,
         chat_id="-100main",
-        drafts=[_draft("ref-m", text="hello https://example.com/m", mirror=True)],
+        drafts=[_draft("ref-m", text=_LONG_TEXT_A, mirror=True)],
         sender=sender,
     )
 
@@ -227,7 +275,7 @@ async def test_main_mirror_writes_feed_json(monkeypatch, tmp_path):
     feed_file = tmp_path / "posts.json"
     assert feed_file.exists()
     data = json.loads(feed_file.read_text())
-    assert data[0]["text"] == "hello https://example.com/m"
+    assert data[0]["text"] == _LONG_TEXT_A
 
 
 def test_social_spike_post_is_imported_into_registry():
@@ -410,6 +458,17 @@ async def test_main_empty_falls_back_scored_and_warns(monkeypatch, caplog):
 
     monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
     monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
+
+    async def _long_llm(messages, tier):
+        return (
+            "A quiet tape hides real rotation: stablecoin inflows hit a "
+            "monthly high while perp funding stayed flat, the classic "
+            "pre-move accumulation signature desks watch for. "
+            "https://rekt.news/bridge-190m"
+        )
+
+    monkeypatch.setattr("rugmunchbot.llm_config.chat_with_fallback", _long_llm, raising=False)
+
     sender = _Recorder(succeed=True)
     _patch_env(
         monkeypatch,
@@ -418,12 +477,14 @@ async def test_main_empty_falls_back_scored_and_warns(monkeypatch, caplog):
         sender=sender,
     )
 
+    ctx = _Ctx()
     with caplog.at_level(logging.WARNING, logger="rmi_bot.channels"):
-        posted = await _posts_rag.post_rag_drafts(_Ctx())
+        posted = await _posts_rag.post_rag_drafts(ctx)
 
     assert posted == 1
-    assert len(sender.calls) == 1
-    assert sender.calls[0][0] == "-100main"
+    assert _total_sends(sender, ctx.bot) == 1
+    delivered = [c for c, _t in sender.calls] + [c for c, _t in ctx.bot.calls]
+    assert delivered == ["-100main"]
     # The fallback draft now CARRIES a score (no unscored bypass).
     assert any("rag_lane_empty" in r.message for r in caplog.records)
 

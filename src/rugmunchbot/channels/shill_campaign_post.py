@@ -256,6 +256,19 @@ async def run_shill_campaign_poster(ctx: Any) -> int:
             continue
         if not _remember("shillcamp", key):
             continue  # already posted
+        # HARD quality gate (2026-08-31): lint → autofix → skip.
+        from rugmunchbot.support.quality_gate import pre_post_quality_gate
+
+        gate = await pre_post_quality_gate(
+            text,
+            source=str(campaign.get("id") or campaign.get("token") or "")[:80],
+            kind="shill_campaign",
+            logger=logger,
+        )
+        if not gate.ok:
+            _release("shillcamp", key)
+            continue
+        text = gate.text
         image_path = _pick_screenshot(campaign)
         sent = False
         try:

@@ -90,7 +90,13 @@ async def test_daily_summary_mirrors_to_feed(monkeypatch, tmp_path):
 
     class _Ctx:
         class _Bot:
-            pass
+            # The quality gate attaches a placeholder image to image-less
+            # reports, so delivery goes through the photo-aware path.
+            async def send_photo(self, *a, **k):
+                return True
+
+            async def send_message(self, *a, **k):
+                return True
 
         bot = _Bot()
 

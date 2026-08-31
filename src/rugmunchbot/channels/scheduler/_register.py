@@ -401,6 +401,21 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             first=_FIRST_RUN_SECONDS["scam_watch"],
             name="channel_scam_watch",
         )
+    from rugmunchbot.channels.tg_scraper import (
+        TG_SCRAPER_ENABLED,
+        TG_SCRAPER_INTERVAL_MINUTES,
+        run_tg_scraper,
+    )
+
+    if TG_SCRAPER_ENABLED:
+        # All-dialogs scraper: scam/shill detection + telegram_social RAG
+        # ingestion (no bot chat id needed — nothing is posted).
+        job_queue.run_repeating(
+            _tick_wrapper("channel_tg_scraper", run_tg_scraper, envelope=True),
+            interval=TG_SCRAPER_INTERVAL_MINUTES * 60,
+            first=_FIRST_RUN_SECONDS["scam_watch"] + 30,
+            name="channel_tg_scraper",
+        )
     if PERSONAL_CHANNEL_ENABLED and resolve_personal_chat_id():
         job_queue.run_repeating(
             _tick_wrapper("channel_personal", post_personal_channel, envelope=True),
@@ -437,6 +452,25 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             time=_dtime(hour=_mh, minute=_mm, tzinfo=summary_run_time().tzinfo),
             days=tuple(range(7)),
             name="daily_market_summary_midday",
+        )
+    # Daily Rug Update (2026-08-31): midday rug/scam intelligence brief on
+    # the main channel (@cryptorugmuncher). RAG-served (rugbrain news_v2 +
+    # threat_intel_v2 + scanner memory + shill campaigns + scanner alerts),
+    # quality-gated via support/content_lint, mirrored to feed.rugmunch.io
+    # with a deep link to the exact post (feed.rugmunch.io/p/{slug}).
+    # Env knobs: ``RMI_DAILY_RUG_UPDATE_ENABLED`` / ``_TIME`` / ``_TZ``.
+    from rugmunchbot.channels.daily_rug_update import (
+        DAILY_RUG_UPDATE_ENABLED,
+        post_daily_rug_update,
+        rug_update_run_time,
+    )
+
+    if DAILY_RUG_UPDATE_ENABLED and _chat_id("main"):
+        job_queue.run_daily(
+            _tick_wrapper("channel_daily_rug_update", post_daily_rug_update, envelope=True),
+            time=rug_update_run_time(),
+            days=tuple(range(7)),
+            name="channel_daily_rug_update",
         )
     # @rmiupdates changelog — daily system-progress digest (strategy v2).
     # Fires once per day at UPDATES_POST_HOUR_UTC; the poster dedupes per
@@ -480,5 +514,5 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_rag_fast",
         )
     logger.info(
-        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/updates/shill_watch/kol_scoreboard/scammer_warning/daily_quality)"
+        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/daily_market_summary/daily_rug_update/updates/shill_watch/kol_scoreboard/scammer_warning/daily_quality)"
     )

@@ -97,10 +97,12 @@ def _line_col(text: str, offset: int) -> tuple[int, int]:
     return line, col
 
 
-def lint_text(text: str) -> list[Violation]:
+def lint_text(text: str, *, min_words: int = BLAND_MIN_WORDS) -> list[Violation]:
     """Lint a single post body. Returns violations (empty = clean).
 
-    Deterministic and pure — no network, no LLM.
+    Deterministic and pure — no network, no LLM. ``min_words`` overrides the
+    bland-commentary threshold (the quality gate lowers it for terse alert
+    formats; the default stays the canonical 20).
     """
     violations: list[Violation] = []
     raw = str(text or "")
@@ -166,13 +168,13 @@ def lint_text(text: str) -> list[Violation]:
     commentary = re.sub(r"<a\s+href=\"[^\"]*\">(.*?)</a>", r"\1", commentary)
     commentary = _strip_html(commentary)
     words = _WORD_RE.findall(commentary)
-    if len(words) < BLAND_MIN_WORDS:
+    if len(words) < min_words:
         violations.append(
             Violation(
                 rule="bland-commentary",
                 phrase=f"{len(words)} words",
                 location="post",
-                detail=f"fewer than {BLAND_MIN_WORDS} words of original commentary",
+                detail=f"fewer than {min_words} words of original commentary",
             )
         )
 
@@ -183,14 +185,14 @@ def _strip_html(text: str) -> str:
     return _HTML_RE.sub(" ", text)
 
 
-def lint_post(post: dict[str, Any]) -> list[Violation]:
+def lint_post(post: dict[str, Any], *, min_words: int = BLAND_MIN_WORDS) -> list[Violation]:
     """Lint a feed-store post dict (slug/ts/text/source/kind/image_url).
 
     Adds the ``missing-image`` check on top of :func:`lint_text`. Posts with
     no image field at all are treated as image-less (flagged); an explicit
     empty/relative image is flagged too.
     """
-    violations = lint_text(str(post.get("text") or ""))
+    violations = lint_text(str(post.get("text") or ""), min_words=min_words)
     image = str(post.get("image_url") or post.get("image") or "").strip()
     if not image.startswith(("http://", "https://")):
         slug = str(post.get("slug") or "<unknown>")

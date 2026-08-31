@@ -40,6 +40,7 @@ from rugmunchbot.channels.scheduler._core import (
     _safe_send,
     logger,
 )
+from rugmunchbot.support.content_lint import BLAND_MIN_WORDS
 
 FEED_DIR = os.getenv("RMI_FEED_DIR", "/var/www/feed.rugmunch.io")
 FEED_DATA = os.path.join(FEED_DIR, "data")
@@ -406,6 +407,43 @@ async def _fallback_main_drafts(limit: int = 6) -> list[dict[str, Any]]:
     return drafts
 
 
+async def _regenerate_draft_text(text: str, violations: list[Any]) -> str:
+    """Stricter-prompt LLM rewrite for a draft that failed the quality gate.
+
+    Used as the gate's ONE regeneration retry on the prose lanes (main/news):
+    a headline+link stub is rewritten into a real ≥20-word commentary block.
+    Fail-open: any error returns "" (the gate then blocks the post).
+    """
+    from rugmunchbot.llm_config import chat_with_fallback
+
+    detail = "; ".join(f"{v.rule}: {v.phrase}" for v in violations[:5])
+    url_match = re.search(r"https?://\S+", text or "")
+    url = url_match.group(0) if url_match else ""
+    title = re.sub(r"https?://\S+", "", text or "").strip()[:200]
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You write Telegram channel posts for a crypto intelligence "
+                "desk. Rules: at least 20 words of original commentary, no "
+                "banned slop phrases (NFA, DYOR, HODL, 'stay safe', 'delve "
+                "into', 'ever-evolving'), the source URL appears EXACTLY "
+                "once, no '[SEV] Title / Source:' template shape. Output "
+                "ONLY the post text."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Headline: {title}\nSource URL: {url}\n"
+                f"Lint failures to fix: {detail[:300]}\n\n"
+                "Write the full post now (commentary + the source link once)."
+            ),
+        },
+    ]
+    return (await chat_with_fallback(messages, "snappy")).strip()
+
+
 async def gather_main_drafts(limit: int = 8) -> list[dict[str, Any]]:
     """Single unified main-content gather: RAG primary → scored fallback → gate.
 
@@ -527,6 +565,32 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             if channel in ("main", "news"):
                 text = enforce_site_link(text, site="feed" if channel == "main" else "news")
 
+            # HARD quality gate (2026-08-31): lint → autofix → skip. A draft
+            # that still fails after autofix does not ship and stays
+            # retryable (dedupe mark not yet burned — the mark below is
+            # taken only after a successful send).
+            from rugmunchbot.support.quality_gate import pre_post_quality_gate
+
+            gate = await pre_post_quality_gate(
+                text,
+                image_url=str(item.get("image_url") or item.get("image") or ""),
+                source=str(item.get("story_ref") or "")[:80],
+                kind=f"rag:{channel}",
+                # Structured scan/alert formats are terse by design; only
+                # prose lanes (main/news) enforce the full 20-word floor.
+                # Image doctrine is main/news-only: alerts/scans stay
+                # text-first (payload images attach when present).
+                min_words=BLAND_MIN_WORDS if channel in ("main", "news") else 8,
+                require_image=channel in ("main", "news"),
+                allow_placeholder_image=channel in ("main", "news"),
+                regenerate=_regenerate_draft_text if channel in ("main", "news") else None,
+                logger=logger,
+            )
+            if not gate.ok:
+                continue
+            text = gate.text
+            item = {**item, "image_url": gate.image_url}
+
             ok = await _post_photo_aware(
                 ctx.bot,
                 chat_id,
@@ -598,7 +662,20 @@ async def post_rag_fast_lane(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         dedupe_key = f"rag:{item.get('story_ref') or item.get('text', '')[:60]}"
         if not _remember("rag_alerts", dedupe_key):
             return 0  # slow lane already claimed it
-        if await _safe_send(ctx.bot, chat_id, item.get("text", "")):
+        # HARD quality gate (2026-08-31) — same contract as the slow lane.
+        from rugmunchbot.support.quality_gate import pre_post_quality_gate
+
+        gate = await pre_post_quality_gate(
+            str(item.get("text", "")),
+            image_url=str(item.get("image_url") or item.get("image") or ""),
+            source=str(item.get("story_ref") or "")[:80],
+            kind="rag:fast_lane",
+            logger=logger,
+        )
+        if not gate.ok:
+            _release("rag_alerts", dedupe_key)
+            continue
+        if await _safe_send(ctx.bot, chat_id, gate.text):
             logger.info(
                 "rag_fast_lane_posted ref=%s age_h=%.1f",
                 str(item.get("story_ref") or "")[:60],

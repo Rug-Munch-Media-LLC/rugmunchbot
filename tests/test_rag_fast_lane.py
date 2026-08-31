@@ -32,7 +32,13 @@ class _Recorder:
 
 
 class _Bot:
-    pass
+    # The quality gate attaches a placeholder image to image-less drafts,
+    # so delivery may route through the photo-aware sender.
+    async def send_photo(self, *a, **k):
+        return True
+
+    async def send_message(self, *a, **k):
+        return True
 
 
 class _Ctx:
@@ -42,7 +48,11 @@ class _Ctx:
 def _critical_draft(**overrides: Any) -> dict[str, Any]:
     d: dict[str, Any] = {
         "story_ref": "story:abc123",
-        "text": "Critical exploit in progress. Source: https://rekt.news/now",
+        "text": (
+            "Critical exploit in progress: the protocol's vault was drained "
+            "via a price-oracle desync and the attacker is bridging funds out "
+            "right now. Source: https://rekt.news/now"
+        ),
         "kind": "story",
         "mirror": False,
         "severity": "critical",

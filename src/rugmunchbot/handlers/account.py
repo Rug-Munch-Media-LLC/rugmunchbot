@@ -94,7 +94,9 @@ async def cmd_account(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
         ]
     )
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)  # type: ignore[union-attr]  # PTB None-able fields
+    await update.message.reply_text(
+        text, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True
+    )  # type: ignore[union-attr]  # PTB None-able fields
 
 
 async def cmd_pricing(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -200,9 +202,17 @@ async def cmd_refer(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     ref = u.get("referral_code", "UNKNOWN")
     link = f"https://t.me/{BOT_USERNAME}?start=ref_{ref}"
     conn = db.get_db()
-    count = conn.execute("SELECT COUNT(*) as c FROM users WHERE referred_by = ?", (ref,)).fetchone()["c"]
+    count = conn.execute(
+        "SELECT COUNT(*) as c FROM users WHERE referred_by = ?", (ref,)
+    ).fetchone()["c"]
     conn.close()
-    milestones = {5: "\U0001f949", 10: "\U0001f948", 25: "\U0001f947", 50: "\U0001f48e", 100: "\U0001f451"}
+    milestones = {
+        5: "\U0001f949",
+        10: "\U0001f948",
+        25: "\U0001f947",
+        50: "\U0001f48e",
+        100: "\U0001f451",
+    }
     next_ms = next((k for k in sorted(milestones.keys()) if k > count), None)
     ms_text = (
         f"\n\U0001f3af Next milestone: {milestones[next_ms]} {next_ms} referrals"
@@ -233,7 +243,8 @@ async def cmd_refer(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             [
                 [
                     InlineKeyboardButton(
-                        "\U0001f4e4 Share Link", url=f"https://t.me/share/url?url={link}&text={share_text}"
+                        "\U0001f4e4 Share Link",
+                        url=f"https://t.me/share/url?url={link}&text={share_text}",
                     )
                 ],
                 [InlineKeyboardButton("\U0001f310 rugmunch.io", url=WEBSITE_URL)],

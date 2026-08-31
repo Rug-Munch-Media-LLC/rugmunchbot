@@ -409,6 +409,9 @@ async def _persist_shill_evidence(campaign: ShillCampaign, shot: dict[str, str])
     x_url = str(shot.get("url") or "")
     image_path = str(shot.get("image_path") or "")
     ocr = str(shot.get("text") or "")[:_SHILL_OCR_MAX_CHARS]
+    # Capture origin ("x" | "telegram") — persisted so the site can
+    # distinguish where a screenshot came from (2026-09-01).
+    source = str(shot.get("source") or "").strip().lower()
 
     # ── Backend-first (thin consumer) ──
     try:
@@ -424,6 +427,7 @@ async def _persist_shill_evidence(campaign: ShillCampaign, shot: dict[str, str])
                 "image_path": image_path,
                 "text": ocr,
                 "ocr_text": ocr,
+                "source": source,
             }
         )
         if result and result.get("saved"):
@@ -479,7 +483,7 @@ async def _persist_shill_evidence(campaign: ShillCampaign, shot: dict[str, str])
                 payload = {
                     "doc_id": f"shill:{digest[:20]}",
                     "kind": "shill_evidence",
-                    "source": account or "telegram_shill",
+                    "source": source or account or "telegram_shill",
                     "token": token[:80],
                     "chain": chain[:40],
                     "url": x_url,

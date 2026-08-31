@@ -169,6 +169,13 @@ async def post_roundup(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     if not text:
         logger.info("roundup:thin_store_skipped items=%d", len(items))
         return 0
+    # HARD quality gate (2026-08-31): lint → autofix → skip.
+    from rugmunchbot.support.quality_gate import pre_post_quality_gate
+
+    gate = await pre_post_quality_gate(text, source="roundup", kind="roundup", logger=logger)
+    if not gate.ok:
+        return 0
+    text = gate.text
     if not await _safe_send(ctx.bot, chat_id, text):
         _release("roundup", dedupe_key)
         return 0
