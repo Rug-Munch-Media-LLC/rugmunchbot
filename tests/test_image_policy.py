@@ -90,7 +90,9 @@ def test_ensure_post_image_keeps_carried_image() -> None:
     post = NewsPost("card")
     post.image_url = "https://img.example/chart.png"
     out = ensure_post_image(post)
-    assert out.image_url == "https://img.example/chart.png"
+    assert (
+        out.image_url == "https://img.example/chart.png"
+    )  # ensure_post_image validates only; proxying happens in _pick_image_url
 
 
 def test_ensure_post_image_wraps_plain_str() -> None:

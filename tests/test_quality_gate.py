@@ -69,7 +69,9 @@ async def test_clean_post_passes_through() -> None:
     assert res.ok
     assert not res.blocked
     assert res.text == CLEAN_TEXT
-    assert res.image_url == "https://img.example/btc.png"
+    assert (
+        res.image_url == "https://img.example/btc.png"
+    )  # gate passes carried images through; proxying happens in the formatters
     assert not res.auto_fixed
     assert not res.regenerated
 

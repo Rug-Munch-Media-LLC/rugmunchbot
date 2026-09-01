@@ -85,7 +85,8 @@ def test_scan_card_full_address_reasons_commentary_and_image() -> None:
     assert "\U0001f4ac \u201cexit liquidity looks fictional\u201d" in post
     assert f"\U0001f916 <b>Scan with @RugMunchBot:</b> /scan <code>{_A}</code>" in post
     assert post.startswith("\U0001f52c <b>Suspicious Tokens &amp; Scans of Interest</b>")
-    assert post.image_url == "https://img.example/z.png"
+    assert "z.png" in post.image_url
+    assert "/api/v1/media/thumb?url=" in post.image_url
 
 
 def test_scan_card_pending_teaser_says_scanning_never_unavailable() -> None:
@@ -278,7 +279,8 @@ def test_alpha_post_launch_meta_and_image_pick() -> None:
     assert f"{_risk_emoji('medium')} <b>New Token</b> (NEW) — solana" in post
     assert "💡 medium scan verdict — check liquidity and holder concentration" in post
     assert "⏱ 2h old · 💧 $30,000 liq" in post
-    assert post.image_url == "https://img.example/w.png"
+    assert "w.png" in post.image_url
+    assert "/api/v1/media/thumb?url=" in post.image_url
 
 
 def test_alpha_post_image_skips_unusable_urls() -> None:

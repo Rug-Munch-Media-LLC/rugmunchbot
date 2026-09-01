@@ -43,7 +43,8 @@ def test_news_post_digest_shape_and_image() -> None:
     assert "2. ETH up" in post  # no url → unlinked headline
     assert "— <i>CoinDesk</i>" in post
     assert "@RugMunchBot" in post  # CTA
-    assert post.image_url == "https://img.example/a.png"
+    assert "a.png" in post.image_url
+    assert "/api/v1/media/thumb?url=" in post.image_url
 
 
 def test_news_post_rejects_non_http_image() -> None:
@@ -63,7 +64,8 @@ def test_breaking_post_links_and_carries_image() -> None:
     assert '<a href="https://x.com/a">BTC &lt;slips&gt;</a>' in post
     assert "💡 <b>Why it matters:</b> Whales buying dips." in post
     assert 'Full story: <a href="https://x.com/a">TheBlock</a>' in post
-    assert post.image_url == "https://img.example/a.png"
+    assert "a.png" in post.image_url
+    assert "/api/v1/media/thumb?url=" in post.image_url
 
 
 def test_breaking_post_without_url_plain_source() -> None:
@@ -91,7 +93,8 @@ def test_hybrid_lead_plus_numbered_rest() -> None:
     assert '⭐ <a href="https://x.com/a">BTC &lt;slips&gt;</a>' in post
     assert "More:" in post
     assert "2. ETH up — <i>CoinDesk</i>" in post
-    assert post.image_url == "https://img.example/a.png"
+    assert "a.png" in post.image_url
+    assert "/api/v1/media/thumb?url=" in post.image_url
 
 
 def test_hybrid_empty_items_renders_shell() -> None:

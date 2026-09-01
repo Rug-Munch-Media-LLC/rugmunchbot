@@ -128,7 +128,8 @@ def test_format_alerts_post_renders_item_blocks() -> None:
     assert "⚠️ honeypot" in post
     assert "⛓️ ethereum" in post
     assert f"/scan <code>{_A}</code>" in post
-    assert post.image_url == "https://img.example/x.png"
+    assert "x.png" in post.image_url
+    assert "/api/v1/media/thumb?url=" in post.image_url
 
 
 def test_format_alerts_post_condition_from_risk_score() -> None:
@@ -156,7 +157,8 @@ def test_format_main_escalation_card() -> None:
     assert "⚡ <b>Condition met:</b> lp drained" in post
     assert "💡 <b>Why it matters:</b> honeypot — sells can be blocked after buying" in post
     assert "⛓️ solana" in post
-    assert post.image_url == "https://img.example/y.png"
+    assert "y.png" in post.image_url
+    assert "/api/v1/media/thumb?url=" in post.image_url
 
 
 def test_format_main_escalation_minimal_item() -> None:

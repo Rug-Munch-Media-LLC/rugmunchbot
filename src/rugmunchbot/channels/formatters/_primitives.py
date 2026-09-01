@@ -55,13 +55,45 @@ class NewsPost(str):
     image_url: str = ""
 
 
+#: URL fragments that identify SOCIAL PROFILE imagery (avatars / channel
+#: headers), never post content. 2026-09-01: the @cryptorugmuncher X header
+#: shipped as a post image because scraped items carried their source
+#: profile's header as ``image_url``. Identity chrome, not content.
+_BANNED_IMAGE_FRAGMENTS = (
+    "twimg.com/profile_images",
+    "/brand/banner.jpg",
+)
+
+
 def _pick_image_url(value: object) -> str:
-    """Return *value* when it is a usable http(s) image URL, else ``""``."""
-    if isinstance(value, str) and value.strip():
-        url = value.strip()
-        if url.startswith(("http://", "https://")):
+    """Return *value* as a usable post image URL, else ``""``.
+
+    2026-09-01 (always-real-bytes doctrine):
+    * social-profile imagery (X headers/avatars) is REJECTED — identity
+      chrome must never ship as post content;
+    * external URLs are wrapped in the backend thumbnail proxy
+      (``/api/v1/media/thumb?url=…``) so Telegram always receives real
+      bytes even when the publisher hotlink-blocks its fetcher;
+    * same-host (rugmunch.io) URLs pass through unwrapped.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return ""
+    url = value.strip()
+    if not url.startswith(("http://", "https://")):
+        return ""
+    lowered = url.lower()
+    if any(fragment in lowered for fragment in _BANNED_IMAGE_FRAGMENTS):
+        return ""
+    try:
+        from urllib.parse import quote, urlsplit
+
+        if urlsplit(url).hostname in ("rugmunch.io", "www.rugmunch.io"):
             return url
-    return ""
+        from rugmunchbot.config import BACKEND_URL
+
+        return f"{BACKEND_URL}/api/v1/media/thumb?url={quote(url, safe='')}"
+    except Exception:
+        return url
 
 
 def _esc(value: object) -> str:
@@ -205,7 +237,7 @@ def _strip_junk_prefixes(text: str) -> str:
                 text = rest.lstrip()
                 lowered = text.lower().lstrip()
             else:
-                text = rest.lstrip(" :–-")
+                text = rest.lstrip(" :–-")  # noqa: RUF001 — strip en-dash bullets
                 break
     return text
 

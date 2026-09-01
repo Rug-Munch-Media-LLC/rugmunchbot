@@ -174,7 +174,8 @@ def test_main_post_quality_contract():
             "image_url": "https://example.com/bridge.jpg",
         }
     )
-    assert post.image_url == "https://example.com/bridge.jpg"  # image attached
+    assert "bridge.jpg" in post.image_url  # image attached
+    assert "/api/v1/media/thumb?url=" in post.image_url
     assert "Why it matters" in str(post)  # commentary present
     assert "rugmunch.io/news" in str(post)  # site link present
 

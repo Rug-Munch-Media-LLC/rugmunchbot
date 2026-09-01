@@ -51,12 +51,27 @@ def _tick_wrapper(
             )
         else:
             if envelope:
+                # 2026-09-01: some channel jobs return a dict payload
+                # (e.g. {"posted": n, ...}) instead of a bare count —
+                # int(dict) raised TypeError and crashed the JobQueue run.
+                # Accept both shapes; dicts may carry an explicit count key.
+                if isinstance(result, dict):
+                    count = result.get("posted", result.get("items_posted", 0))
+                    try:
+                        count = int(count or 0)
+                    except (TypeError, ValueError):
+                        count = 0
+                else:
+                    try:
+                        count = int(result or 0)
+                    except (TypeError, ValueError):
+                        count = 0
                 logger.info(
                     "channels:tick",
                     job=job_name,
                     items_swept=0,
                     items_scored=0,
-                    items_posted=int(result or 0),
+                    items_posted=count,
                     items_failed=0,
                     latency_ms=_elapsed_ms(started),
                 )
