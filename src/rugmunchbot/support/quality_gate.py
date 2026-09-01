@@ -140,7 +140,10 @@ async def pre_post_quality_gate(
 
     # 2026-09-01 HARD REJECT: model-collapse gibberish never ships and never
     # retries (the same lane that produced garbage will produce garbage).
-    from rugmunchbot.support.content_lint import looks_like_gibberish
+    from rugmunchbot.support.content_lint import (
+        looks_like_gibberish,
+        looks_like_reasoning_leak,
+    )
 
     _gib, _gib_reason = looks_like_gibberish(text)
     if _gib:
@@ -151,9 +154,44 @@ async def pre_post_quality_gate(
                 kind,
                 _gib_reason,
             )
-        return GateResult(ok=False, text=text, image_url=image_url, violations=[
-            Violation(rule="gibberish", phrase=_gib_reason[:60], location="text", detail="model-collapse output rejected")
-        ])
+        return GateResult(
+            ok=False,
+            text=text,
+            image_url=image_url,
+            violations=[
+                Violation(
+                    rule="gibberish",
+                    phrase=_gib_reason[:60],
+                    location="text",
+                    detail="model-collapse output rejected",
+                )
+            ],
+        )
+
+    # 2026-09-02 HARD REJECT: raw LLM chain-of-thought (prompt-mirroring
+    # drafting narration) never ships and never retries.
+    _leak, _leak_reason = looks_like_reasoning_leak(text)
+    if _leak:
+        if log is not None:
+            log.warning(
+                "quality_gate_reasoning_leak_blocked source=%s kind=%s",
+                source or "<unknown>",
+                kind,
+            )
+        return GateResult(
+            ok=False,
+            text=text,
+            image_url=image_url,
+            violations=[
+                Violation(
+                    rule=_leak_reason,
+                    phrase="prompt-mirroring narration",
+                    location="text",
+                    detail="LLM chain-of-thought rejected",
+                )
+            ],
+            blocked=True,
+        )
 
     def _lint(text: str, image_url: str, *, min_words: int) -> list[Violation]:
         violations = lint_post(

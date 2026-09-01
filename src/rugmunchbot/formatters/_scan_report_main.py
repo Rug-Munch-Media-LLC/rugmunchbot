@@ -342,10 +342,24 @@ def _format_scan_report(
     # ── 5. Top Holders ──
     if r.get("top_holders"):
         lines.extend(["", "\U0001f465 <b>Top Holders</b>", d])
+        # Chain-aware explorer deep link per holder (Solscan on Solana,
+        # Etherscan elsewhere) — matches the competitor's linked holder list.
+        _chain_l = (r.get("chain") or "").lower()
+        _explorer = (
+            "https://solscan.io/account/{}"
+            if _chain_l in ("solana", "sol")
+            else "https://etherscan.io/address/{}"
+        )
         for i, h in enumerate(r["top_holders"][:5], 1):
             tag = f" [{h['tag']}]" if h.get("tag") else ""
             cf = " \U0001f4c4" if h.get("is_contract") else ""
-            lines.append(f"  {i}. <code>{h['address']}</code> - {h['pct']:.1f}%{tag}{cf}")
+            _addr = html.escape(str(h.get("address", "")), quote=True)
+            _link = (
+                f'<a href="{_explorer.format(_addr)}"><code>{_addr}</code></a>'
+                if _addr
+                else "<code>—</code>"
+            )
+            lines.append(f"  {i}. {_link} - {h['pct']:.1f}%{tag}{cf}")
 
     # ── 5b. Smart Money / Holders (GMGN enrichment) ──
     gmgn_lines = _format_gmgn_section(r)

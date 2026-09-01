@@ -131,3 +131,33 @@ def test_cli_json_output(tmp_path: Any) -> None:
     report = json.loads(proc.stdout)
     assert report["clean"] is False
     assert report["violations"][0]["rule"] == "banned-phrase"
+
+
+# ── looks_like_reasoning_leak (2026-09-02 CoT-in-channel incident) ──────────
+
+
+def test_reasoning_leak_clean_post_passes() -> None:
+    from rugmunchbot.support.content_lint import looks_like_reasoning_leak
+
+    leaked, reason = looks_like_reasoning_leak(CLEAN_POST)
+    assert leaked is False
+    assert reason == ""
+
+
+def test_reasoning_leak_incident_slop_detected() -> None:
+    from rugmunchbot.support.content_lint import looks_like_reasoning_leak
+
+    slop = (
+        "We need to rewrite story notes into a Telegram post following rules. "
+        "Let's craft: open with one factual sentence. Check word count — keep "
+        "under 120 words. Output only the post. No emojis, no hype."
+    )
+    leaked, reason = looks_like_reasoning_leak(slop)
+    assert leaked is True
+    assert reason == "reasoning_leak"
+
+
+def test_reasoning_leak_empty_text_passes() -> None:
+    from rugmunchbot.support.content_lint import looks_like_reasoning_leak
+
+    assert looks_like_reasoning_leak("") == (False, "")

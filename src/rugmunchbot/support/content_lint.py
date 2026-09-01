@@ -232,8 +232,6 @@ def _strip_html(text: str) -> str:
     return _HTML_RE.sub(" ", text)
 
 
-
-
 def looks_like_gibberish(text: str) -> tuple[bool, str]:
     """Deterministic model-collapse detector. Returns (is_gibberish, reason).
 
@@ -264,9 +262,7 @@ def looks_like_gibberish(text: str) -> tuple[bool, str]:
         return True, f"token-collapse: {top_token!r} x{top_count}/{len(tokens)}"
 
     # 2) Repeated 4-gram collapse ("ellsellsells" style)
-    quadgrams = Counter(
-        "".join(tokens[i : i + 4]).lower() for i in range(len(tokens) - 3)
-    )
+    quadgrams = Counter("".join(tokens[i : i + 4]).lower() for i in range(len(tokens) - 3))
     if quadgrams:
         _, qc = quadgrams.most_common(1)[0]
         if qc >= 30:
@@ -295,6 +291,48 @@ def looks_like_gibberish(text: str) -> tuple[bool, str]:
     if avg_len > 14 or avg_len < 2.2:
         return True, f"word-length-degeneracy: avg={avg_len:.1f}"
 
+    return False, ""
+
+
+#: Prompt-instruction-mirroring phrases — the model narrating its drafting
+#: process ("We need to rewrite story notes into a Telegram post... Let's
+#: craft: ... Check word count...") instead of writing the post. Shared with
+#: the rugbrain writer-side stripper (2026-09-02 reasoning-leak incident).
+_REASONING_PHRASES = (
+    "we need to",
+    "let's craft",
+    "let's write",
+    "let me craft",
+    "let me write",
+    "check word count",
+    "the rule says",
+    "open with one",
+    "close with",
+    "output only",
+    "no emojis",
+    "no hype",
+    "keep under",
+    "word count",
+    "source link",
+    "story notes",
+    "severity is",
+)
+
+_REASONING_PHRASE_RE = re.compile("|".join(re.escape(p) for p in _REASONING_PHRASES), re.IGNORECASE)
+
+
+def looks_like_reasoning_leak(text: str) -> tuple[bool, str]:
+    """Detect raw LLM chain-of-thought / prompt-mirroring in a post.
+
+    Returns (True, "reasoning_leak") when the text mirrors the writer
+    instructions (drafting narration) instead of being a finished post.
+    Deterministic, no LLM call. Silence beats slop.
+    """
+    body = (text or "").strip()
+    if not body:
+        return False, ""
+    if _REASONING_PHRASE_RE.search(body):
+        return True, "reasoning_leak"
     return False, ""
 
 

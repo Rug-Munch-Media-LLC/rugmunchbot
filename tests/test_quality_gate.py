@@ -320,3 +320,26 @@ async def test_main_channel_double_link_no_image_payload_is_fixed_before_send() 
     assert len(bot.photos) == 1
     assert bot.photos[0]["photo"] == PLACEHOLDER_IMAGE_URL
     assert bot.photos[0]["caption"] == gate.text
+
+
+# ── reasoning-leak hard reject (2026-09-02 CoT-in-channel incident) ─────────
+
+
+@pytest.mark.asyncio
+async def test_reasoning_leak_blocked_by_gate() -> None:
+    slop = (
+        "We need to rewrite story notes into a Telegram post following rules. "
+        "Let's craft: open with one factual sentence. Check word count — keep "
+        "under 120 words. Output only the post. No emojis, no hype."
+    )
+    result = await pre_post_quality_gate(slop, require_image=False)
+    assert result.ok is False
+    assert result.blocked is True
+    assert [v.rule for v in result.violations] == ["reasoning_leak"]
+
+
+@pytest.mark.asyncio
+async def test_clean_post_still_passes_gate() -> None:
+    result = await pre_post_quality_gate(CLEAN_TEXT, require_image=False)
+    assert result.ok is True
+    assert result.blocked is False

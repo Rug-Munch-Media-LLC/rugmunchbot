@@ -294,31 +294,49 @@ def _key_metrics_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
     # sub-metric: 🔴 Likely (wash-trading detected: …) / 🟢 Organic / — .
     rows.append(f"  \U0001f4c9 Fake Volume   {_fake_volume_verdict_text(r)}")
 
+    # 2026-08-25 rich-output push: wallet-freshness / CEX-funded / bundle
+    # verdicts render on BOTH /scan and /deepscan — the quick-tier scan API
+    # already returns wallet_metrics + bundle_analysis, so hiding them
+    # behind deep-only was leaving own data unsurfaced.
+    bundle_row = _bundle_verdict_row(r)
+    if bundle_row is not None:
+        rows.append(f"  Bundle         {bundle_row}")
+    else:
+        # Strategy v2 completeness bar: a missing bundle payload is
+        # shown honestly — silence would read as "scanned, clean".
+        rows.append("  Bundle         ⚪ <b>N/A</b>")
+    cex = _cex_funded_pct(r)
+    rows.append(
+        f"  CEX-Funded     \U0001f3e6 <b>{cex:.1f}%</b>"
+        if cex is not None
+        else "  CEX-Funded     <b>\u2014</b>"
+    )
+    fresh = _fresh_wallet_pct(r)
+    rows.append(
+        f"  Fresh Wallets  \U0001f195 <b>{fresh:.1f}%</b>"
+        if fresh is not None
+        else "  Fresh Wallets  <b>\u2014</b>"
+    )
+
+    # Holder concentration (own holder_clusters engine — surfaced top-level
+    # in the scan API as ``holder_concentration``): top-10 % + class.
+    hc = r.get("holder_concentration")
+    if isinstance(hc, dict) and hc.get("top10_pct") is not None:
+        try:
+            top10 = float(hc["top10_pct"])
+            cls = str(hc.get("class") or "").upper()
+            rows.append(
+                f"  Top 10 Holders \U0001f465 <b>{top10:.1f}%</b>{' (' + cls + ')' if cls else ''}"
+            )
+        except (TypeError, ValueError):
+            pass
+
     if deep:
         lp = _lp_lock_pct(r)
         rows.append(
             f"  LP Lock        {_risk_emoji(lp)} <b>{lp:.0f}%</b>"
             if lp is not None
             else "  LP Lock        <b>N/A</b>"
-        )
-        bundle_row = _bundle_verdict_row(r)
-        if bundle_row is not None:
-            rows.append(f"  Bundle         {bundle_row}")
-        else:
-            # Strategy v2 completeness bar: a missing bundle payload is
-            # shown honestly — silence would read as "scanned, clean".
-            rows.append("  Bundle         ⚪ <b>N/A</b>")
-        cex = _cex_funded_pct(r)
-        rows.append(
-            f"  CEX-Funded     \U0001f3e6 <b>{cex:.1f}%</b>"
-            if cex is not None
-            else "  CEX-Funded     <b>\u2014</b>"
-        )
-        fresh = _fresh_wallet_pct(r)
-        rows.append(
-            f"  Fresh Wallets  \U0001f195 <b>{fresh:.1f}%</b>"
-            if fresh is not None
-            else "  Fresh Wallets  <b>\u2014</b>"
         )
         gini = (r.get("holder_analysis") or {}).get("gini_coefficient")
         if gini is not None:
