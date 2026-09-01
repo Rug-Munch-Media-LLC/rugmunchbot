@@ -138,7 +138,31 @@ async def pre_post_quality_gate(
     image_url = str(image_url or "").strip()
     log = logger
 
+    # 2026-09-01 HARD REJECT: model-collapse gibberish never ships and never
+    # retries (the same lane that produced garbage will produce garbage).
+    from rugmunchbot.support.content_lint import looks_like_gibberish
+
+    _gib, _gib_reason = looks_like_gibberish(text)
+    if _gib:
+        if log is not None:
+            log.warning(
+                "quality_gate_gibberish_blocked source=%s kind=%s reason=%s",
+                source or "<unknown>",
+                kind,
+                _gib_reason,
+            )
+        return GateResult(ok=False, text=text, image_url=image_url, violations=[
+            Violation(rule="gibberish", phrase=_gib_reason[:60], location="text", detail="model-collapse output rejected")
+        ])
+
     def _lint(text: str, image_url: str, *, min_words: int) -> list[Violation]:
+        violations = lint_post(
+            {"text": text, "image_url": image_url, "slug": "gate"},
+            min_words=min_words,
+        )
+        if not require_image:
+            violations = [v for v in violations if v.rule != "missing-image"]
+        return violations
         violations = lint_post(
             {"text": text, "image_url": image_url, "slug": "gate"},
             min_words=min_words,

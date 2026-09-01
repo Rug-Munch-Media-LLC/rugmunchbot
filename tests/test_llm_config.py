@@ -15,12 +15,17 @@ from rugmunchbot import llm_config
 
 
 def test_snappy_config_points_at_deepinfra_qwen():
+    # 2026-09-01 doctrine: FREE-FIRST — KiloCode StepFlash primary; the paid
+    # DeepInfra Qwen3.5-9B is the FINAL rung (get_paid_final_config).
     cfg = llm_config.get_snappy_config()
-    assert cfg["model"] == "Qwen/Qwen3.5-9B"
-    assert cfg["base_url"].startswith(llm_config.DEEPINFRA_BASE)
+    assert cfg["model"] == "stepfun/step-3.7-flash:free"
+    assert cfg["base_url"].startswith(llm_config.KILOCODE_BASE)
     assert "/chat/completions" in cfg["base_url"]
-    # Fallback leg is the KiloCode free StepFlash, not another DeepInfra route.
-    assert cfg["fallback_model"] == "stepfun/step-3.7-flash:free"
+    paid = llm_config.get_paid_final_config("snappy")
+    assert paid["model"] == "Qwen/Qwen3.5-9B"
+    assert paid["base_url"].startswith(llm_config.DEEPINFRA_BASE)
+    # Fallback leg is the OpenRouter free nemotron, not another Kilo route.
+    assert cfg["fallback_model"] == "nvidia/nemotron-3-super-120b-a12b:free"
 
 
 def test_long_config_points_at_nemotron_lightning():
@@ -197,5 +202,6 @@ def test_fallback_tier_model_selection():
     """lightning = short/snappy, ultra-550b = long/reasoned — both lanes."""
     assert "lightning" in llm_config.get_kilo_nemotron_fallback_config("snappy")["model"]
     assert "ultra" in llm_config.get_kilo_nemotron_fallback_config("long")["model"]
-    assert "lightning" in llm_config.get_zen_fallback_config("snappy")["model"]
+    # 2026-09-01: zen snappy = laguna-s-2.1-free (the nemotron lane hung)
+    assert "laguna" in llm_config.get_zen_fallback_config("snappy")["model"]
     assert "ultra" in llm_config.get_zen_fallback_config("long")["model"]

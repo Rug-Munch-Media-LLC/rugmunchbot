@@ -495,7 +495,7 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
     # the main channel (@cryptorugmuncher). RAG-served (rugbrain news_v2 +
     # threat_intel_v2 + scanner memory + shill campaigns + scanner alerts),
     # quality-gated via support/content_lint, mirrored to feed.rugmunch.io
-    # with a deep link to the exact post (feed.rugmunch.io/p/{slug}).
+    # with a deep link to the exact post (rugmunch.io/blog/{slug}).
     # Env knobs: ``RMI_DAILY_RUG_UPDATE_ENABLED`` / ``_TIME`` / ``_TZ``.
     from rugmunchbot.channels.daily_rug_update import (
         DAILY_RUG_UPDATE_ENABLED,

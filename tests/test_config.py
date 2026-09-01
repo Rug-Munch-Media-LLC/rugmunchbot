@@ -37,11 +37,13 @@ def test_llm_model_defaults():
     os.environ.pop("LLM_MODEL", None)
     os.environ.pop("LLM_LONG_MODEL", None)
     importlib.reload(__import__("rugmunchbot.llm_config", fromlist=["x"]))
+    from rugmunchbot import llm_config
     from rugmunchbot.llm_config import get_long_config, get_snappy_config
 
     snappy = get_snappy_config()
     long_cfg = get_long_config()
-    # Current chain (2026-08-29): snappy = Qwen3.5-9B via DeepInfra (cheap),
-    # long = Nemotron 3.5 Lightning via KiloCode (free).
-    assert "Qwen3.5" in snappy["model"]  # snappy tier (Qwen/Qwen3.5-9B via DeepInfra)
+    # Current chain (2026-09-01): FREE-FIRST — snappy = KiloCode StepFlash
+    # primary; paid DeepInfra Qwen3.5-9B is the FINAL rung.
+    assert "step-3.7-flash" in snappy["model"]  # free-first primary
+    assert "Qwen3.5" in llm_config.get_paid_final_config("snappy")["model"]  # paid final rung
     assert "nemotron" in long_cfg["model"]  # long tier (nvidia/nemotron-3.5-lightning:free)

@@ -232,6 +232,72 @@ def _strip_html(text: str) -> str:
     return _HTML_RE.sub(" ", text)
 
 
+
+
+def looks_like_gibberish(text: str) -> tuple[bool, str]:
+    """Deterministic model-collapse detector. Returns (is_gibberish, reason).
+
+    Catches the failure mode where an LLM lane returns token-soup: repeated
+    fragments ("ellsellsells"), mixed scripts (latin+cyrillic+cjk in one
+    post), or degenerate character runs. Silence beats slop — a post that
+    fails this check is never shipped.
+    """
+    import re as _re
+    import unicodedata
+
+    body = (text or "").strip()
+    if len(body) < 80:
+        return False, ""
+    # Strip URLs/HTML for the analysis
+    clean = _re.sub(r"<[^>]+>", " ", body)
+    clean = _re.sub(r"https?://\S+", " ", clean)
+    tokens = _re.findall(r"[\w']+", clean)
+    if len(tokens) < 20:
+        return False, ""
+
+    # 1) Token-frequency collapse: one token dominating the text
+    from collections import Counter
+
+    freq = Counter(t.lower() for t in tokens)
+    top_token, top_count = freq.most_common(1)[0]
+    if top_count > len(tokens) * 0.15 and len(tokens) > 40:
+        return True, f"token-collapse: {top_token!r} x{top_count}/{len(tokens)}"
+
+    # 2) Repeated 4-gram collapse ("ellsellsells" style)
+    quadgrams = Counter(
+        "".join(tokens[i : i + 4]).lower() for i in range(len(tokens) - 3)
+    )
+    if quadgrams:
+        _, qc = quadgrams.most_common(1)[0]
+        if qc >= 5:
+            return True, f"ngram-collapse: repeated 4-gram x{qc}"
+
+    # 3) Script mixing: >2 unicode scripts in one post = model garbage
+    scripts = set()
+    for ch in clean:
+        if ch.isalpha():
+            name = unicodedata.name(ch, "")
+            if "CYRILLIC" in name:
+                scripts.add("cyr")
+            elif "CJK" in name or "HIRAGANA" in name or "KATAKANA" in name or "HANGUL" in name:
+                scripts.add("cjk")
+            elif "ARABIC" in name:
+                scripts.add("ara")
+            elif "HEBREW" in name:
+                scripts.add("heb")
+            elif ch.isascii():
+                scripts.add("lat")
+    if len(scripts) > 2:
+        return True, f"script-mixing: {sorted(scripts)}"
+
+    # 4) Word-length degeneracy: average word length > 14 or < 2.2
+    avg_len = sum(len(t) for t in tokens) / len(tokens)
+    if avg_len > 14 or avg_len < 2.2:
+        return True, f"word-length-degeneracy: avg={avg_len:.1f}"
+
+    return False, ""
+
+
 def lint_post(post: dict[str, Any], *, min_words: int = BLAND_MIN_WORDS) -> list[Violation]:
     """Lint a feed-store post dict (slug/ts/text/source/kind/image_url).
 

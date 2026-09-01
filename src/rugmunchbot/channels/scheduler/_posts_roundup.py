@@ -8,7 +8,7 @@ several recent individual posts. This module is the SUMMARY poster:
   (``scheduler._posts_rag.FEED_DATA/posts.json`` — the same store every
   main-channel post mirrors into).
 * Composes a deterministic roundup: title + 3-6 bullet deep links
-  (``feed.rugmunch.io/p/{slug}``) in the style-guide voice.
+  (``rugmunch.io/blog/{slug}``) in the style-guide voice.
 * ONE LINK PER SOURCE: each bullet links its own feed deep link; a source
   that already appeared is skipped, so no URL ever appears twice in the
   post. Bullets whose text trips a style-guide banned phrase are dropped

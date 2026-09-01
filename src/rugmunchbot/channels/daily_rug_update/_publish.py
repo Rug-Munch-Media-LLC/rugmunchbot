@@ -4,7 +4,7 @@ Pipeline (``post_daily_rug_update``): gather → LLM-write (cryptorugmuncher
 voice) → deterministic quality gate (``support.content_lint``) → Ghost feed
 publish → static feed-store mirror (``mirror_post_to_feed``) → Telegram post
 with image + a link to the exact post on rugmunch.io
-(``feed.rugmunch.io/p/{slug}``). Fails open at every step — a broken lane
+(``rugmunch.io/blog/{slug}``). Fails open at every step — a broken lane
 logs and the run no-ops; the Telegram post is never blocked by the feed.
 """
 
@@ -30,7 +30,7 @@ logger = logging.getLogger("rmi_bot.channels.daily_rug_update")
 EDITION = "Midday Market Update"
 
 #: feed.rugmunch.io deep-link base for a mirrored post slug.
-FEED_POST_URL_FMT = "https://feed.rugmunch.io/p/{slug}"
+FEED_POST_URL_FMT = "https://rugmunch.io/blog/{slug}"
 
 SYSTEM_PROMPT = """You write "{EDITION}" — the midday market update for Crypto Rug Muncher (@cryptorugmuncher). It leads with the highest-ranked stories from the reranker over the window since the last Morning Rug, then layers the rug/scam intelligence desk on top. Published to Telegram AND rugmunch.io in long form.
 
@@ -60,7 +60,7 @@ The biggest rugs/scams detected in the last 24h from the SCANNER ALERTS block. F
 Coordinated pushes from the SHILL CAMPAIGNS block: token, how many KOLs, how many posts, over what span. Real analysis of the pattern — coordination this tight is usually an exit ramp, say so. Absent = OMIT.
 
 ## KOLS CAUGHT
-KOLs caught pushing scam tokens, from the shill-campaign handles and RAG INTEL shill_evidence items. Name the handles, name the token, state the evidence count. Never invent a handle. Absent = OMIT.
+KOLs caught pushing scam tokens, from the shill-campaign handles and RAG INTEL shill_evidence items. Name the handles, name the token, state the evidence count. Never invent a handle. CATEGORY DISCIPLINE: institutional flow / ETF news is NOT a caught KOL — if it is not a named handle pushing a scam token, it does not belong here (route it to BREAKING NEWS instead). Absent = OMIT.
 
 ## WHALE MOVES
 Notable whale movements from the RAG INTEL block only — cite-or-omit, never invent. "X,XXX ETH moved" style one-liners with direction if inferable. Absent = OMIT.
@@ -77,7 +77,10 @@ HARD RULES:
 - Cite-or-omit: if a fact is not in the data, do NOT invent it.
 - Every token/project gets its ticker or address.
 - ONE LINK PER SOURCE (hard rule): the same URL may appear AT MOST ONCE in the whole post. If a source was already linked, reference it by name only.
-- One emoji max in the opening line ( rugs). Section headers use the tags above. No other emojis."""
+- One emoji max in the opening line ( rugs). Section headers use the tags above. No other emojis.
+- SOURCE NAMES: cite the outlet's human name (Cointelegraph, NewsBTC, Blockaid) — NEVER a raw feed slug like "cryptonews_rss". A bare slug after a paragraph reads as debris.
+- NO TRAILING DEBRIS: the post ENDS at THE RUG TOOLKIT. No duplicated story blocks, no stray source cards after the footer. If a story already appeared in a section, it does not appear again.
+- Each section: 1-3 tight items max. A story that fits two sections goes in the BEST one only."""
 
 
 def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
@@ -274,7 +277,7 @@ async def post_daily_rug_update(ctx: Any) -> int:
     image_url = gate.image_url
 
     # Feed mirror FIRST so the Telegram closer can deep-link the exact post
-    # (feed.rugmunch.io/p/{slug}). Ghost publish (website feed) is additive.
+    # (rugmunch.io/blog/{slug}). Ghost publish (website feed) is additive.
     feed_url = ""
     slug = ""
     if DAILY_RUG_UPDATE_FEED_ENABLED:
@@ -296,7 +299,7 @@ async def post_daily_rug_update(ctx: Any) -> int:
         except Exception as exc:
             logger.warning("daily_rug_update:feed_mirror_failed err=%s", str(exc)[:120])
         if slug:
-            feed_url = f"https://feed.rugmunch.io/p/{slug}"
+            feed_url = f"https://rugmunch.io/blog/{slug}"
         ghost = await publish_to_feed(raw)
         ghost_url = str(ghost.get("url") or "") if isinstance(ghost, dict) else ""
         if ghost_url and not feed_url:
