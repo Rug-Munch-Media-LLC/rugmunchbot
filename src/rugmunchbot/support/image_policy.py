@@ -31,6 +31,13 @@ _BANNED_IMAGE_PATTERNS = (
     "pbs.twimg.com/profile_images",
     "/brand/banner.jpg",  # operator's personal X header
     "twimg.com/profile_images",
+    # 2026-09-01: the custom brand banner ("Crypto Rug Muncher — Powered by
+    # $CRM") ships inside scraped source posts and gets extracted as an
+    # "article image". Brand chrome is identity, never post content —
+    # reject it wherever it is served from.
+    "/brand/",  # any rugmunch.io brand asset
+    "cryptorugmunch.com",  # marketing site imagery
+    "banner",  # any URL with /banner in the path (og banners, X headers)
 )
 
 

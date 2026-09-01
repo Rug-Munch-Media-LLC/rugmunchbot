@@ -62,6 +62,12 @@ class NewsPost(str):
 _BANNED_IMAGE_FRAGMENTS = (
     "twimg.com/profile_images",
     "/brand/banner.jpg",
+    # 2026-09-01: brand chrome scraped from source posts (the custom
+    # "Crypto Rug Muncher" banner ships embedded in mirrored posts) —
+    # identity artwork, never post content.
+    "/brand/",
+    "banner",
+    "cryptorugmunch.com",
 )
 
 
