@@ -331,14 +331,19 @@ def enforce_main_link_contract(text: str, item: dict[str, Any]) -> str | None:
 # Every main/channel post carries an EXACT link to the site version
 # (rugmunch.io/news for news-family posts, feed.rugmunch.io for mirrored
 # main posts) so Telegram drives site usage. Feed deep links use the
-# static store's per-post pattern (``/p/{slug}`` — see feed index.html).
+# in-app Ghost post route (``/blog/{slug}`` — BlogPostPage in the unified
+# shell; 2026-09-01 content architecture).
 
 #: Site news page — the canonical "see it on the site" destination.
 SITE_NEWS_URL: str = "https://rugmunch.io/news"
-#: Static feed root (feed.rugmunch.io serves posts.json client-side).
-SITE_FEED_URL: str = "https://feed.rugmunch.io/"
-#: Per-post deep-link pattern (slug from ``mirror_post_to_feed``).
-SITE_FEED_POST_URL: str = "https://feed.rugmunch.io/p/{slug}"
+#: Content surfaces live on the MAIN domain (2026-09-01 canonical
+#: architecture — Stripe/Linear pattern): paths on rugmunch.io for content
+#: sections of the same app; subdomains only for genuinely separate apps
+#: (git., api., mcp., x402.). feed.rugmunch.io 301s to rugmunch.io/feed.
+SITE_FEED_URL: str = "https://rugmunch.io/feed"
+#: Per-post deep-link pattern — the in-app Ghost post route (BlogPostPage
+#: renders the CMS content inside the platform shell).
+SITE_FEED_POST_URL: str = "https://rugmunch.io/blog/{slug}"
 
 
 def site_news_line() -> str:
@@ -349,7 +354,7 @@ def site_news_line() -> str:
 def feed_site_line(slug: str = "") -> str:
     """Exact feed.rugmunch.io link line (deep link when a slug exists)."""
     url = SITE_FEED_POST_URL.format(slug=slug) if slug else SITE_FEED_URL
-    label = "feed.rugmunch.io" + (f"/p/{slug}" if slug else "")
+    label = "rugmunch.io" + (f"/blog/{slug}" if slug else "/feed")
     return f'📖 <a href="{url}">{label}</a> — on the site'
 
 

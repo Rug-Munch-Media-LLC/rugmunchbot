@@ -76,7 +76,7 @@ class TestComposeRoundup:
         text = compose_roundup(items, now=datetime(2026, 8, 31, tzinfo=UTC))
         assert "THE RUG MUNCH ROUNDUP" in text
         assert text.count("• ") == 3
-        assert 'href="https://feed.rugmunch.io/p/post-1"' in text
+        assert 'href="https://rugmunch.io/blog/post-1"' in text
         # No URL appears twice in the post.
         import re
 

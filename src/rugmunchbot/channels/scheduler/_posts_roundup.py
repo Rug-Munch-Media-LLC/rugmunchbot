@@ -108,8 +108,28 @@ def collect_roundup_items(
             continue
         if source:
             seen_sources.add(source)
+        # 2026-09-01 cross-window dedupe: a story shown in a previous
+        # roundup must not reappear in the next window — the user saw the
+        # "same links multiple times today". PEEK only (read-only): stories
+        # are marked as shown AFTER a successful post (see post_roundup),
+        # so a failed/thin roundup never burns the candidates.
+        if _roundup_story_seen(slug):
+            continue
         items.append({"slug": slug, "label": label, "source": source})
     return items
+
+
+def _roundup_story_seen(slug: str) -> bool:
+    """True when this roundup slug was already shown in a previous window."""
+    from rugmunchbot.channels.scheduler._core import _posted_keys
+
+    return f"roundup-story:{slug}" in _posted_keys.get("__global__", set())
+
+
+def mark_roundup_stories_shown(items: list[dict[str, Any]]) -> None:
+    """Mark roundup slugs as shown (durable via the tick state save)."""
+    for item in items:
+        _remember("roundup", f"roundup-story:{item['slug']}")
 
 
 def compose_roundup(items: list[dict[str, Any]], *, now: datetime | None = None) -> str:
@@ -186,6 +206,9 @@ async def post_roundup(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     if not await _post_photo_aware(ctx.bot, chat_id, post, _safe_send):
         _release("roundup", dedupe_key)
         return 0
+    # Cross-window dedupe: only NOW are the stories marked as shown —
+    # a failed send never burns the candidates for the next window.
+    mark_roundup_stories_shown(items)
     logger.info("roundup:posted items=%d", len(items))
     return 1
 

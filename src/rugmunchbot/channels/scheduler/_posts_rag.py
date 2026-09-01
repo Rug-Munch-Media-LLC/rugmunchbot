@@ -312,7 +312,7 @@ _mirror_to_feed = mirror_post_to_feed  # backward-compatible alias
 
 #: Ghost Admin API base. Defaults to the canonical feed host; the Admin key
 #: (``<id>:<secret>``) comes from the environment — never hardcoded.
-GHOST_ADMIN_API_URL = os.getenv("GHOST_ADMIN_API_URL", "https://feed.rugmunch.io")
+GHOST_ADMIN_API_URL = os.getenv("GHOST_ADMIN_API_URL", "https://rugmunch.io")
 GHOST_ADMIN_API_KEY = os.getenv("GHOST_ADMIN_API_KEY", "")
 
 _ghost_no_key_logged = False
