@@ -341,7 +341,15 @@ def _ghost_admin_jwt(api_key: str) -> str:
         json.dumps({"iat": iat, "exp": iat + 300, "aud": "/admin/"}, separators=(",", ":")).encode()
     )
     signing_input = f"{header}.{payload}".encode()
-    signature = _b64url(hmac.new(secret.encode(), signing_input, hashlib.sha256).digest())
+    # 2026-09-01 FIX: the Ghost admin secret is a HEX string — it must be
+    # decoded from hex before HMAC signing. Signing with the raw ASCII
+    # bytes produces "Invalid token: invalid signature" (the 401 that
+    # blocked every mirror attempt).
+    try:
+        signing_key = bytes.fromhex(secret)
+    except ValueError:
+        signing_key = secret.encode()  # non-hex fallback
+    signature = _b64url(hmac.new(signing_key, signing_input, hashlib.sha256).digest())
     return f"{header}.{payload}.{signature}"
 
 
