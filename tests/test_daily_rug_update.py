@@ -252,7 +252,7 @@ class TestPostDailyRugUpdate:
         assert posts[0]["image"] == "https://img.rugmunch.io/scam.png"
         # Telegram got the post with the deep link to the exact mirrored post.
         sent_text = photo.call_args[0][2] if photo.call_args else send.call_args[0][2]
-        assert f"https://feed.rugmunch.io/p/{posts[0]['slug']}" in str(sent_text)
+        assert f"https://rugmunch.io/blog/{posts[0]['slug']}" in str(sent_text)
 
     @pytest.mark.asyncio
     async def test_quality_gate_blocks_slop_post(self, monkeypatch, tmp_path) -> None:

@@ -90,8 +90,9 @@ async def test_fast_lane_posts_critical_fresh(monkeypatch):
 
     assert await _posts_rag.post_rag_fast_lane(_Ctx()) == 1
     assert len(sender.calls) == 1
-    # Image doctrine: the fast lane ships a photo, never a naked text post.
-    assert sender.calls[0][2].startswith("https://")
+    # 2026-09-01 doctrine: story-doc images are UNTRUSTED — the fast lane
+    # ships text-only unless the article's own og:image resolves.
+    # (The old "never a naked text post" rule is retired — no badge spam.)
 
 
 @pytest.mark.asyncio

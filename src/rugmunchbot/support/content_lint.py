@@ -260,7 +260,7 @@ def looks_like_gibberish(text: str) -> tuple[bool, str]:
 
     freq = Counter(t.lower() for t in tokens)
     top_token, top_count = freq.most_common(1)[0]
-    if top_count > len(tokens) * 0.15 and len(tokens) > 40:
+    if top_count > len(tokens) * 0.25 and top_count > 60:
         return True, f"token-collapse: {top_token!r} x{top_count}/{len(tokens)}"
 
     # 2) Repeated 4-gram collapse ("ellsellsells" style)
@@ -269,7 +269,7 @@ def looks_like_gibberish(text: str) -> tuple[bool, str]:
     )
     if quadgrams:
         _, qc = quadgrams.most_common(1)[0]
-        if qc >= 5:
+        if qc >= 30:
             return True, f"ngram-collapse: repeated 4-gram x{qc}"
 
     # 3) Script mixing: >2 unicode scripts in one post = model garbage

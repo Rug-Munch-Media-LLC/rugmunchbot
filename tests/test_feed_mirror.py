@@ -70,7 +70,14 @@ async def test_daily_summary_mirrors_to_feed(monkeypatch, tmp_path):
         return {"sources": ["test"], "generated_at": datetime.now(UTC).isoformat()}
 
     async def _noop_llm(messages, tier):
-        return "<b>Market overview</b>\n" + ("Line of intel.\n" * 40)
+        # Realistic-length report with varied lines (the old 40x-identical
+        # fixture tripped the gibberish detector — by design it IS degenerate).
+        lines = [f"<b>Section {i}</b>" for i in range(1, 9)]
+        body = "\n".join(
+            f"Item {i}: token moved {i * 137} ETH to a fresh wallet at {i * 11}:00 UTC."
+            for i in range(1, 25)
+        )
+        return "<b>Market overview</b>\n" + body + "\n" + "\n".join(lines)
 
     async def _noop_feed(report, *, title=None):
         return {}
