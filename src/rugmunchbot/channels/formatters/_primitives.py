@@ -160,6 +160,20 @@ def _takeaway(text: object, limit: int = _DIGEST_TAKEAWAY_CHARS) -> str:
     return _clip(hook, limit)
 
 
+def _first_sentence_end(text: str) -> int:
+    """Index just past the first complete sentence of *text* (``len(text)`` when
+    no sentence delimiter exists). Shared by the hook + lede builders so the
+    lede always resumes at a sentence boundary — never mid-sentence."""
+    best = len(text)
+    for delim in (". ", "! ", "? ", ".\n", "!\n", "?\n"):
+        idx = text.find(delim)
+        if idx != -1:
+            end = idx + len(delim)
+            if end < best:
+                best = end
+    return best
+
+
 def _first_sentence(text: str) -> str:
     """Return the first sentence of *text* as a one-line hook (≤160 chars).
 
@@ -168,25 +182,35 @@ def _first_sentence(text: str) -> str:
     not a bare link). Feed it already-flattened plain text (``_strip_markup``);
     callers escape the result once at insertion time. Empty input → ``""``.
     Never raises.
+
+    2026-09-01 (no-cut-offs doctrine): when the first sentence exceeds the
+    hook budget it is clipped with ``_clip`` — sentence/word-boundary aware
+    with a clean ellipsis — NEVER a raw ``text[:limit]`` hard cut that
+    chopped the sentence mid-clause and pushed the fragment into the lede
+    (the Aquifer post bug).
     """
     text = (text or "").strip()
     if not text:
         return ""
-    for delim in (". ", "! ", "? ", ".\n", "!\n", "?\n"):
-        idx = text.find(delim)
-        if idx != -1:
-            candidate = text[: idx + 1].strip()
-            if candidate:
-                text = candidate
-            break
-    return text[:_FEATURE_HOOK_CHARS].rstrip()
+    first = text[: _first_sentence_end(text)].strip()
+    if not first:
+        return ""
+    if len(first) <= _FEATURE_HOOK_CHARS:
+        return first
+    return _clip(first, _FEATURE_HOOK_CHARS)
 
 
 def _lede_after_hook(summary: str, hook: str) -> str:
-    """The rest of *summary* after *hook*, clipped to the feature-lede limit."""
-    rest = summary
-    if hook:
-        rest = rest[len(hook) :].lstrip(" .")
+    """The rest of *summary* after the FIRST COMPLETE SENTENCE, clipped clean.
+
+    2026-09-01: the old version sliced at ``len(hook)`` — when the hook was
+    truncated to fit the budget, the lede resumed MID-SENTENCE and the
+    orphan fragment landed after the commentary block (the Aquifer post:
+    "…with the protocol offering the / 💡 Why it matters… / attacker a 20%
+    bounty…"). The lede now always starts at the sentence boundary.
+    """
+    end = _first_sentence_end(summary)
+    rest = summary[end:].lstrip()
     return _clip(rest, _FEATURE_SUMMARY_CHARS)
 
 

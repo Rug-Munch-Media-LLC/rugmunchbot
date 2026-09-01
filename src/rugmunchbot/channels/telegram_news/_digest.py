@@ -224,7 +224,21 @@ async def generate_commentary(item: dict[str, Any]) -> str:
         text = text[len("why it matters:") :].strip()
     if text.startswith("*") and text.endswith("*"):
         text = text.strip("*").strip()
-    return text[:_COMMENTARY_MAX_CHARS].strip()
+    # 2026-09-01 (no-cut-offs doctrine): boundary-safe trim — prefer the last
+    # sentence end inside the budget, else the last word boundary. Never a
+    # raw text[:limit] cut that ships a half-clause as the "why it matters".
+    if len(text) > _COMMENTARY_MAX_CHARS:
+        budget = _COMMENTARY_MAX_CHARS - 1
+        window = text[:budget]
+        for delim in (". ", "! ", "? "):
+            idx = window.rfind(delim)
+            if idx > budget // 2:
+                text = f"{window[: idx + 1].rstrip()}…"
+                break
+        else:
+            sp = window.rfind(" ")
+            text = f"{window[:sp].rstrip()}…" if sp > budget // 2 else f"{window.rstrip()}…"
+    return text.strip()
 
 
 async def attach_commentaries(items: list[dict[str, Any]], *, limit: int = 5) -> dict[str, str]:
