@@ -428,12 +428,11 @@ def _rag_post_with_image(text: str, item: dict[str, Any]) -> NewsPost | str:
     (``_post_photo_aware``) then posts photo + caption, falling back to text.
     Fail-open: no usable image → the plain text string (unchanged behavior).
     """
-    image_url = str(item.get("image_url") or item.get("image") or "").strip()
-    if not (image_url.startswith(("http://", "https://"))):
-        return text
-    post = NewsPost(text)
-    post.image_url = image_url
-    return post
+    # 2026-09-01 FINAL: story-doc image_url is UNTRUSTED — existing Qdrant
+    # docs carry the operator's brand banner from the pre-fix era. Images
+    # resolve ONLY from the article's own og:image (resolve_post_image in
+    # the posting path below). This wrapper no longer attaches doc images.
+    return text
 
 
 #: Consecutive main→feed mirror failures (W30 alerting state). Alert fires
@@ -700,9 +699,11 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             )
             from rugmunchbot.support.quality_gate import pre_post_quality_gate
 
+            # 2026-09-01 FINAL: image_url from the story doc is IGNORED —
+            # only the article's own og:image (via source_url) is legitimate.
             resolved_image = await resolve_post_image(
                 channel,
-                image_url=item.get("image_url") or item.get("image") or "",
+                image_url="",
                 source_url=item.get("url") or item.get("source_url") or "",
                 logger=logger,
             )
