@@ -118,7 +118,68 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("dex", "DEX pair & liquidity lookup"),
         ],
     ),
+    (
+        "Pro Intel",
+        [
+            ("impersonation", "Impersonation & fake-account check"),
+            ("deathclock", "Token death-clock survival estimate"),
+            ("cluster", "Wallet cluster / link analysis"),
+            ("laundry", "Mixer & laundering exposure check"),
+            ("lphealth", "Liquidity-pool health & lock status"),
+            ("dumps", "Historical dump events for a token"),
+            ("flow", "Token flow visualization"),
+            ("ta", "Technical analysis snapshot"),
+            ("rugmap", "Token bubble map — holder network"),
+        ],
+    ),
+    (
+        "OSINT & Forensics",
+        [
+            ("osint", "OSINT lookup — address, domain, identity"),
+            ("osintall", "Full OSINT sweep across all sources"),
+            ("track", "Track a wallet or entity across chains"),
+            ("email", "Email breach & exposure check"),
+            ("phone", "Phone number intelligence"),
+            ("face", "Face-match search (PimEyes-style)"),
+        ],
+    ),
+    (
+        "Watch & Alerts",
+        [
+            ("watchlist", "Your token watchlist"),
+            ("watch", "Watch a token for changes"),
+            ("unwatch", "Stop watching a token"),
+            ("monitor", "List your active monitors"),
+            ("monitors", "Monitor management"),
+            ("unmonitor", "Remove a monitor"),
+            ("alert", "Set an instant price/risk alert"),
+            ("events", "Recent on-chain events feed"),
+        ],
+    ),
+    (
+        "Account & More",
+        [
+            ("account", "Your account, tier & usage"),
+            ("pricing", "Plans & pricing"),
+            ("topup", "Top up credits"),
+            ("buystars", "Buy Telegram Stars"),
+            ("refer", "Referral program — earn credits"),
+            ("scamschool", "Scam School — learn the tricks"),
+            ("report", "Report a scam / rug"),
+            ("ask", "Ask the intel desk anything"),
+            ("quick", "Quick scan — one-liner verdict"),
+            ("hype", "Hype vs. substance check"),
+            ("faq", "Frequently asked questions"),
+            ("api", "API access & keys"),
+            ("webhook", "Webhook delivery setup"),
+            ("rpcstats", "RPC endpoint health stats"),
+            ("groupinfo", "Group protection status"),
+            ("mygroup", "Your protected group settings"),
+            ("voicechat", "Voice-chat scam radar"),
+        ],
+    ),
 ]
+
 
 
 _BOT_COMMANDS: list[BotCommand] = [

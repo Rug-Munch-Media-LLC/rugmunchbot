@@ -49,6 +49,44 @@ DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY", "")
 DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-30B-A3B-Instruct")
 
 
+
+# ── Local LLM lane (Talos llama.cpp Qwen3-8B) ────────────────────────────
+# 2026-09-01 doctrine: light content tasks (commentary lines, title
+# rewrites, classification, short summaries) run LOCAL-FIRST on the
+# self-hosted Qwen3-8B-Instruct (:8009) — zero API cost, zero rate limit,
+# ~1-3s on CPU. Quality-critical tasks (flagship drafts, full analysis)
+# stay on the hosted writer. RMI_LOCAL_LLM_ENABLED=false kills the lane
+# (everything falls through to the free-API chain).
+LOCAL_LLM_ENABLED = os.getenv("RMI_LOCAL_LLM_ENABLED", "true").lower() in ("1", "true", "yes")
+LOCAL_LLM_URL = os.getenv("RMI_LOCAL_LLM_URL", "http://127.0.0.1:8009/v1/chat/completions")
+LOCAL_LLM_MODEL = os.getenv("RMI_LOCAL_LLM_MODEL", "qwen3-8b-instruct")
+#: Task classes that are cheap enough + short enough for the local 8B.
+#: Everything else (flagship drafts, deep analysis) stays on the hosted lane.
+LOCAL_FIRST_TASKS = frozenset(
+    os.getenv(
+        "RMI_LOCAL_FIRST_TASKS",
+        "commentary,title_rewrite,classify,summary_short,social_caption",
+    ).split(",")
+)
+
+
+def get_local_config(max_tokens: int = 700) -> dict[str, Any]:
+    """Local Qwen3-8B llama.cpp config — the zero-cost light-task lane."""
+    return {
+        "model": LOCAL_LLM_MODEL,
+        "base_url": LOCAL_LLM_URL,
+        "api_key": "local",  # llama.cpp ignores auth
+        "max_tokens": max_tokens,
+        "temperature": 0.4,
+        "timeout": 45.0,
+    }
+
+
+def is_local_first_task(task_class: str) -> bool:
+    """True when *task_class* should try the local 8B before the API chain."""
+    return LOCAL_LLM_ENABLED and task_class in LOCAL_FIRST_TASKS
+
+
 def get_snappy_config() -> dict[str, Any]:
     """Config for fast chat answers.
 
@@ -58,13 +96,16 @@ def get_snappy_config() -> dict[str, Any]:
     COMPLETE answer when a question needs depth; the old cap truncated
     detailed answers mid-sentence. Multi-part delivery splits long answers.
     """
+    # 2026-09-01 doctrine: FREE-FIRST. KiloCode StepFlash:free primary;
+    # the paid DeepInfra Qwen3.5-9B is the FINAL rung (see
+    # get_paid_final_config) — only hit when every free lane is down.
     return {
-        "model": "Qwen/Qwen3.5-9B",
-        "base_url": f"{DEEPINFRA_BASE}/chat/completions",
-        "api_key": DEEPINFRA_API_KEY,
-        "fallback_model": "stepfun/step-3.7-flash:free",
-        "fallback_base_url": f"{KILOCODE_BASE}/chat/completions",
-        "fallback_api_key": KILOCODE_API_KEY,
+        "model": "stepfun/step-3.7-flash:free",
+        "base_url": f"{KILOCODE_BASE}/chat/completions",
+        "api_key": KILOCODE_API_KEY,
+        "fallback_model": "nvidia/nemotron-3-super-120b-a12b:free",
+        "fallback_base_url": f"{OPENROUTER_BASE}/chat/completions",
+        "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 2000,
         "temperature": 0.3,
         "timeout": 40.0,
@@ -91,6 +132,24 @@ def get_long_config() -> dict[str, Any]:
         "max_tokens": 3000,
         "temperature": 0.7,
         "timeout": 120.0,
+    }
+
+
+def get_paid_final_config(tier: str) -> dict[str, Any]:
+    """FINAL paid rung — DeepInfra Qwen3.5-9B.
+
+    2026-09-01 doctrine: every free lane (KiloCode, OpenRouter, Zen) is
+    tried FIRST; this paid lane fires only when all of them fail. ~$0.08/Mtok
+    — cheap insurance that chat NEVER goes dark. Same model the writer
+    ladder uses for flagship drafts, so quality is proven.
+    """
+    return {
+        "model": "Qwen/Qwen3.5-9B",
+        "base_url": f"{DEEPINFRA_BASE}/chat/completions",
+        "api_key": DEEPINFRA_API_KEY,
+        "max_tokens": 2000 if tier == "snappy" else 3000,
+        "temperature": 0.3 if tier == "snappy" else 0.7,
+        "timeout": 60.0,
     }
 
 
@@ -128,7 +187,9 @@ def get_zen_fallback_config(tier: str) -> dict[str, Any]:
     Free tier, independent daily budget from OpenRouter/KiloCode. 90s
     timeout — ultra can be slow under load but is the last resort.
     """
-    model = "nemotron-3-ultra-free" if tier == "long" else "nemotron-3.5-lightning-free"
+    # 2026-09-01: snappy -> laguna-s-2.1-free (verified 200 live; the old
+    # nemotron-3.5-lightning-free lane hung 90-180s and starved the chain)
+    model = "nemotron-3-ultra-free" if tier == "long" else "laguna-s-2.1-free"
     return {
         "model": model,
         "base_url": f"{ZEN_BASE}/chat/completions",
@@ -267,18 +328,30 @@ async def chat_with_fallback(
     messages: list[dict[str, str]],
     tier: str,
     max_tokens: int | None = None,
+    *,
+    task_class: str = "",
 ) -> str:
-    """Chat via KiloCode free tier with OpenRouter + Zen fallbacks.
+    """Chat via the tier chain — with a LOCAL-FIRST rung for light tasks.
 
-    ``tier`` selects the free provider:
-      ``"snappy"`` → KiloCode StepFlash 3.7:free → OR GPT-OSS 20B:free
-                     → Zen nemotron-3.5-lightning-free
+    2026-09-01 doctrine: when ``task_class`` is a light class (commentary,
+    title_rewrite, classify, summary_short, social_caption) the call tries
+    the self-hosted Qwen3-8B (:8009) FIRST — zero API cost, no rate limit.
+    On any local failure (down, timeout, empty) it falls through to the
+    hosted free-API chain below, so quality never depends on the local box.
+    Quality-critical task classes skip the local rung entirely.
+
+    ``tier`` selects the hosted provider:
+      ``"snappy"`` → DeepInfra Qwen3.5-9B → KiloCode StepFlash:free → OR
+                     GPT-OSS 20B:free → Zen nemotron-3.5-lightning-free
       ``"long"``   → KiloCode Lightning:free → OR Nemotron Ultra:free
                      → Zen nemotron-3-ultra-free (550B)
-    On ANY failure the call is retried ONCE with the fallback free model,
-    then the Zen lane — the only rung that works when OpenRouter itself is
-    down (2026-08-25). Returns ``""`` when all fail.
+    Returns ``""`` when all fail.
     """
+    # Local-first rung for light task classes (zero cost, no rate limit)
+    if is_local_first_task(task_class):
+        answer = await _chat_once(get_local_config(max_tokens or 700), messages, max_tokens)
+        if answer:
+            return answer
     if tier == "snappy":
         config = get_snappy_config()
     elif tier == "long":
@@ -308,8 +381,13 @@ async def chat_with_fallback(
     if answer:
         return answer
 
-    # Last resort: OpenCode Zen (independent of OpenRouter availability)
-    return await _chat_once(get_zen_fallback_config(tier), messages, max_tokens)
+    # Last free resort: OpenCode Zen (independent of OpenRouter availability)
+    answer = await _chat_once(get_zen_fallback_config(tier), messages, max_tokens)
+    if answer:
+        return answer
+
+    # FINAL paid rung — DeepInfra Qwen3.5-9B (only when every free lane is down)
+    return await _chat_once(get_paid_final_config(tier), messages, max_tokens)
 
 
 def get_vision_config() -> dict[str, Any]:
@@ -322,13 +400,20 @@ def get_vision_config() -> dict[str, Any]:
     hosted on DeepInfra as of 2026-08-30 — see DEEPINFRA_VISION_MODEL). Uses the
     same DEEPINFRA_BASE as chat; reasoning disabled to keep cost near zero.
     """
+    # 2026-09-01 doctrine: FREE-FIRST vision. The OpenRouter omni rung
+    # (nemotron-3-nano-omni-30b-a3b-reasoning:free) handles X screenshots +
+    # TG shill shots at zero cost (~19s); the paid DeepInfra Qwen3-VL is the
+    # quality fallback when the free lane fails or the image is complex.
     return {
-        "model": DEEPINFRA_VISION_MODEL,
-        "base_url": f"{DEEPINFRA_BASE}/chat/completions",
-        "api_key": DEEPINFRA_API_KEY,
+        "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "base_url": f"{OPENROUTER_BASE}/chat/completions",
+        "api_key": OPENROUTER_BACKUP_API_KEY,
+        "fallback_model": DEEPINFRA_VISION_MODEL,
+        "fallback_base_url": f"{DEEPINFRA_BASE}/chat/completions",
+        "fallback_api_key": DEEPINFRA_API_KEY,
         "max_tokens": 1024,
         "temperature": 0.3,
-        "timeout": 60.0,
+        "timeout": 90.0,
     }
 
 
