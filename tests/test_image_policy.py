@@ -42,7 +42,9 @@ async def test_non_news_kind_gets_placeholder(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr(src, "_fetch_og_image", _boom)
     img = await resolve_post_image("scans", source_url="https://example.com/a")
-    assert img == PLACEHOLDER_IMAGE_URL
+    # 2026-09-01 doctrine: og failure -> text-only (""), badge only for
+    # brand-anchor kinds.
+    assert img == ""
     assert called is False
 
 
@@ -71,7 +73,7 @@ async def test_news_kind_og_failure_falls_back_to_placeholder(
 
     monkeypatch.setattr(src, "_fetch_og_image", _fail)
     img = await resolve_post_image("news", source_url="https://example.com/story")
-    assert img == PLACEHOLDER_IMAGE_URL
+    assert img == ""
 
 
 def test_ensure_post_image_fills_empty_newspost() -> None:
@@ -80,7 +82,9 @@ def test_ensure_post_image_fills_empty_newspost() -> None:
     post = NewsPost("hello world")
     post.image_url = ""
     out = ensure_post_image(post)
-    assert out.image_url == PLACEHOLDER_IMAGE_URL
+    # 2026-09-01 doctrine: empty image stays empty (text-only) — no badge
+    # substitution.
+    assert out.image_url == ""
     assert out == "hello world"
 
 
@@ -96,8 +100,12 @@ def test_ensure_post_image_keeps_carried_image() -> None:
 
 
 def test_ensure_post_image_wraps_plain_str() -> None:
+    # 2026-09-01 doctrine: no forced badge — plain posts ship text-only.
     out = ensure_post_image("plain escalation text")
-    assert out.image_url == PLACEHOLDER_IMAGE_URL
+    assert out.image_url == ""
+    # Brand-anchor kinds still get the badge.
+    out2 = ensure_post_image("digest header", kind="roundup")
+    assert out2.image_url == PLACEHOLDER_IMAGE_URL
     assert out == "plain escalation text"
     # The wrapper must still behave as a str for _safe_send callers.
     assert isinstance(out, str)

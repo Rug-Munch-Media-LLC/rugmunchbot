@@ -33,7 +33,7 @@ import sys
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from rugmunchbot._vendor.news_ingest.ingest import extract_canonical_url, extract_image_url
+from rugmunchbot._vendor.news_ingest.ingest import extract_canonical_url
 from rugmunchbot.channels.telegram_news._persist import _news_id_for
 from rugmunchbot.support.logging import get_logger
 
@@ -102,22 +102,14 @@ async def ingest_into_rag(articles: list[NewsArticle]) -> dict[str, Any]:
         ]
         story_docs = build_story_rag_docs(cluster_input)
         counts["stories"] = len(story_docs)
-        # Enrich each story doc with an image URL when one of its member
-        # articles carried one (inline image link or the sweep-populated
-        # ``media`` field; the website's ``NewsArticle.image_url`` field reads
-        # it from Qdrant metadata). Key the map by BOTH the raw channel URL
-        # and the canonical source URL: story ``source_urls`` hold the
-        # canonical link (``extract_canonical_url`` in the cluster input), so
-        # a lookup keyed only on ``article.source_url`` would miss.
+        # 2026-09-01 (operator, FINAL): scraped-text image extraction is
+        # RETIRED. Inline image links in source posts are channel chrome
+        # (the operator's X header banner shipped as "article images" three
+        # times today). Post images resolve ONLY from the article's own
+        # og:image via the backend thumb proxy (resolve_post_image), or the
+        # badge placeholder. The image_by_url map stays (empty) so the
+        # downstream story-doc shape is unchanged.
         image_by_url: dict[str, str] = {}
-        for article in articles:
-            image = extract_image_url(article) or getattr(article, "media", None) or ""
-            if not image:
-                continue
-            image_by_url[article.source_url] = image
-            canonical = extract_canonical_url(article)
-            if canonical:
-                image_by_url[canonical] = image
         ingestor = BatchIngestor()
         # Story ingestion is independent and network-bound (embed + Qdrant
         # upsert per chunk), so run the per-story ingest concurrently with a

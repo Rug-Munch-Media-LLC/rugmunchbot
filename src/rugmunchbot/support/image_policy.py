@@ -51,24 +51,28 @@ def _valid_image(url: object) -> str:
     return value
 
 
-def ensure_post_image(post: Any) -> Any:
-    """Guarantee a ``NewsPost`` carries an image for ``_post_photo_aware``.
+def ensure_post_image(post: Any, *, kind: str = "") -> Any:
+    """Attach an image to a ``NewsPost`` ONLY when one legitimately exists.
 
-    ``NewsPost`` is a ``str`` subclass with an ``image_url`` attribute;
-    ``_post_photo_aware`` reads it. Plain ``str`` posts are wrapped in a
-    ``NewsPost`` carrying the branded placeholder (image doctrine: no
-    naked text posts). Returns the post so callers can wrap formatter
-    output inline: ``ensure_post_image(format_scan_card(item))``.
+    2026-09-01 final doctrine (operator): no naked-text ban — a post with
+    no real image ships TEXT-ONLY. The badge placeholder is logo-spam when
+    forced onto every post; it fires only for brand-anchor kinds
+    ("roundup", "digest") via resolve_post_image. This wrapper now:
+      * wraps plain strs in a ``NewsPost`` (so ``image_url`` is readable)
+        WITHOUT inventing an image;
+      * keeps an existing valid image;
+      * DROPS invalid/carried images (banned chrome) instead of
+        substituting the badge.
     """
     if isinstance(post, str) and not isinstance(post, _news_post_cls()):
         wrapped = _news_post_cls()(post)
-        wrapped.image_url = PLACEHOLDER_IMAGE_URL
+        if kind in ("roundup", "digest"):
+            wrapped.image_url = PLACEHOLDER_IMAGE_URL
         return wrapped
     image_url = getattr(post, "image_url", None)
-    if image_url is None:
-        return post
-    if not _valid_image(image_url):
-        post.image_url = PLACEHOLDER_IMAGE_URL
+    if image_url is not None and not _valid_image(image_url):
+        # Banned/invalid image -> drop it (text-only), never badge-substitute.
+        post.image_url = ""
     return post
 
 
@@ -93,13 +97,15 @@ async def resolve_post_image(
     kinds get an og:image fetch from *source_url* when no image is
     attached; everything else lands on the branded placeholder.
 
-    2026-09-01 (always-real-bytes doctrine): a resolved og:image URL is
-    rewritten through the backend thumbnail proxy
-    (``/api/v1/media/thumb?url=…``) — publishers hotlink-block Telegram's
-    fetcher, so the raw og:image URL alone still yields a text-only post.
-    The proxy fetches server-side (direct → residential ladder), caches in
-    Redis 24h, and always serves image bytes. The placeholder is the LAST
-    resort only.
+    2026-09-01 (final doctrine):
+    * a resolved og:image URL is rewritten through the backend thumbnail
+      proxy (``/api/v1/media/thumb?url=…``) — publishers hotlink-block
+      Telegram's fetcher, so the raw og:image URL alone still yields a
+      text-only post;
+    * NO image found → return ``""`` — the post ships TEXT-ONLY. Forcing
+      the badge onto every post is logo-spam (operator: "not overly used");
+    * the badge placeholder fires ONLY for brand-anchor kinds ("roundup",
+      "digest") where a visual header is part of the format.
     """
     carried = _valid_image(image_url)
     if carried:
@@ -111,10 +117,12 @@ async def resolve_post_image(
             og = _valid_image(await _fetch_og_image(str(source_url).strip()))
             if og:
                 return _thumb_proxy(og, logger=logger)
-        except Exception as exc:  # fail-open — placeholder below
+        except Exception as exc:  # fail-open — text-only below
             if logger is not None:
                 logger.debug("image_policy_og_failed err=%s", str(exc)[:120])
-    return PLACEHOLDER_IMAGE_URL
+    if kind in ("roundup", "digest"):
+        return PLACEHOLDER_IMAGE_URL
+    return ""
 
 
 def _thumb_proxy(image_url: str, *, logger: Any = None) -> str:
