@@ -328,16 +328,18 @@ async def rerank_results(
                 "rerank.tier": "live",
             },
         ) as span:
-            # 2026-08-29: 0.6B lane retired — live routes straight to 4B.
-            kept = await _post_rerank(RERANK_URL_LIVE, query, capped, top_n, LIVE_TIMEOUT_S, "4B")
+            # 2026-09-02 API-first policy: DeepInfra Qwen3-Reranker-4B PRIMARY
+            # (same model family as local :8003, zero CPU cost), local :8003
+            # fallback. 0.6B lane retired 2026-08-29.
+            kept = await _rerank_deepinfra(query, capped, top_n)
             if kept:
-                span.set_attribute("rerank.served_by", "4B")
+                span.set_attribute("rerank.served_by", "deepinfra")
                 span.set_attribute("rerank.result_count", len(kept))
                 span.set_attribute("rerank.vertical", detect_vertical(query) or "default")
                 return kept
-            # DeepInfra backup lane (same family, hosted).
-            kept = await _rerank_deepinfra(query, capped, top_n)
-            span.set_attribute("rerank.served_by", "deepinfra" if kept else "none")
+            # Local :8003 fallback lane.
+            kept = await _post_rerank(RERANK_URL_LIVE, query, capped, top_n, LIVE_TIMEOUT_S, "4B")
+            span.set_attribute("rerank.served_by", "4B" if kept else "none")
             span.set_attribute("rerank.result_count", len(kept or []))
             span.set_attribute("rerank.vertical", detect_vertical(query) or "default")
             return kept or []
@@ -353,15 +355,17 @@ async def rerank_results(
             "rerank.tier": "deep",
         },
     ) as span:
-        kept = await _post_rerank(RERANK_URL, query, documents, top_n, DEEP_TIMEOUT_S, "4B")
+        # 2026-09-02 API-first policy: DeepInfra Qwen3-Reranker-4B PRIMARY,
+        # local :8003 fallback.
+        kept = await _rerank_deepinfra(query, documents, top_n)
         if kept:
-            span.set_attribute("rerank.served_by", "4B")
+            span.set_attribute("rerank.served_by", "deepinfra")
             span.set_attribute("rerank.result_count", len(kept))
             span.set_attribute("rerank.vertical", detect_vertical(query) or "default")
             return kept
-        # DeepInfra backup lane (same family, hosted).
-        kept = await _rerank_deepinfra(query, documents, top_n)
-        span.set_attribute("rerank.served_by", "deepinfra" if kept else "none")
+        # Local :8003 fallback lane.
+        kept = await _post_rerank(RERANK_URL, query, documents, top_n, DEEP_TIMEOUT_S, "4B")
+        span.set_attribute("rerank.served_by", "4B" if kept else "none")
         span.set_attribute("rerank.result_count", len(kept or []))
         span.set_attribute("rerank.vertical", detect_vertical(query) or "default")
         return kept or []
