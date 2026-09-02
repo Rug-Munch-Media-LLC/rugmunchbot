@@ -301,6 +301,21 @@ async def run_shill_campaign_poster(ctx: Any) -> int:
             logger.warning("shill_campaign_post:send_failed err=%s", str(exc)[:120])
         if sent:
             posted += 1
+            # Ghost feed mirror (2026-09-02): every posted shill campaign
+            # also lands on rugmunch.io/feed as a proper blog post
+            # (post_type "analysis"). Fail-open — a feed error never blocks
+            # the Telegram post.
+            try:
+                from rugmunchbot._vendor.content_platform import create_post
+
+                await create_post(
+                    content=text,
+                    post_type="analysis",
+                    title=f"Shill campaign: {campaign.get('token') or 'unknown token'}",
+                    feature_image=str(gate.image_url or "").strip(),
+                )
+            except Exception as exc:
+                logger.warning("shill_campaign_post:ghost_mirror_failed err=%s", str(exc)[:160])
         else:
             _release("shillcamp", key)  # allow retry next tick
     return posted

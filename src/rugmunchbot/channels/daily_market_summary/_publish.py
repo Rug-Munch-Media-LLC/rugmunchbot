@@ -270,13 +270,19 @@ def cleanup_html(text: str, *, max_chars: int = DAILY_MARKET_SUMMARY_MAX_CHARS) 
 
 
 async def publish_to_feed(
-    report: str, *, title: str | None = None, edition: str | None = None
+    report: str,
+    *,
+    title: str | None = None,
+    edition: str | None = None,
+    feature_image: str = "",
 ) -> dict[str, Any]:
     """Publish the brief to the rugmunch.io feed (Ghost content platform).
 
     The rugmunch.io social feed is backed by the Ghost content platform
     (``app.content_platform.py`` — "@CryptoRugMunch Feed engine"); the same
     ``create_post`` path the Morning Brief uses (``post_type="briefing"``).
+    ``feature_image`` is the resolved article image; when empty ``create_post``
+    falls back to the branded placeholder so the feed post always carries one.
     Fail-open: missing session cookie, network errors, and Ghost HTTP errors
     all log and return — the Telegram post is never blocked.
     """
@@ -289,6 +295,7 @@ async def publish_to_feed(
             post_type="briefing",
             title=title or f"{edition or _edition_name()} — {stamp}",
             tags=["daily", "market-summary"],
+            feature_image=feature_image,
         )
     except Exception as exc:  # fail-open — feed publish is additive
         logger.warning("daily_market_summary:feed_publish_failed err=%s", str(exc)[:200])
@@ -416,7 +423,11 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # Feed publishes FIRST so the TG closing block can link the live article.
     feed_url = ""
     if DAILY_MARKET_SUMMARY_FEED_ENABLED:
-        feed_result = await publish_to_feed(raw, edition=edition)
+        feed_result = await publish_to_feed(
+            raw,
+            edition=edition,
+            feature_image=gate.image_url or _pick_report_image(context),
+        )
         feed_url = str(feed_result.get("url") or "") if isinstance(feed_result, dict) else ""
         if feed_url:
             logger.info("daily_market_summary:feed_published url=%s", feed_url)
@@ -524,15 +535,15 @@ def _pick_report_image(context: dict[str, Any]) -> str:
                 loop = None
             if loop and loop.is_running():
                 # Called from async context — schedule and wait
-                resolved = asyncio.create_task(
-                    resolve_post_image("news", source_url=source_url)
-                )
+                resolved = asyncio.create_task(resolve_post_image("news", source_url=source_url))
                 return resolved.result() if resolved.done() else ""
             resolved = asyncio.run(resolve_post_image("news", source_url=source_url))
             if resolved:
                 return resolved
         except Exception as exc:
-            logger.debug("report_image_resolve_failed src=%s err=%s", source_url[:60], str(exc)[:80])
+            logger.debug(
+                "report_image_resolve_failed src=%s err=%s", source_url[:60], str(exc)[:80]
+            )
             continue
     return ""
 

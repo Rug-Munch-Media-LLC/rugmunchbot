@@ -77,6 +77,9 @@ HARD RULES:
 - Cite-or-omit: if a fact is not in the data, do NOT invent it.
 - Every token/project gets its ticker or address.
 - ONE LINK PER SOURCE (hard rule): the same URL may appear AT MOST ONCE in the whole post. If a source was already linked, reference it by name only.
+- ONE STORY PER EVENT (hard rule): if multiple sources cover the same event (e.g., same exploit, same ETF filing, same hack), pick the BEST one and link only that. NEVER list the same event twice with different URLs. If "Two exploits hit Solana AMM Aquifer" appears in 3 sources, you post it ONCE with the best link.
+- NO INTERNAL MONOLOGUE: never output "MASTHEAD DONE", "NOW THE BODY", "MARKET DRIVERS", section planning notes, or any meta-commentary about the writing process. Output ONLY the final post.
+- NO RAW FEED SLUGS: never output "cryptonews_rss", "rag_intel", "ranked_stories", or any internal data source name. Use human outlet names only.
 - One emoji max in the opening line ( rugs). Section headers use the tags above. No other emojis.
 - SOURCE NAMES: cite the outlet's human name (Cointelegraph, NewsBTC, Blockaid) — NEVER a raw feed slug like "cryptonews_rss". A bare slug after a paragraph reads as debris.
 - NO TRAILING DEBRIS: the post ENDS at THE RUG TOOLKIT. No duplicated story blocks, no stray source cards after the footer. If a story already appeared in a section, it does not appear again.
@@ -132,10 +135,14 @@ def _edition_slug() -> str:
     return "daily-rug-update"
 
 
-async def publish_to_feed(report: str, *, title: str | None = None) -> dict[str, Any]:
+async def publish_to_feed(
+    report: str, *, title: str | None = None, feature_image: str = ""
+) -> dict[str, Any]:
     """Publish the update to the rugmunch.io feed (Ghost content platform).
 
     Same ``create_post`` path the Morning Brief uses (``post_type="briefing"``).
+    ``feature_image`` is the resolved article image; when empty ``create_post``
+    falls back to the branded placeholder so the feed post always carries one.
     Fail-open: errors log and return ``{"error": ...}``.
     """
     stamp = datetime.now(UTC).strftime("%B %d, %Y")
@@ -147,6 +154,7 @@ async def publish_to_feed(report: str, *, title: str | None = None) -> dict[str,
             post_type="briefing",
             title=title or f"{EDITION} — {stamp}",
             tags=["daily", "rug-update"],
+            feature_image=feature_image,
         )
     except Exception as exc:
         logger.warning("daily_rug_update:feed_publish_failed err=%s", str(exc)[:200])
@@ -212,7 +220,15 @@ async def post_daily_rug_update(ctx: Any) -> int:
     except Exception as exc:
         logger.warning("daily_rug_update:llm_failed err=%s", str(exc)[:160])
         raw = ""
-    for marker in ("AI DISCLOSURE:", "OUTPUT FORMAT", "MASTHEAD ("):
+    for marker in (
+        "AI DISCLOSURE:",
+        "OUTPUT FORMAT",
+        "MASTHEAD (",
+        "MASTHEAD DONE",
+        "NOW THE BODY",
+        "MARKET DRIVERS",
+        "cryptonews_rss",
+    ):
         if marker in raw:
             raw = raw.split(marker, 1)[0].rstrip()
     if len(raw.strip()) < 800:
@@ -300,7 +316,7 @@ async def post_daily_rug_update(ctx: Any) -> int:
             logger.warning("daily_rug_update:feed_mirror_failed err=%s", str(exc)[:120])
         if slug:
             feed_url = f"https://rugmunch.io/blog/{slug}"
-        ghost = await publish_to_feed(raw)
+        ghost = await publish_to_feed(raw, feature_image=image_url)
         ghost_url = str(ghost.get("url") or "") if isinstance(ghost, dict) else ""
         if ghost_url and not feed_url:
             feed_url = ghost_url

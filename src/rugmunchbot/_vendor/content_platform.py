@@ -67,6 +67,8 @@ POST_TYPES: dict[str, dict[str, Any]] = {
     "announcement": {"tag": "announcement", "label": "Announcement", "icon": "📢", "limit": 4000},
     "newsletter": {"tag": "newsletter", "label": "Newsletter", "icon": "📰", "limit": 50000},
     "briefing": {"tag": "briefing", "label": "Briefing", "icon": "🔍", "limit": 50000},
+    "alert": {"tag": "alert", "label": "Alert", "icon": "🚨", "limit": 50000},
+    "analysis": {"tag": "analysis", "label": "Analysis", "icon": "🧠", "limit": 50000},
 }
 
 TYPE_LIMITS = {k: v["limit"] for k, v in POST_TYPES.items()}
@@ -354,8 +356,15 @@ async def create_post(
     tags: list[str] | None = None,
     status: str = "published",
     visibility: str = "public",
+    feature_image: str = "",
 ) -> dict[str, Any]:
-    """Create any type of post on Ghost."""
+    """Create any type of post on Ghost.
+
+    ``feature_image`` (optional) is the article image URL. When omitted or
+    invalid, the image is resolved via ``image_policy.resolve_post_image``
+    and falls back to ``PLACEHOLDER_IMAGE_URL`` so every feed post carries
+    an image (image doctrine — no naked-text posts on rugmunch.io/feed).
+    """
 
     tags = list(dict.fromkeys((tags or []) + [POST_TYPES[post_type]["tag"]]))
     limit = TYPE_LIMITS.get(post_type, 4000)
@@ -364,6 +373,26 @@ async def create_post(
 
     if not title:
         title = content[:120] + ("..." if len(content) > 120 else "")
+
+    # Image doctrine (2026-09-02): every feed post carries an image.
+    # Resolution order: explicit feature_image > resolve_post_image >
+    # PLACEHOLDER_IMAGE_URL (never empty).
+    from rugmunchbot.support.image_policy import (
+        PLACEHOLDER_IMAGE_URL,
+        is_valid_image,
+        resolve_post_image,
+    )
+
+    image = str(feature_image or "").strip()
+    if not is_valid_image(image):
+        image = ""
+    if not image:
+        try:
+            image = await resolve_post_image(post_type, image_url=feature_image, logger=logger)
+        except Exception as exc:  # fail-open — fall through to placeholder
+            logger.debug("content_platform:image_resolve_failed err=%s", str(exc)[:120])
+    if not image:
+        image = PLACEHOLDER_IMAGE_URL
 
     # Convert to Ghost lexical format (headings/bold/italic/links/lists kept)
     lexical = json.dumps(_markdown_to_lexical(content))
@@ -376,7 +405,7 @@ async def create_post(
                 "status": status,
                 "visibility": visibility,
                 "tags": [{"name": t} for t in tags],
-                "feature_image": PROFILE["avatar"],
+                "feature_image": image,
             }
         ]
     }
@@ -405,7 +434,7 @@ async def create_post(
                     "created_at": p["created_at"],
                     "type": post_type,
                     "tags": [t["name"] for t in p.get("tags", [])],
-                    "feature_image": p.get("feature_image", PROFILE["avatar"]),
+                    "feature_image": p.get("feature_image", image),
                     "excerpt": p.get("custom_excerpt") or content[:140],
                 }
             if resp.status_code == 401 and auth[0] == "Bearer":
@@ -427,7 +456,7 @@ async def create_post(
                             "created_at": p["created_at"],
                             "type": post_type,
                             "tags": [t["name"] for t in p.get("tags", [])],
-                            "feature_image": p.get("feature_image", PROFILE["avatar"]),
+                            "feature_image": p.get("feature_image", image),
                             "excerpt": p.get("custom_excerpt") or content[:140],
                         }
             if resp.status_code == 401:
