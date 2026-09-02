@@ -335,7 +335,33 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         raw = ""
     # Strip prompt scaffolding the model may echo verbatim (meta-instruction
     # headers like "AI DISCLOSURE:" are voice guidance, never output).
-    for marker in ("AI DISCLOSURE:", "OUTPUT FORMAT", "MASTHEAD ("):
+    for marker in (
+        "AI DISCLOSURE:",
+        "OUTPUT FORMAT",
+        "MASTHEAD (",
+        "MASTHEAD DONE",
+        "NOW THE BODY",
+        "MARKET DRIVERS",
+        "cryptonews_rss",
+        "rag_intel",
+        "ranked_stories",
+        "HARD RULES",
+        "SECTION HEADERS",
+        "TYPOGRAPHY",
+        "## MARKET",
+        "## NARRATIVE",
+        "## TRENDING",
+        "## LIQUIDITY",
+        "## WHALE",
+        "## REGULATORS",
+        "## TOP NEWS",
+        "## RISK",
+        "## ON-CHAIN",
+        "## SOCIAL",
+        "## SENTIMENT",
+        "## KOL",
+        "## THE RUG TOOLKIT",
+    ):
         if marker in raw:
             raw = raw.split(marker, 1)[0].rstrip()
     # Stub guard (2026-08-26): the morning run posted a 154-char stub

@@ -28,10 +28,20 @@ if TYPE_CHECKING:
 # the real body), {source} (channel name), {url} (canonical t.me link).
 # The operator tunes these phrasings directly.
 CAPTION_TEMPLATES: tuple[str, ...] = (
+    # --- Emoji-forward (alerts, breaking news) ---
     "🚨 {title}\n\n{lead}\n\nFull story: {url}\n— via {source}",
-    "{title}\n\nThis one matters: {lead}\n\n{url} · via {source}",
     "🔥 {title}\n\n{lead}\n\nRead the full story: {url} (source: {source})",
+    # --- Clean, no emoji (analysis, deep dives) ---
+    "{title}\n\nThis one matters: {lead}\n\n{url} · via {source}",
     "{title}\n\n{lead} — {url}\n\nvia {source}",
+    # --- Commentary-forward (operator take) ---
+    "{title}\n\nThis one's different — {lead}\n\nWorth your time: {url} · via {source}",
+    "{title}\n\nRead this twice. {lead}\n\n{url} (source: {source})",
+    # --- Blunt / degen voice ---
+    "{title}\n\n{lead}\n\nDon't sleep on this one. {url} · via {source}",
+    "{title}\n\n{lead}\n\nThe receipts: {url}\n— via {source}",
+    # --- Minimal, data-first ---
+    "{title}. {lead}\n\n{url}",
 )
 
 _LEAD_CHARS = 240
