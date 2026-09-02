@@ -36,6 +36,7 @@ import html
 from typing import Any
 
 from rugmunchbot.formatters._base import thin_sep
+from rugmunchbot.formatters._scan_report_common._engines import _engine_metrics_rows
 from rugmunchbot.formatters._scan_report_common._fields import (
     _cex_funded_pct,
     _fake_volume_pct,
@@ -1117,6 +1118,24 @@ def _build_risk_report_from_scan(r: dict[str, Any], *, deep: bool = False) -> di
         "ai_assisted": False,
         "data_quality": data_quality,
         "sources_used": sources_used,
+        # 2026-09-02 scans-channel fix: pass the new scanner engines through
+        # so the channel card renders dev_sold / dex_paid / ATH / snipers /
+        # gini-HHI / first-tx% / mint-freeze authority exactly like the /scan
+        # report does (``_engine_metrics_rows``). Only dict payloads pass —
+        # absent or "unavailable" engines render nothing (honest-data rule).
+        **{
+            key: r[key]
+            for key in (
+                "dev_sold",
+                "dex_paid",
+                "price_metrics",
+                "sniper_count",
+                "holder_concentration",
+                "wallet_metrics",
+                "contract_authority",
+            )
+            if isinstance(r.get(key), dict)
+        },
     }
 
 
@@ -1375,6 +1394,13 @@ def _section_lines(rep: dict[str, Any]) -> list[str]:
         liq_bits.append(f"${liq['liquidity_usd']:,.0f}")
     if liq_bits:
         lines.append(f"  \U0001f4a7 <b>Liquidity:</b> {_MIDDOT.join(liq_bits)}")
+
+    # 2026-09-02 scans-channel fix: the new scanner engines (dev_sold /
+    # dex_paid / ATH / snipers / gini-HHI / first-tx% / mint-freeze
+    # authority) render here too — not just in the /scan report layout — so
+    # @rmiscans cards show the full product. Renders only what the engines
+    # actually reported (honest-data rule; [] when none present).
+    lines.extend(_engine_metrics_rows(rep))
 
     return lines
 

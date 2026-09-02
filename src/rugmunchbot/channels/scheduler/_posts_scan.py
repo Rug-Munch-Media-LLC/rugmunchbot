@@ -89,25 +89,6 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         )
         return 0
     scans = await fetch_scan_notes(SCAN_CHANNEL_LIMIT)
-    # 2026-08-29 churn rail: the backend launch-alert + scan-history rails
-    # are frequently empty (both returned [] in live probes), so the scans
-    # channel would post nothing. Supplement the pool with fresh FULL scans
-    # of the riskiest trending tokens (unified v2 scanner, fail-open) so
-    # @rmiscans churns real suspicious-token content every tick.
-    if len(scans) < SCAN_CHANNEL_TICK_LIMIT:
-        churned = await fetch_suspect_scan_notes(limit=SCAN_CHANNEL_TICK_LIMIT)
-        if churned:
-            seen = {str(i.get("address") or "").strip().lower() for i in scans}
-            scans = [
-                *scans,
-                *[c for c in churned if str(c.get("address") or "").lower() not in seen],
-            ]
-    # Scans-of-interest honesty (2026-08-29): a ``scan_pending`` note is a
-    # "Scanning…" teaser (deep phases still running) — deduped under its OWN
-    # namespace so the FULL card can still post later (rule: post "scanning…",
-    # re-post when ready, never "unavailable"). Pending teasers never
-    # escalate to the main channel. Full cards keep the normal per-token
-    # dedupe.
     pending = [item for item in scans if item.get("scan_pending")]
     full = [item for item in scans if not item.get("scan_pending")]
     pending_fresh = [
@@ -120,6 +101,37 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         )
     ]
     fresh = [item for item in full if _remember("scans", _dedupe_key("scans", item))]
+    # 2026-08-29 churn rail (2026-09-02 trigger fix): the backend
+    # launch-alert + scan-history rails keep returning the SAME tokens every
+    # tick, which dedupe to zero fresh items — the old trigger (raw pool
+    # size < tick limit) never fired once the backend pool was non-empty,
+    # so @rmiscans posted nothing forever ("no_fresh" every tick). Trigger
+    # on the FRESH pool instead: whenever fewer than the tick cap of
+    # not-yet-posted items exist, supplement with fresh FULL scans of the
+    # riskiest trending tokens (unified v2 scanner, fail-open) so the
+    # channel churns real suspicious-token content every tick.
+    if len(fresh) + len(pending_fresh) < SCAN_CHANNEL_TICK_LIMIT:
+        churned = await fetch_suspect_scan_notes(limit=SCAN_CHANNEL_TICK_LIMIT)
+        if churned:
+            seen = {
+                str(i.get("address") or i.get("token_address") or "").strip().lower()
+                for i in (*scans, *fresh, *pending_fresh)
+            }
+            for c in churned:
+                addr = str(c.get("address") or c.get("token_address") or "").strip().lower()
+                if not addr or addr in seen:
+                    continue
+                seen.add(addr)
+                scans.append(c)
+                if c.get("scan_pending"):
+                    if _remember(
+                        "scans_pending",
+                        "pending_" + addr,
+                    ):
+                        pending_fresh.append(c)
+                elif _remember("scans", _dedupe_key("scans", c)):
+                    fresh.append(c)
+    # Scans-of-interest honesty (2026-08-29): a ``scan_pending`` note is a
     if not fresh and not pending_fresh:
         logger.info(
             "channels:tick",
