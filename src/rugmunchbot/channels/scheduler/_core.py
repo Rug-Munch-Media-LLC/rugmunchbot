@@ -42,6 +42,7 @@ _FIRST_RUN_SECONDS = {
     "scam_watch": 165,
     "personal": 195,
     "scans": 225,
+    "x_ingest": 255,
 }
 
 
