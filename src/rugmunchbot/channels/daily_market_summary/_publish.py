@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from rugmunchbot.channels.daily_market_summary._assemble import (
     _serialize_context,
@@ -68,9 +68,13 @@ VOICE (non-negotiable):
 - You are a sharp crypto intelligence analyst who has seen every cycle. Write with authority, never hype.
 - Lead every section with the takeaway. Then the evidence. Then why it matters. One thought per paragraph. Blank line between.
 - Real numbers only — all from provided data. Never invent a metric. If missing, say "N/A".
-- Zero AI slop. Banned: "stay safe out there", "NFA", "not financial advice", "DYOR", "GM", "wagmi", "mooning", "wen lambo", "HODL", "delve into", "ever-evolving landscape", "space" (as noun), "ecosystem" (unless a literal protocol ecosystem), "robust", "revolutionary", "paradigm shift", "the crypto space is buzzing", "staying ahead of the curve", "the future of finance".
+- Zero AI slop. Banned: "stay safe out there", "NFA", "not financial advice", "DYOR", "GM", "wagmi", "mooning", "wen lambo", "HODL", "delve into", "ever-evolving landscape", "space" (as noun), "ecosystem" (unless a literal protocol ecosystem), "robust", "revolutionary", "paradigm shift", "the crypto space is buzzing", "staying ahead of the curve", "the future of finance", "navigating the", "charting the", "unpacking", "unpack", "in terms of", "when it comes to", "at the end of the day", "the reality is", "the truth is", "let's dive", "here's the thing", "the key takeaway", "what this means", "the bottom line", "in the grand scheme", "growing adoption", "increasing interest", "market participants", "industry observers".
 - No hedging, no fence-sitting, no "we'll see", no "it's worth noting". If the tape is risk-on, say so and name the number; if something is a rug, call it a rug. Name the token, the mechanism, the size. A section with nothing real to say is omitted — never padded with generic filler.
 - Write like a human who has been doing this for years. Short sentences. Punchy observations. Flow into longer explanations.
+- Vary sentence length. Mix 5-word punch lines with 20-word analytical sentences.
+- Write like you're texting a smart friend who trades crypto — direct, specific, no corporate filler.
+- If a section has no real data, OMIT it. Never write "no data available" — just skip the section.
+- Never output internal instructions, section planning, or meta-commentary. Output ONLY the final post.
 - Dry humor when it serves the intel. "The market is pricing in hopium again" beats "market sentiment is positive."
 
 OUTPUT FORMAT — Telegram HTML with a masthead and ruled banners:
@@ -158,6 +162,9 @@ HARD RULES:
   reference it by name only — never emit a second <a href> to the same URL.
 - Link sources inline. If a story has a URL and it is not already linked,
   link it.
+- ONE STORY PER EVENT (hard rule): if multiple sources cover the same event
+  (same exploit, same ETF filing, same hack), pick the BEST one and link
+  only that. NEVER list the same event twice with different URLs.
 - One emoji max in the opening line (📊). Section headers use the tags above. No other emojis."""
 
 
@@ -302,9 +309,60 @@ async def publish_to_feed(
         return {"error": str(exc)}
 
 
+#: Fingerprints of echoed PROMPT-SPEC text (instruction language), checked
+#: case-insensitively in the ~240 chars after a guarded marker. Legit
+#: section headers are followed by real data (numbers, tickers, links) and
+#: never contain these; an echoed spec block always does (nearly every spec
+#: section ends with "Absent = OMIT" or similar instruction language).
+_SPEC_ECHO_HINTS: Final[tuple[str, ...]] = (
+    "omit",
+    "absent",
+    "cite-or-omit",
+    "bullets",
+    "paragraphs",
+    "bold the",
+    "build this section",
+    "reranker",
+    "fear & greed",
+    "desk note",
+    "cite them by",
+    "one emoji max",
+    "target:",
+    "hard rules",
+    "one link per source",
+    "one story per event",
+    "every token/project",
+    "reads as intel",
+    "tie 1-2",
+    "tie 2-3",
+    "cite query names",
+    "chatter velocity",
+    "why it matters to crypto",
+)
+
+
+def _strip_prompt_marker(raw: str, marker: str, *, guarded: bool = False) -> str:
+    """Truncate *raw* at the first occurrence of *marker* (prompt echo).
+
+    Guarded markers (``## SECTION``-style and ``MARKET DRIVERS``) are ALSO
+    legitimate output shapes — the prompts mandate ``## SECTION`` headers
+    and the summary has a real ``## MARKET DRIVERS`` section — so they only
+    truncate when the following text carries a spec-echo fingerprint. Plain
+    markers (``MASTHEAD DONE``, ``AI DISCLOSURE:``, raw feed slugs) are
+    never legitimate output and always truncate.
+    """
+    idx = raw.find(marker)
+    if idx < 0:
+        return raw
+    if guarded:
+        window = raw[idx : idx + 240].lower()
+        if not any(hint in window.lower() for hint in _SPEC_ECHO_HINTS):
+            return raw  # legit section header with real content — keep it
+    return raw[:idx].rstrip()
+
+
 async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """Gather → LLM-write → clean → post to @cryptorugmuncher + feed.
-
     Returns 1 when the Telegram post shipped, 0 otherwise. Fails open at every
     step: missing chat id, no data, LLM failure, Telegram send error, or feed
     publish error all log and return without raising.
@@ -362,8 +420,9 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         "## KOL",
         "## THE RUG TOOLKIT",
     ):
-        if marker in raw:
-            raw = raw.split(marker, 1)[0].rstrip()
+        raw = _strip_prompt_marker(
+            raw, marker, guarded=marker.startswith("## ") or marker == "MARKET DRIVERS"
+        )
     # Stub guard (2026-08-26): the morning run posted a 154-char stub
     # because the LLM chain returned a degenerate one-off. If the model
     # under-delivers, retry once with an explicit length demand; if it

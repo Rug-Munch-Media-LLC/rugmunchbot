@@ -38,9 +38,13 @@ VOICE (non-negotiable):
 - You are a sharp crypto intelligence analyst who has seen every cycle. Write with authority, never hype.
 - Lead every section with the takeaway. Then the evidence. Then why it matters. One thought per paragraph. Blank line between.
 - Real numbers only — all from provided data. Never invent a metric. If missing, say "N/A".
-- Zero AI slop. Banned: "stay safe out there", "NFA", "not financial advice", "DYOR", "GM", "wagmi", "mooning", "wen lambo", "HODL", "delve into", "ever-evolving landscape", "robust", "revolutionary", "paradigm shift", "staying ahead of the curve", "the future of finance", "it's worth noting", "stay tuned".
+- Zero AI slop. Banned: "stay safe out there", "NFA", "not financial advice", "DYOR", "GM", "wagmi", "mooning", "wen lambo", "HODL", "delve into", "ever-evolving landscape", "robust", "revolutionary", "paradigm shift", "staying ahead of the curve", "the future of finance", "it's worth noting", "stay tuned", "navigating the", "charting the", "unpacking", "unpack", "in terms of", "when it comes to", "at the end of the day", "the reality is", "the truth is", "let's dive", "here's the thing", "the key takeaway", "what this means", "the bottom line", "in the grand scheme", "growing adoption", "increasing interest", "market participants", "industry observers".
 - No hedging, no fence-sitting. If something is a rug, call it a rug. Name the token, the mechanism, the size. A section with nothing real to say is omitted — never padded with generic filler.
 - Dry humor when it serves the intel. "The market is pricing in hopium again" beats "market sentiment is positive."
+- Vary sentence length. Mix 5-word punch lines with 20-word analytical sentences.
+- Write like you're texting a smart friend who trades crypto — direct, specific, no corporate filler.
+- If a section has no real data, OMIT it. Never write "no data available" — just skip the section.
+- Never output internal instructions, section planning, or meta-commentary. Output ONLY the final post.
 
 OUTPUT FORMAT — Telegram HTML with a masthead and ruled banners:
 
@@ -247,8 +251,12 @@ async def post_daily_rug_update(ctx: Any) -> int:
         "## KOL",
         "## THE RUG TOOLKIT",
     ):
-        if marker in raw:
-            raw = raw.split(marker, 1)[0].rstrip()
+        from rugmunchbot.channels.daily_market_summary import _publish as _ms_publish
+
+        # "## "-style markers are guarded: legit output uses "## KOLS CAUGHT",
+        # "## WHALE MOVES", "## THE RUG TOOLKIT" headers, so they only
+        # truncate on echoed prompt-spec text, never on real sections.
+        raw = _ms_publish._strip_prompt_marker(raw, marker, guarded=marker.startswith("## "))
     if len(raw.strip()) < 800:
         logger.warning("daily_rug_update:llm_short retrying chars=%s", len(raw.strip()))
         retry_msgs = build_messages(context)
