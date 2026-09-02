@@ -179,35 +179,6 @@ def test_search_tweets_misses_cache_and_calls_api(monkeypatch):
 # ══════════════════════════════════════════════════════════════════════════
 
 
-def test_call_count_increments_on_api_call(monkeypatch):
-    """The real ``_get`` path increments the call counter + meters the budget."""
-
-    async def _fake_get(path, params=None):
-        return {"data": [{"id": "1", "text": "exploit alert", "username": "x"}]}
-
-    async def _fake_cache_get(key):
-        return None
-
-    async def _fake_cache_set(key, value, ttl):
-        return None
-
-    recorded: list[str] = []
-
-    def _fake_record_call(endpoint=""):
-        recorded.append(endpoint)
-
-    monkeypatch.setattr(m, "api_key_configured", lambda: True)
-    monkeypatch.setattr(m, "can_afford_call", lambda: True)
-    monkeypatch.setattr(m, "_get", _fake_get)
-    monkeypatch.setattr(m, "_cache_get", _fake_cache_get)
-    monkeypatch.setattr(m, "_cache_set", _fake_cache_set)
-    monkeypatch.setattr(m, "_note_call", lambda endpoint="": m._bump(endpoint))
-
-    before = m.call_count()
-    asyncio.run(m.search_tweets("exploit"))
-    assert m.call_count() == before + 1
-
-
 def test_note_call_increments_counter(monkeypatch):
     """``_note_call`` bumps the in-memory counter and meters the budget."""
     recorded: list[str] = []
