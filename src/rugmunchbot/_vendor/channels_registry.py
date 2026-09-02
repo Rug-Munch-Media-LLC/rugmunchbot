@@ -122,7 +122,7 @@ CHANNEL_ROLES: dict[str, ChannelRole] = {
         store_path="",  # supplied by deployment (env-var is canonical)
         env_var="RMI_UPDATES_CHANNEL_ID",
         public_handle="@rmiupdates",
-        fallback=None,
+        fallback="-1003872387867",
         description="RMI Changelog — product/feature announcements (mapped, no consumer yet)",
     ),
     "shills": ChannelRole(

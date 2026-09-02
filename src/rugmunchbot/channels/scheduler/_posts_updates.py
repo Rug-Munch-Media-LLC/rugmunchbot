@@ -271,22 +271,20 @@ async def post_updates_digest(ctx: Any) -> int:
     """
     chat_id = _chat_id("updates")
     if not chat_id:
-        # 2026-08-30 root cause (verified on Talos): the ``updates`` role has
-        # ``fallback=None``, no env var in the deployment, and gopass
-        # ``rmi/rmi/CHANNEL_RMI_UPDATES`` is NOT in the password store, so
-        # ``_resolve_channel_id("updates")`` returns None and the digest
-        # no-ops. The @rmiupdates channel id genuinely does not exist yet on
-        # this deployment. This is a configuration gap (not transient), so it
-        # must be LOUD: log at ERROR (not the old warning) so monitoring
-        # catches an unconfigured @rmiupdates instead of it silently dropping
-        # once a day. Silence must be visible, not merely absent. No
-        # documented fallback id exists for this role by design — the value
-        # can only come from RMI_UPDATES_CHANNEL_ID or the gopass secret.
+        # 2026-09-02 fix: the ``updates`` role now carries a documented
+        # fallback (``-1003872387867``, the @rmiupdates channel id) in the
+        # channels registry, so ``_resolve_channel_id("updates")`` resolves
+        # even when neither RMI_UPDATES_CHANNEL_ID nor the gopass secret is
+        # set. This branch is now a defensive backstop only — if it still
+        # fires, the config gap must be LOUD: log at ERROR (not a warning) so
+        # monitoring catches an unconfigured @rmiupdates instead of it
+        # silently dropping once a day. Silence must be visible, not merely
+        # absent.
         logger.error(
             "channels:updates_no_chat_id",
             job="channel_updates",
-            reason="set RMI_UPDATES_CHANNEL_ID, or seed gopass rmi/rmi/CHANNEL_RMI_UPDATES "
-            "(no documented fallback for the @rmiupdates role)",
+            reason="set RMI_UPDATES_CHANNEL_ID, or seed gopass rmi/telegram/CHANNEL_RMI_UPDATES "
+            "(fallback -1003872387867 should have resolved)",
         )
         return 0
     today = datetime.now(UTC).strftime("%Y%m%d")

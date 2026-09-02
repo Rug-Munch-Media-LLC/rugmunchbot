@@ -540,6 +540,13 @@ async def _fallback_main_drafts(limit: int = 6) -> list[dict[str, Any]]:
                 "ts": now,
                 "kind": "quality",
                 "url": url,
+                # 2026-09-02 feed-mirror gap fix: fallback main posts must
+                # mirror to feed.rugmunch.io exactly like primary RAG drafts.
+                # Without this flag the poster's ``item.get("mirror")`` check
+                # (line ~764) skipped the mandatory W30 feed mirror whenever
+                # the RAG lane was down and the bot fell back to its own
+                # curated headlines.
+                "mirror": True,
             }
         )
     return drafts
