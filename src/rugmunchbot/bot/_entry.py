@@ -37,6 +37,7 @@ from rugmunchbot.bot._shutdown import (
     install_sigterm_shutdown,
 )
 from rugmunchbot.channels import register_channel_jobs
+from rugmunchbot.support.system_alerts import send_system_alert
 from rugmunchbot.commands import (
     cmd_chart,
     cmd_dune,
@@ -378,6 +379,7 @@ def main() -> None:
         await check_backend_health()
         await setup_bot_profile(app)
         await assert_command_menu(app)
+        await send_system_alert(app.bot, "low", "bot", "system online — bot started")
         # Override PTB's default stop-signal handlers (must run on the loop).
         install_sigterm_shutdown(app)
 
