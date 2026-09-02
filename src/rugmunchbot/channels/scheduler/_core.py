@@ -44,6 +44,7 @@ _FIRST_RUN_SECONDS = {
     "scans": 225,
     "x_ingest": 255,
     "security_search": 285,
+    "social_monitor": 315,
 }
 
 

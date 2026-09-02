@@ -59,6 +59,9 @@ GETXAPI_USER_TWEETS_INTERVAL_HOURS: int = int(os.getenv("GETXAPI_USER_TWEETS_INT
 GETXAPI_TRENDS_INTERVAL_MIN: int = int(os.getenv("GETXAPI_TRENDS_INTERVAL_MIN", "60"))
 #: Mentions lane cadence (minutes). 60-min interval ≈ 24 calls/day.
 GETXAPI_MENTIONS_INTERVAL_MIN: int = int(os.getenv("GETXAPI_MENTIONS_INTERVAL_MIN", "60"))
+#: Account-status lane cadence (hours). 24-hour interval ≈ 15 calls/day
+#: (one per monitored account).
+GETXAPI_USER_STATUS_INTERVAL_HOURS: int = int(os.getenv("GETXAPI_USER_STATUS_INTERVAL_HOURS", "24"))
 
 # ══════════════════════════════════════════════════════════════════════════
 # MONITORED ACCOUNTS
@@ -147,6 +150,7 @@ def as_dict() -> dict[str, Any]:
         "user_tweets_interval_hours": GETXAPI_USER_TWEETS_INTERVAL_HOURS,
         "trends_interval_min": GETXAPI_TRENDS_INTERVAL_MIN,
         "mentions_interval_min": GETXAPI_MENTIONS_INTERVAL_MIN,
+        "user_status_interval_hours": GETXAPI_USER_STATUS_INTERVAL_HOURS,
         "security_accounts": list(GETXAPI_SECURITY_ACCOUNTS),
     }
 
@@ -161,6 +165,7 @@ __all__ = [
     "GETXAPI_SECURITY_ACCOUNTS",
     "GETXAPI_TOTAL_BUDGET",
     "GETXAPI_TRENDS_INTERVAL_MIN",
+    "GETXAPI_USER_STATUS_INTERVAL_HOURS",
     "GETXAPI_USER_TWEETS_INTERVAL_HOURS",
     "api_key_configured",
     "as_dict",

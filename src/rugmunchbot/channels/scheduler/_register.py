@@ -24,6 +24,15 @@ from rugmunchbot.channels.security_search import (
     SECURITY_SEARCH_INTERVAL_MINUTES,
     run_security_search,
 )
+from rugmunchbot.channels.social_monitor import (
+    SOCIAL_MONITOR_ENABLED,
+    SOCIAL_MONITOR_MENTIONS_INTERVAL_MIN,
+    SOCIAL_MONITOR_STATUS_INTERVAL_HOURS,
+    SOCIAL_MONITOR_TRENDS_INTERVAL_MIN,
+    run_account_status,
+    run_mentions,
+    run_trends,
+)
 from rugmunchbot.channels.telegram_news import (
     TG_NEWS_ENABLED,
     post_tg_news_update,
@@ -512,6 +521,35 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             interval=SECURITY_SEARCH_INTERVAL_MINUTES * 60,
             first=_FIRST_RUN_SECONDS["security_search"],
             name="channel_security_search",
+        )
+    if SOCIAL_MONITOR_ENABLED:
+        # Social monitor (2026-09-02): trending topics + @cryptorugmuncher
+        # mention monitoring via GetXAPI (no bot chat id needed — nothing is
+        # posted). Three rails:
+        #   * Trends — ONE /trends per tick, crypto-filtered, Redis-cached
+        #     30 min. 24 calls/day = $0.024/day.
+        #   * Mentions — ONE /user/mentions per tick for @cryptorugmuncher →
+        #     RAG news_v2. 24 calls/day = $0.024/day.
+        #   * Account status — ONE /user/status per monitored account per day
+        #     (15 accounts), WARNING on suspension. 15 calls/day = $0.015/day.
+        # Total: 63 calls/day = $0.063/day.
+        job_queue.run_repeating(
+            _tick_wrapper("channel_social_trends", run_trends, envelope=True),
+            interval=SOCIAL_MONITOR_TRENDS_INTERVAL_MIN * 60,
+            first=_FIRST_RUN_SECONDS["social_monitor"],
+            name="channel_social_trends",
+        )
+        job_queue.run_repeating(
+            _tick_wrapper("channel_social_mentions", run_mentions, envelope=True),
+            interval=SOCIAL_MONITOR_MENTIONS_INTERVAL_MIN * 60,
+            first=_FIRST_RUN_SECONDS["social_monitor"] + 30,
+            name="channel_social_mentions",
+        )
+        job_queue.run_repeating(
+            _tick_wrapper("channel_social_status", run_account_status, envelope=True),
+            interval=SOCIAL_MONITOR_STATUS_INTERVAL_HOURS * 3600,
+            first=_FIRST_RUN_SECONDS["social_monitor"] + 60,
+            name="channel_social_status",
         )
     from rugmunchbot.channels.tg_scraper import (
         TG_SCRAPER_ENABLED,
