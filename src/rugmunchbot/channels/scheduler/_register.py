@@ -663,6 +663,26 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             first=20,
             name="channel_rag_fast",
         )
+    # Security-tweet breaking-news escalation (2026-09-03): high-engagement
+    # security tweets from monitored accounts post to main immediately — they
+    # must not wait for the daily roundup. 0 disables; shares the global
+    # dedupe so a tweet never double-posts.
+    from rugmunchbot.channels.scheduler._posts_rag import (
+        SECURITY_TWEET_ESCALATION_MIN,
+        post_security_tweet_escalation,
+    )
+
+    if SECURITY_TWEET_ESCALATION_MIN > 0 and _chat_id("main"):
+        job_queue.run_repeating(
+            _tick_wrapper(
+                "channel_security_tweet_escalation",
+                post_security_tweet_escalation,
+                envelope=True,
+            ),
+            interval=SECURITY_TWEET_ESCALATION_MIN * 60,
+            first=30,
+            name="channel_security_tweet_escalation",
+        )
     logger.info(
         "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/channel_morning_rug/channel_midday_update/updates/shill_watch/kol_scoreboard/scammer_warning/daily_quality/ct_shill_watch/kol_daily_refresh)"
     )

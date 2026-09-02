@@ -18,6 +18,7 @@ Fail-open everywhere: RAG outage = zero posts, never a crash.
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -790,6 +791,44 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 RAG_FAST_LANE_MIN = int(os.getenv("RMI_RAG_FAST_LANE_MIN", "10"))
 RAG_FAST_LANE_MAX_AGE_H = float(os.getenv("RMI_RAG_FAST_LANE_MAX_AGE_H", "6"))
 
+#: Security-tweet breaking-news escalation (2026-09-03): a tweet from a
+#: monitored security account that mentions a security keyword AND has high
+#: engagement (>50 likes or >20 retweets) posts to the main channel
+#: (@cryptorugmuncher) IMMEDIATELY — it must not wait for the daily roundup.
+#: The account list is the first-party security-intel set (the same accounts
+#: the X-ingest lane watches); the keyword + engagement gates keep the main
+#: channel to genuinely breaking security news, never routine noise.
+SECURITY_TWEET_ACCOUNTS: frozenset[str] = frozenset(
+    {
+        "zachxbt",
+        "peckshield",
+        "blockaid",
+        "certikalert",
+        "slowmist",
+        "beosin",
+    }
+)
+
+#: Security keywords that mark a tweet as breaking security news (matched
+#: case-insensitively against the tweet text).
+SECURITY_TWEET_KEYWORDS: tuple[str, ...] = (
+    "exploit",
+    "hack",
+    "drained",
+    "rug",
+    "scam",
+    "flash loan",
+    "bridge",
+)
+
+#: Engagement floor for escalation — "high engagement" = >50 likes OR >20
+#: retweets (per the breaking-news spec).
+SECURITY_TWEET_MIN_LIKES = 50
+SECURITY_TWEET_MIN_RETWEETS = 20
+
+#: Cadence of the security-tweet escalation job (minutes). 0 disables.
+SECURITY_TWEET_ESCALATION_MIN = int(os.getenv("RMI_SECURITY_TWEET_ESCALATION_MIN", "5"))
+
 
 async def post_rag_fast_lane(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """Breaking-news fast lane → @rmialerts, critical+fresh only.
@@ -870,15 +909,136 @@ async def post_rag_fast_lane(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     return 0
 
 
+# ── Security-tweet breaking-news escalation (2026-09-03) ──────────────────
+
+
+def _esc(value: object) -> str:
+    """HTML-escape for Telegram parse_mode=html."""
+    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _tweet_int(tweet: dict[str, Any], key: str) -> int:
+    """Best-effort int of a tweet metric (like/retweet count). 0 on any failure."""
+    try:
+        return int(tweet.get(key) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _security_tweet_matches(tweet: dict[str, Any]) -> bool:
+    """True when a tweet qualifies for breaking-news escalation. Pure.
+
+    A tweet escalates when ALL of:
+      * it comes from a monitored security account (SECURITY_TWEET_ACCOUNTS),
+      * its text mentions a security keyword (SECURITY_TWEET_KEYWORDS),
+      * it has high engagement — >50 likes OR >20 retweets.
+
+    Never raises; malformed/missing fields simply fail the gate.
+    """
+    handle = str(tweet.get("handle") or "").strip().lstrip("@").lower()
+    if handle not in SECURITY_TWEET_ACCOUNTS:
+        return False
+    text = str(tweet.get("text") or "").lower()
+    if not any(kw in text for kw in SECURITY_TWEET_KEYWORDS):
+        return False
+    likes = _tweet_int(tweet, "like_count")
+    retweets = _tweet_int(tweet, "retweet_count")
+    return likes > SECURITY_TWEET_MIN_LIKES or retweets > SECURITY_TWEET_MIN_RETWEETS
+
+
+def format_security_tweet_escalation(tweet: dict[str, Any]) -> str:
+    """Build the breaking-news HTML post for a qualifying security tweet.
+
+    Names the researcher ("🚨 ZachXBT flagged a potential exploit…"), links
+    the original tweet, includes the key details from the tweet, and tags it
+    as breaking security news. Pure — never raises.
+    """
+    handle = str(tweet.get("handle") or "").strip().lstrip("@")
+    author_name = str(tweet.get("author_name") or "").strip() or f"@{handle}"
+    text = str(tweet.get("text") or "").strip()
+    url = str(tweet.get("url") or "").strip()
+    likes = _tweet_int(tweet, "like_count")
+    retweets = _tweet_int(tweet, "retweet_count")
+
+    details = _esc(text)[:200]
+    if len(text) > 200:
+        details += "…"
+
+    parts = [
+        f"🚨 <b>{_esc(author_name)}</b> flagged a potential exploit",
+        "",
+        details,
+        "",
+        f"👍 {likes} likes • 🔁 {retweets} retweets",
+    ]
+    if url:
+        parts.append(f'🔗 <a href="{html.escape(url, quote=True)}">View original tweet</a>')
+    return "\n".join(parts)
+
+
+async def post_security_tweet_escalation(ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    """Escalate high-engagement security tweets to main as breaking news.
+
+    Runs on a short tick (independent of the daily roundup): a tweet from a
+    monitored security account that mentions a security keyword AND has high
+    engagement (>50 likes or >20 retweets) posts to @cryptorugmuncher
+    immediately — it does not wait for the daily roundup. Dedupes via the
+    shared global namespace so a tweet never posts twice. Fail-open: no main
+    chat id, empty sweep, or a failed send logs and returns 0 — never crashes
+    the scheduler.
+    """
+    chat_id = _chat_id("main")
+    if not chat_id:
+        return 0
+    try:
+        from rugmunchbot.tools.x_ingest import fetch_security_tweets
+
+        tweets = await fetch_security_tweets()
+    except Exception as exc:  # fail-open by contract
+        logger.warning("security_tweet_escalation:fetch_failed err=%s", str(exc)[:120])
+        return 0
+    posted = 0
+    for tweet in tweets:
+        if not _security_tweet_matches(tweet):
+            continue
+        url = str(tweet.get("url") or "").strip()
+        tweet_id = str(tweet.get("tweet_id") or "").strip()
+        ref = url or tweet_id or str(tweet.get("text") or "")[:60]
+        dedupe_key = f"rag:sec:{ref}"
+        if not _remember("rag_security_tweet", dedupe_key, title=tweet.get("text")):
+            continue
+        text = format_security_tweet_escalation(tweet)
+        if await _safe_send(ctx.bot, chat_id, text):
+            posted += 1
+            logger.info(
+                "security_tweet_escalated handle=%s ref=%s",
+                str(tweet.get("handle") or "")[:40],
+                ref[:60],
+            )
+        else:
+            # Release the dedupe mark (bare key + title hash) so the next
+            # tick retries this tweet instead of black-holing it (same
+            # contract as the RAG lanes).
+            _release("rag_security_tweet", dedupe_key, title=tweet.get("text"))
+    return posted
+
+
 __all__ = [
+    "SECURITY_TWEET_ACCOUNTS",
+    "SECURITY_TWEET_ESCALATION_MIN",
+    "SECURITY_TWEET_KEYWORDS",
+    "SECURITY_TWEET_MIN_LIKES",
+    "SECURITY_TWEET_MIN_RETWEETS",
     "_alert_mirror_failure",
     "_fallback_main_drafts",
     "_note_mirror_success",
     "_quality_gate",
     "_recency_gate",
     "_source_gate",
+    "format_security_tweet_escalation",
     "gather_main_drafts",
     "mirror_post_to_feed",
     "post_rag_drafts",
     "post_rag_fast_lane",
+    "post_security_tweet_escalation",
 ]
