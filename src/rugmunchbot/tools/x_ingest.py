@@ -7,21 +7,22 @@ The bot previously had NO first-party X content rail: security intel from
 @chainalysis, @ledger, @metamask (and our own @rugmunchbot) only reached the
 news channel when a Telegram channel happened to forward it. This module is
 the dedicated X ingestion lane: it pulls real tweets from those accounts via
-the ApiPass X source (``tools.apipass_x``), normalizes them into the shared
+the GetXAPI source (``tools.getxapi``), normalizes them into the shared
 ``NewsArticle`` shape, dedupes through the same in-batch + cross-run Redis
 sets the TG news sweep uses, and feeds the survivors into the RAG ``news_v2``
 collection (``channels.telegram_news.ingest_into_rag``) so RAG "benefits
 from" the X lane exactly like it does the TG news lane.
 
-Budget doctrine (inherited from ``apipass_x``)
-----------------------------------------------
-* ApiPass task creations are a metered credit burn (default ≤5/hr). This
-  module NEVER exceeds ``apipass_x.task_creates_remaining()`` — it fetches
-  at most ``X_INGEST_MAX_ACCOUNTS_PER_TICK`` accounts per tick, and each
-  account costs 2 creates (handle→id resolve + timeline). When the budget is
-  exhausted the tick returns ``[]`` and the next tick resumes.
+Budget doctrine (inherited from ``getxapi``)
+--------------------------------------------
+* GetXAPI is a flat $0.001/call (~20 tweets per call, no endpoint quotas).
+  $5 = 4,500 calls must last 30+ days → max 150 calls/day. This module
+  fetches at most ``X_INGEST_MAX_ACCOUNTS_PER_TICK`` accounts per tick, and
+  each account costs ONE GetXAPI call (``get_user_tweets`` takes the handle
+  directly — no separate handle→id resolve). The caller's scheduler cadence
+  (see ``channels.x_ingest``) is the real budget governor.
 * Fail-open everywhere: no key, rate-limited, API error, or malformed
-  payload → ``[]`` / zero counts with a debug log. A dead ApiPass never
+  payload → ``[]`` / zero counts with a debug log. A dead GetXAPI never
   breaks a tick and never raises into the scheduler.
 
 Dedup contract (matches the TG news sweep)
@@ -71,8 +72,8 @@ X_SECURITY_ACCOUNTS: tuple[str, ...] = (
     "rugmunchbot",
 )
 
-#: Max accounts fetched per tick (each costs 2 ApiPass creates). Default 3 —
-#: a modest governor so a small credit envelope lasts; env-overridable.
+#: Max accounts fetched per tick (each costs ONE GetXAPI call). Default 3 —
+#: a modest governor so the $5 envelope lasts; env-overridable.
 X_INGEST_MAX_ACCOUNTS_PER_TICK: int = 3
 #: Tweets pulled per account per tick (bounded; the timeline endpoint caps at
 #: 50 anyway).
@@ -133,7 +134,7 @@ def _parse_created_at(value: str | None) -> datetime | None:
 
 
 def tweet_to_article(tweet: dict[str, Any], *, account: str) -> NewsArticle | None:
-    """Convert one normalized ApiPass tweet dict into a ``NewsArticle``.
+    """Convert one normalized GetXAPI tweet dict into a ``NewsArticle``.
 
     Returns None for hostile rows (no text / too short / no URL) so the
     caller can skip them. ``source_channel`` is the X handle (with ``@``
@@ -175,20 +176,20 @@ async def fetch_security_tweets() -> list[dict[str, Any]]:
 
     Round-robins over ``X_SECURITY_ACCOUNTS`` — at most
     ``X_INGEST_MAX_ACCOUNTS_PER_TICK`` accounts per tick, and never more
-    ApiPass creates than ``task_creates_remaining()`` allows (2 per account:
-    handle→id resolve + timeline). Returns normalized tweet dicts (fail-open
-    ``[]``). The caller owns dedup / RAG feed.
+    GetXAPI calls than the remaining $5 budget allows (1 call per account:
+    ``get_user_tweets`` takes the handle directly). Returns normalized tweet
+    dicts (fail-open ``[]``). The caller owns dedup / RAG feed.
     """
     try:
-        from rugmunchbot.tools import apipass_x
+        from rugmunchbot.tools import getxapi
     except Exception as exc:  # pragma: no cover — import failure fails open
-        logger.debug("x_ingest:apipass_import_failed err=%s", str(exc)[:120])
+        logger.debug("x_ingest:getxapi_import_failed err=%s", str(exc)[:120])
         return []
-    if not apipass_x.api_key_configured():
+    if not getxapi.api_key_configured():
         logger.debug("x_ingest:skipped_no_key")
         return []
-    # 2 creates per account (handle→id resolve + timeline); clamp to budget.
-    budget_accounts = max(0, apipass_x.task_creates_remaining() // 2)
+    # 1 GetXAPI call per account; clamp to the remaining $5 budget.
+    budget_accounts = max(0, getxapi.budget_remaining().get("calls_remaining", 0))
     count = min(X_INGEST_MAX_ACCOUNTS_PER_TICK, budget_accounts)
     if count <= 0:
         logger.debug("x_ingest:budget_exhausted")
@@ -204,7 +205,7 @@ async def fetch_security_tweets() -> list[dict[str, Any]]:
     tweets: list[dict[str, Any]] = []
     for handle in accounts:
         try:
-            batch = await apipass_x.fetch_user_tweets(handle, limit=X_INGEST_TWEETS_PER_ACCOUNT)
+            batch = await getxapi.get_user_tweets(handle, count=X_INGEST_TWEETS_PER_ACCOUNT)
         except Exception as exc:  # fail-open by contract
             logger.debug("x_ingest:timeline_failed handle=%s err=%s", handle, str(exc)[:120])
             continue

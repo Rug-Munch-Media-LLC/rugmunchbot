@@ -88,45 +88,45 @@ def test_tweet_to_article_uses_account_fallback_handle():
 
 
 def test_fetch_security_tweets_fails_open_no_key(monkeypatch):
-    from rugmunchbot.tools import apipass_x
+    from rugmunchbot.tools import getxapi
 
-    monkeypatch.setattr(apipass_x, "api_key_configured", lambda: False)
+    monkeypatch.setattr(getxapi, "api_key_configured", lambda: False)
     tweets = asyncio.run(m.fetch_security_tweets())
     assert tweets == []
 
 
 def test_fetch_security_tweets_budget_exhausted(monkeypatch):
-    from rugmunchbot.tools import apipass_x
+    from rugmunchbot.tools import getxapi
 
-    monkeypatch.setattr(apipass_x, "api_key_configured", lambda: True)
-    monkeypatch.setattr(apipass_x, "task_creates_remaining", lambda: 0)  # no budget
+    monkeypatch.setattr(getxapi, "api_key_configured", lambda: True)
+    monkeypatch.setattr(getxapi, "budget_remaining", lambda: {"calls_remaining": 0})  # no budget
     tweets = asyncio.run(m.fetch_security_tweets())
     assert tweets == []
 
 
 def test_fetch_security_tweets_round_robin_and_attribution(monkeypatch):
-    from rugmunchbot.tools import apipass_x
+    from rugmunchbot.tools import getxapi
 
     fetched: list[str] = []
 
-    async def _fetch_user_tweets(handle: str, limit: int = 10):
-        fetched.append(handle)
+    async def _get_user_tweets(username: str, count: int = 20):
+        fetched.append(username)
         return [
             {
-                "tweet_id": f"{handle}-1",
+                "tweet_id": f"{username}-1",
                 "text": "security alert one",
-                "url": f"https://x.com/{handle}/status/1",
+                "url": f"https://x.com/{username}/status/1",
             },
             {
-                "tweet_id": f"{handle}-2",
+                "tweet_id": f"{username}-2",
                 "text": "security alert two",
-                "url": f"https://x.com/{handle}/status/2",
+                "url": f"https://x.com/{username}/status/2",
             },
         ]
 
-    monkeypatch.setattr(apipass_x, "api_key_configured", lambda: True)
-    monkeypatch.setattr(apipass_x, "task_creates_remaining", lambda: 100)  # plenty
-    monkeypatch.setattr(apipass_x, "fetch_user_tweets", _fetch_user_tweets)
+    monkeypatch.setattr(getxapi, "api_key_configured", lambda: True)
+    monkeypatch.setattr(getxapi, "budget_remaining", lambda: {"calls_remaining": 100})  # plenty
+    monkeypatch.setattr(getxapi, "get_user_tweets", _get_user_tweets)
     monkeypatch.setattr(m, "X_INGEST_MAX_ACCOUNTS_PER_TICK", 2)
     monkeypatch.setenv("RMI_X_INGEST_ACCOUNT_INDEX", "0")
     tweets = asyncio.run(m.fetch_security_tweets())

@@ -43,6 +43,7 @@ _FIRST_RUN_SECONDS = {
     "personal": 195,
     "scans": 225,
     "x_ingest": 255,
+    "security_search": 285,
 }
 
 

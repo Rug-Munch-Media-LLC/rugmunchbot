@@ -19,6 +19,11 @@ from rugmunchbot.channels.scam_watch import (
     SCAM_WATCH_INTERVAL_MINUTES,
     run_scam_watch,
 )
+from rugmunchbot.channels.security_search import (
+    SECURITY_SEARCH_ENABLED,
+    SECURITY_SEARCH_INTERVAL_MINUTES,
+    run_security_search,
+)
 from rugmunchbot.channels.telegram_news import (
     TG_NEWS_ENABLED,
     post_tg_news_update,
@@ -497,6 +502,16 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             interval=X_INGEST_INTERVAL_MINUTES * 60,
             first=_FIRST_RUN_SECONDS["x_ingest"],
             name="channel_x_ingest",
+        )
+    if SECURITY_SEARCH_ENABLED:
+        # Security keyword search (2026-09-02): ONE GetXAPI advanced_search
+        # per tick against a rotating security query → RAG news_v2 (no bot
+        # chat id needed — nothing is posted). 48 calls/day = $0.048/day.
+        job_queue.run_repeating(
+            _tick_wrapper("channel_security_search", run_security_search, envelope=True),
+            interval=SECURITY_SEARCH_INTERVAL_MINUTES * 60,
+            first=_FIRST_RUN_SECONDS["security_search"],
+            name="channel_security_search",
         )
     from rugmunchbot.channels.tg_scraper import (
         TG_SCRAPER_ENABLED,
