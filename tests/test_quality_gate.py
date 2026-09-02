@@ -252,10 +252,12 @@ def test_placeholder_image_url_is_real_image_path() -> None:
     """The placeholder must NOT be the old /og/ SPA-fallback path that
     served text/html — Telegram rejected it and every placeholder post
     silently shipped text-only (2026-08-31 no-image incident).
-    2026-09-01: it must also NOT be the operator's personal X header
-    (/brand/banner.jpg) — the platform badge v2 is the only sub image."""
-    assert PLACEHOLDER_IMAGE_URL == "https://rugmunch.io/brand/rmi_badgev2.png"
+    2026-09-01/02: it must also NOT be the operator's personal X header
+    (/brand/banner.jpg) nor the 1024x1024 badge — the clean square app
+    logo (avatar.jpg) is the only sub image."""
+    assert PLACEHOLDER_IMAGE_URL == "https://rugmunch.io/brand/avatar.jpg"
     assert "banner.jpg" not in PLACEHOLDER_IMAGE_URL
+    assert "badge" not in PLACEHOLDER_IMAGE_URL
     assert PLACEHOLDER_IMAGE_URL.startswith("https://")
 
 
@@ -343,3 +345,57 @@ async def test_clean_post_still_passes_gate() -> None:
     result = await pre_post_quality_gate(CLEAN_TEXT, require_image=False)
     assert result.ok is True
     assert result.blocked is False
+
+
+# ── 2026-09-02: story dedup + slop detection wiring ─────────────────────────
+
+
+def test_strip_duplicate_urls_calls_story_dedup() -> None:
+    """strip_duplicate_urls must ALSO collapse same-story bullets with
+    different URLs (not just duplicate links)."""
+    from rugmunchbot.support.quality_gate import _strip_duplicate_stories
+
+    text = """• Two exploits hit Solana AMM Aquifer causing $2.5M loss (url1)
+• Two major exploits hit Solana AMM Aquifer costing $2.5M (url2)
+• Two exploits hit Solana AMM Aquifer and Flow EVM (url3)
+• HackenProof audit contest opened (url4)"""
+    out = strip_duplicate_urls(text)
+    lines = [line for line in out.splitlines() if line.strip()]
+    assert len(lines) == 2
+    assert "Aquifer" in lines[0]
+    assert "HackenProof" in lines[1]
+    # The story dedup helper is the mechanism behind it.
+    assert _strip_duplicate_stories(text) == out
+
+
+def test_placeholder_is_app_logo() -> None:
+    """The placeholder is the clean square app logo (avatar.jpg) — NOT the
+    badge and NOT the twitter header banner."""
+    assert "avatar.jpg" in PLACEHOLDER_IMAGE_URL
+    assert "badge" not in PLACEHOLDER_IMAGE_URL
+    assert "banner" not in PLACEHOLDER_IMAGE_URL
+
+
+def test_slop_phrases_detected() -> None:
+    """detect_slop reports the drafting-artifact / AI-slop phrases."""
+    from rugmunchbot.support.content_lint import detect_slop
+
+    text = (
+        "Let's delve into the ever-evolving landscape of crypto. "
+        "It's worth noting the paradigm shift. MASTHEAD DONE NOW THE BODY."
+    )
+    found = detect_slop(text)
+    assert "delve into" in found
+    assert "ever-evolving" in found
+    assert "landscape" in found
+    assert "it's worth noting" in found
+    assert "paradigm shift" in found
+    assert "MASTHEAD DONE" in found
+    assert "NOW THE BODY" in found
+
+
+def test_slop_clean_text_returns_empty() -> None:
+    from rugmunchbot.support.content_lint import detect_slop
+
+    assert detect_slop(CLEAN_TEXT) == []
+    assert detect_slop("") == []

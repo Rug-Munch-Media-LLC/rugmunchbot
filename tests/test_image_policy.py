@@ -210,3 +210,29 @@ def test_ensure_post_image_wraps_plain_str() -> None:
 def test_ensure_post_image_passthrough_non_str() -> None:
     sentinel = object()
     assert ensure_post_image(sentinel) is sentinel
+
+
+# ── 2026-09-02: banned twitter header / brand chrome + placeholder doctrine ──
+
+
+def test_banned_twitter_header_rejected() -> None:
+    """X profile banners and avatars are identity chrome, never post
+    content — always rejected at the public guard."""
+    assert not is_valid_image("https://pbs.twimg.com/profile_banners/123/456")
+    assert not is_valid_image("https://pbs.twimg.com/profile_images/123/456")
+    assert not is_valid_image("https://example.com/brand/banner.jpg")
+
+
+def test_valid_article_image_accepted() -> None:
+    """Real article / news imagery passes the guard."""
+    assert is_valid_image("https://example.com/article-image.jpg")
+    assert is_valid_image("https://cdn.coindesk.com/story-image.png")
+
+
+def test_placeholder_is_app_logo() -> None:
+    """The placeholder is the clean square app logo (avatar.jpg) — NOT the
+    1024x1024 badge and NOT the twitter header banner (2026-09-01/02
+    operator doctrine)."""
+    assert "avatar.jpg" in PLACEHOLDER_IMAGE_URL
+    assert "badge" not in PLACEHOLDER_IMAGE_URL
+    assert "banner" not in PLACEHOLDER_IMAGE_URL

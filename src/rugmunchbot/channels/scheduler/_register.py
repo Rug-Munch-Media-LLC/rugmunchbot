@@ -284,6 +284,50 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_kol_scoreboard",
         )
 
+    # CT-timeline shill watch (2026-09-02): rotates the curated
+    # influential_accounts registry via ApiPass (2 governed creates per
+    # account), flags token-promoting tweets with engagement, confirms via
+    # scanner + TG cross-ref, captures screenshot evidence, auto-adds to the
+    # Wall of Shame, and embeds shills into the Qdrant social_intel
+    # collection. Env knobs: RMI_CT_SHILL_ENABLED / _INTERVAL_MIN /
+    # _ACCOUNTS_PER_TICK / _MAX_ADDS.
+    if os.getenv("RMI_CT_SHILL_ENABLED", "true").lower() in ("1", "true", "yes") and hasattr(
+        job_queue, "run_repeating"
+    ):
+        from rugmunchbot.channels.ct_shill_watch import (
+            CT_SHILL_INTERVAL_MIN,
+            run_ct_shill_watch,
+        )
+
+        job_queue.run_repeating(
+            _tick_wrapper("channel_ct_shill_watch", run_ct_shill_watch, envelope=True),
+            interval=CT_SHILL_INTERVAL_MIN * 60,
+            first=420,
+            name="channel_ct_shill_watch",
+        )
+
+    # Daily KOL refresh (2026-09-02): rescores every Wall of Shame entry from
+    # accumulated shill history (tokens x coordination x recency) and
+    # discovers NEW KOL candidates from retweeters of known shill tweets
+    # (one governed ApiPass pull). Env knobs: RMI_KOL_DAILY_REFRESH_ENABLED /
+    # _INTERVAL_MIN / _MAX_RETWEETER_PULLS.
+    if os.getenv("RMI_KOL_DAILY_REFRESH_ENABLED", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+    ) and hasattr(job_queue, "run_repeating"):
+        from rugmunchbot.channels.ct_shill_watch import (
+            KOL_DAILY_INTERVAL_MIN,
+            run_kol_daily_refresh,
+        )
+
+        job_queue.run_repeating(
+            _tick_wrapper("channel_kol_daily_refresh", run_kol_daily_refresh, envelope=True),
+            interval=KOL_DAILY_INTERVAL_MIN * 60,
+            first=600,
+            name="channel_kol_daily_refresh",
+        )
+
     # Scammer-warning watch (2026-08-29): when an account in a seeded
     # scammer group (e.g. the ZachXBT-named ``solana_syndicate`` network)
     # shills a token, post the warning to @rmialerts (+ main when the call
@@ -552,5 +596,5 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_rag_fast",
         )
     logger.info(
-        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/channel_morning_rug/channel_midday_update/updates/shill_watch/kol_scoreboard/scammer_warning/daily_quality)"
+        "channels:channel jobs registered (news/alerts/alpha/scans/tg_news/scam_watch/personal/channel_morning_rug/channel_midday_update/updates/shill_watch/kol_scoreboard/scammer_warning/daily_quality/ct_shill_watch/kol_daily_refresh)"
     )

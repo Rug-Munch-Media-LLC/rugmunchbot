@@ -57,6 +57,33 @@ BANNED_PHRASES: Final[tuple[str, ...]] = (
     "in the ever-evolving",
 )
 
+#: AI-slop / drafting-artifact phrases that mark a post as machine-written
+#: filler rather than original commentary. Broader than ``BANNED_PHRASES``
+#: (which are hard blocks): ``detect_slop`` reports these so callers can
+#: score/regenerate a draft without necessarily hard-blocking it. Includes
+#: the roundup's internal drafting markers (MASTHEAD DONE, NOW THE BODY,
+#: MARKET DRIVERS) and the feed-source tags (cryptonews_rss, rag_intel,
+#: ranked_stories) that must never leak into a shipped post.
+SLOP_PATTERNS: Final[tuple[str, ...]] = (
+    "delve into",
+    "ever-evolving",
+    "landscape",
+    "it's worth noting",
+    "at the end of the day",
+    "in the world of crypto",
+    "the crypto space",
+    "stay tuned",
+    "paradigm shift",
+    "revolutionary",
+    "robust",
+    "MASTHEAD DONE",
+    "NOW THE BODY",
+    "MARKET DRIVERS",
+    "cryptonews_rss",
+    "rag_intel",
+    "ranked_stories",
+)
+
 #: Signature of the rugbrain ``_template_post`` fallback writer: "[SEV] Title"
 #: first line + "Source: …" footer. Template output = DO NOT POST (spec law).
 TEMPLATE_SIGNATURE_RE: Final = re.compile(
@@ -230,6 +257,22 @@ def lint_text(text: str, *, min_words: int = BLAND_MIN_WORDS) -> list[Violation]
 
 def _strip_html(text: str) -> str:
     return _HTML_RE.sub(" ", text)
+
+
+def detect_slop(text: str) -> list[str]:
+    """Return the list of slop phrases found in *text* (empty when clean).
+
+    Case-insensitive substring scan over :data:`SLOP_PATTERNS`. Unlike the
+    hard ``banned-phrase`` lint, this is a *reporting* helper — callers use
+    it to score a draft (e.g. regenerate when too many slop hits) without
+    necessarily hard-blocking. Pure and deterministic.
+    """
+    found: list[str] = []
+    lowered = (text or "").lower()
+    for pattern in SLOP_PATTERNS:
+        if pattern.lower() in lowered:
+            found.append(pattern)
+    return found
 
 
 def looks_like_gibberish(text: str) -> tuple[bool, str]:

@@ -45,10 +45,10 @@ if TYPE_CHECKING:
 #: shipped text-only. /brand/banner.jpg is the real og:image the site
 #: itself declares (verified 200 image/jpeg).
 #: 2026-09-01 (operator doctrine): the placeholder is the PLATFORM BADGE v2
-#: (rmi_badgev2.png, 1024x1024) — the old banner.jpg is the operator's
-# personal X header and must never ship as site content. Logo used
-# sparingly: only as the last-resort fallback, never as content.
-PLACEHOLDER_IMAGE_URL: Final = "https://rugmunch.io/brand/rmi_badgev2.png"
+#: App logo — the actual RugMunch favicon (400x400 square). NOT the
+#: 1024x1024 badge or the twitter header banner. This is the clean
+#: square app icon that Telegram displays properly as a post image.
+PLACEHOLDER_IMAGE_URL: Final = "https://rugmunch.io/brand/avatar.jpg"
 
 _ANCHOR_RE: Final = re.compile(r'<a\s+href="([^"]+)"[^>]*>(.*?)</a>', re.DOTALL)
 _BARE_URL_RE: Final = re.compile(r"https?://[^\s)<>\"']+")
@@ -112,7 +112,73 @@ def strip_duplicate_urls(text: str) -> str:
     out = _BARE_URL_RE.sub(_sub_bare, out)
     for idx, anchor in enumerate(anchors):
         out = out.replace(f"\x00ANCHOR{idx}\x00", anchor)
-    return re.sub(r"[ \t]{2,}", " ", out)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    # Story-level dedup: collapse bullets that describe the same story
+    # with different URLs (e.g., 3 blog posts about the same exploit).
+    out = _strip_duplicate_stories(out)
+    return out
+
+
+def _strip_duplicate_stories(text: str) -> str:
+    """Remove bullets that describe the same story with different URLs.
+
+    Catches the case where multiple blog posts cover the same event
+    (e.g., "Two exploits hit Solana AMM Aquifer…" appears 3 times with
+    different rugmunch.io/blog/ URLs).
+
+    Similarity is *containment*-based, not Jaccard: two bullets are the
+    same story when the smaller bullet's significant words are largely a
+    subset of the other's (a paraphrase of the same event). Jaccard was
+    too strict for short bullets — 3 paraphrases of one exploit shared
+    only ~40% of their words and all survived. Containment with a
+    minimum-intersection guard collapses paraphrases while leaving
+    genuinely distinct stories (which share at most a common token like
+    "Solana") untouched.
+    """
+    import re as _re
+
+    # Split into lines, identify bullet lines (• or - or numbered)
+    lines = text.split("\n")
+    seen_signatures: list[set[str]] = []
+    result: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        # Only dedup bullet lines
+        if not stripped or not (
+            stripped.startswith(("•", "-", "·")) or _re.match(r"^\d+\.", stripped)
+        ):
+            result.append(line)
+            continue
+
+        # Extract significant words (lowercase, alpha only, >3 chars, no numbers)
+        words = _re.findall(r"[a-zA-Z]{4,}", stripped.lower())
+        # Use first 8 significant words as the signature
+        sig = set(words[:8])
+        if len(sig) < 3:
+            result.append(line)
+            continue
+
+        # Check against all seen signatures
+        is_dup = False
+        for prev_sig in seen_signatures:
+            # Containment: the smaller signature must be mostly inside the
+            # larger one, with at least 2 shared significant words (so a
+            # single common token like "Solana" never collapses distinct
+            # stories).
+            intersection = sig & prev_sig
+            smaller = min(len(sig), len(prev_sig))
+            if smaller and len(intersection) >= 2 and len(intersection) / smaller > 0.5:
+                is_dup = True
+                break
+
+        if is_dup:
+            continue  # Drop duplicate story bullet
+
+        seen_signatures.append(sig)
+        result.append(line)
+
+    return "\n".join(result)
 
 
 async def pre_post_quality_gate(
