@@ -44,7 +44,7 @@ import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from rugmunchbot._vendor.redis_client import get_redis_async
+from rugmunchbot._vendor.redis_client import REDIS_URL, get_redis_async
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
@@ -58,7 +58,15 @@ _LAST_RUN_HASH_KEY = "bot:channels:last_run"
 
 #: Posted-key sets are bounded the same way the in-memory dedupe is
 #: (``scheduler._MAX_POSTED``); only the most recent window is persisted.
-_POSTED_MAX = 500
+#: 2026-09-02 dedup fix: raised 500 → 5000 in lockstep with
+#: ``scheduler._MAX_POSTED`` so the durable window covers ~2 weeks of posts.
+_POSTED_MAX = 5000
+
+#: Global durable posted-key set. ``_remember`` checks this on EVERY call
+#: (SISMEMBER, O(1)) so a key evicted from the in-memory window still
+#: counts as posted. Bare keys only (lane prefixes stripped) — this is the
+#: cross-channel durable dedupe.
+_GLOBAL_POSTED_SET = f"{_POSTED_SET_PREFIX}__global__"
 
 
 #: How long posted-key entries survive in Redis (72h ≫ the longest interval
@@ -144,7 +152,7 @@ class SchedulerState:
 
     # ── Load / save ──────────────────────────────────────────────────────
 
-    async def load(self, seed: dict[str, set[str]]) -> bool:
+    async def load(self, seed: dict[str, "set[str] | dict[str, None]"]) -> bool:
         """Hydrate ``seed`` (the scheduler's ``_posted_keys``) from Redis.
 
         Idempotent; call once at startup. Replaces per-channel sets with the
@@ -165,8 +173,19 @@ class SchedulerState:
                 if not members:
                     continue
                 decoded = {_to_str(m) for m in members}
-                seed[channel] = set(list(decoded)[:_POSTED_MAX])
-                loaded += len(seed[channel])
+                if channel == "__global__":
+                    # Ordered dict (insertion order) — matches the
+                    # scheduler's ordered-set so eviction keeps the newest.
+                    seed[channel] = dict.fromkeys(list(decoded)[:_POSTED_MAX])
+                else:
+                    # Legacy per-channel sets: merge their BARE keys into the
+                    # global seed — ``_remember`` only reads ``__global__``,
+                    # so per-channel hydration alone was dead weight and a
+                    # restart lost those dedupe marks (2026-09-02 fix).
+                    g = seed.setdefault("__global__", {})
+                    for k in list(decoded)[:_POSTED_MAX]:
+                        g[k.split(":", 1)[-1] if ":" in k else k] = None
+                loaded += len(decoded)
             raw_last = await r.hgetall(_LAST_RUN_HASH_KEY)
             self._last_run = {_to_str(k): _to_str(v) for k, v in raw_last.items()}
             logger.info(
@@ -180,7 +199,7 @@ class SchedulerState:
             self._mark_down()
             return False
 
-    async def save(self, snapshot: dict[str, set[str]]) -> bool:
+    async def save(self, snapshot: dict[str, "set[str] | dict[str, None]"]) -> bool:
         """Flush the posted-key snapshot + last-run hash to Redis.
 
         Called at the end of every tick (idempotent — sadd is a no-op for
@@ -210,24 +229,37 @@ class SchedulerState:
             self._mark_down()
             return False
 
-    async def remember(self, channel: str, key: str) -> None:
+    async def remember(self, channel: str, key: str, extra: tuple[str, ...] = ()) -> None:
         """Record one newly-seen key durably (fire-and-forget from ``_remember``).
 
         Best-effort; failures only disable the durable layer until the next
         re-probe. The in-memory dedupe already recorded the key, so a failed
         persist does NOT cause a duplicate within this process — it only
         widens the restart window.
+
+        2026-09-02 dedup fix: the full ``key`` still lands in the
+        per-channel set, AND the bare key (lane prefix stripped) plus any
+        ``extra`` keys (title hashes) land in the GLOBAL durable set
+        (``bot:channels:posted:__global__``) — the set :func:`has_posted`
+        checks on every ``_remember`` call.
         """
         r = self._acquire()
         if r is None:
             return
         try:
-            skey = f"{_POSTED_SET_PREFIX}{channel}"
-            await r.sadd(skey, key)
-            await r.expire(skey, _DEFAULT_TTL)
+            bare = key.split(":", 1)[-1] if ":" in key else key
+            global_members = {bare, *extra}
+            pipe = r.pipeline(transaction=False)
+            pipe.sadd(f"{_POSTED_SET_PREFIX}{channel}", key)
+            pipe.expire(f"{_POSTED_SET_PREFIX}{channel}", _DEFAULT_TTL)
+            pipe.sadd(_GLOBAL_POSTED_SET, *global_members)
+            pipe.expire(_GLOBAL_POSTED_SET, _DEFAULT_TTL)
+            await pipe.execute()
         except Exception as exc:  # fail-open by contract
             self._mark_down()
-            logger.debug("channels:state_remember_failed channel=%s err=%s", channel, str(exc)[:120])
+            logger.debug(
+                "channels:state_remember_failed channel=%s err=%s", channel, str(exc)[:120]
+            )
 
     def reset(self) -> None:
         """Clear cached client + state (tests / config reload)."""
@@ -254,6 +286,7 @@ def get_state() -> SchedulerState:
 def reset_state() -> None:
     """Reset the durable-state singleton (tests / env reload)."""
     _state.reset()
+    reset_sync()
 
 
 def is_available() -> bool:
@@ -271,21 +304,83 @@ def last_run_iso(job: str) -> str:
     return _state.last_run_iso(job)
 
 
-def spawn_persist(channel: str, key: str) -> None:
+def spawn_persist(channel: str, key: str, extra: tuple[str, ...] = ()) -> None:
     """Schedule a best-effort durable ``sadd`` without blocking the caller.
 
     Called synchronously from ``scheduler._remember`` on the hot path; the
     Redis round-trip runs in a background task and never raises.
     """
-    _spawn(_state.remember(channel, key))
+    _spawn(_state.remember(channel, key, extra))
 
 
-async def load_state(seed: dict[str, set[str]]) -> bool:
+# ── Sync durable dedup check (hot path, best-effort) ────────────────────────
+# ``_remember`` is sync and must check the durable store on EVERY call, so it
+# uses a dedicated short-timeout sync client. Fail-open: any failure returns
+# False (treat as not-posted) and the layer backs off for _SYNC_RETRY_SECONDS.
+
+_sync_client: Any | None = None
+_sync_down_until = 0.0
+_SYNC_RETRY_SECONDS = 60.0
+
+
+def _sync_acquire() -> Any | None:
+    """Return the cached sync Redis client, or None (down / backing off)."""
+    global _sync_client, _sync_down_until
+    if time.monotonic() < _sync_down_until:
+        return None
+    if _sync_client is None:
+        try:
+            import redis as _redis
+
+            _sync_client = _redis.Redis.from_url(
+                REDIS_URL,
+                socket_timeout=0.5,
+                socket_connect_timeout=0.5,
+                retry_on_timeout=True,
+            )
+        except Exception as exc:  # fail-open by contract
+            logger.debug("channels:state_sync_acquire_failed err=%s", str(exc)[:120])
+            _sync_down_until = time.monotonic() + _SYNC_RETRY_SECONDS
+            return None
+    return _sync_client
+
+
+def has_posted(key: str) -> bool:
+    """Best-effort durable dedup check against the global posted-key set.
+
+    Returns True ONLY when the key is durably recorded in Redis
+    (``bot:channels:posted:__global__``). Any Redis failure returns False —
+    the caller then falls through to the in-memory check (never blocks
+    posting on a Redis outage).
+    """
+    global _sync_client, _sync_down_until
+    r = _sync_acquire()
+    if r is None:
+        return False
+    try:
+        return bool(r.sismember(_GLOBAL_POSTED_SET, key))
+    except Exception as exc:  # fail-open by contract
+        _sync_client = None
+        _sync_down_until = time.monotonic() + _SYNC_RETRY_SECONDS
+        logger.debug("channels:state_has_posted_failed err=%s", str(exc)[:120])
+        return False
+
+
+def reset_sync() -> None:
+    """Drop the cached sync client + backoff (tests / config reload)."""
+    global _sync_client, _sync_down_until
+    _sync_client = None
+    _sync_down_until = 0.0
+
+
+async def load_state(seed: dict[str, "set[str] | dict[str, None]"]) -> bool:
     """Hydrate the scheduler's dedupe sets + last-run from Redis (startup)."""
     return await _state.load(seed)
 
 
-async def save_state(snapshot: dict[str, set[str]], job: str | None = None) -> bool:
+async def save_state(
+    snapshot: dict[str, "set[str] | dict[str, None]"], job: str | None = None
+) -> bool:
     """Persist the posted-key snapshot + last-run hash (end of each tick)."""
     if job is not None:
         _state.mark_last_run(job)
@@ -314,6 +409,7 @@ def _consume_task_result(task: asyncio.Task[None]) -> None:
 
 __all__ = [
     "get_state",
+    "has_posted",
     "is_available",
     "last_run_iso",
     "load_state",

@@ -94,7 +94,11 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         )
         return 0
     alerts = await fetch_risk_alerts(ALERTS_CHANNEL_LIMIT)
-    fresh = [item for item in alerts if _remember("alerts", _dedupe_key("alerts", item))]
+    fresh = [
+        item
+        for item in alerts
+        if _remember("alerts", _dedupe_key("alerts", item), title=item.get("title"))
+    ]
     if not fresh:
         logger.info(
             "channels:tick",
@@ -121,7 +125,9 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     main_chat_id = _chat_id("main")
     if main_chat_id and main_items:
         for item in sorted(main_items, key=lambda i: i.get("importance", 0.0), reverse=True):
-            if not _remember("alertsmain", _dedupe_key("alertsmain", item)):
+            if not _remember(
+                "alertsmain", _dedupe_key("alertsmain", item), title=item.get("title")
+            ):
                 continue
             # WO-2 hard cap: ≤9/day on main; overflow drops (the alerts
             # digest above already carries the item natively).
@@ -139,9 +145,7 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             if story is not None:
                 main_text = enforce_main_link_contract(story, item)
             else:
-                main_text = enforce_main_link_contract(
-                    format_main_escalation(item), item
-                )
+                main_text = enforce_main_link_contract(format_main_escalation(item), item)
             if main_text is None:
                 logger.warning(
                     "main_link_contract_blocked type=alert name=%s", str(item.get("name"))[:40]

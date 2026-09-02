@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
+import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -43,10 +45,45 @@ _FIRST_RUN_SECONDS = {
 }
 
 
-_posted_keys: dict[str, set[str]] = {}
+# Insertion-ordered "set" (dict[str, None]): eviction must keep the MOST
+# RECENT keys. A plain set iterates in arbitrary hash order, so the old
+# ``set(list(seen)[-N:])`` truncation kept a random subset — part of why
+# old stories resurfaced (2026-09-02 dedup fix).
+_posted_keys: dict[str, dict[str, None]] = {}
 
 
-_MAX_POSTED = 500
+# 2026-09-02 dedup fix: 500 → 5000. At 500 the eviction to 250 dropped
+# stories older than ~a few days of posts back into "unseen" → re-posts.
+# Strings are cheap; 5000 covers ~2 weeks, and the durable Redis check
+# (``scheduler_state.has_posted``) backstops anything evicted anyway.
+_MAX_POSTED = 5000
+
+
+# ── Content-level (title-hash) dedup ────────────────────────────────────────
+# URL keys cannot catch the same story syndicated under different URLs.
+# Lightweight exact-match fingerprint of the normalized title (the bot's
+# hot-path version of rugbrain's Jaccard near-dup detection).
+
+_TITLE_PUNCT_RE = re.compile(r"[^\w\s]+")
+
+_TITLE_STOPWORDS = frozenset(
+    "a an and as at by for from in into is it its of on the to with".split()
+)
+
+
+def _title_hash(title: str | None) -> str | None:
+    """MD5 of the normalized title (lowercase, punctuation/stopword-stripped,
+    truncated to 60 chars). None when there is nothing usable to hash."""
+    if not title:
+        return None
+    # Apostrophes vanish (don't → dont, not "don s"); other punctuation
+    # becomes a separator.
+    text = str(title).lower().replace("'", "").replace("’", "")
+    text = _TITLE_PUNCT_RE.sub(" ", text).strip()
+    words = [w for w in text.split() if w and w not in _TITLE_STOPWORDS]
+    if not words:
+        return None
+    return hashlib.md5(" ".join(words)[:60].encode()).hexdigest()
 
 
 def _env_retry_count(name: str, default: int) -> int:
@@ -103,7 +140,7 @@ def _route_chat_id(destination: str) -> str | None:
     return _chat_id(destination)
 
 
-def _remember(channel: str, key: str) -> bool:
+def _remember(channel: str, key: str, title: str | None = None) -> bool:
     """Return True when ``key`` is new (and record it).
 
     2026-08-24 P0 fix: dedupe is now GLOBAL across channels. The old
@@ -111,23 +148,48 @@ def _remember(channel: str, key: str) -> bool:
     tgalpha each had their own namespace), and restarts amplified it.
     Story identity = the key itself (URL or title) -- lane prefixes are
     stripped so a CoinJournal story can never post twice anywhere.
+
+    2026-09-02 dedup fix (duplicates re-appearing after ~250 posts):
+
+    * DURABLE check on every call — the in-memory set evicts at
+      ``_MAX_POSTED``, but the Redis global set
+      (``bot:channels:posted:__global__``) is now consulted via
+      ``scheduler_state.has_posted`` BEFORE admitting a key. A key evicted
+      from memory but still durable returns False. Fail-open: Redis down →
+      in-memory behavior only, posting never blocks on infra.
+    * Content-level dedup — when ``title`` is given, a normalized-title
+      hash is checked/recorded alongside the URL key, so the same story
+      from two different sources (different URLs, same headline) dedupes.
     """
     # Global story namespace: strip any legacy lane prefix from the key.
     bare = key.split(":", 1)[-1] if ":" in key else key
-    seen = _posted_keys.setdefault("__global__", set())
-    if bare in seen:
+    keys = [bare]
+    thash = _title_hash(title)
+    if thash:
+        keys.append(f"th:{thash}")
+    seen = _posted_keys.setdefault("__global__", {})
+    if any(k in seen for k in keys):
         return False
-    seen.add(bare)
-    if len(seen) > _MAX_POSTED:
-        _posted_keys["__global__"] = set(list(seen)[-_MAX_POSTED // 2 :])
-    # Durability: best-effort background persist so a restart does not
-    # re-post/re-ingest this key (fail-open when Redis is down).
+    # Durable backstop: check Redis on every call (best-effort, fail-open).
     if scheduler_state.is_available():
-        scheduler_state.spawn_persist(channel, key)
+        if any(scheduler_state.has_posted(k) for k in keys):
+            # Re-seed the in-memory set so we don't re-query every tick.
+            for k in keys:
+                seen[k] = None
+            return False
+    for k in keys:
+        seen[k] = None
+    if len(seen) > _MAX_POSTED:
+        _posted_keys["__global__"] = dict.fromkeys(list(seen)[-_MAX_POSTED // 2 :])
+    # Durability: best-effort background persist so a restart does not
+    # re-post/re-ingest this key (fail-open when Redis is down). The bare
+    # key + title hash land in the global durable set via ``extra``.
+    if scheduler_state.is_available():
+        scheduler_state.spawn_persist(channel, key, extra=tuple(keys))
     return True
 
 
-def _release(channel: str, key: str) -> None:
+def _release(channel: str, key: str, title: str | None = None) -> None:
     """Undo one ``_remember`` mark (send failed — let the next tick retry).
 
     2026-08-25 companion to the rag-posting ordering fix: a draft whose send
@@ -136,9 +198,14 @@ def _release(channel: str, key: str) -> None:
     set TTL and only widens the restart window by one interval.
     """
     bare = key.split(":", 1)[-1] if ":" in key else key
+    keys = [bare]
+    thash = _title_hash(title)
+    if thash:
+        keys.append(f"th:{thash}")
     seen = _posted_keys.get("__global__")
     if seen is not None:
-        seen.discard(bare)
+        for k in keys:
+            seen.pop(k, None)
 
 
 def _dedupe_key(prefix: str, item: dict[str, Any]) -> str:
