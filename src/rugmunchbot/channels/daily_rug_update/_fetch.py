@@ -216,14 +216,20 @@ def pick_update_image(context: dict[str, Any]) -> str:
 
     Priority: scanner-alert evidence image → RAG hit metadata image. The
     post MUST carry an image when any lane provides one.
+
+    2026-09-02 image-leak fix: RAG hit metadata is untrusted (pre-fix-era
+    docs carry the operator's brand banner) — every candidate is checked
+    against the image doctrine's banned patterns before it can win.
     """
+    from rugmunchbot.support.image_policy import is_valid_image
+
     for a in context.get("alerts") or []:
         url = str((a or {}).get("image_url") or "").strip()
-        if url.startswith(("http://", "https://")):
+        if url.startswith(("http://", "https://")) and is_valid_image(url):
             return url
     for hit in context.get("rag_intel") or []:
         meta = (hit or {}).get("metadata") or {}
         url = str(meta.get("image_url") or "").strip()
-        if url.startswith(("http://", "https://")):
+        if url.startswith(("http://", "https://")) and is_valid_image(url):
             return url
     return ""

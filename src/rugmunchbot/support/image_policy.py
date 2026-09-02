@@ -20,7 +20,12 @@ from typing import Any
 
 from rugmunchbot.support.quality_gate import PLACEHOLDER_IMAGE_URL
 
-__all__ = ["PLACEHOLDER_IMAGE_URL", "ensure_post_image", "resolve_post_image"]
+__all__ = [
+    "PLACEHOLDER_IMAGE_URL",
+    "ensure_post_image",
+    "is_valid_image",
+    "resolve_post_image",
+]
 
 #: URL fragments that identify SOCIAL PROFILE imagery (avatars / channel
 #: headers), never post content. 2026-09-01: the @cryptorugmuncher X header
@@ -38,7 +43,24 @@ _BANNED_IMAGE_PATTERNS = (
     "/brand/",  # any rugmunch.io brand asset
     "cryptorugmunch.com",  # marketing site imagery
     "banner",  # any URL with /banner in the path (og banners, X headers)
+    # 2026-09-02: X profile BANNER headers (the wide header image) — the
+    # telegram_news sweep's og:image extractor surfaced these from scraped
+    # source pages. "banner" above already catches them, but they are listed
+    # explicitly so the ban survives any future "banner" pattern relaxation.
+    "pbs.twimg.com/profile_banners",
+    "twimg.com/profile_banners",
 )
+
+
+def is_valid_image(url: object) -> bool:
+    """PUBLIC guard: True only for a real http(s) post-content image URL.
+
+    Rejects non-http(s) values and every ``_BANNED_IMAGE_PATTERNS`` match
+    (social profile avatars/headers, brand chrome). Import this from any
+    module that sends or stores a post image — it is the single source of
+    truth for "is this image allowed to ship".
+    """
+    return bool(_valid_image(url))
 
 
 def _valid_image(url: object) -> str:

@@ -14,8 +14,104 @@ import pytest
 from rugmunchbot.support.image_policy import (
     PLACEHOLDER_IMAGE_URL,
     ensure_post_image,
+    is_valid_image,
     resolve_post_image,
 )
+
+# ---------------------------------------------------------------------------
+# 2026-09-02: permanent kill of the Twitter profile/header image leak.
+# Defense in depth — every layer that touches a post image must reject
+# banned imagery (social profile avatars/headers, brand chrome).
+# ---------------------------------------------------------------------------
+
+
+def test_is_valid_image_rejects_profile_images() -> None:
+    """The operator's X avatar URL is banned at the public guard."""
+    assert is_valid_image("https://pbs.twimg.com/profile_images/123/x.jpg") is False
+    assert is_valid_image("https://pbs.twimg.com/profile_banners/123/1500x500") is False
+
+
+def test_is_valid_image_accepts_real_content() -> None:
+    assert is_valid_image("https://example.com/article-photo.jpg") is True
+    assert is_valid_image("not-a-url") is False
+    assert is_valid_image("") is False
+
+
+def test_normalize_image_url_rejects_banned() -> None:
+    """Layer 1 (source): the sweep's og:image normalizer drops banned URLs."""
+    from rugmunchbot.channels.telegram_news._sources._fetch import _normalize_image_url
+
+    assert (
+        _normalize_image_url(
+            "https://pbs.twimg.com/profile_images/123/x.jpg", "https://example.com/a"
+        )
+        is None
+    )
+    # protocol-relative profile header resolves then gets rejected
+    assert (
+        _normalize_image_url("//pbs.twimg.com/profile_images/123/x.jpg", "https://example.com")
+        is None
+    )
+    # root-relative brand banner resolves then gets rejected
+    assert _normalize_image_url("/brand/banner.jpg", "https://rugmunch.io") is None
+    # real content passes through
+    assert (
+        _normalize_image_url("https://example.com/photo.jpg", "https://example.com")
+        == "https://example.com/photo.jpg"
+    )
+
+
+@pytest.mark.asyncio
+async def test_fetch_og_image_rejects_banned_og(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Layer 1b: a page whose og:image IS a banned URL yields None."""
+    from rugmunchbot.channels.telegram_news._sources import _fetch as fetch_mod
+
+    async def _page(url: str, timeout: float = 3.0) -> str | None:
+        return (
+            '<meta property="og:image" content="https://pbs.twimg.com/profile_images/9/header.jpg">'
+        )
+
+    monkeypatch.setattr(fetch_mod, "_fetch_page", _page)
+    assert await fetch_mod._fetch_og_image("https://example.com/story") is None
+
+
+@pytest.mark.asyncio
+async def test_scheduler_post_formatted_drops_banned_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Layer 3 (final guard): the scheduler send path falls through to
+    text-only when the post's image is banned."""
+    from rugmunchbot.channels.formatters._primitives import NewsPost
+    from rugmunchbot.channels.telegram_news import _scheduler
+
+    sent: dict[str, str] = {}
+
+    async def _fake_gate(text: str, **kw: object) -> object:
+        captured = text
+
+        class _G:
+            ok = True
+            text = captured
+            image_url = "https://pbs.twimg.com/profile_images/9/header.jpg"
+
+        return _G()
+
+    async def _fake_photo(bot: object, chat_id: str, caption: object, photo_url: str) -> bool:
+        sent["photo"] = photo_url
+        return True
+
+    async def _fake_text(bot: object, chat_id: str, post: object) -> bool:
+        sent["text"] = str(post)
+        return True
+
+    monkeypatch.setattr("rugmunchbot.support.quality_gate.pre_post_quality_gate", _fake_gate)
+    monkeypatch.setattr(_scheduler, "send_news_photo", _fake_photo)
+    monkeypatch.setattr(_scheduler, "NewsPost", NewsPost)
+
+    ok = await _scheduler._post_formatted(object(), "chat", NewsPost("story text"), _fake_text)
+    assert ok is True
+    assert "photo" not in sent
+    assert sent["text"] == "story text"
 
 
 @pytest.mark.asyncio

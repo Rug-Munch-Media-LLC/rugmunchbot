@@ -286,9 +286,12 @@ async def run_shill_campaign_poster(ctx: Any) -> int:
                 # gate-resolved image (branded placeholder) as photo + caption
                 # instead of a naked text message.
                 from rugmunchbot.channels._media import send_news_photo
+                from rugmunchbot.support.image_policy import is_valid_image
 
                 image_url = str(gate.image_url or "").strip()
-                if image_url.startswith(("http://", "https://")):
+                # 2026-09-02 image-leak fix: banned imagery (profile
+                # avatars/headers, brand chrome) never ships — text-only.
+                if image_url.startswith(("http://", "https://")) and is_valid_image(image_url):
                     sent = await send_news_photo(
                         ctx.bot, chat_id, caption=text, photo_url=image_url
                     )

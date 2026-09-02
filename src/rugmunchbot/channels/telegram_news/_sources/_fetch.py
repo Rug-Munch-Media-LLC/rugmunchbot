@@ -12,6 +12,7 @@ from typing import (
 from rugmunchbot._vendor.news_ingest.discovery import discover_followed_channels  # noqa: F401
 from rugmunchbot._vendor.news_ingest.normalize import is_telegram_link
 from rugmunchbot.channels.telegram_news._sources._config import logger
+from rugmunchbot.support.image_policy import is_valid_image
 
 if TYPE_CHECKING:
     from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
@@ -203,18 +204,30 @@ async def _fetch_page(url: str, timeout: float) -> str | None:
 
 
 def _normalize_image_url(raw: str, base_url: str) -> str | None:
-    """Resolve protocol-relative / root-relative og:image URLs to absolute."""
+    """Resolve protocol-relative / root-relative og:image URLs to absolute.
+
+    2026-09-02 (image-leak fix): after resolving, the result is checked
+    against the image doctrine's banned patterns (``is_valid_image``) — a
+    scraped og:image that IS a social profile avatar/header (e.g. the
+    operator's X header at pbs.twimg.com/profile_images/…) returns ``None``
+    here, at the SOURCE, instead of leaking into a channel post.
+    """
     raw = (raw or "").strip()
     if not raw:
         return None
     if raw.startswith("//"):
-        return f"https:{raw}"
-    if raw.startswith("/"):
+        result = f"https:{raw}"
+    elif raw.startswith("/"):
         from urllib.parse import urlsplit
 
         parts = urlsplit(base_url)
-        return f"{parts.scheme}://{parts.netloc}{raw}"
-    return raw
+        result = f"{parts.scheme}://{parts.netloc}{raw}"
+    else:
+        result = raw
+    if not is_valid_image(result):
+        logger.debug("tg_news:og_image_banned url=%s", result[:120])
+        return None
+    return result
 
 
 async def _fetch_og_image(url: str, timeout: float = _OG_IMAGE_TIMEOUT) -> str | None:
@@ -234,7 +247,14 @@ async def _fetch_og_image(url: str, timeout: float = _OG_IMAGE_TIMEOUT) -> str |
     for pattern in _OG_IMAGE_RES:
         match = pattern.search(html)
         if match:
-            return _normalize_image_url(match.group(1), url)
+            normalized = _normalize_image_url(match.group(1), url)
+            # 2026-09-02: belt-and-braces — the normalized URL is re-checked
+            # here even though _normalize_image_url already filters, so a
+            # future refactor of the normalizer cannot silently re-open the
+            # profile-image leak.
+            if normalized and not is_valid_image(normalized):
+                return None
+            return normalized
     return None
 
 

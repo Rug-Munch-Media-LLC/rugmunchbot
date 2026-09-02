@@ -261,6 +261,12 @@ def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
         _image = str(item.get("image_url") or item.get("image") or "").strip()
         if not _image.startswith(("http://", "https://")):
             _image = ""
+        # 2026-09-02 image-leak fix: the feed store must never carry banned
+        # imagery (social profile avatars/headers, brand chrome) either.
+        from rugmunchbot.support.image_policy import is_valid_image
+
+        if _image and not is_valid_image(_image):
+            _image = ""
         # Dedup guard (stable-key): a re-post of the same story_ref/source
         # into both surfaces must not double-post on the feed. The Telegram
         # lane already dedupes its sends; this keeps the static feed store
@@ -377,11 +383,16 @@ def ghost_mirror_post(item: dict[str, Any], slug: str) -> str | None:
             logger.info("ghost_mirror_skipped_no_admin_key")
         return None
     try:
-
         import httpx
 
         token = _ghost_admin_jwt(GHOST_ADMIN_API_KEY)
         _image = str(item.get("image_url") or item.get("image") or "").strip()
+        # 2026-09-02 image-leak fix: Ghost feature_image gets the same
+        # banned-pattern guard as the static feed store.
+        from rugmunchbot.support.image_policy import is_valid_image
+
+        if _image and not is_valid_image(_image):
+            _image = ""
         payload = {
             "posts": [
                 {
@@ -682,7 +693,7 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             # the channel inside the bare key → cross-channel dedupe never
             # fired and one story could post to every channel.
             dedupe_key = f"rag:{ref}"
-            if not _remember(f"rag_{channel}", dedupe_key):
+            if not _remember(f"rag_{channel}", dedupe_key, title=item.get("title")):
                 continue
 
             # Site-link contract (2026-08-29): main posts carry the exact
@@ -804,7 +815,11 @@ async def post_rag_fast_lane(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             )
             continue
         dedupe_key = f"rag:{item.get('story_ref') or item.get('text', '')[:60]}"
-        if not _remember("rag_alerts", dedupe_key):
+        if not _remember(
+            "rag_alerts",
+            dedupe_key,
+            title=item.get("title"),
+        ):
             return 0  # slow lane already claimed it
         # HARD quality gate (2026-08-31) — same contract as the slow lane,
         # including the all-channel image doctrine (resolve → gate → photo).

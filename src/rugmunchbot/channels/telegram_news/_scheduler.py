@@ -174,6 +174,16 @@ async def _post_formatted(bot: Any, chat_id: str, post: NewsPost, safe_send: Any
     post = NewsPost(gate.text)
     post.image_url = gate.image_url
     image_url = getattr(post, "image_url", "") or ""
+    # 2026-09-02 FINAL image-leak guard: the last line of defense before a
+    # photo hits a channel. Even if an upstream layer (og:image extractor,
+    # quality gate) let a banned image through (social profile avatar /
+    # header, brand chrome), it is dropped here and the post ships
+    # text-only instead.
+    from rugmunchbot.support.image_policy import is_valid_image
+
+    if image_url and not is_valid_image(image_url):
+        logger.warning("tg_news:banned_image_dropped url=%s", image_url[:120])
+        image_url = ""
     if image_url:
         return await send_news_photo(bot, chat_id, caption=post, photo_url=image_url)
     return await safe_send(bot, chat_id, post)
