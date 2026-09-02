@@ -321,6 +321,49 @@ _REASONING_PHRASES = (
 _REASONING_PHRASE_RE = re.compile("|".join(re.escape(p) for p in _REASONING_PHRASES), re.IGNORECASE)
 
 
+_THINK_RE = re.compile(r"</think>.*?(?:</think>|$)", re.DOTALL)
+_THINK_UNCLOSED_RE = re.compile(r"</think>.*$", re.DOTALL)
+_ANSWER_RE = re.compile(r"(?:^|\n)\s*(?:\*\*)?Answer(?:\*\*)?\s*:", re.IGNORECASE)
+
+
+def strip_reasoning(text: str) -> str:
+    """Remove LLM chain-of-thought from writer output, salvaging clean prose.
+
+    Mirrors the rugbrain writer-side stripper (``rugbrain.content_engine.
+    _strip_reasoning``, 2026-09-02 reasoning-leak incident) so every
+    ``chat_with_fallback`` lane is protected, not just the rugbrain drafts:
+
+      1. ``<think>...</think>`` and unclosed ``</think>`` blocks.
+      2. ``Answer:`` delimiters — keep what follows.
+      3. Plain-text CoT: salvage the last block that starts with a capital
+         letter/digit, contains NO mirroring phrase, and is ≤120 words.
+
+    Returns "" when nothing clean can be salvaged (callers decide whether
+    that means silence or a retry — never ship the leak).
+    """
+    if not text:
+        return ""
+    out = _THINK_RE.sub("", text)
+    out = _THINK_UNCLOSED_RE.sub("", out)
+    if _ANSWER_RE.search(out):
+        out = _ANSWER_RE.split(out)[-1]
+    out = out.strip()
+    if not out:
+        return ""
+    if _REASONING_PHRASE_RE.search(out):
+        blocks = [b.strip() for b in re.split(r"\n\s*\n", out) if b.strip()]
+        for block in reversed(blocks):
+            if not re.match(r"^[A-Z0-9]", block):
+                continue
+            if _REASONING_PHRASE_RE.search(block):
+                continue
+            if len(block.split()) > 120:
+                continue
+            return block
+        return ""
+    return out
+
+
 def looks_like_reasoning_leak(text: str) -> tuple[bool, str]:
     """Detect raw LLM chain-of-thought / prompt-mirroring in a post.
 

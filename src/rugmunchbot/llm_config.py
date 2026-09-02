@@ -26,6 +26,24 @@ from typing import Any
 
 import httpx
 
+from rugmunchbot.support.content_lint import strip_reasoning
+
+
+def _clean_answer(answer: str) -> str:
+    """Strip LLM chain-of-thought from a chat answer (2026-09-02 incident).
+
+    Applied at the single choke point (``chat_with_fallback``) so every
+    writer lane — daily publishers, scan commentary, digests, chat bridge —
+    is protected, not just the rugbrain drafts. When nothing clean can be
+    salvaged the ORIGINAL is returned: gated callers still hard-reject it
+    via the quality gate, and the chat bridge degrades instead of breaking.
+    """
+    if not answer:
+        return answer
+    cleaned = strip_reasoning(answer)
+    return cleaned if cleaned.strip() else answer
+
+
 OPENROUTER_BASE = os.getenv("OPENROUTER_BASE", "https://openrouter.ai/api/v1")
 OPENROUTER_BACKUP_API_KEY = os.getenv("OPENROUTER_BACKUP_API_KEY", "")
 KILOCODE_BASE = os.getenv("KILOCODE_BASE", "http://127.0.0.1:18091/api/gateway")
@@ -47,7 +65,6 @@ DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY", "")
 # offer and is the working default; set DEEPINFRA_VISION_MODEL to a real
 # Qwen3-VL-4B id if/when DeepInfra or another cheap provider hosts it.
 DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-30B-A3B-Instruct")
-
 
 
 # ── Local LLM lane (Talos llama.cpp Qwen3-8B) ────────────────────────────
@@ -351,7 +368,7 @@ async def chat_with_fallback(
     if is_local_first_task(task_class):
         answer = await _chat_once(get_local_config(max_tokens or 700), messages, max_tokens)
         if answer:
-            return answer
+            return _clean_answer(answer)
     if tier == "snappy":
         config = get_snappy_config()
     elif tier == "long":
@@ -362,7 +379,7 @@ async def chat_with_fallback(
     # Try primary (KiloCode)
     answer = await _chat_once(config, messages, max_tokens)
     if answer:
-        return answer
+        return _clean_answer(answer)
 
     # Try fallback (OpenRouter)
     fallback_config = {
@@ -374,20 +391,20 @@ async def chat_with_fallback(
     }
     answer = await _chat_once(fallback_config, messages, max_tokens)
     if answer:
-        return answer
+        return _clean_answer(answer)
 
     # KiloCode sibling Nemotron (lightning for short, ultra-550b for long)
     answer = await _chat_once(get_kilo_nemotron_fallback_config(tier), messages, max_tokens)
     if answer:
-        return answer
+        return _clean_answer(answer)
 
     # Last free resort: OpenCode Zen (independent of OpenRouter availability)
     answer = await _chat_once(get_zen_fallback_config(tier), messages, max_tokens)
     if answer:
-        return answer
+        return _clean_answer(answer)
 
     # FINAL paid rung — DeepInfra Qwen3.5-9B (only when every free lane is down)
-    return await _chat_once(get_paid_final_config(tier), messages, max_tokens)
+    return _clean_answer(await _chat_once(get_paid_final_config(tier), messages, max_tokens))
 
 
 def get_vision_config() -> dict[str, Any]:
@@ -445,7 +462,9 @@ async def vision_chat(
     payload: dict[str, Any] = {
         "model": model,
         "messages": messages,
-        "max_tokens": max_tokens if max_tokens is not None else int(config.get("max_tokens") or 1024),
+        "max_tokens": max_tokens
+        if max_tokens is not None
+        else int(config.get("max_tokens") or 1024),
         "temperature": float(config.get("temperature") or 0.3),
         "reasoning": {"enabled": False},
     }
