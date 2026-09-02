@@ -94,7 +94,7 @@ def _read_admin_key() -> str | None:
         try:
             with open(path) as f:
                 value = f.read().strip()
-                if value:
+                if value and ":" in value:
                     return value
         except FileNotFoundError:
             continue
