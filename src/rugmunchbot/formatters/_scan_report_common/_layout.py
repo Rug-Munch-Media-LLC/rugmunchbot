@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
+from rugmunchbot.formatters._scan_report_common._engines import _engine_metrics_rows
 from rugmunchbot.formatters._scan_report_common._fields import (
     _bundle_wallet_count,
     _cex_funded_pct,
@@ -330,6 +331,12 @@ def _key_metrics_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
             )
         except (TypeError, ValueError):
             pass
+
+    # 2026-08-26 rich-output push: the new scanner engines (dev_sold,
+    # dex_paid, price_metrics ATH, sniper_count, holder_concentration
+    # gini/hhi, wallet_metrics first-tx, contract_authority) render on
+    # BOTH /scan and /deepscan — appended after the base rows.
+    rows.extend(_engine_metrics_rows(r))
 
     if deep:
         lp = _lp_lock_pct(r)

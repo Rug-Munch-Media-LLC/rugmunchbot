@@ -23,6 +23,9 @@ Layout:
 
 from __future__ import annotations
 
+from rugmunchbot.formatters._scan_report_common._engines import (
+    _engine_metrics_rows as _engine_metrics_rows,
+)
 from rugmunchbot.formatters._scan_report_common._fields import (
     _bundle_wallet_count as _bundle_wallet_count,
     _cex_funded_pct as _cex_funded_pct,
@@ -81,6 +84,7 @@ __all__ = [
     "_clip",
     "_collapse_blank_lines",
     "_distribution_verdict",
+    "_engine_metrics_rows",
     "_evidence_security",
     "_fake_volume_pct",
     "_fake_volume_verdict_text",
