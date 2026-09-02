@@ -126,6 +126,13 @@ SEC/enforcement items from RUGBRAIN INTEL: who, what, why it matters to crypto. 
 ## RISK RADAR
 Hacks, exploits, depegs, rug warnings, suspicious launches from today's data (NEWS/NARRATIVE/TRENDING/RAG INTEL blocks — threat_intel_v2 hits in RAG INTEL are the primary source here). This is the signature section — every item linked, every claim sourced. Nothing to report = say the tape is clean today, one line, no filler.
 
+## SECURITY SOURCES
+Tweets from monitored X security researchers (@zachxbt, @peckshield, @blockaid, @certikalert, @slowmist, @beosin) appear in the RAG INTEL block as news_v2 items with source "x.com". When a security researcher tweet appears:
+- Name the researcher: "ZachXBT flagged..." or "PeckShield reported..." or "SlowMist detected..."
+- Link to the original tweet URL
+- Prioritize tweets mentioning exploits, hacks, rugs, scams, flash loans, bridge attacks
+- If no security tweets in the data, OMIT this section entirely
+
 ## ON-CHAIN ANALYTICS
 2-3 paragraphs from the DUNE block only (cite query names). What real on-chain usage/flows say about the market read. If the block is absent or all-error, OMIT silently.
 

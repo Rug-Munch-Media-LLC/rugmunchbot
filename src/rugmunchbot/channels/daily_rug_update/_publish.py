@@ -72,6 +72,13 @@ Notable whale movements from the RAG INTEL block only — cite-or-omit, never in
 ## BREAKING NEWS
 The stories making waves right now, from the RANKED TOP STORIES block FIRST (reranker-ranked over the window since the last Morning Rug — highest-ranked first) and the RAG INTEL news_v2 hits to fill gaps. Every item linked with its real URL. Absent = OMIT.
 
+## SECURITY SOURCES
+Tweets from monitored X security researchers appear in the RAG INTEL block as news_v2 items with source "x.com". When a security researcher tweet appears:
+- Name the researcher: "ZachXBT flagged..." or "PeckShield reported..." or "SlowMist detected..."
+- Link to the original tweet URL
+- Prioritize tweets mentioning exploits, hacks, rugs, scams, flash loans, bridge attacks
+- If no security tweets in the data, OMIT this section entirely
+
 ## THE RUG TOOLKIT
 Tie 1-2 real RugMunchBot tools to TODAY'S data so the promo reads as intel, not an ad: "/scan answers if a token is a honeypot before you ape." Available: /scan, /whales, /launches, /lpcheck. One line each, dry tone.
 
