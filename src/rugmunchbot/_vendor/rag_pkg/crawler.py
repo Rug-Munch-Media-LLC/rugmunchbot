@@ -314,7 +314,9 @@ async def discover_crypto_news(sources: list[str] | None = None) -> list[dict[st
             continue
 
         if parsed.bozo and not parsed.entries:
-            log.warning("discover_feed_bozo", feed=feed_url, error=getattr(parsed, "bozo_exception", None))
+            log.warning(
+                "discover_feed_bozo", feed=feed_url, error=getattr(parsed, "bozo_exception", None)
+            )
             continue
 
         # Per-source rate limiting: some RSS feeds churn every minute with
@@ -327,7 +329,9 @@ async def discover_crypto_news(sources: list[str] | None = None) -> list[dict[st
                 {
                     "url": link,
                     # RSS titles frequently carry a site suffix (" | CoinDesk").
-                    "title": clean_title(str(getattr(entry, "title", "") or "")[:500], _article_domain(link)),
+                    "title": clean_title(
+                        str(getattr(entry, "title", "") or "")[:500], _article_domain(link)
+                    ),
                     "published": str(getattr(entry, "published", "") or ""),
                     "source": feed_url,
                     "summary": str(getattr(entry, "summary", "") or "")[:1000],
@@ -352,8 +356,9 @@ def _hostname_resolves(hostname: str) -> bool:
 def _ensure_host_connectivity() -> None:
     """Pre-flight host-side connectivity for cron runs (executed OUTSIDE Docker).
 
-    Inside the rmi-backend container ``llama.cpp qwen3`` and ``rugmunchbot-redis``
-    resolve and Redis needs no password. When this module runs on the host
+    Inside the rmi-backend container the qwen3-embed service and
+    ``rugmunchbot-redis`` resolve and Redis needs no password. When this
+    module runs on the host
     (``crawl-crypto-news.sh`` cron) those Docker-internal names fail DNS and
     Redis requires auth, which previously made every sweep item fail
     (25/25, ingested=0).
@@ -372,14 +377,14 @@ def _ensure_host_connectivity() -> None:
             "redis_url_missing host_side dedup_will_be_skipped hint=set REDIS_URL=redis://:password@localhost:6379/0"
         )
 
-    llama.cpp qwen3 = os.getenv("QWEN_EMBED_URL") or settings.qwen_embed_url
+    qwen_url = os.getenv("QWEN_EMBED_URL") or settings.qwen_embed_url
     try:
-        host = urlparse(llama.cpp qwen3).hostname or ""
+        host = urlparse(qwen_url).hostname or ""
     except ValueError:
         host = ""
-    if host and "llama.cpp qwen3" in host and not _hostname_resolves(host):
+    if host and not _hostname_resolves(host):
         fallback = os.getenv("QWEN_EMBED_URL_FALLBACK", "http://127.0.0.1:8004/v1")
-        log.warning("qwen3_embed_dns_fallback from=%s to=%s", url, fallback)
+        log.warning("qwen3_embed_dns_fallback from=%s to=%s", qwen_url, fallback)
         os.environ["QWEN_EMBED_URL"] = fallback
         # The settings singleton was built at import time; align it so the
         # lazy embedder singleton picks up the reachable URL.
@@ -505,18 +510,28 @@ async def discover_and_ingest(
 
 def main() -> None:
     """CLI entrypoint: ``python -m app.rag.crawler <subcommand>``."""
-    parser = argparse.ArgumentParser(prog="python -m app.rag.crawler", description="Crawl4AI RAG ingestion")
+    parser = argparse.ArgumentParser(
+        prog="python -m app.rag.crawler", description="Crawl4AI RAG ingestion"
+    )
     sub = parser.add_subparsers(dest="command")
 
-    sweep = sub.add_parser("discover_and_ingest", help="Discover + crawl + ingest (cron entrypoint)")
+    sweep = sub.add_parser(
+        "discover_and_ingest", help="Discover + crawl + ingest (cron entrypoint)"
+    )
     sweep.add_argument("--max-urls", type=int, default=DEFAULT_MAX_URLS_PER_SWEEP)
     sweep.add_argument("--collection", default=DEFAULT_COLLECTION)
     sweep.add_argument("--feed", action="append", default=None, help="Extra feed URL (repeatable)")
     sweep.add_argument(
-        "--min-quality", type=float, default=MIN_ARTICLE_QUALITY, help="Skip articles below this quality score (0-1)"
+        "--min-quality",
+        type=float,
+        default=MIN_ARTICLE_QUALITY,
+        help="Skip articles below this quality score (0-1)",
     )
     sweep.add_argument(
-        "--max-age-hours", type=float, default=MAX_ARTICLE_AGE_HOURS, help="Skip articles older than this many hours"
+        "--max-age-hours",
+        type=float,
+        default=MAX_ARTICLE_AGE_HOURS,
+        help="Skip articles older than this many hours",
     )
 
     single = sub.add_parser("crawl", help="Crawl a single URL and print the result")
@@ -531,7 +546,11 @@ def main() -> None:
             page = await crawl_crypto_page(args.url)
             print(json.dumps(page, indent=2, default=str))
             if args.collection:
-                print(json.dumps(await crawl_and_ingest(args.url, collection=args.collection), indent=2))
+                print(
+                    json.dumps(
+                        await crawl_and_ingest(args.url, collection=args.collection), indent=2
+                    )
+                )
 
         asyncio.run(_single())
         return

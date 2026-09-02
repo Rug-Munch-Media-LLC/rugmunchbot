@@ -48,30 +48,14 @@ bans). Falls back to DexScreener/Birdeye when GMGN is unavailable.
 from __future__ import annotations
 
 import os
-import time
-import uuid
-from datetime import UTC, datetime
-from typing import Any
 
 import httpx
 
 from rugmunchbot._vendor.logging_shim import get_logger
-from rugmunchbot._vendor.gmgn_fallbacks import (
-    agent_auth_params,
-    agent_headers,
-    cached_or_fetch,
-    cached_or_fetch_list,
-    fallback_birdeye_holders,
-    fallback_dexscreener_new_pairs,
-    fallback_dexscreener_token,
-    fallback_dexscreener_trades,
-    normalize_trades,
-)
 from rugmunchbot._vendor.proxy_rotator import get_proxy_rotator
 
 logger = get_logger(__name__)
 
-GMGN_BASE = "https://gmgn.ai"
 # Official GMGN Agent API (used by the gmgn-cli SDK / openapi.gmgn.ai).
 # Auth: X-APIKEY header + timestamp (unix seconds) + client_id (UUID) query
 # params — see OpenApiClient.ts / signer.ts in GMGNAI/gmgn-skills.
@@ -99,7 +83,7 @@ from rugmunchbot._vendor.gmgn_transport import (  # noqa: E402,F401
 
 # Read env DIRECTLY here (not via transport import): tests reload this
 # module to observe env changes; transport is not reloaded alongside.
-GMGN_API_KEY = os.getenv("GMGN_API_KEY", "")
+GMGN_API_KEY = os.getenv("GMGN_API_KEY", "")  # noqa: F811 — intentional env-time override of the transport import
 from rugmunchbot._vendor.gmgn_endpoints_market import MarketEndpointsMixin  # noqa: E402
 from rugmunchbot._vendor.gmgn_endpoints_wallet import WalletEndpointsMixin  # noqa: E402
 from rugmunchbot._vendor.gmgn_transport import TransportMixin  # noqa: E402
@@ -132,23 +116,18 @@ class GMGNProvider(TransportMixin, MarketEndpointsMixin, WalletEndpointsMixin):
     # CORE: Token Info
     # ═══════════════════════════════════════════════════════════════
 
-
-
     # ═══════════════════════════════════════════════════════════════
     # WALLET INTELLIGENCE (derived — feeds the unified scanner)
     # ═══════════════════════════════════════════════════════════════
-
-
 
     # ═══════════════════════════════════════════════════════════════
     # SMART MONEY
     # ═══════════════════════════════════════════════════════════════
 
-
-
     # ═══════════════════════════════════════════════════════════════
     # NEW PAIRS / TOKEN LAUNCHES
     # ═══════════════════════════════════════════════════════════════
+
 
 _gmgn_provider: GMGNProvider | None = None
 

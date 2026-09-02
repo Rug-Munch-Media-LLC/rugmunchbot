@@ -51,6 +51,6 @@ GHOST_CROSSPOST_ENABLED: bool = _env_bool("RMI_GHOST_CROSSPOST_ENABLED", False)
 
 #: Ghost Admin API config. The URL defaults to the canonical blog; the key is
 #: the Admin API key (``<id>:<secret>``). See the module docstring for the
-#: fail-open contract and the gopass TODO below.
+#: fail-open contract.
 GHOST_ADMIN_API_URL: str = os.getenv("GHOST_ADMIN_API_URL", "https://blog.rugmunch.io")
 GHOST_ADMIN_API_KEY: str = os.getenv("GHOST_ADMIN_API_KEY", "")

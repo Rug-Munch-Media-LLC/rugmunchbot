@@ -17,7 +17,6 @@ from datetime import UTC, datetime
 from rugmunchbot._vendor.gmgn_transport import (
     _f,
     _normalize_chain,
-    _sum_top_pct,
 )  # noqa: E402
 
 logger = logging.getLogger(__name__)

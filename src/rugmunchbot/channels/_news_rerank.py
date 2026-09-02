@@ -21,7 +21,6 @@ credentials (``RAG_API_URL`` / ``RMI_RAG_API_KEY``) already used by
 from __future__ import annotations
 
 import logging
-import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
