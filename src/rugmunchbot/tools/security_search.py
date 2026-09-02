@@ -310,6 +310,21 @@ async def run_security_search() -> dict[str, Any]:
             counts["fresh"],
             rag_counts.get("errors", 0),
         )
+    # Budget visibility: report the GetXAPI call count + remaining envelope so
+    # the 48-calls/day burn is observable in logs (the getxapi module meters
+    # each call into the durable ledger; this is the per-tick readout).
+    try:
+        from rugmunchbot.tools import getxapi
+
+        budget = getxapi.budget_remaining()
+        logger.info(
+            "security_search:budget calls=%s remaining=%s days_left=%s",
+            budget.get("total_calls", 0),
+            budget.get("calls_remaining", 0),
+            budget.get("days_left", 0),
+        )
+    except Exception as exc:  # fail-open by contract
+        logger.debug("security_search:budget_log_failed err=%s", str(exc)[:120])
     return counts
 
 
