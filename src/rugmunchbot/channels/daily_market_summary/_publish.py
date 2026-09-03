@@ -551,10 +551,10 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     for idx, part in enumerate(parts, 1):
         if idx == 1 and image_url:
             sent_ok = await _post_photo_aware(
-                ctx.bot, chat_id, _ImagePost(part, image_url), _safe_send
+                ctx.bot, chat_id, _ImagePost(part, image_url), _safe_send, content_type="market"
             )
         else:
-            sent_ok = await _safe_send(ctx.bot, chat_id, part)
+            sent_ok = await _safe_send(ctx.bot, chat_id, part, content_type="market")
         if sent_ok:
             sent += 1
             logger.info(

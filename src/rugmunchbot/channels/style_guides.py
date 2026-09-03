@@ -172,4 +172,75 @@ def style_guide(channel: str) -> str:
     return CHANNEL_STYLE_GUIDES.get(str(channel).strip().lower(), "")
 
 
-__all__ = ["CHANNEL_STYLE_GUIDES", "style_guide"]
+# ══════════════════════════════════════════════════════════════════════════
+# CONTENT-TYPE CONTRACTS (no cross-contamination)
+# ══════════════════════════════════════════════════════════════════════════
+# Every channel has a CONTENT CONTRACT: it accepts only the content types it
+# is chartered for, and rejects everything else. This is the enforcement
+# counterpart to the style guides above — the guides shape HOW a channel
+# writes, this matrix gates WHAT a channel may post. A whale alert must never
+# land on @rmiscans, a news story must never land on @rmialpha, and a system
+# notification must never land on @rmialerts.
+#
+# Canonical content types (lowercase):
+#   news     — breaking crypto news (200+ sources, uncurated)
+#   alert    — security alert: hacks, exploits, rug pulls, scam warnings
+#   scan     — suspicious-token scan (comedy + utility)
+#   whale    — whale wallet movement
+#   alpha    — smart-money / data-driven market signal
+#   shill    — coordinated shill campaign / pump-group tracking
+#   update   — product update / release note
+#   system   — system notification (health, ops, non-security status)
+#   market   — market commentary
+#   roundup  — daily roundup / digest
+#
+# Channel contracts (CONTENT-STRATEGY-CANONICAL v3 + operator doctrine):
+#   main     — flagship: top-tier anything (market, roundup, breaking
+#              security news, shill campaigns) + escalations from every lane.
+#   news     — breaking crypto news ONLY. No curation.
+#   alerts   — security alerts ONLY (hacks/exploits/rugs/scams). NO system
+#              notifications, no routine moves.
+#   alpha    — whale + smart-money signals ONLY. No news, no scans.
+#   scans    — suspicious-token scans ONLY. No news, no whale alerts.
+#   updates  — product updates / release notes ONLY. No news, no alerts.
+#   shills   — shill-campaign intel ONLY.
+#
+# ``main`` is the additive flagship: it accepts every content type so
+# escalations from alerts/scans/alpha/news can reach the broader audience
+# (its ≤10/day budget is enforced separately by ``channels.main_cap``).
+
+#: Channel role → the set of content types it is chartered to post.
+CHANNEL_CONTENT_TYPES: Final[dict[str, frozenset[str]]] = {
+    "main": frozenset({"market", "roundup", "news", "alert", "scan", "whale", "alpha", "shill"}),
+    "news": frozenset({"news"}),
+    "alerts": frozenset({"alert"}),
+    "alpha": frozenset({"whale", "alpha"}),
+    "scans": frozenset({"scan"}),
+    "updates": frozenset({"update"}),
+    "shills": frozenset({"shill"}),
+}
+
+
+def channel_accepts_content(channel: str, content_type: str) -> bool:
+    """True when *channel* is chartered to post *content_type*.
+
+    Fail-soft by design: an unknown channel or an unknown/empty content type
+    returns True so a mislabeled caller can never silently drop a post — the
+    gate only blocks a KNOWN channel posting a KNOWN content type it is not
+    chartered for. Callers pass the channel ROLE (``"alerts"``, ``"scans"``,
+    ``"alpha"``, …), not the public handle.
+    """
+    if not channel or not content_type:
+        return True
+    accepted = CHANNEL_CONTENT_TYPES.get(str(channel).strip().lower())
+    if accepted is None:
+        return True
+    return str(content_type).strip().lower() in accepted
+
+
+__all__ = [
+    "CHANNEL_CONTENT_TYPES",
+    "CHANNEL_STYLE_GUIDES",
+    "channel_accepts_content",
+    "style_guide",
+]

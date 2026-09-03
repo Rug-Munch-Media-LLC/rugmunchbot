@@ -203,7 +203,7 @@ async def post_roundup(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # resolved the placeholder; _post_photo_aware attaches it.
     post = ensure_post_image(text)
     post.image_url = gate.image_url or post.image_url
-    if not await _post_photo_aware(ctx.bot, chat_id, post, _safe_send):
+    if not await _post_photo_aware(ctx.bot, chat_id, post, _safe_send, content_type="roundup"):
         _release("roundup", dedupe_key)
         return 0
     # Cross-window dedupe: only NOW are the stories marked as shown —

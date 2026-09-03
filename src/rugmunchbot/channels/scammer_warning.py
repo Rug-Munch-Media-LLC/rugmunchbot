@@ -240,7 +240,7 @@ async def post_scammer_warning(bot: Any, call: dict[str, Any]) -> dict[str, Any]
     # 1) alerts — always (this is the rug-alerts lane).
     alerts_chat = _resolve_channel_id("alerts")
     if alerts_chat:
-        result["routes"]["alerts"] = await _safe_send(bot, alerts_chat, text)
+        result["routes"]["alerts"] = await _safe_send(bot, alerts_chat, text, content_type="alert")
     else:
         logger.warning("scammer_warning_skipped reason=no_chat_id channel=alerts")
 
@@ -280,7 +280,9 @@ async def post_scammer_warning(bot: Any, call: dict[str, Any]) -> dict[str, Any]
 
                 post = NewsPost(gate.text)
                 post.image_url = gate.image_url
-                result["routes"]["main"] = await _post_photo_aware(bot, main_chat, post, _safe_send)
+                result["routes"]["main"] = await _post_photo_aware(
+                    bot, main_chat, post, _safe_send, content_type="alert"
+                )
             else:
                 logger.warning(
                     "scammer_main_gated handle=%s violations=%d",

@@ -913,7 +913,7 @@ async def run_kol_scoreboard_watch(ctx: Any = None) -> int:
             _release("kol_scoreboard", dedupe_key)
             continue
         text = format_report_card(card)
-        if await _safe_send(ctx.bot, chat_id, text):
+        if await _safe_send(ctx.bot, chat_id, text, content_type="alert"):
             posted += 1
             logger.info(
                 "kol_scoreboard:alerted handle=%s grade=%s score=%.1f",

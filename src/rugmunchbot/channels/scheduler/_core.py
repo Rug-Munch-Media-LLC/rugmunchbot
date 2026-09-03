@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
+from rugmunchbot._vendor.channels_registry import CHANNEL_ROLES
 from rugmunchbot._vendor.news_ingest.models import NewsArticle
 from rugmunchbot.channels import scheduler_state
 from rugmunchbot.channels._media import send_news_photo
@@ -21,6 +22,7 @@ from rugmunchbot.channels.router import (
     ROUTE_NEWS_MIN_IMPORTANCE,
     route_news,
 )
+from rugmunchbot.channels.style_guides import channel_accepts_content
 from rugmunchbot.config import (
     _resolve_channel_id,
 )
@@ -220,7 +222,52 @@ def _dedupe_key(prefix: str, item: dict[str, Any]) -> str:
     return f"{prefix}:{addr or title}"
 
 
-async def _safe_send(bot: Any, chat_id: str, text: str) -> bool:
+def _channel_for_chat_id(chat_id: str) -> str | None:
+    """Map a resolved chat id back to its channel role (None when unknown).
+
+    Used by the content-type gate to know which channel a send is targeting.
+    Chat ids are memoized by ``_resolve_channel_id``, so this is cheap after
+    first resolution. Returns None for non-registry chat ids (personal DMs,
+    escalations to unknown lanes) — the gate then stays permissive.
+    """
+    for role in CHANNEL_ROLES:
+        if _chat_id(role) == chat_id:
+            return role
+    return None
+
+
+def _enforce_content_contract(chat_id: str, content_type: str | None) -> bool:
+    """Return True when the send may proceed; False when the channel contract
+    rejects this content type (already logged at DEBUG).
+
+    The single chokepoint every channel send shares — a whale alert can never
+    land on @rmiscans, a news story can never land on @rmialpha, and a system
+    notification can never land on @rmialerts. Fail-open: unknown channel or
+    no content_type → allowed (never silently drop a post).
+    """
+    if not content_type:
+        return True
+    channel = _channel_for_chat_id(chat_id)
+    if channel is None:
+        return True
+    if channel_accepts_content(channel, content_type):
+        return True
+    logger.debug(
+        "channels:blocked channel=%s content_type=%s chat_id=%s",
+        channel,
+        content_type,
+        chat_id,
+    )
+    return False
+
+
+async def _safe_send(
+    bot: Any,
+    chat_id: str,
+    text: str,
+    *,
+    content_type: str | None = None,
+) -> bool:
     """Send one HTML message to a channel. Returns True on success, fails open.
 
     WO-3 (2026-08-25): EVERY post passes through ``enforce_format_law``
@@ -230,11 +277,19 @@ async def _safe_send(bot: Any, chat_id: str, text: str) -> bool:
     mid-text truncation artifacts). Fail-open: a formatter bug returns the
     original text unchanged.
 
+    CONTENT-TYPE GATE (2026-09-03): when ``content_type`` is given, the
+    channel contract is enforced BEFORE any send — a post whose content type
+    the target channel is not chartered for is blocked (logged at DEBUG) and
+    returns False without sending. This is the no-cross-contamination guard
+    between alerts/scans/alpha/news/updates.
+
     Retries failed sends up to ``_POST_RETRIES`` times with exponential
     backoff (0.5s, 1s, 2s, … capped at 8s) before logging and dropping. The
     sleeps only suspend this job's coroutine — the JobQueue loop keeps
     running other jobs. A poster never crashes the JobQueue.
     """
+    if not _enforce_content_contract(chat_id, content_type):
+        return False
     text = enforce_format_law(text)
     max_attempts = 1 + _POST_RETRIES
     attempt = 0
@@ -372,7 +427,14 @@ def _item_to_article(item: dict[str, Any], *, category: str, source: str) -> New
     )
 
 
-async def _post_photo_aware(bot: Any, chat_id: str, post: "NewsPost | str", safe_send: Any) -> bool:
+async def _post_photo_aware(
+    bot: Any,
+    chat_id: str,
+    post: "NewsPost | str",
+    safe_send: Any,
+    *,
+    content_type: str | None = None,
+) -> bool:
     """Post a ``NewsPost`` (or plain text), attaching its image when one is available.
 
     Reuses the existing photo primitive (``channels._media.send_news_photo``)
@@ -380,11 +442,19 @@ async def _post_photo_aware(bot: Any, chat_id: str, post: "NewsPost | str", safe
     behavior as the tg_news lane. Without an image the caller's ``safe_send``
     (retry + ``disable_web_page_preview=True``) is used. Accepts a plain
     ``str`` too (``NewsPost`` is a ``str`` subclass — callers may pass either).
+
+    CONTENT-TYPE GATE: when ``content_type`` is given, the channel contract
+    is enforced BEFORE either the photo or text path — a post whose content
+    type the target channel is not chartered for is blocked (logged at DEBUG)
+    and returns False without sending. This covers the photo path, which
+    bypasses ``_safe_send``.
     """
+    if not _enforce_content_contract(chat_id, content_type):
+        return False
     image_url = getattr(post, "image_url", "") or ""
     if image_url:
         return await send_news_photo(bot, chat_id, caption=post, photo_url=image_url)
-    return await safe_send(bot, chat_id, post)
+    return await safe_send(bot, chat_id, post, content_type=content_type)
 
 
 async def _score_and_partition(

@@ -411,6 +411,99 @@ async def test_scans_lane_posts_scanner_drafts(monkeypatch):
     assert sends[0][1].startswith("[SCAN]")
 
 
+# ── 2026-09-03 news-channel content-type doctrine ───────────────────────────
+
+
+def test_news_content_type_gate_blocks_non_news_kinds():
+    """@rmicryptonews is breaking-crypto-news ONLY. Whale alerts, scan
+    results, system notifications, product updates, shill/alpha intel and
+    roundup/digest summaries must never land on the news channel — the
+    content-type gate blocks them regardless of quality/freshness."""
+    # News kinds pass.
+    assert _posts_rag._news_content_type_gate({"kind": "story"}) == ""
+    assert _posts_rag._news_content_type_gate({"kind": "crypto_news"}) == ""
+    assert _posts_rag._news_content_type_gate({"kind": "news"}) == ""
+    # Unknown / missing kinds pass (the other gates still apply).
+    assert _posts_rag._news_content_type_gate({}) == ""
+    assert _posts_rag._news_content_type_gate({"kind": "some_future_kind"}) == ""
+    # Non-news kinds are blocked.
+    for blocked in (
+        "whale_move",
+        "whale_alert",
+        "scan",
+        "scanner_alert",
+        "alert",
+        "exploit",
+        "rug-update",
+        "scammer_warning",
+        "shill_evidence",
+        "kol_trade",
+        "early_entry",
+        "alpha",
+        "quality",
+        "roundup",
+        "digest",
+        "market-summary",
+        "product_update",
+        "changelog",
+    ):
+        assert _posts_rag._news_content_type_gate({"kind": blocked}) == f"blocked_kind({blocked})"
+
+
+@pytest.mark.asyncio
+async def test_news_lane_blocks_non_news_kinds(monkeypatch):
+    """End-to-end: a whale/scan/alert/product-update draft queued for the
+    news channel is dropped; a story-kind draft still posts."""
+    whale = {
+        "story_ref": "whale:0xabc",
+        "text": "Whale moved 12,400 ETH to Binance. https://example.com/whale",
+        "kind": "whale_move",
+        "mirror": False,
+        "ts": datetime.now(UTC).isoformat(),
+    }
+    story = {
+        "story_ref": "news:story-1",
+        "text": (
+            "Ethereum spot ETF inflows hit a record this week as institutional "
+            "demand accelerates, with desks now tracking the largest single-day "
+            "accumulation since launch. https://example.com/story"
+        ),
+        "kind": "story",
+        "mirror": False,
+        "ts": datetime.now(UTC).isoformat(),
+    }
+    seen: list[tuple[str, str]] = []
+
+    async def _send(bot: Any, chat_id: str, text: str) -> bool:
+        seen.append((chat_id, text))
+        return True
+
+    async def _no_news(limit=5):
+        return []
+
+    async def _no_main_drafts(limit=8):
+        return []
+
+    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _no_news)
+    monkeypatch.setattr(_posts_rag, "gather_main_drafts", _no_main_drafts)
+    _patch_env(
+        monkeypatch,
+        chat_id="-100news",
+        drafts={"main": [], "news": [whale, story], "alerts": [], "scans": []},
+        sender=_send,
+    )
+
+    ctx = _Ctx()
+    posted = await _posts_rag.post_rag_drafts(ctx)
+    print("DEBUG posted:", posted, "seen:", seen, "bot.calls:", ctx.bot.calls)
+
+    # Only the story-kind draft posts; the whale_move draft is filtered out.
+    assert posted == 1
+    sends = seen + ctx.bot.calls
+    assert len(sends) == 1
+    assert "Ethereum ETF" in sends[0][1]
+
+
 # ── 2026-08-30 unified main content path (task 1/2/3) ──────────────────────
 
 

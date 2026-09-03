@@ -123,6 +123,7 @@ async def _post_backend_trending_fallback(
                 news_chat_id,
                 _news_post_for(fresh[:TG_NEWS_POST_LIMIT], commentaries=commentaries),
                 safe_send,
+                content_type="news",
             )
             if ok:
                 posted += 1
@@ -148,7 +149,9 @@ async def _post_backend_trending_fallback(
 
                 formatted = enforce_main_link_contract(formatted, post)
                 if formatted is not None:
-                    ok = await _post_formatted(ctx.bot, main_chat_id, formatted, safe_send)
+                    ok = await _post_formatted(
+                        ctx.bot, main_chat_id, formatted, safe_send, content_type="news"
+                    )
                     if ok:
                         posted += 1
                         logger.info("tg_news:posted_backend_main title=%s", top_article.title[:80])
@@ -156,7 +159,18 @@ async def _post_backend_trending_fallback(
     return posted
 
 
-async def _post_formatted(bot: Any, chat_id: str, post: NewsPost, safe_send: Any) -> bool:
+async def _post_formatted(
+    bot: Any, chat_id: str, post: NewsPost, safe_send: Any, *, content_type: str | None = None
+) -> bool:
+    # CONTENT-TYPE GATE (2026-09-03): enforce the channel contract before
+    # either the photo or text path — a post whose content type the target
+    # channel is not chartered for is blocked (logged at DEBUG) and returns
+    # False without sending. Covers the photo path, which bypasses
+    # ``_safe_send``.
+    from rugmunchbot.channels.scheduler._core import _enforce_content_contract
+
+    if not _enforce_content_contract(chat_id, content_type):
+        return False
     # HARD quality gate (2026-08-31): no post ships without passing the
     # deterministic content lint. Auto-fix (dedupe links, placeholder
     # image) runs first; a still-dirty post is logged and skipped.
@@ -186,7 +200,7 @@ async def _post_formatted(bot: Any, chat_id: str, post: NewsPost, safe_send: Any
         image_url = ""
     if image_url:
         return await send_news_photo(bot, chat_id, caption=post, photo_url=image_url)
-    return await safe_send(bot, chat_id, post)
+    return await safe_send(bot, chat_id, post, content_type=content_type)
 
 
 async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -345,7 +359,11 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 # ships with just the headline when the LLM call fails/empties.
                 _apply_commentaries([post], await _tg.attach_commentaries([post]))
                 ok = await _post_formatted(
-                    ctx.bot, news_chat_id, format_breaking_post(post), _safe_send
+                    ctx.bot,
+                    news_chat_id,
+                    format_breaking_post(post),
+                    _safe_send,
+                    content_type="news",
                 )
                 if ok:
                     logger.info("tg_news:posted_breaking title=%s", top.title[:80])
@@ -369,6 +387,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                     news_chat_id,
                     _news_post_for(fresh_articles, commentaries=commentaries),
                     _safe_send,
+                    content_type="news",
                 )
                 if ok:
                     logger.info("tg_news:posted_news count=%s", min(len(fresh), TG_NEWS_POST_LIMIT))
@@ -409,7 +428,9 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
                     formatted = enforce_main_link_contract(formatted, post)
                     if formatted is not None:
-                        ok = await _post_formatted(ctx.bot, main_chat_id, formatted, _safe_send)
+                        ok = await _post_formatted(
+                            ctx.bot, main_chat_id, formatted, _safe_send, content_type="news"
+                        )
                     else:
                         ok = False
                         logger.warning(
@@ -467,6 +488,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                     [_article_to_post_dict(a) for a in fresh_alpha[:TG_NEWS_POST_LIMIT]]
                 ),
                 _safe_send,
+                content_type="alpha",
             )
             if ok:
                 logger.info(
@@ -496,6 +518,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                     [_article_to_post_dict(a) for a in fresh_alerts[:TG_NEWS_POST_LIMIT]]
                 ),
                 _safe_send,
+                content_type="alert",
             )
             if ok:
                 logger.info(

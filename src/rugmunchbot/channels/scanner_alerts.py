@@ -198,7 +198,7 @@ async def run_scanner_alert_watch(bot: Any) -> dict[str, Any]:
                 logger.debug("scanner_photo_failed %s", str(exc)[:80])
         if not sent:
             # Text message is the authoritative delivery fallback.
-            sent = await _safe_send(bot, alerts_chat, text)
+            sent = await _safe_send(bot, alerts_chat, text, content_type="alert")
         if sent:
             stats["posted"] += 1
             logger.info("scanner_alert_posted id=%s", alert_id[:60])

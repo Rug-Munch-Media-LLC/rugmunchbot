@@ -251,7 +251,7 @@ async def run_shill_watch(ctx: Any = None) -> int:
         routed = False
         # Danger intel: never the news channel. Main only at/above the gate.
         if campaign.importance >= ROUTE_MAIN_MIN_IMPORTANCE and main_chat:
-            routed = await _safe_send(ctx.bot, main_chat, text) or routed
+            routed = await _safe_send(ctx.bot, main_chat, text, content_type="shill") or routed
             # W30 top-of-food-chain mirror: a shill campaign that escalates
             # to main also lands on feed.rugmunch.io (same content, same
             # order, source link preserved). Best-effort, never blocks.
@@ -275,7 +275,7 @@ async def run_shill_watch(ctx: Any = None) -> int:
                 except Exception as exc:
                     logger.warning("shill_feed_mirror_failed err=%s", str(exc)[:120])
         if campaign.importance >= ROUTE_NEWS_MIN_IMPORTANCE and alerts_chat:
-            routed = await _safe_send(ctx.bot, alerts_chat, text) or routed
+            routed = await _safe_send(ctx.bot, alerts_chat, text, content_type="alert") or routed
         if not routed:
             # Held below the floor (or every send failed) — release to retry.
             _release("shill_watch", dedupe_key)

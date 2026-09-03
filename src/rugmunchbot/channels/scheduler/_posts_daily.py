@@ -174,7 +174,7 @@ async def post_daily_quality(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         news_post.image_url = image_url
         post = news_post
 
-    ok = await _post_photo_aware(ctx.bot, main_chat_id, post, _safe_send)
+    ok = await _post_photo_aware(ctx.bot, main_chat_id, post, _safe_send, content_type="market")
     if not ok:
         _release("daily_quality", dedupe_key)
         return 0

@@ -183,6 +183,72 @@ def _source_gate(item: dict[str, Any]) -> str:
     return "no_source_link"
 
 
+#: Content kinds that must NEVER land on @rmicryptonews (2026-09-03 channel
+#: doctrine). The news channel is breaking-crypto-news ONLY — whale alerts,
+#: scan results, system notifications, product updates, shill/alpha intel and
+#: roundup/digest summaries are all routed to their own lanes. A draft whose
+#: ``kind`` matches one of these is dropped from the news channel regardless
+#: of how well it is written or how fresh it is. Unknown/empty kinds pass
+#: (the rugbrain ``kind`` metadata is sparse today) — the recency/source/
+#: quality gates still apply.
+_NEWS_BLOCKED_KINDS: frozenset[str] = frozenset(
+    {
+        # whale alerts
+        "whale_move",
+        "whale_alert",
+        "whale",
+        # scan results
+        "scan",
+        "scanner_alert",
+        "scan_result",
+        # alerts / exploits / rugs / scammer warnings
+        "alert",
+        "exploit",
+        "exploit_alert",
+        "rug-update",
+        "rug_update",
+        "scammer_warning",
+        "security_incident",
+        # shill / alpha / kol intel
+        "shill_evidence",
+        "shill_watch",
+        "shill_campaign",
+        "shill",
+        "kol_trade",
+        "kol_shill",
+        "early_entry",
+        "alpha",
+        # system / roundup / digest / market summaries
+        "quality",
+        "roundup",
+        "digest",
+        "market-summary",
+        "market_summary",
+        "system",
+        "product_update",
+        "changelog",
+    }
+)
+
+
+def _news_content_type_gate(item: dict[str, Any]) -> str:
+    """News-channel content-type gate. Returns "" when the draft may post to
+    @rmicryptonews, else the reason.
+
+    Blocks any draft whose ``kind`` is a non-news content type (whale alerts,
+    scan results, system notifications, product updates, shill/alpha intel,
+    roundup/digest summaries). This is the channel-doctrine filter that keeps
+    @rmicryptonews breaking-crypto-news-only. Pure — never raises; unknown or
+    missing kinds pass (the other gates still apply).
+    """
+    kind = str(item.get("kind") or "").strip().lower()
+    if not kind:
+        return ""
+    if kind in _NEWS_BLOCKED_KINDS:
+        return f"blocked_kind({kind})"
+    return ""
+
+
 def _quality_gate(item: dict[str, Any]) -> str:
     """WO-3 draft gate. Returns "" when the draft may post, else the reason.
 
@@ -686,6 +752,13 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 # 2026-08-26 no-source incident: an unsourced post is
                 # unverifiable — rejected regardless of how well written.
                 gate_reason = _source_gate(item)
+            if not gate_reason and channel == "news":
+                # 2026-09-03 channel doctrine: @rmicryptonews is breaking
+                # crypto news ONLY. Whale alerts, scan results, system
+                # notifications, product updates, shill/alpha intel and
+                # roundup/digest summaries are blocked from the news channel
+                # no matter how well written or fresh they are.
+                gate_reason = _news_content_type_gate(item)
             if gate_reason:
                 logger.warning(
                     "rag_draft_gated channel=%s reason=%s ref=%s",
@@ -754,11 +827,22 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             text = gate.text
             item = {**item, "image_url": gate.image_url}
 
+            # Content-type contract: a RAG draft is chartered for its native
+            # channel's content type (news→news, alerts→alert, scans→scan;
+            # main accepts everything). Enforced at the send chokepoint.
+            rag_content_type = {
+                "news": "news",
+                "alerts": "alert",
+                "scans": "scan",
+                "main": "news",
+            }.get(channel)
+
             ok = await _post_photo_aware(
                 ctx.bot,
                 chat_id,
                 ensure_post_image(_rag_post_with_image(text, item)),
                 _safe_send,
+                content_type=rag_content_type,
             )
             if not ok:
                 # Release the dedupe mark so the next tick retries this draft
@@ -897,6 +981,7 @@ async def post_rag_fast_lane(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 _rag_post_with_image(gate.text, {**item, "image_url": gate.image_url})
             ),
             _safe_send,
+            content_type="alert",
         ):
             logger.info(
                 "rag_fast_lane_posted ref=%s age_h=%.1f",
@@ -1008,7 +1093,7 @@ async def post_security_tweet_escalation(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         if not _remember("rag_security_tweet", dedupe_key, title=tweet.get("text")):
             continue
         text = format_security_tweet_escalation(tweet)
-        if await _safe_send(ctx.bot, chat_id, text):
+        if await _safe_send(ctx.bot, chat_id, text, content_type="alert"):
             posted += 1
             logger.info(
                 "security_tweet_escalated handle=%s ref=%s",

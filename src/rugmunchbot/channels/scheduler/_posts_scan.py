@@ -172,7 +172,11 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         # One bounded witty one-liner per card (fail-open to no line).
         item = await attach_scan_commentary(item)
         ok = await _post_photo_aware(
-            ctx.bot, chat_id, ensure_post_image(format_scan_card(item)), _safe_send
+            ctx.bot,
+            chat_id,
+            ensure_post_image(format_scan_card(item)),
+            _safe_send,
+            content_type="scan",
         )
         if ok:
             posted += 1
@@ -184,7 +188,11 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         :remaining
     ]:
         ok = await _post_photo_aware(
-            ctx.bot, chat_id, ensure_post_image(format_scan_card(item)), _safe_send
+            ctx.bot,
+            chat_id,
+            ensure_post_image(format_scan_card(item)),
+            _safe_send,
+            content_type="scan",
         )
         if ok:
             posted += 1
@@ -217,7 +225,11 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 continue
             item = await attach_scan_commentary(item)
             ok = await _post_photo_aware(
-                ctx.bot, main_chat_id, ensure_post_image(format_scan_card(item)), _safe_send
+                ctx.bot,
+                main_chat_id,
+                ensure_post_image(format_scan_card(item)),
+                _safe_send,
+                content_type="scan",
             )
             if ok:
                 posted += 1
@@ -343,6 +355,7 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             chat_id,
             format_alpha_post(whale_keep, smart_keep, launch_keep, kol_trades=kol_keep),
             _safe_send,
+            content_type="alpha",
         )
         if ok:
             posted += 1
@@ -361,7 +374,9 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             if await _main_admission("alpha") != "main":
                 continue
             main_text = format_main_escalation(item)
-            ok = await _post_photo_aware(ctx.bot, main_chat_id, main_text, _safe_send)
+            ok = await _post_photo_aware(
+                ctx.bot, main_chat_id, main_text, _safe_send, content_type="alpha"
+            )
             if ok:
                 posted += 1
                 await _record_main_post()

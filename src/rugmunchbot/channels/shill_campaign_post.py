@@ -296,7 +296,7 @@ async def run_shill_campaign_poster(ctx: Any) -> int:
                         ctx.bot, chat_id, caption=text, photo_url=image_url
                     )
                 if not sent:
-                    sent = await _safe_send(ctx.bot, chat_id, text)
+                    sent = await _safe_send(ctx.bot, chat_id, text, content_type="shill")
         except Exception as exc:
             logger.warning("shill_campaign_post:send_failed err=%s", str(exc)[:120])
         if sent:

@@ -118,7 +118,11 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     posted = 0
     if channel_items:
         ok = await _post_photo_aware(
-            ctx.bot, chat_id, ensure_post_image(format_alerts_post(channel_items)), _safe_send
+            ctx.bot,
+            chat_id,
+            ensure_post_image(format_alerts_post(channel_items)),
+            _safe_send,
+            content_type="alert",
         )
         if ok:
             posted += 1
@@ -152,7 +156,11 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 )
                 continue
             ok = await _post_photo_aware(
-                ctx.bot, main_chat_id, ensure_post_image(main_text), _safe_send
+                ctx.bot,
+                main_chat_id,
+                ensure_post_image(main_text),
+                _safe_send,
+                content_type="alert",
             )
             if ok:
                 posted += 1

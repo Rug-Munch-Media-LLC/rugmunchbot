@@ -296,7 +296,7 @@ async def post_updates_digest(ctx: Any) -> int:
     except Exception:
         health_lines = ["❌ probe failure"]
     text = compose_updates_digest(health_lines)
-    ok = await _safe_send(ctx.bot, chat_id, text)
+    ok = await _safe_send(ctx.bot, chat_id, text, content_type="update")
     if not ok:
         _release("updates", dedupe_key)
         return 0
