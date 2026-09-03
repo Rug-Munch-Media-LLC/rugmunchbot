@@ -40,6 +40,17 @@ ALERT_KEY = "rmi:alerts:recent"
 ALERT_COUNT_KEY = "rmi:alerts:count:active"
 ALERT_MAX = 500  # Keep last 500 alerts
 
+#: Chat ID for @rmi_admin_bot — the destination for system/platform alerts
+#: (backup failures, health checks, service status). Read from env so the
+#: operator can point it at the right admin chat without code changes. When
+#: unset, system alerts are still queued but the consumer has no admin chat
+#: to deliver to (logged, not misrouted).
+RMI_ADMIN_CHAT_ID = os.getenv("RMI_ADMIN_CHAT_ID", "")
+
+#: Redis LIST key for system/platform alerts routed to @rmi_admin_bot. The
+#: telegram bridge consumer pops these and delivers them to the admin chat.
+SYSTEM_ALERT_QUEUE_KEY = "rmi:alerts:system"
+
 # ══════════════════════════════════════════════
 # @rmialerts content filter
 # ══════════════════════════════════════════════
@@ -159,13 +170,21 @@ async def push_alert(
     # health, monitor, service, deploy, cron, system, status, error, warning,
     # info). Only security content (exploit, hack, rug_pull, scam, honeypot,
     # liquidity_drain, deployer_dump, whale_move, shill_campaign,
-    # security_research) is allowed through. Blocked alerts are logged at
-    # DEBUG (not WARNING) so they don't add noise.
+    # security_research) is allowed through. Blocked alerts are re-routed to
+    # the @rmi_admin_bot system queue (not dropped) so operators still see
+    # backup failures, health-check regressions, and service status.
     if not is_security_alert_type(alert_type):
-        logger.debug(
-            "alert_blocked type=%s title=%s category=blocked reason=system_or_platform_notification",
-            alert_type,
-            (title or "")[:60],
+        await _route_system_alert(
+            alert_type=alert_type,
+            title=title,
+            description=description,
+            severity=severity,
+            chain=chain,
+            token=token,
+            token_symbol=token_symbol,
+            wallet=wallet,
+            risk_score=risk_score,
+            metadata=metadata,
         )
         return ""
 
@@ -203,6 +222,64 @@ async def push_alert(
     return alert_id
 
 
+async def _route_system_alert(
+    alert_type: str,
+    title: str,
+    description: str = "",
+    severity: str = "high",
+    chain: str = "unknown",
+    token: str = "",
+    token_symbol: str = "",
+    wallet: str = "",
+    risk_score: int = 0,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Route a system/platform alert to the @rmi_admin_bot queue.
+
+    System alerts (backup, health, monitor, service, deploy, cron, status,
+    error, warning, info) are blocked from the @rmialerts security channel but
+    are re-routed here so operators still see them. The item is pushed onto
+    the ``rmi:alerts:system`` Redis LIST; the telegram bridge consumer pops it
+    and delivers it to ``RMI_ADMIN_CHAT_ID`` (@rmi_admin_bot).
+
+    Fails open: when Redis is unavailable the alert is logged and dropped —
+    never a hard failure for the caller.
+    """
+    item = {
+        "type": alert_type,
+        "category": "system",
+        "admin_chat_id": RMI_ADMIN_CHAT_ID,
+        "title": title,
+        "description": description,
+        "severity": severity,
+        "chain": chain,
+        "token": token,
+        "token_symbol": token_symbol,
+        "wallet": wallet,
+        "risk_score": risk_score,
+        "created_at": datetime.now(UTC).isoformat(),
+        **(metadata or {}),
+    }
+    try:
+        r = await _get_redis()
+        await r.lpush(SYSTEM_ALERT_QUEUE_KEY, json.dumps(item))
+        await r.close()
+        logger.debug(
+            "alert_routed_to_admin type=%s title=%s category=system queue=%s admin_chat_id=%s",
+            alert_type,
+            (title or "")[:60],
+            SYSTEM_ALERT_QUEUE_KEY,
+            RMI_ADMIN_CHAT_ID or "<unset>",
+        )
+    except Exception as e:
+        logger.warning(
+            "alert_system_route_failed type=%s title=%s error=%s",
+            alert_type,
+            (title or "")[:60],
+            e,
+        )
+
+
 async def get_recent_alerts(limit: int = 20, severity: str = "") -> list[dict[str, Any]]:
     """Get recent alerts with optional severity filter. Normalizes old/new formats."""
     try:
@@ -230,7 +307,9 @@ async def get_recent_alerts(limit: int = 20, severity: str = "") -> list[dict[st
                     alert["description"] = " | ".join(desc_parts)
                 if "severity" not in alert:
                     score = alert.get("risk_score", 50)
-                    alert["severity"] = "critical" if score >= 85 else "high" if score >= 65 else "medium"
+                    alert["severity"] = (
+                        "critical" if score >= 85 else "high" if score >= 65 else "medium"
+                    )
                 if "chain" not in alert:
                     alert["chain"] = alert.get("chain", "unknown")
 
@@ -263,7 +342,9 @@ async def scan_solana_new_pairs(limit: int = 5) -> int:
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get("https://api.dexscreener.com/latest/dex/search", params={"q": "SOL USDC"})
+            resp = await client.get(
+                "https://api.dexscreener.com/latest/dex/search", params={"q": "SOL USDC"}
+            )
             if resp.status_code != 200:
                 return 0
 
@@ -339,7 +420,10 @@ async def scan_known_scams(limit: int = 3) -> int:
                     data = json.loads(doc)
                     added = data.get("metadata", {}).get("added_at", "")
                     if added:
-                        age_h = (time.time() - datetime.fromisoformat(added.replace("Z", "+00:00")).timestamp()) / 3600
+                        age_h = (
+                            time.time()
+                            - datetime.fromisoformat(added.replace("Z", "+00:00")).timestamp()
+                        ) / 3600
                         if age_h < 24:
                             recent_count += 1
                 except json.JSONDecodeError:
