@@ -242,9 +242,9 @@ def _fmt_doc(point_id: str, payload: dict[str, Any]) -> str | None:
     copy-able), the token + chain, the amount (USD + native when known), a
     timestamp, and an explorer/tx source link. A transfer payload with NO
     wallet address is DROPPED (returns ``None``) — a whale alert without the
-    wallet is worthless noise. Positioning/HL summaries are market-analysis
-    (not a transfer) and render their content + timestamp as-is. Pure —
-    never raises.
+    wallet is worthless noise. Positioning/OI summaries are market-analysis
+    (not a transfer, no wallet signal) and are DROPPED too — @rmialpha posts
+    whale movements + smart-money signals only. Pure — never raises.
     """
     meta = payload.get("metadata") or {}
     chain = str(meta.get("chain", "?")).lower()
