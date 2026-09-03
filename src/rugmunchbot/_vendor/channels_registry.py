@@ -44,6 +44,7 @@ Resolution order is always **gopass → env → fallback**:
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 from dataclasses import dataclass
@@ -218,4 +219,49 @@ def channel_inventory() -> tuple[ChannelInventoryRow, ...]:
             description=definition.description,
         )
         for definition in CHANNEL_ROLES.values()
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CONTENT-TYPE FILTERING (per-channel allowlist)
+# ══════════════════════════════════════════════════════════════════════════
+
+
+#: Content types each channel role is allowed to receive. Anything not listed
+#: here is blocked so channels never cross-contaminate.
+CHANNEL_CONTENT_TYPES: dict[str, frozenset[str]] = {
+    "main": frozenset({"market_commentary", "breaking_news", "shill_campaign", "security_alert"}),
+    "news": frozenset({"breaking_news", "crypto_news"}),
+    "alerts": frozenset({"exploit", "hack", "rug_pull", "scam", "honeypot", "security_research"}),
+    "alpha": frozenset({"whale_move", "smart_money"}),
+    "scans": frozenset({"scan_result", "suspicious_token"}),
+    "updates": frozenset({"changelog", "product_update"}),
+}
+
+
+def channel_accepts_content(channel: str, content_type: str) -> bool:
+    """Return whether ``channel`` may receive ``content_type``.
+
+    Enforces a per-channel allowlist so each Telegram channel only gets the
+    right content. Unknown channels and unknown content types are blocked.
+    Blocked matches are logged at DEBUG level.
+    """
+    allowed = CHANNEL_CONTENT_TYPES.get(channel)
+    if allowed is None:
+        _log_blocked(channel, content_type, "unknown channel")
+        return False
+    if content_type not in allowed:
+        _log_blocked(channel, content_type, "content type not allowed")
+        return False
+    return True
+
+
+def _log_blocked(channel: str, content_type: str, reason: str) -> None:
+    """Log a blocked content-type match at DEBUG level (no-op if logging off)."""
+    logger = logging.getLogger(__name__)
+    logger.debug(
+        "blocked content for channel=%s content_type=%s reason=%s",
+        channel,
+        content_type,
+        reason,
     )
