@@ -32,6 +32,7 @@ logged — never a hard failure for the engine poll loop.
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -52,6 +53,12 @@ log = get_logger(__name__)
 # ever sees external http(s) URLs — internal ones are intercepted in the
 # engine's ``_dispatch`` before HTTP delivery is attempted.
 INTERNAL_TELEGRAM_PREFIX = "internal://telegram/"
+
+#: Chat ID for @rmi_admin_bot — the destination for system/platform alerts
+#: (backup failures, health checks, service status). Read from env so the
+#: operator can point it at the right admin chat without code changes. When
+#: unset, system alerts are dropped (logged) rather than misrouted.
+ADMIN_CHAT_ID = os.getenv("RMI_ADMIN_CHAT_ID", "")
 
 # Redis LIST key shared with the bot's alert delivery worker. JSON items:
 #   {"type": str, "user_id": int, "event_id": str,
@@ -320,15 +327,33 @@ async def route_internal_telegram(event: WebhookEvent, sub: WebhookSubscription)
     # health, monitor, service, deploy, cron, system, status, error, warning,
     # info). Only security content (exploit, hack, rug_pull, scam, honeypot,
     # liquidity_drain, deployer_dump, whale_move, shill_campaign,
-    # security_research) is allowed through. Blocked events are logged at
-    # DEBUG (not WARNING) so they don't add noise.
+    # security_research) is allowed through to @rmialerts.
+    #
+    # System/platform alerts are NOT dropped — they are re-routed to
+    # @rmi_admin_bot (ADMIN_CHAT_ID) so operators still see backup failures,
+    # health-check regressions, and service status. Security alerts stay on
+    # @rmialerts (the subscription's user_id).
     if not is_security_alert(event_type):
+        if not ADMIN_CHAT_ID:
+            log.debug(
+                "telegram_alert_blocked event=%s user=%s category=blocked reason=system_or_platform_notification_no_admin_chat",
+                event_type,
+                user_id,
+            )
+            return True
+        payload = dict(event.payload or {})
+        payload.setdefault("chain", event.chain or "unknown")
         log.debug(
-            "telegram_alert_blocked event=%s user=%s category=blocked reason=system_or_platform_notification",
+            "telegram_alert_routed_to_admin event=%s user=%s category=blocked reason=system_or_platform_notification",
             event_type,
             user_id,
         )
-        return True
+        return await enqueue_telegram_alert(
+            user_id=int(ADMIN_CHAT_ID),
+            event_type=event_type,
+            payload=payload,
+            event_id=event.id,
+        )
 
     payload = dict(event.payload or {})
     payload.setdefault("chain", event.chain or "unknown")
@@ -342,6 +367,7 @@ async def route_internal_telegram(event: WebhookEvent, sub: WebhookSubscription)
 
 
 __all__ = [
+    "ADMIN_CHAT_ID",
     "INTERNAL_TELEGRAM_PREFIX",
     "TELEGRAM_ALERT_QUEUE_KEY",
     "enqueue_telegram_alert",

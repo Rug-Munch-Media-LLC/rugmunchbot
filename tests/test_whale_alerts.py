@@ -65,7 +65,9 @@ def test_fmt_doc_wallet_less_transfer_dropped():
     assert line is None
 
 
-def test_fmt_doc_positioning():
+def test_fmt_doc_positioning_dropped():
+    """Positioning/OI summaries are market analysis, NOT whale movements or
+    smart-money signals — they must never leak into the @rmialpha channel."""
     line = _fmt_doc(
         "pid-2",
         {
@@ -73,8 +75,7 @@ def test_fmt_doc_positioning():
             "metadata": {"chain": "hyperliquid", "type": "positioning"},
         },
     )
-    assert line is not None
-    assert "Hyperliquid whales" in line
+    assert line is None
 
 
 @pytest.mark.asyncio

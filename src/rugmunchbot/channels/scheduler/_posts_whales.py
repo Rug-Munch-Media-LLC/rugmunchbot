@@ -251,13 +251,12 @@ def _fmt_doc(point_id: str, payload: dict[str, Any]) -> str | None:
     badge = _CHAIN_EMOJI.get(chain, "🌐")
     mtype = meta.get("type", "large_transfer")
 
+    # ALPHA-CHANNEL DOCTRINE (2026-09-03): @rmialpha posts whale movements +
+    # smart-money signals ONLY. Positioning / OI / market-analysis summaries
+    # are a separate genre (not a transfer, no wallet signal) — DROP them so
+    # non-whale content never leaks into the paid alpha lane.
     if mtype == "positioning":
-        # HL positioning docs are summaries — post content + timestamp as-is.
-        content = str(payload.get("content", ""))[:280]
-        ts = _fmt_time(meta)
-        if ts:
-            return f"⚡ <b>Hyperliquid whales</b>\n{content}\n{ts}"
-        return f"⚡ <b>Hyperliquid whales</b>\n{content}"
+        return None
 
     frm = str(meta.get("from", "") or "").strip()
     to = str(meta.get("to", "") or "").strip()
