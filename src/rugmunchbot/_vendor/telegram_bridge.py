@@ -58,6 +58,74 @@ INTERNAL_TELEGRAM_PREFIX = "internal://telegram/"
 #    "payload": dict, "created_at": str}
 TELEGRAM_ALERT_QUEUE_KEY = "bot:alerts:queue"
 
+# ══════════════════════════════════════════════
+# @rmialerts content filter
+# ══════════════════════════════════════════════
+# The alerts channel must ONLY carry security content (hacks, exploits, rug
+# pulls, scam warnings). System/platform notifications (backup, health,
+# monitor, service, deploy, cron, status, ...) are blocked here so they never
+# reach @rmialerts. Event types are classified into an ALLOWED category when
+# they carry security signal, otherwise they fall into a BLOCKED category.
+
+# Event-type prefixes that carry security signal → allowed through to @rmialerts.
+# Each maps to one of the allowed categories: exploit, hack, rug_pull, scam,
+# honeypot, liquidity_drain, deployer_dump, whale_move, shill_campaign,
+# security_research.
+_ALLOWED_ALERT_EVENT_PREFIXES: tuple[str, ...] = (
+    "token.whale_move",  # whale_move
+    "token.liquidity_change",  # liquidity_drain
+    "token.honeypot",  # honeypot
+    "token.rug_pull",  # rug_pull
+    "token.scam",  # scam
+    "token.exploit",  # exploit
+    "token.hack",  # hack
+    "token.deployer_dump",  # deployer_dump
+    "token.shill_campaign",  # shill_campaign
+    "security.research",  # security_research
+)
+
+# Event-type prefixes that are system/platform noise → blocked from @rmialerts.
+# Kept explicit for clarity/auditability even though anything not in the
+# allowed set is blocked by default.
+_BLOCKED_ALERT_EVENT_PREFIXES: tuple[str, ...] = (
+    "backup.",
+    "health.",
+    "monitor.",  # token.monitor_change etc.
+    "service.",
+    "deploy.",  # token.deployed etc.
+    "cron.",
+    "system.",
+    "status.",
+    "chain.block",  # chain/system heartbeat
+    "error.",
+    "warning.",
+    "info.",
+)
+
+
+def _alert_category(event_type: str) -> str:
+    """Classify an event type into an allowed or blocked category.
+
+    Returns the matched allowed category when the event carries security
+    signal, otherwise ``"blocked"``. Matching is prefix-based so future
+    event types under an allowed namespace are covered automatically.
+    """
+    et = (event_type or "").lower()
+    for prefix in _ALLOWED_ALERT_EVENT_PREFIXES:
+        if et.startswith(prefix):
+            return prefix
+    return "blocked"
+
+
+def is_security_alert(event_type: str) -> bool:
+    """True when an event type is allowed through to the @rmialerts channel.
+
+    Blocks system/platform notifications (backup, health, monitor, service,
+    deploy, cron, system, status, error, warning, info) and any event type
+    that does not carry security signal.
+    """
+    return _alert_category(event_type) != "blocked"
+
 
 # ══════════════════════════════════════════════
 # Internal subscription helpers
@@ -229,7 +297,9 @@ async def enqueue_telegram_alert(
         await r.lpush(TELEGRAM_ALERT_QUEUE_KEY, json.dumps(item))
         return True
     except Exception as exc:
-        log.warning("telegram_bridge_enqueue_failed event=%s user=%s error=%s", event_type, user_id, exc)
+        log.warning(
+            "telegram_bridge_enqueue_failed event=%s user=%s error=%s", event_type, user_id, exc
+        )
         return False
 
 

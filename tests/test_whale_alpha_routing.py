@@ -330,23 +330,23 @@ def test_scan_churn_notes_are_flagged_churned(monkeypatch):
     async def _fake_churn_one(candidate):
         return {"address": "X", "symbol": "S", "churned": True, "risk_flags": ["x"]}
 
-    async def _fake_trend(chain="all", limit=4, rank="risk"):
-        from rugmunchbot.tools.registry import ToolResult
-
-        return ToolResult(
-            tool="trend_by_chain",
-            ok=True,
-            data={
-                "tokens": [{"address": "X", "symbol": "S", "chain": "solana", "risk_flags": ["x"]}]
-            },
-        )
+    async def _fake_scanner():
+        return [
+            {
+                "address": "X",
+                "chain": "solana",
+                "symbol": "S",
+                "risk_score": 85.0,
+                "is_honeypot": True,
+            }
+        ]
 
     monkeypatch.setattr(content, "_churn_one_scan", _fake_churn_one)
-    # fetch_suspect_scan_notes imports trend_by_chain locally from
-    # rugmunchbot.tools.trend_algo — patch it at the module it imports from.
-    import rugmunchbot.tools.trend_algo as trend_algo
+    # fetch_suspect_scan_notes imports _scanner_candidates locally from
+    # rugmunchbot.tools.trend_algo._candidates — patch it at the module it imports from.
+    import rugmunchbot.tools.trend_algo._candidates as trend_algo
 
-    monkeypatch.setattr(trend_algo, "trend_by_chain", _fake_trend)
+    monkeypatch.setattr(trend_algo, "_scanner_candidates", _fake_scanner)
     import asyncio
 
     notes = asyncio.run(content.fetch_suspect_scan_notes(limit=2))

@@ -759,7 +759,7 @@ async def fetch_scan_notes(limit: int = 10) -> list[dict[str, Any]]:
 # Problem: the launch-alert rail and scan-history rail BOTH come from the
 # backend and are frequently empty (on 2026-08-29 both returned ``[]``), so
 # @rmiscans posted nothing. The churn rail instead GENERATES scan content:
-# it pulls the riskiest trending tokens (``trend_by_chain(rank="risk")`` —
+# it pulls the scanner's flagged honeypots/rugs (``_scanner_candidates()`` —
 # our own scanner-flagged honeypots/rugs plus sketchy fresh launches),
 # runs the full unified v2 scanner on the top candidates, and normalizes
 # each result into the same scan-note shape ``format_scan_card`` renders
@@ -986,10 +986,9 @@ async def _churn_one_scan(
 async def fetch_suspect_scan_notes(limit: int = 4) -> list[dict[str, Any]]:
     """Churn suspicious tokens through the full scanner → scan notes.
 
-    Candidate source: ``trend_by_chain(rank="risk")`` — the riskiest /
-    sketchiest trending picks (our scanner's flagged honeypots/rugs ranked
-    first, with sketch_score + risk_flags). The top candidates are scanned
-    with the unified v2 scanner (bounded concurrency, hard timeout,
+    Candidate source: ``_scanner_candidates()`` — ONLY our scanner's flagged
+    honeypots/rugs (from /api/v1/scanner/recent). The top candidates are
+    scanned with the unified v2 scanner (bounded concurrency, hard timeout,
     fail-open), and each successful result becomes a scan note carrying the
     FULL RiskReport payload so the @rmiscans card shows the complete output
     (deployer, top-25, first-buyer, fresh%, CEX-funded%, bundle/cluster,
@@ -1002,13 +1001,12 @@ async def fetch_suspect_scan_notes(limit: int = 4) -> list[dict[str, Any]]:
     if limit < 1:
         return []
     try:
-        from rugmunchbot.tools.trend_algo import trend_by_chain
+        from rugmunchbot.tools.trend_algo._candidates import _scanner_candidates
 
-        result = await trend_by_chain(chain="all", limit=max(limit * 2, 4), rank="risk")
+        candidates = await _scanner_candidates()
     except Exception as exc:  # fail-open by contract
         logger.debug("channels:scan_churn_candidates_failed err=%s", str(exc)[:100])
         return []
-    candidates = (result.data or {}).get("tokens") if result.ok else []
     if not candidates:
         return []
 

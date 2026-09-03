@@ -64,7 +64,7 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     a bounded witty one-liner (``attach_scan_commentary``, fail-open to no
     line). When the backend rails are quiet, the 2026-08-29 churn rail
     (``fetch_suspect_scan_notes``) runs the full unified v2 scanner on the
-    riskiest trending tokens so @rmiscans churns real suspicious-token
+    scanner's flagged honeypots/rugs so @rmiscans churns real suspicious-token
     content — each card carries the FULL RiskReport block (deployer, top-25,
     first-buyer, fresh%, CEX-funded%, bundle/cluster, 30-factor,
     determination) + links to the bot / website / other channels. Items
@@ -108,8 +108,8 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # so @rmiscans posted nothing forever ("no_fresh" every tick). Trigger
     # on the FRESH pool instead: whenever fewer than the tick cap of
     # not-yet-posted items exist, supplement with fresh FULL scans of the
-    # riskiest trending tokens (unified v2 scanner, fail-open) so the
-    # channel churns real suspicious-token content every tick.
+    # scanner's flagged honeypots/rugs (unified v2 scanner, fail-open) so
+    # the channel churns real suspicious-token content every tick.
     if len(fresh) + len(pending_fresh) < SCAN_CHANNEL_TICK_LIMIT:
         churned = await fetch_suspect_scan_notes(limit=SCAN_CHANNEL_TICK_LIMIT)
         if churned:
