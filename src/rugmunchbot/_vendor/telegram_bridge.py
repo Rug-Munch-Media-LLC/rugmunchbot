@@ -315,6 +315,21 @@ async def route_internal_telegram(event: WebhookEvent, sub: WebhookSubscription)
         return False
 
     event_type = event.event_type if isinstance(event.event_type, str) else event.event_type.value
+
+    # @rmialerts content filter: block system/platform notifications (backup,
+    # health, monitor, service, deploy, cron, system, status, error, warning,
+    # info). Only security content (exploit, hack, rug_pull, scam, honeypot,
+    # liquidity_drain, deployer_dump, whale_move, shill_campaign,
+    # security_research) is allowed through. Blocked events are logged at
+    # DEBUG (not WARNING) so they don't add noise.
+    if not is_security_alert(event_type):
+        log.debug(
+            "telegram_alert_blocked event=%s user=%s category=blocked reason=system_or_platform_notification",
+            event_type,
+            user_id,
+        )
+        return True
+
     payload = dict(event.payload or {})
     payload.setdefault("chain", event.chain or "unknown")
 
@@ -330,6 +345,7 @@ __all__ = [
     "INTERNAL_TELEGRAM_PREFIX",
     "TELEGRAM_ALERT_QUEUE_KEY",
     "enqueue_telegram_alert",
+    "is_security_alert",
     "is_telegram_subscription",
     "route_internal_telegram",
     "subscribe_telegram_user",

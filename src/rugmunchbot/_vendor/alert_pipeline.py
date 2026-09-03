@@ -40,6 +40,79 @@ ALERT_KEY = "rmi:alerts:recent"
 ALERT_COUNT_KEY = "rmi:alerts:count:active"
 ALERT_MAX = 500  # Keep last 500 alerts
 
+# ══════════════════════════════════════════════
+# @rmialerts content filter
+# ══════════════════════════════════════════════
+# The alerts channel must ONLY carry security content (hacks, exploits, rug
+# pulls, scam warnings). System/platform notifications (backup, health,
+# monitor, service, deploy, cron, system, status, error, warning, info) are
+# blocked here at the pipeline entry so they never reach @rmialerts.
+
+#: Alert-type prefixes that carry security signal → allowed through to
+#: @rmialerts. Each maps to one of the allowed categories: exploit, hack,
+#: rug_pull, scam, honeypot, liquidity_drain, deployer_dump, whale_move,
+#: shill_campaign, security_research.
+ALLOWED_ALERT_TYPES: tuple[str, ...] = (
+    "exploit",
+    "hack",
+    "rug_pull",
+    "rugpull",
+    "rug",
+    "scam",
+    "honeypot",
+    "liquidity_drain",
+    "liquidity_removed",
+    "lp_change",
+    "deployer_dump",
+    "whale_move",
+    "shill_campaign",
+    "security_research",
+    "new_pair_risk",
+    "scam_pattern_update",
+    "phishing",
+    "bundler",
+    "concentration",
+    "wash_trade",
+    "contract",
+    "mint_freeze",
+)
+
+#: Alert-type prefixes that are system/platform noise → blocked from
+#: @rmialerts. Kept explicit for clarity/auditability even though anything
+#: not in the allowed set is blocked by default.
+BLOCKED_ALERT_TYPES: tuple[str, ...] = (
+    "backup",
+    "health",
+    "monitor",
+    "service",
+    "deploy",
+    "cron",
+    "system",
+    "status",
+    "error",
+    "warning",
+    "info",
+)
+
+
+def is_security_alert_type(alert_type: str) -> bool:
+    """True when an alert type is allowed through to the @rmialerts channel.
+
+    Blocks system/platform notifications (backup, health, monitor, service,
+    deploy, cron, system, status, error, warning, info) and any alert type
+    that does not carry security signal.
+    """
+    at = (alert_type or "").strip().lower()
+    if not at:
+        return False
+    # Explicit security categories take precedence over blocked prefixes
+    # (e.g. ``deployer_dump`` is allowed even though it starts with ``deploy``).
+    if any(at.startswith(prefix) for prefix in ALLOWED_ALERT_TYPES):
+        return True
+    if any(at.startswith(prefix) for prefix in BLOCKED_ALERT_TYPES):
+        return False
+    return False
+
 
 async def _get_redis() -> Any:
     """Get async Redis connection."""
@@ -82,6 +155,20 @@ async def push_alert(
     Push a new alert to the pipeline.
     Returns alert_id.
     """
+    # @rmialerts content filter: block system/platform notifications (backup,
+    # health, monitor, service, deploy, cron, system, status, error, warning,
+    # info). Only security content (exploit, hack, rug_pull, scam, honeypot,
+    # liquidity_drain, deployer_dump, whale_move, shill_campaign,
+    # security_research) is allowed through. Blocked alerts are logged at
+    # DEBUG (not WARNING) so they don't add noise.
+    if not is_security_alert_type(alert_type):
+        logger.debug(
+            "alert_blocked type=%s title=%s category=blocked reason=system_or_platform_notification",
+            alert_type,
+            (title or "")[:60],
+        )
+        return ""
+
     alert_id = f"alt_{int(time.time())}_{os.urandom(4).hex()}"
 
     alert = {
