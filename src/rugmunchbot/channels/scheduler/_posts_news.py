@@ -93,6 +93,18 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             reason="no_chat_id",
         )
         return 0
+    # Channel doctrine (2026-09-03): @rmialerts is security-content ONLY —
+    # scanner risk alerts, never whale moves, scans, or system notifications.
+    # This file is the ALERTS poster (despite the ``_posts_news`` name); the
+    # @rmicryptonews breaking-news lane lives in ``telegram_news``. Defense-
+    # in-depth on top of the ``_safe_send`` chokepoint: if the alerts channel
+    # is ever misconfigured to accept a non-alert content type, refuse to
+    # post rather than leak scanner/whale/system noise into it.
+    from rugmunchbot.channels.style_guides import channel_accepts_content
+
+    if not channel_accepts_content("alerts", "alert"):
+        logger.warning("channels:alerts_contract_blocked")
+        return 0
     alerts = await fetch_risk_alerts(ALERTS_CHANNEL_LIMIT)
     fresh = [
         item

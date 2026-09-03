@@ -287,6 +287,16 @@ async def post_updates_digest(ctx: Any) -> int:
             "(fallback -1003872387867 should have resolved)",
         )
         return 0
+    # Channel doctrine (2026-09-03): @rmiupdates is product-updates ONLY —
+    # release notes / changelog, never news or alerts. Defense-in-depth on
+    # top of the ``_safe_send`` chokepoint: if the updates channel is ever
+    # misconfigured to accept a non-update content type, refuse to post
+    # rather than leak news/alert noise into it.
+    from rugmunchbot.channels.style_guides import channel_accepts_content
+
+    if not channel_accepts_content("updates", "update"):
+        logger.warning("channels:updates_contract_blocked")
+        return 0
     today = datetime.now(UTC).strftime("%Y%m%d")
     dedupe_key = f"updates:{today}"
     if not _remember("updates", dedupe_key):

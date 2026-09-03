@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rugmunchbot.channels._scan_commentary import attach_scan_commentary
 from rugmunchbot.channels.content import (
@@ -47,6 +47,74 @@ from rugmunchbot.channels.scheduler._tick import (  # noqa: F401
     _load_channel_state,
     _tick_wrapper,
 )
+
+#: Content kinds that are NOT suspicious-token scans and must never post to
+#: @rmiscans — news, whale/smart-money alerts, system notifications, product
+#: updates, shill/alpha intel, roundups/digests. Mirrors the news-channel
+#: gate's blocked vocabulary so the two channels never cross-contaminate.
+_SCAN_BLOCKED_KINDS: frozenset[str] = frozenset(
+    {
+        # news
+        "news",
+        "breaking_news",
+        "crypto_news",
+        "headline",
+        # whale / smart-money / kol / alpha
+        "whale_move",
+        "whale_alert",
+        "whale",
+        "smart_money",
+        "smart_money_feed",
+        "kol_trade",
+        "kol_shill",
+        "alpha",
+        # system / product / roundup / digest
+        "system",
+        "system_notification",
+        "notification",
+        "product_update",
+        "changelog",
+        "update",
+        "roundup",
+        "digest",
+        "market_summary",
+        "market-summary",
+        "quality",
+        # shill intel
+        "shill_evidence",
+        "shill_watch",
+        "shill_campaign",
+        "shill",
+    }
+)
+
+
+def _scan_content_type_gate(item: dict[str, Any]) -> str:
+    """@rmiscans content-type gate. Returns "" when *item* may post as a
+    suspicious-token scan card, else the reason.
+
+    The channel-doctrine filter that keeps @rmiscans suspicious-token-scans
+    ONLY. Blocks any item whose ``kind``/``content_type``/``alert_type`` is a
+    non-scan content type (news, whale alerts, system notifications, product
+    updates, shill/alpha intel, roundups) so a whale alert or a system note
+    can never render as a scan card. Also drops items with no token address —
+    a stray non-token record must never post. Pure — never raises; unknown or
+    missing kinds pass (the address check still applies).
+    """
+    kind = (
+        str(item.get("kind") or item.get("content_type") or item.get("alert_type") or "")
+        .strip()
+        .lower()
+    )
+    if kind in _SCAN_BLOCKED_KINDS:
+        return f"blocked_kind({kind})"
+    # Structural gate: a suspicious-token scan card needs a token address. An
+    # item without one is not a token scan (e.g. a system note) and must not
+    # post. Name/chain/risk are rendered by ``format_scan_card`` (fail-open to
+    # honest placeholders) and are not hard requirements here.
+    if not str(item.get("address") or item.get("token_address") or "").strip():
+        return "no_token_address"
+    return ""
 
 
 async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -165,6 +233,12 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # (skip <0.4) + per-token dedupe are the volume controls; the tick cap
     # just spreads the day's notable scans across the day (~15-20/day at the
     # default 60m cadence).
+    # Content-type gate (2026-09-03): @rmiscans is suspicious-token-scans
+    # ONLY — drop any item that is not a genuine suspicious token scan (news,
+    # whale alerts, system notifications, product updates, shill/alpha intel,
+    # roundups) before it can render as a card.
+    keep = [i for i in keep if not _scan_content_type_gate(i)]
+    main_items = [i for i in main_items if not _scan_content_type_gate(i)]
     posted = 0
     for item in sorted(keep, key=lambda i: i.get("importance", 0.0), reverse=True)[
         :SCAN_CHANNEL_TICK_LIMIT
@@ -182,7 +256,9 @@ async def post_scan_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             posted += 1
     # Pending "Scanning…" teasers — bounded by the tick cap, own dedupe
     # namespace, never escalated to main. No commentary (they are status
-    # cards, not final verdicts).
+    # cards, not final verdicts). Same content-type gate: only genuine
+    # suspicious-token scans post.
+    pending_fresh = [i for i in pending_fresh if not _scan_content_type_gate(i)]
     remaining = max(0, SCAN_CHANNEL_TICK_LIMIT - posted)
     for item in sorted(pending_fresh, key=lambda i: i.get("importance", 0.0), reverse=True)[
         :remaining
