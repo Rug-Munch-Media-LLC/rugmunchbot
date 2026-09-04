@@ -84,6 +84,8 @@ from rugmunchbot.channels.shill_watch._evidence import (
     _ensure_shill_table as _ensure_shill_table,
     _persist_shill_evidence as _persist_shill_evidence,
     capture_telegram_kol_posts as capture_telegram_kol_posts,
+    capture_telegram_message_screenshot as capture_telegram_message_screenshot,
+    capture_tweet_screenshot as capture_tweet_screenshot,
 )
 from rugmunchbot.channels.shill_watch._runner import (
     _article_to_dict as _article_to_dict,
@@ -121,6 +123,8 @@ __all__ = [
     "ShillCampaign",
     "build_scanner_evidence",
     "capture_telegram_kol_posts",
+    "capture_telegram_message_screenshot",
+    "capture_tweet_screenshot",
     "detect_shill_campaigns",
     "format_shill_alert",
     "run_shill_watch",

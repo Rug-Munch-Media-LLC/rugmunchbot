@@ -12,6 +12,7 @@ alert.
 from __future__ import annotations
 
 import os
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -225,6 +226,14 @@ async def _capture_campaign_shills(campaign: ShillCampaign, budget: int) -> int:
         )
         account = str(mention.get("channel") or "")
         shot = await capture_and_ocr(x_url or tg_url, out_path=out_path)
+        # 2026-09-04: for X shills also capture the element-level tweet
+        # screenshot (``capture_tweet_screenshot``) so the campaign record
+        # carries the evidence path even when the vision-OCR lane is down.
+        # Fail-open: a None path just leaves the OCR-only evidence in place.
+        if x_url:
+            tweet_shot = await capture_tweet_screenshot(x_url)
+            if tweet_shot:
+                shot["image_path"] = tweet_shot
         if shot.get("text"):
             shot["account"] = account
             shot["source"] = "telegram" if tg_url else "x"
@@ -315,3 +324,131 @@ async def capture_telegram_kol_posts(articles: list[Any], budget: int | None = N
     if captured:
         logger.info("shill_watch:tg_captured count=%s", captured)
     return captured
+
+
+# ── Standalone evidence screenshot helpers (2026-09-04) ────────────────────
+# Direct Playwright screenshot capture for a single tweet / Telegram message,
+# saved under ``data/shill_evidence/{date}/{id}.png`` at the repo root. These
+# are the "just the element" capture helpers the pipeline calls when a KOL is
+# detected shilling a token. Fail-open: any Playwright/network/IO error returns
+# None so the alert still posts on text-only evidence.
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+)
+_EVIDENCE_ROOT = os.path.join(_REPO_ROOT, "data", "shill_evidence")
+#: Per-capture timeout (15s per the spec) — a slow/blocked page never hangs
+#: the tick.
+_CAPTURE_TIMEOUT_MS = 15000
+
+#: X status-id recognizer (same vocabulary as ``tools.read_tweet``).
+_TWEET_ID_RE = re.compile(
+    r"https?://(?:x\.com|twitter\.com)/(?:[^/]+|i)/status/(\d+)", re.IGNORECASE
+)
+
+
+def _tweet_id_from_url(url: str) -> str:
+    """Numeric tweet id from an X status URL (or "")."""
+    m = _TWEET_ID_RE.search(str(url or ""))
+    return m.group(1) if m else ""
+
+
+def _evidence_path(leaf: str) -> str:
+    """``data/shill_evidence/{YYYYMMDD}/{leaf}.png`` (creates the dir, fail-open)."""
+    date_dir = os.path.join(_EVIDENCE_ROOT, datetime.now(UTC).strftime("%Y%m%d"))
+    try:
+        os.makedirs(date_dir, exist_ok=True)
+    except OSError as exc:  # fail-open — a read-only home must not crash the tick
+        logger.debug("shill_watch:evidence_dir_failed err=%s", str(exc)[:120])
+        return ""
+    return os.path.join(date_dir, f"{leaf}.png")
+
+
+def _file_ok(path: str) -> bool:
+    """True when ``path`` exists and is non-empty (sync — avoids ASYNC240)."""
+    try:
+        return os.path.isfile(path) and os.path.getsize(path) > 0
+    except OSError:
+        return False
+
+
+async def capture_tweet_screenshot(tweet_url: str) -> str | None:
+    """Capture just the tweet element from ``tweet_url`` as PNG evidence.
+
+    Saves to ``data/shill_evidence/{date}/{tweet_id}.png`` at the repo root.
+    Uses Playwright (chromium, headless) to render the public status page and
+    screenshot the tweet ``article`` element when it renders (falling back to
+    the viewport so a login-wall still yields something). Timeout 15s.
+    Fail-open: any error → None (the caller keeps text-only evidence).
+    """
+    tweet_id = _tweet_id_from_url(tweet_url)
+    if not tweet_id:
+        return None
+    out_path = _evidence_path(tweet_id)
+    if not out_path:
+        return None
+    try:
+        from playwright.async_api import async_playwright
+    except Exception as exc:  # fail-open by contract
+        logger.debug("shill_watch:playwright_import_failed err=%s", str(exc)[:120])
+        return None
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            try:
+                page = await browser.new_page(viewport={"width": 1280, "height": 900})
+                await page.goto(
+                    tweet_url, timeout=_CAPTURE_TIMEOUT_MS, wait_until="domcontentloaded"
+                )
+                el = await page.query_selector('article[data-testid="tweet"]')
+                if el is not None:
+                    await el.screenshot(path=out_path)
+                else:
+                    await page.screenshot(path=out_path, full_page=False)
+            finally:
+                await browser.close()
+        if _file_ok(out_path):
+            return out_path
+    except Exception as exc:  # fail-open by contract
+        logger.debug("shill_watch:tweet_shot_failed err=%s", str(exc)[:120])
+    return None
+
+
+async def capture_telegram_message_screenshot(chat_id: str, message_id: str) -> str | None:
+    """Capture a Telegram message's public web preview as PNG evidence.
+
+    Renders ``https://t.me/s/{chat_id}/{message_id}`` (the same public preview
+    the KOL capture uses) and screenshots the message element. Saves to
+    ``data/shill_evidence/{date}/tg_{chat_id}_{message_id}.png``. Timeout 15s.
+    Fail-open: any error → None.
+    """
+    chat = str(chat_id or "").strip().lstrip("@")
+    msg = str(message_id or "").strip()
+    if not chat or not msg:
+        return None
+    out_path = _evidence_path(f"tg_{chat}_{msg}")
+    if not out_path:
+        return None
+    url = f"https://t.me/s/{chat}/{msg}"
+    try:
+        from playwright.async_api import async_playwright
+    except Exception as exc:  # fail-open by contract
+        logger.debug("shill_watch:playwright_import_failed err=%s", str(exc)[:120])
+        return None
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            try:
+                page = await browser.new_page(viewport={"width": 1280, "height": 900})
+                await page.goto(url, timeout=_CAPTURE_TIMEOUT_MS, wait_until="domcontentloaded")
+                el = await page.query_selector(".tgme_widget_message")
+                if el is not None:
+                    await el.screenshot(path=out_path)
+                else:
+                    await page.screenshot(path=out_path, full_page=False)
+            finally:
+                await browser.close()
+        if _file_ok(out_path):
+            return out_path
+    except Exception as exc:  # fail-open by contract
+        logger.debug("shill_watch:tg_shot_failed err=%s", str(exc)[:120])
+    return None
