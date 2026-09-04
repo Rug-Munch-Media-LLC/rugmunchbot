@@ -1,28 +1,25 @@
 # VENDORED 2026-09-04 from rmi-backend/app/domains/news_ingest/ingest.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
-
-
-``read_channel_messages`` is a thin async reader over the headless Telegram
-client. It never edits ``app.domains.telegram.headless_client`` and never
-raises — any failure degrades to an empty list so a single flaky channel can
-not take down the whole sweep.
-
-The dedup layers are URL / normalized-title aware so the same story that is
-rephrased across channels (or re-posted with a slightly different body)
-collapses into a single article instead of repeating:
-
-1. **Canonical source URL** — the first non-``t.me`` http(s) URL inside the
-   message (the original article link) is the strongest "same story" signal.
-2. **Channel URL** — the stable ``https://t.me/<channel>/<message_id>`` link.
-3. **Normalized title** — lowercase, punctuation/emoji stripped, first 60
-   chars (only used when the title is substantive, >= 20 chars).
-4. **Content hash** — last resort, raw ``content_hash`` (RAG-compatible).
-
-The same key set is used for the in-batch dedup (``dedupe_articles``) and the
-cross-run Redis dedup (``filter_seen_articles`` / ``mark_articles_ingested``),
-so a story seen in a previous sweep — even rephrased — is never re-read.
-"""
+# read_channel_messages is a thin async reader over the headless Telegram
+# client. It never edits app.domains.telegram.headless_client and never
+# raises - any failure degrades to an empty list so a single flaky channel
+# can not take down the whole sweep.
+#
+# The dedup layers are URL / normalized-title aware so the same story that is
+# rephrased across channels (or re-posted with a slightly different body)
+# collapses into a single article instead of repeating:
+# 1. Canonical source URL - the first non-t.me http(s) URL inside the
+#    message (the original article link) is the strongest "same story" signal.
+# 2. Channel URL - the stable https://t.me/<channel>/<message_id> link.
+# 3. Normalized title - lowercase, punctuation/emoji stripped, first 60
+#    chars (only used when the title is substantive, >= 20 chars).
+# 4. Content hash - last resort, raw content_hash (RAG-compatible).
+#
+# The same key set is used for the in-batch dedup (dedupe_articles) and the
+# cross-run Redis dedup (filter_seen_articles / mark_articles_ingested),
+# so a story seen in a previous sweep - even rephrased - is never re-read.
+"""News ingestion pipeline - vendored from rmi-backend."""
 
 import re
 import time
@@ -31,13 +28,13 @@ from datetime import UTC, datetime
 from typing import Any, Final
 
 from rugmunchbot._vendor.logging_shim import get_logger
-from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsActor
+from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
 from rugmunchbot._vendor.dedup import content_hash, url_hash
 
 import os
 import json
 import httpx
-from xml.etree.ElementTree import ET as ET
+import xml.etree.ElementTree as ET
 from rugmunchbot._vendor.news_ingest.normalize import extract_entities
 from html.parser import HTMLParser
 
@@ -87,7 +84,7 @@ def extract_canonical_url(article: NewsArticle) -> str:
 
     The canonical source URL is the strongest "same story" signal: every
     channel that forwards/paraphrases the same piece usually keeps the
-    original article link. ``t.me`` links are skipped — they are the channel's
+    original article link. ``t.me`` links are skipped - they are the channel's
     own share link, not the story. Returns ``""`` when nothing usable.
     """
     if article is None:
@@ -105,7 +102,7 @@ def extract_image_url(article: NewsArticle) -> str:
     """First inline image URL (``.jpg/.png/.webp/...``) in the message text.
 
     Some news channels embed the article's hero image directly in the post
-    (``Image: https://.../photo.jpg``). Best-effort — returns ``""`` when the
+    (``Image: https://.../photo.jpg``). Best-effort - returns ``""`` when the
     text carries no image link (photo *media* on the Telegram message itself
     is not exposed here; see [REVIEW] notes in the channel module).
     """
@@ -124,7 +121,7 @@ def normalize_title(title: str) -> str:
 
     Removes everything except word chars / whitespace / ``$`` (so ``$BTC``
     survives), strips a leading breaking marker (``BREAKING:`` / ``URGENT`` /
-    ``JUST IN`` / ``FLASH`` — same story with or without the marker), then
+    ``JUST IN`` / ``FLASH`` - same story with or without the marker), then
     collapses whitespace and truncates to ``_TITLE_KEY_CHARS``.
     """
     if not title:
@@ -142,7 +139,7 @@ def article_dedup_keys(article: NewsArticle) -> list[str]:
     Order: canonical source URL → channel t.me URL → normalized title →
     raw content hash (unprefixed, shared with the RAG pipeline). Callers
     (in-batch + cross-run dedup) treat an article as a duplicate when ANY of
-    its keys has been seen before — so a rephrased story that keeps its
+    its keys has been seen before - so a rephrased story that keeps its
     original URL or headline collapses, while a genuinely new story passes.
     """
     if article is None:
@@ -158,7 +155,7 @@ def article_dedup_keys(article: NewsArticle) -> list[str]:
         keys.append(f"{_DEDUP_KEY_TITLE}{content_hash(norm_title)}")
     fp = article.content_hash or content_hash(f"{article.title}\n{article.body}")
     if fp:
-        keys.append(fp)  # raw content hash — stays RAG-pipeline compatible
+        keys.append(fp)  # raw content hash - stays RAG-pipeline compatible
     # Dedupe within the list (a URL may repeat when title/body repeat it).
     return list(dict.fromkeys(keys))
 
@@ -169,7 +166,7 @@ def dedupe_articles(articles: list[NewsArticle]) -> list[NewsArticle]:
     Uses the pure ``app.rag.dedup`` helpers (``content_hash`` / ``url_hash``)
     so batch dedup needs no Redis. Preserves input order; an article whose
     canonical URL, channel URL, normalized title, or content hash matches an
-    earlier article is dropped — this collapses the same story forwarded
+    earlier article is dropped - this collapses the same story forwarded
     across channels even when each channel rephrases the body.
     """
     seen: set[str] = set()
@@ -190,7 +187,7 @@ def _article_fingerprints(article: NewsArticle) -> list[str]:
 
     Mirrors :func:`article_dedup_keys` (canonical URL → t.me URL → title →
     raw content hash) so ``filter_seen_articles`` / ``mark_articles_ingested``
-    key on the URL/title, not just the raw content hash — a rephrased story
+    key on the URL/title, not just the raw content hash - a rephrased story
     from a previous sweep is still recognized.
     """
     return article_dedup_keys(article)
@@ -208,8 +205,8 @@ def filter_seen_articles(
     Each article is checked against its **full key set** (canonical URL →
     t.me URL → normalized title → raw content hash); any key already present
     in the collection marks the story as seen. Reuses ``app.rag.dedup``'s
-    ``is_duplicate_content`` — the same Redis ZSET the RAG pipeline maintains
-    (``rag:dedup:content:tg_news``) — under a dedicated *collection*
+    ``is_duplicate_content`` - the same Redis ZSET the RAG pipeline maintains
+    (``rag:dedup:content:tg_news``) - under a dedicated *collection*
     namespace. Fail-open: Redis down / auth-failure treats every article as
     fresh, matching the rest of the ingest layer.
 
@@ -237,15 +234,22 @@ def filter_seen_articles(
             continue
         fresh.append(article)
     if skipped:
-        logger.info("news_ingest:seen_skipped collection=%s fresh=%s skipped=%s", collection, len(fresh), skipped)
+        logger.info(
+            "news_ingest:seen_skipped collection=%s fresh=%s skipped=%s",
+            collection,
+            len(fresh),
+            skipped,
+        )
     return fresh, skipped
 
 
-def mark_articles_ingested(articles: list[NewsArticle], collection: str = DEFAULT_DEDUP_COLLECTION) -> int:
+def mark_articles_ingested(
+    articles: list[NewsArticle], collection: str = DEFAULT_DEDUP_COLLECTION
+) -> int:
     """Record article dedup keys in the shared Redis sets.
 
     Best-effort (never raises): the ``app.rag.dedup`` markers are fail-open,
-    so a Redis outage only means the next sweep re-reads the same content —
+    so a Redis outage only means the next sweep re-reads the same content -
     the Postgres ``news_id`` guard still blocks duplicate persistence.
 
     Marks **every** key of the article (URL / title / content hash) so a
@@ -267,7 +271,7 @@ def mark_articles_ingested(articles: list[NewsArticle], collection: str = DEFAUL
 
 # ── Lightweight importance + breaking detection (pure, no network) ─────────
 
-#: Source-authority hints — direct outlets outrank aggregators/repackagers.
+#: Source-authority hints - direct outlets outrank aggregators/repackagers.
 _HIGH_AUTHORITY_HINTS: Final = (
     "cointelegraph",
     "coindesk",
@@ -285,7 +289,7 @@ _HIGH_AUTHORITY_HINTS: Final = (
     "apnews",
     "financial times",
 )
-#: Aggregator/repackager channels — lower authority than primary outlets.
+#: Aggregator/repackager channels - lower authority than primary outlets.
 _LOW_AUTHORITY_HINTS: Final = (
     "watcher",
     "cryptoslate",
@@ -308,7 +312,7 @@ _BREAKING_ANY_RE = re.compile(
     re.IGNORECASE,
 )
 
-#: Crypto-relevance keywords — market-moving vocabulary over generic tech.
+#: Crypto-relevance keywords - market-moving vocabulary over generic tech.
 _CRYPTO_KEYWORD_RE = re.compile(
     r"\b(?:bitcoin|btc|ethereum|eth|solana|etf|stablecoin|blackrock|sec|fomc|"
     r"federal reserve|fed|halving|all[- ]time high|institutional|"
@@ -340,21 +344,21 @@ def is_breaking_article(article: NewsArticle) -> bool:
 def lightweight_importance(article: NewsArticle, now: datetime | None = None) -> float:
     """Deterministic 0-1 importance score (no network, no reranker).
 
-    Combines cheap, explainable signals — the same axes the cross-encoder
+    Combines cheap, explainable signals - the same axes the cross-encoder
     reranker is calibrated on, usable everywhere (ordering, website feed):
 
-    * source authority — cointelegraph/coindesk/theblock & co. outrank
+    * source authority - cointelegraph/coindesk/theblock & co. outrank
       aggregator/repackager channels;
     * breaking markers in the title (strong) or body (weak);
     * crypto-relevance keyword density in the title (strong) and body (weak);
-    * freshness — newer posts score higher (age windows: <1h, <3h).
+    * freshness - newer posts score higher (age windows: <1h, <3h).
 
     Fail-open: any missing field (no ``posted_at``, empty body) degrades to
     the remaining signals; never raises. Returns a value in ``[0, 1]``.
     """
     if article is None:
         return 0.0
-    score = 0.2  # baseline — every normalized article is minimally relevant
+    score = 0.2  # baseline - every normalized article is minimally relevant
     title = article.title or ""
     body = article.body or ""
 
@@ -367,9 +371,9 @@ def lightweight_importance(article: NewsArticle, now: datetime | None = None) ->
     if any(hint in source for hint in _HIGH_AUTHORITY_HINTS):
         score += 0.25
     elif any(hint in source for hint in _LOW_AUTHORITY_HINTS):
-        score += 0.0  # aggregator — no authority bump
+        score += 0.0  # aggregator - no authority bump
     else:
-        score += 0.12  # unknown source — neutral
+        score += 0.12  # unknown source - neutral
 
     title_hits = len(_CRYPTO_KEYWORD_RE.findall(title))
     body_hits = len(_CRYPTO_KEYWORD_RE.findall(body))
@@ -377,7 +381,9 @@ def lightweight_importance(article: NewsArticle, now: datetime | None = None) ->
 
     if article.posted_at is not None:
         try:
-            age_hours = (_as_utc(article.posted_at) - _as_utc(now or datetime.now(UTC))).total_seconds() / 3600.0
+            age_hours = (
+                _as_utc(article.posted_at) - _as_utc(now or datetime.now(UTC))
+            ).total_seconds() / 3600.0
             if age_hours < 1:
                 score += 0.1
             elif age_hours < 3:
@@ -465,7 +471,11 @@ def _reaction_counts(reactions: Any) -> dict[str, int] | None:
         count = int(getattr(item, "count", None) or 0)
         key: Any = None
         if reaction is not None:
-            key = getattr(reaction, "emoticon", None) or getattr(reaction, "document_id", None) or str(reaction)
+            key = (
+                getattr(reaction, "emoticon", None)
+                or getattr(reaction, "document_id", None)
+                or str(reaction)
+            )
         if key is not None:
             counts[str(key)] = count
     return counts or None
@@ -525,12 +535,14 @@ def note_channel_failure(
 
 
 def note_channel_success(channel_username: str) -> None:
-    """Reset the failure counter — the channel resolved and read fine."""
+    """Reset the failure counter - the channel resolved and read fine."""
     if channel_username:
         _CHANNEL_READ_FAILURES.pop(channel_username, None)
 
 
-async def read_channel_messages(client: Any, channel_username: str, limit: int = 50) -> list[ChannelMessage]:
+async def read_channel_messages(
+    client: Any, channel_username: str, limit: int = 50
+) -> list[ChannelMessage]:
     """Read the last *limit* messages from a channel. Never raises.
 
     Accepts either:
@@ -593,7 +605,9 @@ def channel_username_from_config(channel: dict[str, Any]) -> str:
     return ""
 
 
-async def sweep_channels(client: Any, channels: list[dict[str, Any]], limit: int = 50) -> list[NewsArticle]:
+async def sweep_channels(
+    client: Any, channels: list[dict[str, Any]], limit: int = 50
+) -> list[NewsArticle]:
     """Read → normalize → dedupe across every configured channel.
 
     Each entry of *channels* follows the ``unified_news_sources.json`` schema
@@ -617,18 +631,31 @@ async def sweep_channels(client: Any, channels: list[dict[str, Any]], limit: int
                 articles.append(article)
     return dedupe_articles(articles)
 
+
 # ── Newsletter Scraping Support ────────────────────────────────────────
 #: List of newsletter sources to scrape (those without RSS)
 NEWSLETTER_SOURCES: list[dict[str, str]] = [
     {"name": "Hayes Substack", "url": "https://hayes.substack.com", "category": "alpha"},
     {"name": "DeFi Mirror", "url": "https://defi.mirror.xyz", "category": "defi"},
-    {"name": "Not Only Black and White", "url": "https://notonlyblackandwhite.substack.com", "category": "alpha"},
+    {
+        "name": "Not Only Black and White",
+        "url": "https://notonlyblackandwhite.substack.com",
+        "category": "alpha",
+    },
     {"name": "Mirror.xyz Crypto", "url": "https://mirror.xyz/tag/crypto", "category": "news"},
     {"name": "Paragraph.xyz Crypto", "url": "https://paragraph.xyz/tag/crypto", "category": "news"},
     {"name": "Bankless Newsletter", "url": "https://bankless.substack.com", "category": "alpha"},
-    {"name": "The Defiant Newsletter", "url": "https://thedefiant.io/subscribe", "category": "defi"},
+    {
+        "name": "The Defiant Newsletter",
+        "url": "https://thedefiant.io/subscribe",
+        "category": "defi",
+    },
     {"name": "Messari Free", "url": "https://messari.io/newsletter", "category": "news"},
-    {"name": "CoinGecko Newsletter", "url": "https://www.coingecko.com/en/newsletter", "category": "news"},
+    {
+        "name": "CoinGecko Newsletter",
+        "url": "https://www.coingecko.com/en/newsletter",
+        "category": "news",
+    },
     {"name": "Uniswap Blog", "url": "https://uniswap.org/blog", "category": "defi"},
     {"name": "Aave Blog", "url": "https://aave.com/blog", "category": "defi"},
     {"name": "Compound Blog", "url": "https://compound.finance/blog", "category": "defi"},
@@ -652,8 +679,11 @@ NEWSLETTER_SOURCES: list[dict[str, str]] = [
     {"name": "GeckoTerminal Blog", "url": "https://www.geckoterminal.com/blog", "category": "defi"},
     {"name": "Bubblemaps Blog", "url": "https://bubblemaps.io/blog", "category": "security"},
     {"name": "Arkham Blog", "url": "https://arkhamintelligence.com/blog", "category": "security"},
-    {"name": "Etherscan Blog", "url": "https://etherscan.io/blog", "category": "news",
-    }
+    {
+        "name": "Etherscan Blog",
+        "url": "https://etherscan.io/blog",
+        "category": "news",
+    },
 ]
 
 #: PryScraper API base URL (Docker service, healthy on the host loopback).
@@ -662,6 +692,7 @@ _PRY_BASE_URL: Final[str] = os.getenv("PRYSCRAPER_URL", "http://127.0.0.1:8005")
 _PRY_CACHE_TTL_SECONDS: Final[int] = 3600
 #: Pry scrape timeout (15s per spec).
 _PRY_TIMEOUT_SECONDS: Final[float] = 15.0
+
 
 # Async function to scrape a URL via PryScraper, fail-open.
 async def scrape_with_pry(url: str) -> dict | None:
@@ -694,8 +725,8 @@ async def scrape_with_pry(url: str) -> dict | None:
                 try:
                     return json.loads(cached)
                 except (TypeError, ValueError):
-                    pass  # corrupt cache entry — fall through to scrape
-    except Exception as exc:  # noqa: S110 — best-effort cache
+                    pass  # corrupt cache entry - fall through to scrape
+    except Exception as exc:  # noqa: S110 - best-effort cache
         logger.debug("news_ingest:pry_cache_read_failed url=%s err=%s", url, str(exc)[:100])
 
     try:
@@ -731,7 +762,7 @@ async def scrape_with_pry(url: str) -> dict | None:
         r = get_redis_async()
         if r is not None:
             await r.setex(cache_key, _PRY_CACHE_TTL_SECONDS, json.dumps(result))
-    except Exception as exc:  # noqa: S110 — best-effort cache
+    except Exception as exc:  # noqa: S110 - best-effort cache
         logger.debug("news_ingest:pry_cache_write_failed url=%s err=%s", url, str(exc)[:100])
 
     return result
@@ -933,7 +964,7 @@ async def sweep_rss_feeds(
         if not feed.enabled:
             continue
 
-        # Fetch the RSS feed — try direct httpx first (fast, no overhead),
+        # Fetch the RSS feed - try direct httpx first (fast, no overhead),
         # then fall back to PryScraper for feeds that block direct requests
         # (403/429/Cloudflare). If both fail, skip the feed.
         xml_content = await fetch_rss_feed(feed.url)
@@ -971,6 +1002,7 @@ async def sweep_rss_feeds(
 # Helper to extract links from HTML
 from html.parser import HTMLParser
 
+
 class LinkExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -981,6 +1013,7 @@ class LinkExtractor(HTMLParser):
             for attr in attrs:
                 if attr[0] == "href":
                     self.links.append(attr[1])
+
 
 # Async function to scrape a newsletter page and extract article links
 async def scrape_newsletter_with_pry(url: str) -> list[dict]:
@@ -1004,6 +1037,7 @@ async def scrape_newsletter_with_pry(url: str) -> list[dict]:
 
         # Filter links to those that are likely article URLs (same domain and not common non-article paths)
         from urllib.parse import urlparse, urljoin
+
         parsed_base = urlparse(url)
         base_domain = parsed_base.netloc
         article_links = []
@@ -1049,28 +1083,32 @@ async def scrape_newsletter_with_pry(url: str) -> list[dict]:
             if html_content:
                 # Use a simple regex to find the first img src
                 import re
+
                 img_match = re.search(r'<img[^>]+src="([^"]+)"', html_content, re.IGNORECASE)
                 if img_match:
                     image_url = img_match.group(1)
             # If no image found in HTML, try to look in the content (markdown) for an image?
             # We'll leave it empty if not found.
 
-            articles.append({
-                "title": article_data.get("title", ""),
-                "url": article_url,
-                "content": article_data.get("content", "") or article_data.get("markdown", ""),
-                "image": image_url,
-            })
+            articles.append(
+                {
+                    "title": article_data.get("title", ""),
+                    "url": article_url,
+                    "content": article_data.get("content", "") or article_data.get("markdown", ""),
+                    "image": image_url,
+                }
+            )
         return articles
     except Exception as e:
         logger.warning(f"news_ingest:newsletter_scrape_failed url={url} error={e}")
         return []
 
+
 # Function to sweep all newsletter sources
 async def sweep_newsletters_with_pry() -> list[NewsArticle]:
     """Scrape all newsletter sources and return a list of NewsArticle objects."""
-    from rugmunchbot._vendor.news_ingest.models import NewsArticle
     from rugmunchbot._vendor.news_ingest.normalize import extract_entities
+
     articles: list[NewsArticle] = []
     for source in NEWSLETTER_SOURCES:
         url = source["url"]
