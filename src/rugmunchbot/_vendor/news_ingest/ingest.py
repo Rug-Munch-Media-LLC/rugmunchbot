@@ -1173,3 +1173,120 @@ async def sweep_channels(
             if article is not None:
                 articles.append(article)
     return dedupe_articles(articles)
+
+
+# ── Backend news bridge (bot-side addition, 2026-09-04) ────────────────────
+# The bot and the rmi-backend news system share ONE ingestion/dedup/rerank
+# pipeline. The backend aggregates 200+ sources, dedups, applies Ground
+# News-style ratings (bias, factuality, market impact, corroboration) and
+# stores in Qdrant — the single source of truth. The bot:
+#
+#   1. PULLS the already-deduped, rated feed via ``fetch_backend_news``
+#      (``GET /api/v1/news/feed``) as its PRIMARY content source.
+#   2. PUSHES its own RSS/Telegram/X ingestion via ``push_to_backend``
+#      (``POST /api/v1/news/articles``) so the backend dedups + rates +
+#      stores it — no double ingestion, no divergent dedup sets.
+#
+# Both are fail-open by contract: a backend outage degrades to the bot's own
+# direct ingestion (fallback) instead of crashing the sweep.
+
+
+def _article_to_backend_payload(article: NewsArticle) -> dict[str, Any]:
+    """Map a bot ``NewsArticle`` to the backend ``NewsArticle`` wire shape.
+
+    The backend ``NewsArticle`` Pydantic model (``app/routers/news.py``) uses
+    ``url``/``description``/``source``/``published_at``/``image_url``/
+    ``tokens_mentioned`` where the bot dataclass uses ``source_url``/``body``/
+    ``source_channel``/``posted_at``/``media``/``entities``. ``resolved_url``
+    (the real article URL after dereferencing a ``t.me`` link) wins over the
+    raw ``source_url`` when present so the backend dedups on the true story
+    URL, not the Telegram share link.
+    """
+    if article is None:
+        return {}
+    published_at = article.posted_at.isoformat() if article.posted_at else ""
+    url = article.resolved_url or article.source_url or ""
+    return {
+        "title": article.title or "",
+        "description": article.body or "",
+        "url": url,
+        "source": article.source_channel or "",
+        "published_at": published_at,
+        "category": article.category or "",
+        "image_url": article.media or "",
+        "tokens_mentioned": list(article.entities or []),
+        "content_hash": article.content_hash or "",
+    }
+
+
+async def fetch_backend_news(limit: int = 50) -> list[dict[str, Any]]:
+    """Pull already-deduped, rated articles from the backend news feed.
+
+    PRIMARY source for the bot's content pipeline. The backend aggregates
+    200+ sources, dedups, and applies Ground News-style ratings before
+    storing in Qdrant — so the bot gets a single, deduplicated, ranked feed
+    instead of running its own ingestion.
+
+    Fail-open: returns ``[]`` on any network/HTTP/parse failure so a backend
+    outage degrades to the bot's own direct ingestion (fallback), never a
+    crash.
+
+    Args:
+        limit: Max articles to fetch (clamped to the backend's 1..200 range).
+
+    Returns:
+        List of rated article dicts (backend ``NewsArticle`` shape).
+    """
+    from rugmunchbot.data_resolver import backend_get_json
+
+    body = await backend_get_json(
+        "/api/v1/news/feed",
+        params={"limit": max(1, min(int(limit), 200))},
+        timeout_secs=8.0,
+    )
+    if not body:
+        return []
+    articles = body.get("articles") or []
+    return [a for a in articles if isinstance(a, dict) and a.get("title")]
+
+
+async def push_to_backend(articles: list[NewsArticle]) -> int:
+    """Push freshly-ingested bot articles to the backend for dedup + rating.
+
+    The bot's own RSS/Telegram/X ingestion pushes raw articles here so the
+    backend can dedup (against its 200+ sources), rate (Ground News-style),
+    and store in Qdrant — the single source of truth. The bot then pulls the
+    rated feed back via :func:`fetch_backend_news` for content generation.
+
+    Fail-open: returns the number of articles the backend accepted (0 on any
+    failure) so a backend outage never aborts the sweep — the bot keeps its
+    own direct ingestion as a fallback.
+
+    Args:
+        articles: Bot-normalized ``NewsArticle`` objects to push.
+
+    Returns:
+        Count of articles the backend accepted (``accepted``/``ingested``
+        from the response, else 0).
+    """
+    if not articles:
+        return 0
+    from rugmunchbot.config import BACKEND_URL, backend_headers
+    from rugmunchbot.tools._client import http_post_json
+
+    payload = [_article_to_backend_payload(a) for a in articles]
+    body = await http_post_json(
+        f"{BACKEND_URL}/api/v1/news/articles",
+        json={"articles": payload},
+        headers=backend_headers(),
+        timeout=10.0,
+    )
+    if not body:
+        return 0
+    accepted = body.get("accepted")
+    if accepted is None:
+        accepted = body.get("ingested")
+    try:
+        return int(accepted or 0)
+    except (TypeError, ValueError):
+        return 0
