@@ -72,6 +72,14 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     if data.startswith("admin_"):
         await _dispatch_admin_cb(update, ctx, data)
         return
+    # Main-channel human-in-the-loop approval gate (2026-09-04): Approve /
+    # Reject / Edit callbacks from @rmi_admin_bot. Imported lazily to avoid a
+    # circular import (the approval module lives under channels.scheduler).
+    if data.startswith(("main_approve_", "main_reject_", "main_edit_")):
+        from rugmunchbot.channels.scheduler._posts_rag import handle_approval_callback
+
+        await handle_approval_callback(update, ctx, data)
+        return
     if await _actions.handle(update, ctx, query, user, data):
         return
     if await _refresh.handle(update, ctx, query, data):

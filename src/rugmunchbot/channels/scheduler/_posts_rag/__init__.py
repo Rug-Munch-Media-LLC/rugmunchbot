@@ -55,6 +55,31 @@ FEED_DIR = os.getenv("RMI_FEED_DIR", "/var/www/feed.rugmunch.io")
 FEED_DATA = os.path.join(FEED_DIR, "data")
 MAX_PER_CHANNEL_PER_TICK = int(os.getenv("RMI_RAG_POSTS_PER_TICK", "2"))
 
+#: Human-in-the-loop approval gate for the MAIN channel (@cryptorugmuncher).
+#: When enabled (``RMI_MAIN_APPROVAL_GATE=true``), every main-channel draft is
+#: first sent to @rmi_admin_bot with Approve / Reject / Edit inline buttons
+#: instead of posting directly. The operator approves, rejects, or edits the
+#: draft; if no response arrives within ``RMI_MAIN_APPROVAL_TIMEOUT_S`` the
+#: draft AUTO-POSTS (fail-open — the gate shapes rhythm, never blocks content).
+#: Default OFF: the gate is opt-in so current behavior (post directly) is
+#: unchanged until an operator flips the flag.
+RMI_MAIN_APPROVAL_GATE = os.getenv("RMI_MAIN_APPROVAL_GATE", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+
+#: How long the approval gate waits for an operator response before it
+#: auto-posts the draft (fail-open). Seconds; default 300 (5 minutes).
+RMI_MAIN_APPROVAL_TIMEOUT_S = int(os.getenv("RMI_MAIN_APPROVAL_TIMEOUT_S", "300"))
+
+#: Chat ID for @rmi_admin_bot — the destination for main-channel approval
+#: requests. Read from env (same var the system-alert pipeline uses); when
+#: unset the gate degrades to fail-open (posts directly) rather than dropping
+#: content.
+RMI_ADMIN_CHAT_ID = os.getenv("RMI_ADMIN_CHAT_ID", "")
+
 #: WO-3 quality gate (CONTENT-POSTING-SPEC.md): a draft whose rerank score
 #: sits below this floor is DISCARDED — never posted anyway. Only drafts that
 #: actually carry a positive score are gated; a missing/zero score means "no
@@ -239,7 +264,19 @@ SECURITY_TWEET_ESCALATION_MIN = int(os.getenv("RMI_SECURITY_TWEET_ESCALATION_MIN
 # SUBMODULES — import after state/config so they can reference the package
 # ══════════════════════════════════════════════════════════════════════════
 
-from . import _fast_lane, _feed, _gates, _main  # noqa: E402,F401  (submodules re-exported)
+from . import (  # noqa: E402,F401  (submodules re-exported)
+    _approval,
+    _fast_lane,
+    _feed,
+    _gates,
+    _main,
+)
+from ._approval import (  # noqa: E402
+    _handle_approval_edit_reply as _handle_approval_edit_reply,
+    _request_main_approval as _request_main_approval,
+    handle_approval_callback as handle_approval_callback,
+    is_approval_callback as is_approval_callback,
+)
 from ._fast_lane import (  # noqa: E402
     _esc as _esc,
     _security_tweet_matches as _security_tweet_matches,

@@ -37,7 +37,6 @@ from rugmunchbot.bot._shutdown import (
     install_sigterm_shutdown,
 )
 from rugmunchbot.channels import register_channel_jobs
-from rugmunchbot.support.system_alerts import send_system_alert
 from rugmunchbot.commands import (
     cmd_chart,
     cmd_dune,
@@ -160,6 +159,7 @@ from rugmunchbot.observability import (
     stop_server,
 )
 from rugmunchbot.support.logging import get_logger
+from rugmunchbot.support.system_alerts import send_system_alert
 
 logger = get_logger("rmi_bot")
 
@@ -320,6 +320,17 @@ def main() -> None:
     # Inline, callbacks, messages
     app.add_handler(InlineQueryHandler(handle_inline))
     app.add_handler(CallbackQueryHandler(handle_callback))
+    # Main-channel approval-gate Edit flow (2026-09-04): a NARROW handler that
+    # only fires for replies to @rmi_admin_bot approval messages (the replied-to
+    # message carries the approval marker). Registered BEFORE the general
+    # free-text pipeline so an approval-edit reply is consumed here and never
+    # reaches the AI chat. It does not shadow general free text because it
+    # matches only replies to our approval messages.
+
+    from rugmunchbot.channels.scheduler._posts_rag import _handle_approval_edit_reply
+
+    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, _handle_approval_edit_reply))
+
     # SINGLE free-text pipeline (merged from the old handle_message + chat_ai):
     # $TOKEN lookup, bare-address auto-scan, known-scam block, owner admin
     # console, then backend RAG chat with news_v2 grounding. There must be NO

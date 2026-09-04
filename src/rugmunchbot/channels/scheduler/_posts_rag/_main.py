@@ -288,6 +288,31 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 "main": "news",
             }.get(channel)
 
+            # Human-in-the-loop approval gate (2026-09-04): when enabled, a
+            # main-channel draft is sent to @rmi_admin_bot for Approve/Reject/
+            # Edit instead of posting directly. Fail-open: if the gate is off,
+            # the admin chat id is unset, or the approval send fails, we post
+            # directly (current behavior) — the gate never blocks content.
+            if channel == "main" and _pkg.RMI_MAIN_APPROVAL_GATE:
+                requested = await _pkg._request_main_approval(
+                    ctx,
+                    chat_id,
+                    text,
+                    item,
+                    dedupe_key,
+                    rag_content_type,
+                )
+                if requested:
+                    # The draft is now pending operator approval. It is marked
+                    # seen (dedupe) so it is not re-requested every tick; the
+                    # approve/auto-post callbacks handle the actual post. Count
+                    # it against the per-tick cap so we never flood the admin
+                    # with more approval requests than posts per tick.
+                    sent_this_channel += 1
+                    continue
+                # Approval request failed → fall through to post directly
+                # (fail-open, never drop content).
+
             ok = await _pkg._post_photo_aware(
                 ctx.bot,
                 chat_id,
