@@ -30,17 +30,17 @@ import json
 import os
 import re
 import time
+import xml.etree.ElementTree as ET
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Final
+
+import httpx
 
 from rugmunchbot._vendor.dedup import content_hash, url_hash
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
 from rugmunchbot._vendor.news_ingest.normalize import channel_message_to_article, extract_entities
-from rugmunchbot._vendor.news_ingest.sources import RSS_FEEDS, TELEGRAM_CHANNELS, ALL_SOURCES
-import httpx
-import xml.etree.ElementTree as ET
 
 logger = get_logger(__name__)
 
