@@ -20,7 +20,9 @@ class TestChatRoutingQuality:
         assert 1000 <= MAX_MESSAGE_CHARS <= 4096
 
     def test_chat_turn_deadline_reasonable(self):
-        assert 10.0 <= CHAT_TURN_DEADLINE <= 60.0
+        # Raised 35s -> 70s (2026-09-04) so RAG + live tools + guardrail can
+        # finish a real market-analysis turn instead of dead-air timing out.
+        assert 10.0 <= CHAT_TURN_DEADLINE <= 90.0
 
     def test_timeout_reply_exists(self):
         assert isinstance(TIMEOUT_REPLY, str)

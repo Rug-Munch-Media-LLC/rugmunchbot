@@ -47,6 +47,7 @@ from rugmunchbot.handlers.chat_ai._persistence import _persist_answer
 from rugmunchbot.handlers.chat_ai._routing._constants import (
     CHAT_TURN_DEADLINE,
     CHAT_TURN_DEADLINE_LONG,
+    ERROR_REPLY,
     TIMEOUT_REPLY,
 )
 from rugmunchbot.handlers.chat_ai._routing._context import (
@@ -434,6 +435,9 @@ async def chat_ai_response(
         # placeholder for the honest canned fallback, and let the finally
         # cancel every still-running task. CancelledError is a BaseException
         # and is NOT caught here — a shutdown-cancelled pipeline unwinds.
+        # This is the ONLY place the "needs more digging" fallback fires —
+        # a real error, never a slow-but-still-running timeout (which gets
+        # TIMEOUT_REPLY instead).
         logger.exception("chat_ai pipeline error (user=%s): %s", user.id, exc)
         trace_answer(
             question=text,
@@ -443,7 +447,7 @@ async def chat_ai_response(
             ok=False,
             latency_ms=(time.monotonic() - pipeline_start) * 1000,
         )
-        fallback_text = _FALLBACK_MESSAGE
+        fallback_text = ERROR_REPLY
         if preliminary is not None:
             with contextlib.suppress(TelegramError, ConnectionError, OSError, TimeoutError):
                 await preliminary.edit_text(
