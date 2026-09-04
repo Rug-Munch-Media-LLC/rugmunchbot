@@ -167,9 +167,206 @@ async def test_news_kind_og_failure_falls_back_to_placeholder(
     async def _fail(url: str, timeout: float = 6.0) -> str | None:
         raise RuntimeError("network down")
 
+    # Pry fallback also fails open (no thumbnail) -> text-only.
+    async def _pry_none(url: str, **kw: object) -> str | None:
+        return None
+
     monkeypatch.setattr(src, "_fetch_og_image", _fail)
+    monkeypatch.setattr("rugmunchbot.support.image_policy.extract_thumbnail_with_pry", _pry_none)
     img = await resolve_post_image("news", source_url="https://example.com/story")
     assert img == ""
+
+
+# ── 2026-09-04: PryScraper thumbnail extraction (og:image from article pages) ──
+
+
+class _FakeResponse:
+    """Minimal httpx response stub carrying a JSON body."""
+
+    def __init__(self, body: dict) -> None:
+        self._body = body
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict:
+        return self._body
+
+
+class _FakeClient:
+    """httpx.AsyncClient stub that returns a canned Pry response."""
+
+    def __init__(self, body: dict) -> None:
+        self._body = body
+
+    async def __aenter__(self) -> _FakeClient:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+    async def post(self, url: str, json: dict) -> _FakeResponse:
+        return _FakeResponse(self._body)
+
+
+def _patch_pry(monkeypatch: pytest.MonkeyPatch, body: dict) -> None:
+    """Route the Pry POST + Redis cache to a canned response (no network)."""
+    import httpx
+
+    def _no_redis() -> None:
+        return None
+
+    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis_async", _no_redis)
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: _FakeClient(body))
+
+
+@pytest.mark.asyncio
+async def test_extract_thumbnail_with_pry_og_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pry HTML with an og:image meta tag yields that image URL."""
+    from rugmunchbot.support import image_policy
+
+    _patch_pry(
+        monkeypatch,
+        {
+            "data": {
+                "html": (
+                    '<html><head><meta property="og:image" '
+                    'content="https://cdn.example.com/story.png"></head></html>'
+                )
+            }
+        },
+    )
+    thumb = await image_policy.extract_thumbnail_with_pry("https://example.com/story")
+    assert thumb == "https://cdn.example.com/story.png"
+
+
+@pytest.mark.asyncio
+async def test_extract_thumbnail_with_pry_twitter_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Falls back to twitter:image when og:image is absent."""
+    from rugmunchbot.support import image_policy
+
+    _patch_pry(
+        monkeypatch,
+        {
+            "data": {
+                "html": (
+                    '<html><head><meta name="twitter:image" '
+                    'content="https://cdn.example.com/tw.png"></head></html>'
+                )
+            }
+        },
+    )
+    thumb = await image_policy.extract_thumbnail_with_pry("https://example.com/story")
+    assert thumb == "https://cdn.example.com/tw.png"
+
+
+@pytest.mark.asyncio
+async def test_extract_thumbnail_with_pry_first_img(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Falls back to the first <img> tag when no meta image exists."""
+    from rugmunchbot.support import image_policy
+
+    _patch_pry(
+        monkeypatch,
+        {
+            "data": {
+                "html": ('<html><body><img src="https://cdn.example.com/inline.jpg"></body></html>')
+            }
+        },
+    )
+    thumb = await image_policy.extract_thumbnail_with_pry("https://example.com/story")
+    assert thumb == "https://cdn.example.com/inline.jpg"
+
+
+@pytest.mark.asyncio
+async def test_extract_thumbnail_with_pry_banned_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A banned image (social profile avatar) is rejected -> None."""
+    from rugmunchbot.support import image_policy
+
+    _patch_pry(
+        monkeypatch,
+        {
+            "data": {
+                "html": (
+                    '<meta property="og:image" '
+                    'content="https://pbs.twimg.com/profile_images/9/header.jpg">'
+                )
+            }
+        },
+    )
+    thumb = await image_policy.extract_thumbnail_with_pry("https://example.com/story")
+    assert thumb is None
+
+
+@pytest.mark.asyncio
+async def test_extract_thumbnail_with_pry_fail_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pry outage / no HTML / no image all yield None (never raises)."""
+    from rugmunchbot.support import image_policy
+
+    # Pry HTTP error -> None.
+    class _BoomResponse:
+        def raise_for_status(self) -> None:
+            raise RuntimeError("pry down")
+
+        def json(self) -> dict:
+            return {}
+
+    class _BoomClient:
+        async def __aenter__(self) -> _BoomClient:
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        async def post(self, url: str, json: dict) -> _BoomResponse:
+            return _BoomResponse()
+
+    import httpx
+
+    def _no_redis() -> None:
+        return None
+
+    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis_async", _no_redis)
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: _BoomClient())
+    assert await image_policy.extract_thumbnail_with_pry("https://example.com/a") is None
+
+    # No HTML -> None.
+    _patch_pry(monkeypatch, {"data": {"html": ""}})
+    assert await image_policy.extract_thumbnail_with_pry("https://example.com/b") is None
+
+    # HTML with no image -> None.
+    _patch_pry(monkeypatch, {"data": {"html": "<html><body>no images here</body></html>"}})
+    assert await image_policy.extract_thumbnail_with_pry("https://example.com/c") is None
+
+
+@pytest.mark.asyncio
+async def test_news_kind_og_failure_uses_pry_thumbnail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the direct og:image fetch fails, Pry supplies a real thumbnail."""
+    import rugmunchbot.channels.telegram_news._sources as src
+
+    async def _fail(url: str, timeout: float = 6.0) -> str | None:
+        raise RuntimeError("network down")
+
+    async def _pry(url: str, **kw: object) -> str | None:
+        return "https://cdn.example.com/pry-thumb.png"
+
+    monkeypatch.setattr(src, "_fetch_og_image", _fail)
+    monkeypatch.setattr("rugmunchbot.support.image_policy.extract_thumbnail_with_pry", _pry)
+    img = await resolve_post_image("news", source_url="https://example.com/story")
+    # Pry thumbnail is proxied through the backend thumb endpoint.
+    assert "cdn.example.com%2Fpry-thumb.png" in img
+    assert "/api/v1/media/thumb?url=" in img
 
 
 def test_ensure_post_image_fills_empty_newspost() -> None:

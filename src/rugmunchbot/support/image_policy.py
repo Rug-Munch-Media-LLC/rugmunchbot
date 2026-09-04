@@ -16,6 +16,7 @@ Pure fail-open: any resolution failure falls through to the placeholder.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from rugmunchbot.support.quality_gate import PLACEHOLDER_IMAGE_URL
@@ -23,6 +24,7 @@ from rugmunchbot.support.quality_gate import PLACEHOLDER_IMAGE_URL
 __all__ = [
     "PLACEHOLDER_IMAGE_URL",
     "ensure_post_image",
+    "extract_thumbnail_with_pry",
     "is_valid_image",
     "resolve_post_image",
 ]
@@ -105,6 +107,158 @@ def _news_post_cls() -> type:
     return NewsPost
 
 
+#: First ``<img>`` tag fallback — used only when a page has no og:image /
+#: twitter:image meta tag. Matches the ``src`` attribute (single or double
+#: quoted) and tolerates attribute order.
+_IMG_TAG_RES = re.compile(r"<img[^>]+src=[\"']([^\"']+)[\"']", re.IGNORECASE)
+
+#: og:image / twitter:image meta-tag extractors (self-contained — mirrors the
+#: proven patterns in ``telegram_news._sources._fetch`` so this module does
+#: not depend on the (heavier) news-ingest import chain).
+_OG_IMAGE_RES = (
+    re.compile(
+        r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE
+    ),
+    re.compile(
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.IGNORECASE
+    ),
+    re.compile(
+        r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE
+    ),
+    re.compile(
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']', re.IGNORECASE
+    ),
+)
+
+#: PryScraper API base URL (Docker service, healthy on the host loopback).
+_PRY_BASE_URL: str = "http://127.0.0.1:8005"
+#: Redis cache TTL for Pry thumbnail scrapes (1 hour).
+_PRY_THUMB_CACHE_TTL: int = 3600
+#: Pry scrape timeout (15s per spec).
+_PRY_THUMB_TIMEOUT: float = 15.0
+
+
+def _normalize_thumbnail_url(raw: str, base_url: str) -> str | None:
+    """Resolve a protocol-relative / root-relative image URL to absolute.
+
+    Mirrors ``telegram_news._sources._fetch._normalize_image_url`` (self-
+    contained so this module has no dependency on the news-ingest chain).
+    The result is checked against the image doctrine's banned patterns.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("//"):
+        result = f"https:{raw}"
+    elif raw.startswith("/"):
+        from urllib.parse import urlsplit
+
+        parts = urlsplit(base_url)
+        result = f"{parts.scheme}://{parts.netloc}{raw}"
+    else:
+        result = raw
+    if not is_valid_image(result):
+        return None
+    return result
+
+
+async def extract_thumbnail_with_pry(url: str, *, logger: Any = None) -> str | None:
+    """Best-effort article thumbnail via PryScraper (fail-open → ``None``).
+
+    POSTs *url* to the Pry API (``/v1/scrape`` with ``bypassCloudflare``),
+    caches the scrape result in Redis for 1 hour, and parses the returned
+    HTML for, in order:
+
+      1. ``og:image`` meta tag
+      2. ``twitter:image`` meta tag
+      3. the first ``<img>`` tag's ``src``
+
+    The candidate is normalized to an absolute URL and run through the
+    image doctrine's banned-pattern guard (``is_valid_image``) so social
+    profile avatars / brand chrome never leak into a post. Any failure —
+    network, HTTP, parse, banned image — returns ``None`` so a Pry outage
+    never aborts the post pipeline.
+    """
+    if not url:
+        return None
+
+    from rugmunchbot._vendor.dedup import url_hash
+
+    cache_key = f"pry:thumb:{url_hash(url)}"
+
+    # Try Redis cache first (best-effort, fail-open).
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis_async
+
+        r = get_redis_async()
+        if r is not None:
+            cached = await r.get(cache_key)
+            if cached:
+                return cached or None
+    except Exception as exc:  # fail-open by contract
+        if logger is not None:
+            logger.debug("image_policy:pry_thumb_cache_read_failed err=%s", str(exc)[:120])
+
+    # Scrape via Pry (fail-open — a Pry outage never aborts the pipeline).
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=_PRY_THUMB_TIMEOUT) as client:
+            response = await client.post(
+                f"{_PRY_BASE_URL}/v1/scrape",
+                json={"url": url, "bypassCloudflare": True},
+            )
+            response.raise_for_status()
+            body = response.json()
+    except Exception as exc:  # fail-open by contract
+        if logger is not None:
+            logger.debug("image_policy:pry_thumb_scrape_failed err=%s", str(exc)[:120])
+        return None
+
+    if not isinstance(body, dict):
+        return None
+    # Pry returns the payload under ``data`` on success; tolerate both shapes.
+    data = body.get("data") if isinstance(body.get("data"), dict) else body
+    html = (data or {}).get("html") or ""
+    if not html:
+        return None
+
+    thumbnail: str | None = None
+    try:
+        # 1) og:image, 2) twitter:image.
+        for pattern in _OG_IMAGE_RES:
+            match = pattern.search(html)
+            if match:
+                normalized = _normalize_thumbnail_url(match.group(1), url)
+                if normalized and is_valid_image(normalized):
+                    thumbnail = normalized
+                    break
+        # 3) first <img> tag as a last resort.
+        if thumbnail is None:
+            img_match = _IMG_TAG_RES.search(html)
+            if img_match:
+                normalized = _normalize_thumbnail_url(img_match.group(1), url)
+                if normalized and is_valid_image(normalized):
+                    thumbnail = normalized
+    except Exception as exc:  # fail-open by contract
+        if logger is not None:
+            logger.debug("image_policy:pry_thumb_parse_failed err=%s", str(exc)[:120])
+
+    # Cache the resolved thumbnail for 1 hour (best-effort, fail-open).
+    if thumbnail is not None:
+        try:
+            from rugmunchbot._vendor.redis_client import get_redis_async
+
+            r = get_redis_async()
+            if r is not None:
+                await r.setex(cache_key, _PRY_THUMB_CACHE_TTL, thumbnail)
+        except Exception as exc:  # fail-open by contract
+            if logger is not None:
+                logger.debug("image_policy:pry_thumb_cache_write_failed err=%s", str(exc)[:120])
+
+    return thumbnail
+
+
 async def resolve_post_image(
     kind: str,
     *,
@@ -142,6 +296,17 @@ async def resolve_post_image(
         except Exception as exc:  # fail-open — text-only below
             if logger is not None:
                 logger.debug("image_policy_og_failed err=%s", str(exc)[:120])
+        # 2026-09-04: direct og:image fetch failed (WAF-blocked, no meta tag,
+        # timeout) — fall back to PryScraper, which bypasses Cloudflare and
+        # renders the page server-side. This is what gives every article a
+        # REAL thumbnail instead of the app-logo placeholder.
+        try:
+            pry_thumb = await extract_thumbnail_with_pry(str(source_url).strip(), logger=logger)
+            if pry_thumb:
+                return _thumb_proxy(pry_thumb, logger=logger)
+        except Exception as exc:  # fail-open — placeholder/text-only below
+            if logger is not None:
+                logger.debug("image_policy_pry_failed err=%s", str(exc)[:120])
     if kind in ("roundup", "digest"):
         return PLACEHOLDER_IMAGE_URL
     return ""
