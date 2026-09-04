@@ -11,10 +11,10 @@ Budget doctrine (the numbers that keep us under $5)
 ---------------------------------------------------
 * GetXAPI charges ~$0.001 per call (≈1,000 calls per $1). A $5 budget buys
   ≈4,500 calls.
-* ``GETXAPI_DAILY_CALL_LIMIT`` = 460/day — the hard per-day ceiling the budget
-  tracker enforces (``can_afford_call``). At 460/day the $5 envelope lasts
-  ~11 days (4,500 / 460 ≈ 9.8, but the tiered lanes below actually burn
-  ~460/day so the practical lifespan is ~11 days).
+* ``GETXAPI_DAILY_CALL_LIMIT`` = 700/day — the hard per-day ceiling the budget
+  tracker enforces (``can_afford_call``). At 700/day the $5 envelope lasts
+  ~7 days (4,500 / 700 ≈ 6.4, but the tiered lanes below actually burn
+  ~700/day so the practical lifespan is ~7 days).
 * ``GETXAPI_TOTAL_BUDGET`` = $5.00 — the hard lifetime ceiling. The tracker
   logs CRITICAL when spend crosses $4.50 (90% of budget) and refuses calls
   once spend reaches $5.00.
@@ -22,11 +22,11 @@ Budget doctrine (the numbers that keep us under $5)
   - TIER 1 (30 security + news accounts) polled every 6h  → ~120 calls/day
   - TIER 2 (100 KOL / analyst / fund accounts) every 24h  → ~100 calls/day
   - TIER 3+4 (700 long-tail / shiller accounts) are NOT polled individually;
-    they are caught by 10 rotating keyword ``advanced_search`` queries every
-    30 min → ~240 calls/day
-  - Total ≈ 120 + 100 + 240 = 460 calls/day = $0.46/day → $5 lasts ~11 days.
+    they are caught by 10 keyword ``advanced_search`` queries every 30 min
+    → ~480 calls/day
+  - Total ≈ 120 + 100 + 480 = 700 calls/day = $0.70/day → $5 lasts ~7 days.
 * Polling intervals are tuned so the sum of all scheduled lanes stays well
-  under 460 calls/day (see docs/getxapi-setup.md for the arithmetic).
+  under 700 calls/day (see docs/getxapi-setup.md for the arithmetic).
 
 The key NEVER enters git. Resolution order (mirrors ``apipass_x``):
 env ``GETXAPI_KEY`` → key file ``$RMI_SECRETS_DIR/getxapi_api_key`` →
@@ -48,8 +48,8 @@ GETXAPI_KEY: str = os.getenv("GETXAPI_KEY", "").strip()
 #: Base URL for the GetXAPI v1 REST API.
 GETXAPI_BASE_URL: str = os.getenv("GETXAPI_BASE_URL", "https://api.getxapi.com/v1").rstrip("/")
 
-#: Hard per-day call ceiling (calls). 460/day x ~11 days ~= 4,500 calls = $5.
-GETXAPI_DAILY_CALL_LIMIT: int = int(os.getenv("GETXAPI_DAILY_CALL_LIMIT", "460"))
+#: Hard per-day call ceiling (calls). 700/day x ~7 days ~= 4,500 calls = $5.
+GETXAPI_DAILY_CALL_LIMIT: int = int(os.getenv("GETXAPI_DAILY_CALL_LIMIT", "700"))
 #: Hard lifetime dollar budget. $5 at ~$0.001/call ≈ 4,500 calls.
 GETXAPI_TOTAL_BUDGET: float = float(os.getenv("GETXAPI_TOTAL_BUDGET", "5.0"))
 #: Assumed per-call cost in dollars (used for spend accounting + reporting).
@@ -59,15 +59,15 @@ GETXAPI_COST_PER_CALL: float = float(os.getenv("GETXAPI_COST_PER_CALL", "0.001")
 # POLLING INTERVALS (minutes / hours) — tuned to stay under the daily cap
 # ══════════════════════════════════════════════════════════════════════════
 
-#: Search lane cadence (minutes). 30-min interval ≈ 48 calls/day per query;
-#: with 10 rotating keyword queries this is the TIER 3+4 catch-all lane
-#: (≈240 calls/day).
+#: Search lane cadence (minutes). 30-min interval ≈ 48 runs/day; with all 10
+#: keyword queries executed per run this is the TIER 3+4 catch-all lane
+#: (≈480 calls/day).
 GETXAPI_SEARCH_INTERVAL_MIN: int = int(os.getenv("GETXAPI_SEARCH_INTERVAL_MIN", "30"))
 #: TIER 1 user-tweets lane cadence (hours). 6-hour interval ≈ 4 calls/day/account
-#: × 30 accounts ≈ 120 calls/day.
+#: x 30 accounts ≈ 120 calls/day.
 GETXAPI_TIER1_INTERVAL_HOURS: int = int(os.getenv("GETXAPI_TIER1_INTERVAL_HOURS", "6"))
 #: TIER 2 user-tweets lane cadence (hours). 24-hour interval ≈ 1 call/day/account
-#: × 100 accounts ≈ 100 calls/day.
+#: x 100 accounts ≈ 100 calls/day.
 GETXAPI_TIER2_INTERVAL_HOURS: int = int(os.getenv("GETXAPI_TIER2_INTERVAL_HOURS", "24"))
 #: Legacy alias for the TIER 1 user-tweets cadence (kept for backward
 #: compatibility with callers that read ``GETXAPI_USER_TWEETS_INTERVAL_HOURS``).
@@ -145,6 +145,19 @@ GETXAPI_TIER2_ACCOUNTS: tuple[str, ...] = tuple(
         "ethgasstation,gasnow_org,etherchain_org,ethernodes,ethernomicon,"
         "etherscan,coingecko,coinmarketcap,dexscreener,geckoterminal,"
         "bubblemaps,arkhamintel,"
+        # News / media
+        "TheBlock__,decryptmedia,BanklessHQ,TheDefiant_io,"
+        # Solana ecosystem
+        "solana,jupexfi,heliuslabs,jito_labs,pythnetwork,"
+        # L2s
+        "arbitrum,optimismPBC,base,scroll_zkp,zksync,0xPolygon,"
+        "Mantle_Official,Blast_L2,"
+        # Alt L1s
+        "SuiNetwork,Aptos,ton_blockchain,NEARProtocol,Flow_blockchain,"
+        "CelestiaOrg,eigenlayer,"
+        # Security / audit firms
+        "openzeppelin,trailofbits,ConsenSysDiligence,sigma_prime,quantstamp,"
+        "HackenClub,immunefi,halbornHQ,"
         # Founders / builders / macro voices
         "VitalikButerin,CZ_Binance,sassal0x,aeyakovenko,APompliano,"
         "TheCryptoLark,Nicholas_Merten,100trillionUSD,hasufl,jchervinsky,"
@@ -156,10 +169,9 @@ GETXAPI_TIER2_ACCOUNTS: tuple[str, ...] = tuple(
 )
 
 #: TIER 3+4 keyword search queries — the catch-all lane for the ~700 long-tail
-#: / shiller / emerging accounts we do NOT poll individually. Each run picks
-#: ONE query (round-robin) so all 10 are covered roughly every 5 hours; at a
-#: 30-min cadence this lane burns ≈240 calls/day. The ``-is:retweet`` +
-#: ``min_faves`` operators keep the signal high (original posts with real
+#: / shiller / emerging accounts we do NOT poll individually. All 10 queries
+#: run every 30 min (≈480 calls/day) to catch their tweets. The ``-is:retweet``
+#: + ``min_faves`` operators keep the signal high (original posts with real
 #: engagement) and the noise low. Env-overridable as a ``|``-separated list
 #: (``GETXAPI_TIER3_4_KEYWORD_QUERIES``).
 GETXAPI_TIER3_4_KEYWORD_QUERIES: tuple[str, ...] = tuple(
