@@ -189,6 +189,41 @@ _DEFAULT_SCAM_CHANNELS: tuple[str, ...] = (
     "Meraki",  # 23k members
     "MrpunkGamble",  # 8k members
     "PhanesHub",  # 49k members
+    # 2026-09-04: generic scam/shiller handles — broad sweep of common
+    # call/signal/pump/alpha channel names. Many are squat/renamed/dead;
+    # the scam_watch cooldown gate (3 failures → 24h skip) absorbs the
+    # dead ones so they don't burn an MTProto round-trip every tick.
+    "cryptocalls",
+    "signals",
+    "cryptosignals",
+    "trading_signals",
+    "crypto_pumps",
+    "pump_signals",
+    "crypto_calls",
+    "defi_calls",
+    "gem_hunter",
+    "alpha_hunter",
+    "degen_calls",
+    "moon_calls",
+    "crypto_gem",
+    "gem_finder",
+    "early_gem",
+    "crypto_alpha",
+    "defi_alpha",
+    "moon_gem",
+    "solana_calls",
+    "solana_gems",
+    "memecoin_calls",
+    "pump_fun",
+    "bonding_curve",
+    "raydium_pools",
+    "orca_pools",
+    "jupiter_swaps",
+    "dexscreener_alerts",
+    "geckoterminal_alerts",
+    "bubblemaps_alerts",
+    "arkham_alerts",
+    "rekt_alerts",
 )
 
 
