@@ -115,6 +115,7 @@ _MAIN_FOREIGN_SENTENCE_STARTS: tuple[str, ...] = ("El ", "Los ", "Das ", "Le ", 
 _MAIN_INTERNAL_MONOLOGUE: tuple[str, ...] = (
     "The user",
     "No further action",
+    "Masthead con",
     "ha sido",
     "cumpliendo",
 )

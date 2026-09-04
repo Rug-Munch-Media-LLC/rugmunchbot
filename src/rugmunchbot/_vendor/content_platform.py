@@ -35,13 +35,63 @@ import html
 import json
 import os
 import re
-import time
-from datetime import UTC, datetime
-from typing import Any
+import redis
+import re
 
-import httpx
+# Redis for quality gate counters
+_REDIS_CLIENT = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
 
-from rugmunchbot._vendor.logging_shim import get_logger
+
+async def _apply_feed_quality_gate(
+    title: str, content: str, feature_image: str
+) -> tuple[bool, str | None]:
+    """
+    Enforce quality standards for rugmunch.io/feed posts.
+    Returns (is_valid, error_reason).
+    """
+    # 1. Title check
+    clean_title = title.strip()
+    if not clean_title:
+        return False, "empty title"
+
+    forbidden_titles = {"Daily Update", "Midday Market Update"}
+    if clean_title in forbidden_titles:
+        return False, f"forbidden title: {clean_title}"
+
+    # 2. Content length check (>200 words)
+    words = content.split()
+    if len(words) <= 200:
+        return False, f"content too short ({len(words)} words)"
+
+    # 3. Link check (at least 1 http link)
+    if not re.search(r"https?://\S+", content):
+        return False, "no http link found"
+
+    # 4. Language check (English only)
+    # Simple heuristic: check for common Spanish/French markers
+    foreign_markers = [
+        r"\bEl\b",
+        r"\bha sido\b",
+        r"\bcumpliendo\b",
+        r"\bla\b",
+        r"\blos\b",
+        r"\blas\b",
+    ]
+    for marker in foreign_markers:
+        if re.search(marker, content, re.IGNORECASE):
+            return False, f"foreign language detected ({marker})"
+
+    # 5. Image check
+    if not feature_image or not feature_image.strip():
+        return False, "missing feature image"
+
+    return True, None
+
+
+def _log_quality_rejection(reason: str):
+    logger.warning("feed_quality_gate: REJECTED — %s", reason)
+    _REDIS_CLIENT.incr("feed_quality_gate_rejections")
+
 
 logger = get_logger(__name__)
 
