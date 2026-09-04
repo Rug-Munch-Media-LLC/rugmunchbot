@@ -30,9 +30,11 @@ from typing import TYPE_CHECKING, Any, Final
 
 from rugmunchbot.support.content_lint import (
     BLAND_MIN_WORDS,
-    Violation,
+    detect_slop,
     canonical_url,
     lint_post,
+    SLOP_PATTERNS,
+    Violation,
 )
 
 if TYPE_CHECKING:
