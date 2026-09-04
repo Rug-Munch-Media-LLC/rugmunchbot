@@ -297,6 +297,17 @@ _TRENDING_CONTEXT_MAX_CHARS = 4200
 # _TRENDING_FETCH_LIMIT // 2 so gainers + losers surface ~20 tokens total.
 _MARKET_MOVERS_DEFAULT = 3
 
+# MARKET-TODAY Redis cache — the assembled market context block is cached for
+# 5 minutes so repeated "market today / market analysis" questions answer fast
+# without re-fetching tools + news + narrative every time. Fail-open: Redis
+# down → live gather every time (never blocks the answer).
+_MARKET_CACHE_KEY = "rmi_bot:chat_ai:market_today:v1"
+_MARKET_CACHE_TTL = 300  # 5 minutes
+
+# Recent news headlines fetched for the market-today block (backend
+# /api/v1/news/headlines). Bounded so the block stays within budget.
+_MARKET_NEWS_LIMIT = 10
+
 # TRENDING / MOVERS answer-structure hint appended to the RETRIEVED CONTEXT
 # block for "what's trending / top tokens / gainers & movers" questions
 # (same pattern as _TA_ANSWER_HINT / _MARKET_ANSWER_HINT): open with the

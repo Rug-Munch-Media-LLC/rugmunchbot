@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 
 from rugmunchbot.handlers.chat_ai import _llm as _llm_mod
@@ -12,7 +13,10 @@ from rugmunchbot.handlers.chat_ai._llm._constants import (
     _CTX_TA_RE,
     _CTX_TRENDING_RE,
     _MARKET_ANSWER_HINT,
+    _MARKET_CACHE_KEY,
+    _MARKET_CACHE_TTL,
     _MARKET_MOVERS_DEFAULT,
+    _MARKET_NEWS_LIMIT,
     _TRENDING_ANSWER_HINT,
     _TRENDING_CONTEXT_MAX_CHARS,
     _TRENDING_FETCH_LIMIT,
@@ -64,6 +68,102 @@ async def _fetch_market_narrative() -> list[dict[str, Any]]:
     except Exception as exc:
         logger.debug("question-router narrative fetch failed: %s", exc)
     return []
+
+
+async def _fetch_news_headlines(limit: int = _MARKET_NEWS_LIMIT) -> list[dict[str, str]]:
+    """Recent news headlines from the backend (fail-open → ``[]``).
+
+    ``GET /api/v1/news/headlines?limit=10`` returns
+    ``{"headlines": [{title, url, source, ...}], "count": N}``. Only real
+    titles survive; a backend miss degrades to ``[]`` so the market block
+    simply omits the news section (never invents a headline).
+    """
+    try:
+        from rugmunchbot.tools.registry import backend_json_get
+
+        body = await backend_json_get(
+            "/api/v1/news/headlines", params={"limit": limit}, timeout=4.0
+        )
+    except Exception as exc:
+        logger.debug("question-router market news fetch failed: %s", exc)
+        return []
+    if not isinstance(body, dict):
+        return []
+    headlines: list[dict[str, str]] = []
+    for it in (body.get("headlines") or [])[:limit]:
+        if not isinstance(it, dict):
+            continue
+        title = str(it.get("title") or "").strip()
+        if not title:
+            continue
+        headlines.append(
+            {
+                "title": title[:120],
+                "url": str(it.get("url") or "").strip(),
+                "source": str(it.get("source") or "").strip(),
+            }
+        )
+    return headlines
+
+
+async def _fetch_backend_market_overview() -> dict[str, Any] | None:
+    """Backend market overview (fail-open → ``None``).
+
+    ``GET /api/v1/market/overview`` returns global market cap / 24h volume /
+    BTC-ETH dominance / BTC-ETH price + 24h change / Fear & Greed. A second
+    live source for the market block — it keeps the block populated with real
+    market data even when the ``market_overview`` tool (CoinGecko) is down. A
+    miss degrades to ``None``.
+    """
+    try:
+        from rugmunchbot.tools.registry import backend_json_get
+
+        body = await backend_json_get("/api/v1/market/overview", timeout=4.0)
+    except Exception as exc:
+        logger.debug("question-router market overview fetch failed: %s", exc)
+        return None
+    return body if isinstance(body, dict) else None
+
+
+async def _market_cache_get() -> tuple[str, list[dict[str, str]]] | None:
+    """Read the cached market-today block (5 min). Fail-open → ``None``."""
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis_async
+
+        r = get_redis_async()
+        if r is None:
+            return None
+        raw = await r.get(_MARKET_CACHE_KEY)
+        if not raw:
+            return None
+        data = json.loads(raw if isinstance(raw, str) else raw.decode("utf-8", "replace"))
+        block = data.get("block")
+        sources = data.get("sources")
+        if not isinstance(block, str) or not block:
+            return None
+        return block, sources if isinstance(sources, list) else []
+    except Exception as exc:
+        logger.debug("question-router market cache read failed: %s", exc)
+        return None
+
+
+async def _market_cache_set(block: str, sources: list[dict[str, str]]) -> None:
+    """Write the assembled market-today block to Redis (5 min). Fail-open."""
+    if not block:
+        return
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis_async
+
+        r = get_redis_async()
+        if r is None:
+            return
+        await r.set(
+            _MARKET_CACHE_KEY,
+            json.dumps({"block": block, "sources": sources}),
+            ex=_MARKET_CACHE_TTL,
+        )
+    except Exception as exc:
+        logger.debug("question-router market cache write failed: %s", exc)
 
 
 def _extract_majors(results: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -216,20 +316,24 @@ def _build_market_today_block(
     results: dict[str, Any],
     narratives: list[dict[str, Any]],
     mover_cap: int = _MARKET_MOVERS_DEFAULT,
+    news: list[dict[str, str]] | None = None,
+    backend_overview: dict[str, Any] | None = None,
 ) -> str:
     """Assemble the rich market-today context block from real tool payloads.
 
     Pure function (no I/O): merges the market_condition verdict + Fear&Greed,
     market_overview majors (BTC/ETH/SOL price + 24h) + global mcap/dominance,
     trending tokens (top gainers AND losers with % and a narrative-backed
-    driver when supported), the daily-brief narrative hits and a
-    what-to-watch seed. ``mover_cap`` is the per-side cap (default 3); a
+    driver when supported), the daily-brief narrative hits, recent news
+    headlines (``news``) and the backend market overview (``backend_overview``)
+    plus a what-to-watch seed. ``mover_cap`` is the per-side cap (default 3); a
     count-bearing ask raises it so gainers + losers surface ~20 tokens total.
     Every line carries ONLY numbers present in the payloads — a missing
     signal renders as ``unavailable``, never invented. ``results`` is the
     ``{name: ToolResult}`` dict from the registry; ``narratives`` the
     ``{title, url, snippet, query}`` hits from the daily-brief narrative
-    fetch.
+    fetch; ``news`` the ``{title, url, source}`` backend headlines;
+    ``backend_overview`` the raw ``/api/v1/market/overview`` dict.
     """
     lines: list[str] = ["LIVE MARKET DATA (real, fetched just now):"]
     _add = lines.append
@@ -297,6 +401,30 @@ def _build_market_today_block(
         if isinstance(od.get("global_volume_24h_usd"), (int, float)):
             _add(f"- 24h volume: {_fmt_signal('volume_24h', od['global_volume_24h_usd'])}")
 
+    # Backend /api/v1/market/overview — a second live source for the global
+    # picture (market cap / volume / dominance / BTC-ETH price + change).
+    # Rendered only when the tool's market_overview missed, so the block never
+    # duplicates the same metric twice.
+    if backend_overview and not (overview is not None and getattr(overview, "ok", False)):
+        _add("## GLOBAL MARKET (backend /api/v1/market/overview)")
+        if isinstance(backend_overview.get("total_market_cap"), (int, float)):
+            _add(
+                f"- Global market cap: {_fmt_signal('market_cap', backend_overview['total_market_cap'])}"
+            )
+        if isinstance(backend_overview.get("total_volume_24h"), (int, float)):
+            _add(f"- 24h volume: {_fmt_signal('volume_24h', backend_overview['total_volume_24h'])}")
+        if isinstance(backend_overview.get("btc_dominance"), (int, float)):
+            _add(f"- BTC dominance: {backend_overview['btc_dominance']:.1f}%")
+        for sym, price_key, chg_key in (
+            ("BTC", "btc_price", "btc_change_24h"),
+            ("ETH", "eth_price", "eth_change_24h"),
+        ):
+            price = backend_overview.get(price_key)
+            if isinstance(price, (int, float)):
+                chg = backend_overview.get(chg_key)
+                chg_txt = _fmt_signal("change_24h", chg) if isinstance(chg, (int, float)) else "n/a"
+                _add(f"- {sym} {_fmt_signal('price_usd', price)} ({chg_txt} 24h)")
+
     gainers, losers = _movers_from_trending(results)
     if gainers:
         _add("## TOP GAINERS (24h)")
@@ -308,6 +436,21 @@ def _build_market_today_block(
             _add(f"- {_mover_label(t)}{_mover_driver(t, narratives)}")
     if not gainers and not losers:
         _add("## MOVERS — unavailable (no live trending feed)")
+
+    if news:
+        _add("## RECENT NEWS HEADLINES (backend /api/v1/news/headlines)")
+        for n in news[:_MARKET_NEWS_LIMIT]:
+            title = str(n.get("title") or "").strip()[:120]
+            if not title:
+                continue
+            url = str(n.get("url") or "").strip()
+            src = str(n.get("source") or "").strip()
+            line = f"- {title}"
+            if src:
+                line += f" ({src})"
+            if url:
+                line += f" — {url}"
+            _add(line)
 
     if narratives:
         _add("## DOMINANT NARRATIVE (daily-brief narrative fetch)")
@@ -349,14 +492,27 @@ async def _gather_market_today_context(question: str) -> tuple[str, list[dict[st
     market", "top gainers and losers") runs the existing market tools
     CONCURRENTLY (``market_condition`` verdict + Fear&Greed,
     ``market_overview`` majors incl. SOL, ``trending`` movers) plus the
-    daily-brief narrative fetch (SearXNG, fail-open) and assembles the
-    structured block — majors → sentiment/macro → gainers & losers (with
-    narrative-backed drivers) → narrative → what-to-watch seed — with the
-    MARKET-TODAY answer-structure hint appended (same pattern as the TA/EDU
-    hints). Fail-open: any tool or narrative that misses simply doesn't
-    contribute; when NO tool answered, the web fallback stands in. Never
-    raises.
+    daily-brief narrative fetch (SearXNG, fail-open), recent news headlines
+    (backend ``/api/v1/news/headlines``) and the backend market overview
+    (``/api/v1/market/overview``) and assembles the structured block —
+    majors → sentiment/macro → gainers & losers (with narrative-backed
+    drivers) → news → narrative → what-to-watch seed — with the MARKET-TODAY
+    answer-structure hint appended (same pattern as the TA/EDU hints).
+
+    The assembled block is cached in Redis for 5 minutes so repeated market
+    questions answer fast without re-fetching every source. Fail-open: any
+    tool / narrative / news / overview that misses simply doesn't contribute;
+    when NO tool answered but news or the backend overview landed, the block
+    is still built from that live data (never a bare timeout); only when
+    EVERYTHING missed does the web fallback stand in. Never raises.
     """
+    # Fast path: a market-today block assembled within the last 5 minutes is
+    # served straight from Redis — repeated "market today" questions skip the
+    # tool + news + narrative fetches entirely.
+    cached = await _market_cache_get()
+    if cached is not None:
+        return cached
+
     from rugmunchbot.tools import get_registry
     from rugmunchbot.tools.intent import tool_kwargs
 
@@ -371,14 +527,18 @@ async def _gather_market_today_context(question: str) -> tuple[str, list[dict[st
     try:
         tools_task = asyncio.create_task(get_registry().run_many_kwargs(spec))
         narrative_task = asyncio.create_task(_fetch_market_narrative())
+        news_task = asyncio.create_task(_fetch_news_headlines())
+        overview_task = asyncio.create_task(_fetch_backend_market_overview())
     except Exception as exc:
         logger.debug("question-router market-today gather failed (query %.60s): %s", question, exc)
         return "", []
     try:
-        # Run tools + narrative CONCURRENTLY to the full router budget; both
-        # get the whole window (no FIRST_COMPLETED cancellation bug).
+        # Run tools + narrative + news + overview CONCURRENTLY to the full
+        # router budget; all get the whole window (no FIRST_COMPLETED
+        # cancellation bug). A slow RAG/tool fetch can never starve the live
+        # news/overview legs.
         await asyncio.wait(
-            {tools_task, narrative_task},
+            {tools_task, narrative_task, news_task, overview_task},
             timeout=_CONTEXT_GATHER_TIMEOUT,
             return_when=asyncio.ALL_COMPLETED,
         )
@@ -398,17 +558,38 @@ async def _gather_market_today_context(question: str) -> tuple[str, list[dict[st
         logger.debug(
             "question-router market-today narrative failed (query %.60s): %s", question, exc
         )
+    news: list[dict[str, str]] = []
+    try:
+        if not news_task.cancelled() and news_task.done():
+            news = news_task.result() or []
+    except Exception as exc:
+        logger.debug("question-router market-today news failed (query %.60s): %s", question, exc)
+    backend_overview: dict[str, Any] | None = None
+    try:
+        if not overview_task.cancelled() and overview_task.done():
+            backend_overview = overview_task.result()
+    except Exception as exc:
+        logger.debug(
+            "question-router market-today overview failed (query %.60s): %s", question, exc
+        )
     finally:
-        for t in (tools_task, narrative_task):
+        for t in (tools_task, narrative_task, news_task, overview_task):
             if not t.done():
                 t.cancel()
-        if tools_task.cancelled() or narrative_task.cancelled():
-            await asyncio.gather(tools_task, narrative_task, return_exceptions=True)
+        if any(t.cancelled() for t in (tools_task, narrative_task, news_task, overview_task)):
+            await asyncio.gather(
+                tools_task, narrative_task, news_task, overview_task, return_exceptions=True
+            )
 
     ok_results = {name: r for name, r in tools.items() if getattr(r, "ok", False)}
-    if not ok_results:
-        # All market tools missed → CURRENT web results so the answer still
-        # gets sourced context (fail-open: "" when SearXNG is down too).
+    # Fail-open: even when every market tool missed, the live news headlines
+    # and/or backend market overview still give the answer real data — build
+    # the block from whatever landed instead of timing out. Only when NOTHING
+    # landed do we fall through to the SearXNG web layer.
+    if not ok_results and not news and not backend_overview:
+        # All market tools + news + overview missed → CURRENT web results so
+        # the answer still gets sourced context (fail-open: "" when SearXNG
+        # is down too).
         return await _llm_mod._gather_web_fallback(question)
     try:
         # A count-bearing ask ("top 20 gainers") raises the per-side mover
@@ -416,7 +597,13 @@ async def _gather_market_today_context(question: str) -> tuple[str, list[dict[st
         mover_cap = min(
             _requested_token_count(question) or _MARKET_MOVERS_DEFAULT, _TRENDING_FETCH_LIMIT // 2
         )
-        block = _build_market_today_block(ok_results, narratives, mover_cap=mover_cap)
+        block = _build_market_today_block(
+            ok_results,
+            narratives,
+            mover_cap=mover_cap,
+            news=news,
+            backend_overview=backend_overview,
+        )
         # TRENDING-typed broad asks ("top gainers and losers today") get the
         # TRENDING hint (open "Here's what's trending:", scan links, sources
         # only in footer) + the larger trending block budget; plain broad
@@ -434,6 +621,14 @@ async def _gather_market_today_context(question: str) -> tuple[str, list[dict[st
         {"type": name, "query": question[:90], "title": f"{name} \u00b7 {r.source or 'live data'}"}
         for name, r in ok_results.items()
     ]
+    if backend_overview:
+        sources.append(
+            {
+                "type": "market_overview",
+                "query": question[:90],
+                "title": "backend /api/v1/market/overview",
+            }
+        )
     for n in narratives[:4]:
         if not isinstance(n, dict):
             continue
@@ -441,4 +636,11 @@ async def _gather_market_today_context(question: str) -> tuple[str, list[dict[st
         title = str(n.get("title") or url or "narrative").strip()[:60]
         if url:
             sources.append({"type": "web", "title": title, "url": url})
+    for n in news[:_MARKET_NEWS_LIMIT]:
+        url = str(n.get("url") or "").strip()
+        title = str(n.get("title") or url or "news headline").strip()[:60]
+        if url:
+            sources.append({"type": "news", "title": title, "url": url})
+    # Cache the assembled block (5 min) so repeated market questions are fast.
+    await _market_cache_set(block, sources)
     return block, sources
