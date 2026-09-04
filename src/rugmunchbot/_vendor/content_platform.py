@@ -35,8 +35,8 @@ import html
 import json
 import os
 import re
+
 import redis
-import re
 
 # Redis for quality gate counters
 _REDIS_CLIENT = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
@@ -446,6 +446,12 @@ async def create_post(
 
     # Convert to Ghost lexical format (headings/bold/italic/links/lists kept)
     lexical = json.dumps(_markdown_to_lexical(content))
+
+    # Quality Gate for rugmunch.io/feed
+    is_valid, reason = await _apply_feed_quality_gate(title, content, image)
+    if not is_valid:
+        _log_quality_rejection(reason)
+        return {"error": f"Quality gate failed: {reason}"}
 
     payload = {
         "posts": [
