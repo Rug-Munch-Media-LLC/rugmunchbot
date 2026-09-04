@@ -21,22 +21,22 @@
 # so a story seen in a previous sweep - even rephrased - is never re-read.
 """News ingestion pipeline - vendored from rmi-backend."""
 
+import json
+import os
 import re
 import time
+import xml.etree.ElementTree as ET
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from html.parser import HTMLParser
 from typing import Any, Final
 
+import httpx
+
+from rugmunchbot._vendor.dedup import content_hash, url_hash
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
-from rugmunchbot._vendor.dedup import content_hash, url_hash
-
-import os
-import json
-import httpx
-import xml.etree.ElementTree as ET
 from rugmunchbot._vendor.news_ingest.normalize import extract_entities
-from html.parser import HTMLParser
 
 logger = get_logger(__name__)
 
@@ -726,13 +726,16 @@ async def scrape_with_pry(url: str) -> dict | None:
                     return json.loads(cached)
                 except (TypeError, ValueError):
                     pass  # corrupt cache entry - fall through to scrape
-    except Exception as exc:  # noqa: S110 - best-effort cache
+    except Exception as exc:
         logger.debug("news_ingest:pry_cache_read_failed url=%s err=%s", url, str(exc)[:100])
 
     try:
+        from rugmunchbot.support.pry_auth import pry_headers
+
         async with httpx.AsyncClient(timeout=_PRY_TIMEOUT_SECONDS) as client:
             response = await client.post(
                 f"{_PRY_BASE_URL}/v1/scrape",
+                headers=pry_headers(),
                 json={"url": url, "bypassCloudflare": True, "onlyMainContent": True},
             )
             response.raise_for_status()
@@ -762,7 +765,7 @@ async def scrape_with_pry(url: str) -> dict | None:
         r = get_redis_async()
         if r is not None:
             await r.setex(cache_key, _PRY_CACHE_TTL_SECONDS, json.dumps(result))
-    except Exception as exc:  # noqa: S110 - best-effort cache
+    except Exception as exc:
         logger.debug("news_ingest:pry_cache_write_failed url=%s err=%s", url, str(exc)[:100])
 
     return result
@@ -1000,7 +1003,6 @@ async def sweep_rss_feeds(
 
 
 # Helper to extract links from HTML
-from html.parser import HTMLParser
 
 
 class LinkExtractor(HTMLParser):
@@ -1036,7 +1038,7 @@ async def scrape_newsletter_with_pry(url: str) -> list[dict]:
         links = extractor.links
 
         # Filter links to those that are likely article URLs (same domain and not common non-article paths)
-        from urllib.parse import urlparse, urljoin
+        from urllib.parse import urljoin, urlparse
 
         parsed_base = urlparse(url)
         base_domain = parsed_base.netloc
@@ -1215,7 +1217,7 @@ def fetch_backend_news(limit: int = 50) -> list[NewsArticle]:
                 )
             )
         return articles
-    except Exception as e:  # noqa: BLE001 - fail-open contract
+    except Exception as e:
         logger.warning("fetch_backend_news failed (fail-open -> []): %s", e)
         return []
 
@@ -1258,6 +1260,6 @@ def push_to_backend(articles: list) -> int:
             resp = client.post(url, json=payloads)
             resp.raise_for_status()
         return len(payloads)
-    except Exception as e:  # noqa: BLE001 - fail-open contract
+    except Exception as e:
         logger.warning("push_to_backend failed (fail-open -> 0): %s", e)
         return 0

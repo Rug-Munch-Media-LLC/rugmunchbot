@@ -189,9 +189,12 @@ async def _pry_scrape(url: str) -> dict[str, Any] | None:
     try:
         import httpx
 
+        from rugmunchbot.support.pry_auth import pry_headers
+
         async with httpx.AsyncClient(timeout=PRY_SCRAPE_TIMEOUT_S) as client:
             response = await client.post(
                 f"{PRY_BASE_URL}/v1/scrape",
+                headers=pry_headers(),
                 json={"url": url, "bypassCloudflare": True, "jsRender": True},
             )
             response.raise_for_status()

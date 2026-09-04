@@ -203,9 +203,12 @@ async def extract_thumbnail_with_pry(url: str, *, logger: Any = None) -> str | N
     try:
         import httpx
 
+        from rugmunchbot.support.pry_auth import pry_headers
+
         async with httpx.AsyncClient(timeout=_PRY_THUMB_TIMEOUT) as client:
             response = await client.post(
                 f"{_PRY_BASE_URL}/v1/scrape",
+                headers=pry_headers(),
                 json={"url": url, "bypassCloudflare": True},
             )
             response.raise_for_status()
