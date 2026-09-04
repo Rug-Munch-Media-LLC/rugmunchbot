@@ -223,7 +223,21 @@ async def extract_thumbnail_with_pry(url: str, *, logger: Any = None) -> str | N
     # Pry returns the payload under ``data`` on success; tolerate both shapes.
     data = body.get("data") if isinstance(body.get("data"), dict) else body
     html = (data or {}).get("html") or ""
+    markdown = (data or {}).get("markdown") or ""
+    metadata = (data or {}).get("metadata") or {}
+
+    # Pry returns markdown not html — try metadata first, then markdown for image refs
     if not html:
+        # Check metadata for image
+        meta_img = metadata.get("image") or metadata.get("og:image") or ""
+        if meta_img and is_valid_image(meta_img):
+            return _normalize_thumbnail_url(meta_img, url)
+
+        # Check markdown for image references ![alt](url)
+        img_match = re.search(r"!\[.*?\]\((https?://[^\s)]+\.(?:jpg|jpeg|png|webp|gif))", markdown)
+        if img_match and is_valid_image(img_match.group(1)):
+            return _normalize_thumbnail_url(img_match.group(1), url)
+
         return None
 
     thumbnail: str | None = None
