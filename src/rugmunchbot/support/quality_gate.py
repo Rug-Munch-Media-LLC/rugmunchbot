@@ -30,11 +30,9 @@ from typing import TYPE_CHECKING, Any, Final
 
 from rugmunchbot.support.content_lint import (
     BLAND_MIN_WORDS,
-    detect_slop,
+    Violation,
     canonical_url,
     lint_post,
-    SLOP_PATTERNS,
-    Violation,
 )
 
 if TYPE_CHECKING:
@@ -351,6 +349,4 @@ __all__ = [
     "GateResult",
     "pre_post_quality_gate",
     "strip_duplicate_urls",
-    "main_channel_quality_gate",
-    "feed_quality_gate",
 ]
