@@ -1180,8 +1180,9 @@ def fetch_backend_news(limit: int = 50) -> list[NewsArticle]:
     """
     try:
         url = f"{_BACKEND_NEWS_BASE}/api/v1/news/feed?limit={int(limit)}"
+        headers = {"X-Internal-Key": os.getenv("RMI_INTERNAL_KEY", "")}
         with httpx.Client(timeout=_BACKEND_NEWS_TIMEOUT) as client:
-            resp = client.get(url)
+            resp = client.get(url, headers=headers)
             resp.raise_for_status()
             payload = resp.json()
 
@@ -1256,8 +1257,9 @@ def push_to_backend(articles: list) -> int:
             return 0
 
         url = f"{_BACKEND_NEWS_BASE}/api/v1/news/articles"
+        headers = {"X-Internal-Key": os.getenv("RMI_INTERNAL_KEY", "")}
         with httpx.Client(timeout=_BACKEND_NEWS_TIMEOUT) as client:
-            resp = client.post(url, json=payloads)
+            resp = client.post(url, json=payloads, headers=headers)
             resp.raise_for_status()
         return len(payloads)
     except Exception as e:
