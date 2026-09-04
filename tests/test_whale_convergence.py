@@ -119,7 +119,8 @@ def test_convergence_with_mixed_timestamps():
     from rugmunchbot.tools.whale_convergence import detect_convergence
 
     wallets = [
-        _w("a", 0), _w("b", 10),
+        _w("a", 0),
+        _w("b", 10),
         {"wallet": "c"},  # no timestamp
         _w("d", 20),
     ]

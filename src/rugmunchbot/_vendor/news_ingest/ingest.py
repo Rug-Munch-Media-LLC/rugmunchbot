@@ -34,10 +34,10 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Final
 
+from rugmunchbot._vendor.dedup import content_hash, url_hash
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
 from rugmunchbot._vendor.news_ingest.normalize import channel_message_to_article
-from rugmunchbot._vendor.dedup import content_hash, url_hash
 
 logger = get_logger(__name__)
 
@@ -412,6 +412,287 @@ def rank_articles(articles: list[NewsArticle], now: datetime | None = None) -> l
     )
 
 
+# ── Content quality scoring (2026-09-04) ───────────────────────────────────
+# Multiplicative quality model for the RAG content pipeline. Each factor is a
+# multiplier around 1.0; the final score is their product, so a story that is
+# credible, important, corroborated, diverse, and fresh compounds, while a
+# weak story on any single axis is pulled down. Every factor is pure and
+# fail-open (missing fields degrade to the remaining signals, never raise).
+
+#: Security-researcher / on-chain-forensics sources — highest trust (1.0).
+_SECURITY_RESEARCHER_HINTS: Final = (
+    "zachxbt",
+    "zachxbt_",
+    "peckshield",
+    "peckshieldalert",
+    "slowmist",
+    "slowmist_team",
+    "certik",
+    "certikalert",
+    "rekt",
+    "rektnews",
+    "cyvers",
+    "cyversalerts",
+    "blocksec",
+    "blocksec_team",
+    "chainalysis",
+    "elliptic",
+    "trmlabs",
+    "halborn",
+    "immunefi",
+)
+#: Major news outlets — high trust (0.8).
+_MAJOR_NEWS_HINTS: Final = (
+    "coindesk",
+    "cointelegraph",
+    "theblock",
+    "bloomberg",
+    "reuters",
+    "wsj",
+    "wall street journal",
+    "financial times",
+    "associated press",
+    "apnews",
+    "forbes",
+    "decrypt",
+    "bitcoin magazine",
+    "blockworks",
+    "the defiant",
+)
+#: Blog / independent / aggregator channels — medium trust (0.5).
+_BLOG_HINTS: Final = (
+    "medium",
+    "substack",
+    "mirror",
+    "blog",
+    "wordpress",
+    "ghost",
+    "hashnode",
+    "dev.to",
+    "cryptoslate",
+    "cryptonews",
+    "daily hodl",
+    "altcoin buzz",
+    "watcher",
+    "panews",
+    "cryptopanic",
+)
+
+#: Exploit / security-critical vocabulary → importance boost.
+_EXPLOIT_KEYWORD_RE: Final = re.compile(
+    r"\b(?:exploit|exploits|exploited|exploiting|hack|hacks|hacked|hacking|"
+    r"drained|drain|drains|draining|rug|rugs|rugpull|rug pull|stolen|steal|"
+    r"steals|stole|breach|breaches|breached|vulnerability|vulnerabilities|"
+    r"vulnerable|compromised|compromise|attack|attacks|attacked|attacker|"
+    r"phishing|scam|scams|scammed|fraud|theft|pulled|liquidity removed)\b",
+    re.IGNORECASE,
+)
+
+#: Minimum distinct sources before a story counts as corroborated.
+_CORROBORATION_MIN_SOURCES: Final = 3
+#: Corroboration boost when >= ``_CORROBORATION_MIN_SOURCES`` report the story.
+_CORROBORATION_BOOST: Final = 0.2
+#: Max share of a feed a single source may own before diversity is penalized.
+_DIVERSITY_MAX_SHARE: Final = 0.30
+#: Diversity penalty applied to over-represented sources.
+_DIVERSITY_PENALTY: Final = 0.2
+#: Engagement threshold for the importance boost.
+_ENGAGEMENT_THRESHOLD: Final = 50
+#: Importance boost for exploit/security-critical articles.
+_EXPLOIT_BOOST: Final = 0.3
+#: Importance boost for high-engagement articles.
+_ENGAGEMENT_BOOST: Final = 0.2
+
+
+def source_credibility(source_channel: str) -> float:
+    """Credibility multiplier for a source channel (1.0 / 0.8 / 0.5 / 0.3).
+
+    Security researchers / on-chain forensics (zachxbt, peckshield, ...) are
+    the most trusted (1.0); major news outlets (coindesk, cointelegraph, ...)
+    are 0.8; blogs / independent / aggregator channels are 0.5; anything
+    unknown is 0.3. Pure and deterministic.
+    """
+    source = (source_channel or "").lower()
+    if any(hint in source for hint in _SECURITY_RESEARCHER_HINTS):
+        return 1.0
+    if any(hint in source for hint in _MAJOR_NEWS_HINTS):
+        return 0.8
+    if any(hint in source for hint in _BLOG_HINTS):
+        return 0.5
+    return 0.3
+
+
+def _article_engagements(article: NewsArticle) -> int:
+    """Best-effort engagement count for an article (duck-typed, fail-open).
+
+    ``NewsArticle`` does not carry views/reactions today (they live on the raw
+    ``ChannelMessage``), so this reads optional duck-typed attributes
+    (``engagements`` / ``views`` / ``reactions``) and returns 0 when absent.
+    """
+    if article is None:
+        return 0
+    for attr in ("engagements", "views"):
+        value = getattr(article, attr, None)
+        if isinstance(value, int):
+            return value
+    reactions = getattr(article, "reactions", None)
+    if isinstance(reactions, dict):
+        return sum(int(v) for v in reactions.values() if isinstance(v, (int, float)))
+    return 0
+
+
+def content_importance(article: NewsArticle) -> float:
+    """Importance multiplier for an article (1.0 base, +0.3 / +0.2 boosts).
+
+    Articles mentioning exploit/security-critical vocabulary (exploit, hack,
+    drained, rug, ...) get +0.3; articles with >50 engagements get +0.2.
+    Returns a multiplier in ``[1.0, 1.5]``. Fail-open: missing fields degrade
+    to the remaining signals.
+    """
+    if article is None:
+        return 1.0
+    boost = 1.0
+    text = f"{article.title or ''} {article.body or ''}"
+    if _EXPLOIT_KEYWORD_RE.search(text):
+        boost += _EXPLOIT_BOOST
+    if _article_engagements(article) > _ENGAGEMENT_THRESHOLD:
+        boost += _ENGAGEMENT_BOOST
+    return round(boost, 4)
+
+
+def _story_key(article: NewsArticle) -> str:
+    """A stable 'same story' fingerprint for corroboration counting.
+
+    Prefers the canonical source URL (strongest same-story signal), then the
+    article's own ``source_url`` when it is a real article link (not a
+    ``t.me`` share link), then the normalized title. Returns ``""`` when none
+    is usable (cannot corroborate).
+    """
+    if article is None:
+        return ""
+    canonical = extract_canonical_url(article)
+    if canonical:
+        return f"url:{url_hash(canonical)}"
+    src_url = (article.source_url or "").strip()
+    if src_url and not _TME_LINK_RE.match(src_url):
+        return f"url:{url_hash(src_url)}"
+    norm = normalize_title(article.title)
+    if len(norm) >= _MIN_TITLE_KEY_CHARS:
+        return f"title:{content_hash(norm)}"
+    return ""
+
+
+def corroboration_factor(articles: list[NewsArticle], article: NewsArticle) -> float:
+    """Corroboration multiplier: +0.2 when 3+ distinct sources report the story.
+
+    Groups *articles* by story fingerprint (canonical URL / normalized title)
+    and counts distinct ``source_channel`` values. Returns 1.0 when fewer than
+    ``_CORROBORATION_MIN_SOURCES`` distinct sources report it, else 1.2.
+    """
+    if article is None:
+        return 1.0
+    key = _story_key(article)
+    if not key:
+        return 1.0
+    sources: set[str] = set()
+    for other in articles or []:
+        if other is None:
+            continue
+        if _story_key(other) == key:
+            src = (other.source_channel or "").strip().lower()
+            if src:
+                sources.add(src)
+    if len(sources) >= _CORROBORATION_MIN_SOURCES:
+        return 1.0 + _CORROBORATION_BOOST
+    return 1.0
+
+
+def diversity_factor(articles: list[NewsArticle], article: NewsArticle) -> float:
+    """Diversity multiplier: penalize a source that dominates the feed.
+
+    Computes the share of *articles* that come from the article's source; when
+    that share exceeds ``_DIVERSITY_MAX_SHARE`` (30%), the multiplier drops by
+    ``_DIVERSITY_PENALTY`` (0.8). Returns 1.0 otherwise. Fail-open: an empty
+    feed or unknown source returns 1.0.
+    """
+    if article is None or not articles:
+        return 1.0
+    source = (article.source_channel or "").strip().lower()
+    if not source:
+        return 1.0
+    total = len(articles)
+    same = sum(
+        1
+        for other in articles
+        if other is not None and (other.source_channel or "").strip().lower() == source
+    )
+    share = same / total
+    if share > _DIVERSITY_MAX_SHARE:
+        return 1.0 - _DIVERSITY_PENALTY
+    return 1.0
+
+
+def freshness_factor(article: NewsArticle, now: datetime | None = None) -> float:
+    """Freshness multiplier: +0.2 (<1h), +0.1 (1-6h), 1.0 (6-24h), -0.2 (>24h).
+
+    Newer stories score higher; stale stories (>24h) are penalized. Fail-open:
+    a missing ``posted_at`` returns 1.0 (no freshness signal).
+    """
+    if article is None or article.posted_at is None:
+        return 1.0
+    try:
+        age_hours = (
+            _as_utc(now or datetime.now(UTC)) - _as_utc(article.posted_at)
+        ).total_seconds() / 3600.0
+    except (TypeError, ValueError, OverflowError):
+        return 1.0
+    if age_hours < 1:
+        return 1.2
+    if age_hours < 6:
+        return 1.1
+    if age_hours > 24:
+        return 0.8
+    return 1.0
+
+
+def content_quality_score(
+    articles: list[NewsArticle], article: NewsArticle, now: datetime | None = None
+) -> float:
+    """Multiplicative content-quality score: credibility x importance x
+    corroboration x diversity x freshness.
+
+    Each factor is a multiplier around 1.0; the product is the final score.
+    Returns a value in ``[0, ~2.6]`` (all factors bounded). Fail-open: any
+    missing field degrades to the remaining factors; never raises.
+    """
+    if article is None:
+        return 0.0
+    score = (
+        source_credibility(article.source_channel)
+        * content_importance(article)
+        * corroboration_factor(articles, article)
+        * diversity_factor(articles, article)
+        * freshness_factor(article, now=now)
+    )
+    return round(score, 4)
+
+
+def rank_by_quality(articles: list[NewsArticle], now: datetime | None = None) -> list[NewsArticle]:
+    """Return *articles* sorted by content-quality score, best first.
+
+    Stable sort: equal scores keep input order (deterministic digest). This is
+    the gate that lets only top-scoring content through to the main channel
+    (@cryptorugmuncher). Pure and dependency-free.
+    """
+    if not articles:
+        return []
+    return sorted(
+        articles,
+        key=lambda article: content_quality_score(articles, article, now=now),
+        reverse=True,
+    )
+
+
 # ── Telethon message conversion ────────────────────────────────────────────
 
 
@@ -528,7 +809,7 @@ def _load_cooldown_state() -> None:
                 _CHANNEL_COOLDOWN_UNTIL[username] = until
     except FileNotFoundError:
         pass
-    except Exception as e:  # noqa: BLE001 — state file is best-effort only
+    except Exception as e:
         logger.debug("news_ingest_cooldown_state_load_failed err=%s", e)
 
 
@@ -544,7 +825,7 @@ def _save_cooldown_state() -> None:
         with open(tmp, "w") as f:
             json.dump(remaining, f)
         os.replace(tmp, _COOLDOWN_STATE_PATH)
-    except Exception as e:  # noqa: BLE001 — state file is best-effort only
+    except Exception as e:
         logger.debug("news_ingest_cooldown_state_save_failed err=%s", e)
 
 
@@ -658,6 +939,210 @@ def channel_username_from_config(channel: dict[str, Any]) -> str:
     if "t.me/" in url:
         return url.split("t.me/", 1)[1].split("/", 1)[0].strip()
     return ""
+
+
+# ── RSS Feed Support ─────────────────────────────────────────────────────
+
+
+async def fetch_rss_feed(url: str) -> str | None:
+    """Fetch an RSS feed from the given URL.
+
+    Args:
+        url: The RSS feed URL
+
+    Returns:
+        The raw XML content as a string, or None if failed
+    """
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, follow_redirects=True)
+            response.raise_for_status()
+            return response.text
+    except Exception as e:
+        logger.warning(f"news_ingest:rss_fetch_failed url={url} error={e}")
+        return None
+
+
+def parse_rss_feed(xml_content: str) -> list[dict[str, Any]]:
+    """Parse RSS feed XML content into a list of item dictionaries.
+
+    Args:
+        xml_content: Raw RSS/XML content as string
+
+    Returns:
+        List of dictionaries representing RSS items with keys:
+        - title: Item title
+        - description: Item description/content
+        - link: Item URL
+        - pub_date: Publication date string
+    """
+    if not xml_content:
+        return []
+
+    try:
+        root = ET.fromstring(xml_content)
+        items = []
+
+        # Handle both RSS and Atom formats
+        # RSS 2.0: /rss/channel/item
+        # Atom: /feed/entry
+        channel = root.find("channel")
+        if channel is not None:
+            # RSS 2.0 format
+            for item in channel.findall("item"):
+                item_data = {
+                    "title": item.findtext("title", ""),
+                    "description": item.findtext("description", ""),
+                    "link": item.findtext("link", ""),
+                    "pub_date": item.findtext("pubDate", ""),
+                }
+                items.append(item_data)
+        else:
+            # Try Atom format
+            for entry in root.findall("{http://www.w3.org/2005/Atom}entry"):
+                item_data = {
+                    "title": entry.findtext("{http://www.w3.org/2005/Atom}title", ""),
+                    "description": entry.findtext("{http://www.w3.org/2005/Atom}summary", ""),
+                    "link": entry.findtext("{http://www.w3.org/2005/Atom}link", ""),
+                    "pub_date": entry.findtext("{http://www.w3.org/2005/Atom}updated", ""),
+                }
+                items.append(item_data)
+
+        return items
+    except Exception as e:
+        logger.warning(f"news_ingest:rss_parse_failed error={e}")
+        return []
+
+
+def rss_item_to_article(
+    item: dict[str, Any], source_name: str, source_url: str, category: str = "news"
+) -> NewsArticle | None:
+    """Convert an RSS item to a NewsArticle.
+
+    Args:
+        item: Dictionary representing an RSS item
+        source_name: Name of the source (e.g., "CoinDesk")
+        source_url: URL of the RSS feed
+        category: News category (news, security, defi, scam, alpha)
+
+    Returns:
+        NewsArticle object or None if invalid
+    """
+    if not isinstance(item, dict):
+        return None
+
+    title = str(item.get("title", "")).strip()
+    description = str(item.get("description", "")).strip()
+    link = str(item.get("link", "")).strip()
+    pub_date_str = str(item.get("pub_date", "")).strip()
+
+    # Skip if no title or description
+    if not title and not description:
+        return None
+
+    # Use title as the main text if description is empty, otherwise combine
+    # For RSS, we'll use description as body and title as title
+    if not description:
+        description = title
+    if not title:
+        # Extract first sentence from description as title
+        first_sentence = description.split(".")[0][:100]
+        title = first_sentence if first_sentence else description[:100]
+
+    # Truncate title to fit NewsArticle model
+    title = title[:120] if title else ""
+
+    # Parse publication date (best effort)
+    posted_at = None
+    if pub_date_str:
+        try:
+            # Try common RSS date formats
+            from email.utils import parsedate_to_datetime
+
+            posted_at = parsedate_to_datetime(pub_date_str)
+            if posted_at and posted_at.tzinfo is None:
+                posted_at = posted_at.replace(tzinfo=UTC)
+        except Exception:
+            # If parsing fails, leave as None (will use current time in persistence)
+            pass
+
+    # Extract crypto entities from title and description
+    entities = extract_entities(f"{title} {description}")
+
+    return NewsArticle(
+        title=title,
+        body=description,
+        source_channel=source_name,
+        source_url=link or source_url,  # Use item link if available, otherwise feed URL
+        category=category,
+        posted_at=posted_at,
+        content_hash="",  # Will be computed by dedupe_articles
+        entities=entities,
+        media=None,
+    )
+
+
+async def sweep_rss_feeds(
+    feeds: list[Any] | None = None, lookback_hours: int | None = None
+) -> list[NewsArticle]:
+    """Sweep RSS feeds for news articles.
+
+    Args:
+        feeds: List of RSS feed configurations (from sources.RSS_FEEDS if None)
+        lookback_hours: Only return articles newer than this many hours
+
+    Returns:
+        List of NewsArticle objects from RSS feeds
+    """
+    from rugmunchbot._vendor.news_ingest.sources import RSS_FEEDS as DEFAULT_RSS_FEEDS
+
+    if feeds is None:
+        feeds = DEFAULT_RSS_FEEDS
+
+    if not feeds:
+        return []
+
+    # Determine cutoff time for lookback
+    cutoff_time = None
+    if lookback_hours is not None:
+        from datetime import timedelta
+
+        cutoff_time = datetime.now(UTC) - timedelta(hours=lookback_hours)
+
+    articles: list[NewsArticle] = []
+
+    # Process each feed
+    for feed in feeds:
+        if not feed.enabled:
+            continue
+
+        # Fetch the RSS feed
+        xml_content = await fetch_rss_feed(feed.url)
+        if xml_content is None:
+            continue
+
+        # Parse the feed
+        items = parse_rss_feed(xml_content)
+        if not items:
+            continue
+
+        # Convert each item to a NewsArticle
+        for item in items:
+            article = rss_item_to_article(
+                item=item, source_name=feed.name, source_url=feed.url, category=feed.category
+            )
+
+            if article is None:
+                continue
+
+            # Apply lookback filter if specified
+            if cutoff_time is not None and article.posted_at is not None:
+                if article.posted_at < cutoff_time:
+                    continue
+
+            articles.append(article)
+
+    return articles
 
 
 async def sweep_channels(

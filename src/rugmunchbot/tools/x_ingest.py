@@ -50,6 +50,7 @@ from rugmunchbot._vendor.news_ingest.ingest import (
     mark_articles_ingested,
 )
 from rugmunchbot._vendor.news_ingest.normalize import extract_entities
+from rugmunchbot.tools.getxapi_config import GETXAPI_MONITORED_ACCOUNTS
 
 if TYPE_CHECKING:
     from rugmunchbot._vendor.news_ingest.models import NewsArticle
@@ -59,18 +60,12 @@ logger = logging.getLogger(__name__)
 #: Crypto security / wallet-security accounts whose tweets are security intel.
 #: Each is a first-party source of exploit / hack / scam / wallet-security
 #: news — exactly the content the news + RAG lanes should learn from.
-X_SECURITY_ACCOUNTS: tuple[str, ...] = (
-    "zachxbt",
-    "peckshield",
-    "blockaid",
-    "certikalert",
-    "slowmist",
-    "beosin",
-    "chainalysis",
-    "ledger",
-    "metamask",
-    "rugmunchbot",
-)
+#:
+#: Single source of truth: sourced from ``getxapi_config.GETXAPI_MONITORED_ACCOUNTS``
+#: (30 accounts across security / news / DeFi-MEV categories) so the user-tweets
+#: rotation lane and the config never drift. Kept as a module-level tuple for
+#: backward compatibility with callers that import ``X_SECURITY_ACCOUNTS``.
+X_SECURITY_ACCOUNTS: tuple[str, ...] = GETXAPI_MONITORED_ACCOUNTS
 
 #: Max accounts fetched per tick (each costs ONE GetXAPI call). Default 3 —
 #: a modest governor so the $5 envelope lasts; env-overridable.
@@ -171,6 +166,36 @@ def tweet_to_article(tweet: dict[str, Any], *, account: str) -> NewsArticle | No
     )
 
 
+#: Redis key holding the advancing round-robin offset for the user-tweets lane.
+_X_INGEST_ROTATION_KEY = "getxapi:x_ingest_rotation_offset"
+
+
+def _next_rotation_offset() -> int:
+    """Return the next round-robin start offset, advancing it in Redis.
+
+    Each tick INCRs a Redis counter (modulo the account count) so the
+    user-tweets lane starts at a different account every run and eventually
+    sweeps all 30 monitored accounts. Redis down → fall back to the static
+    ``RMI_X_INGEST_ACCOUNT_INDEX`` env override (default 0) so the lane still
+    works (fail-open, no rotation persistence).
+    """
+    import os
+
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis
+
+        r = get_redis()
+        if r is not None:
+            n = int(r.incr(_X_INGEST_ROTATION_KEY) or 0)
+            return n % len(X_SECURITY_ACCOUNTS)
+    except Exception as exc:  # pragma: no cover — fail-open
+        logger.debug("x_ingest:rotation_redis_failed err=%s", str(exc)[:120])
+    try:
+        return int(os.getenv("RMI_X_INGEST_ACCOUNT_INDEX", "0")) % len(X_SECURITY_ACCOUNTS)
+    except (TypeError, ValueError):  # pragma: no cover — malformed env
+        return 0
+
+
 async def fetch_security_tweets() -> list[dict[str, Any]]:
     """Fetch recent tweets from the monitored security accounts (budget-bounded).
 
@@ -196,10 +221,11 @@ async def fetch_security_tweets() -> list[dict[str, Any]]:
         return []
 
     # Round-robin: start at a rotating offset so every account is eventually
-    # swept even when the per-tick cap is small.
-    import os
-
-    offset = int(os.getenv("RMI_X_INGEST_ACCOUNT_INDEX", "0")) % len(X_SECURITY_ACCOUNTS)
+    # swept even when the per-tick cap is small. The offset is advanced in
+    # Redis (survives restarts) so each tick starts at a different account and
+    # all 30 monitored accounts are covered over time. Falls back to a static
+    # env override (``RMI_X_INGEST_ACCOUNT_INDEX``) for tests / manual control.
+    offset = _next_rotation_offset()
     accounts = (X_SECURITY_ACCOUNTS[offset:] + X_SECURITY_ACCOUNTS[:offset])[:count]
 
     tweets: list[dict[str, Any]] = []

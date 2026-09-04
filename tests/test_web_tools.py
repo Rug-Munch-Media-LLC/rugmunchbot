@@ -28,10 +28,12 @@ def test_placeholder_result_filtered():
 
 
 def test_searxng_filter_extracts_results():
-    body = {"results": [
-        {"title": "BTC News", "url": "https://news.com/btc", "content": "Bitcoin rises"},
-        {"title": "ETH Update", "url": "https://eth.org/update", "content": "Ethereum ships"},
-    ]}
+    body = {
+        "results": [
+            {"title": "BTC News", "url": "https://news.com/btc", "content": "Bitcoin rises"},
+            {"title": "ETH Update", "url": "https://eth.org/update", "content": "Ethereum ships"},
+        ]
+    }
     filtered = _searxng_filter(body, limit=2)
     assert len(filtered) == 2
     assert filtered[0]["title"] == "BTC News"

@@ -71,6 +71,7 @@ from rugmunchbot.handlers.account import (
     cmd_scamschool,
     cmd_topup,
 )
+from rugmunchbot.handlers.admin import register_admin_commands
 from rugmunchbot.handlers.alerts import (
     cmd_alert,
     cmd_alerts,
@@ -301,6 +302,9 @@ def main() -> None:
     _reg(app, "admin_ban", cmd_admin_ban)
     _reg(app, "admin_unban", cmd_admin_unban)
     _reg(app, "admin_logs", cmd_admin_logs)
+
+    # @rmi_admin_bot server-management commands (owner-only, hidden from menu)
+    register_admin_commands(app)
 
     # Premium commands
     _reg(app, "holders", cmd_holders)

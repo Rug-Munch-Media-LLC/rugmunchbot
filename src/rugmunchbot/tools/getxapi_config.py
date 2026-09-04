@@ -76,10 +76,40 @@ GETXAPI_SECURITY_ACCOUNTS: tuple[str, ...] = tuple(
     for handle in os.getenv(
         "GETXAPI_SECURITY_ACCOUNTS",
         "zachxbt,peckshield,blockaid,certikalert,slowmist,beosin,"
-        "chainalysis,ledger,metamask,rugmunchbot,"
-        "scamsniffer,rektnews,officiallychad,spotonchain,lookonchain",
+        "chainalysis,elliptic,trmlabs,hashex,"
+        "pwnfoo,angularrobot,samczsun,0xfoobar,hacxyk",
     ).split(",")
     if handle.strip()
+)
+
+#: Crypto-news accounts whose tweets are market / industry news intel.
+#: Env-overridable as a comma-separated list (``GETXAPI_NEWS_ACCOUNTS``).
+GETXAPI_NEWS_ACCOUNTS: tuple[str, ...] = tuple(
+    handle.strip().lstrip("@")
+    for handle in os.getenv(
+        "GETXAPI_NEWS_ACCOUNTS",
+        "coindesk,cointelegraph,thedefiscient,banklesssociety,cryptonews,"
+        "watcherguru,wublockchain,blockworks_,unusual_whales,tier10k",
+    ).split(",")
+    if handle.strip()
+)
+
+#: DeFi / MEV accounts whose tweets are protocol / MEV / on-chain intel.
+#: Env-overridable as a comma-separated list (``GETXAPI_DEFI_MEV_ACCOUNTS``).
+GETXAPI_DEFI_MEV_ACCOUNTS: tuple[str, ...] = tuple(
+    handle.strip().lstrip("@")
+    for handle in os.getenv(
+        "GETXAPI_DEFI_MEV_ACCOUNTS",
+        "flashbotdoteth,mevreful,eigenphi,0xrobs,hildobby",
+    ).split(",")
+    if handle.strip()
+)
+
+#: Every monitored account across all categories — the single source of truth
+#: for the user-tweets rotation lane (30 accounts). Order: security, then
+#: news, then DeFi/MEV. Env-overridable via the per-category vars above.
+GETXAPI_MONITORED_ACCOUNTS: tuple[str, ...] = (
+    GETXAPI_SECURITY_ACCOUNTS + GETXAPI_NEWS_ACCOUNTS + GETXAPI_DEFI_MEV_ACCOUNTS
 )
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -152,6 +182,9 @@ def as_dict() -> dict[str, Any]:
         "mentions_interval_min": GETXAPI_MENTIONS_INTERVAL_MIN,
         "user_status_interval_hours": GETXAPI_USER_STATUS_INTERVAL_HOURS,
         "security_accounts": list(GETXAPI_SECURITY_ACCOUNTS),
+        "news_accounts": list(GETXAPI_NEWS_ACCOUNTS),
+        "defi_mev_accounts": list(GETXAPI_DEFI_MEV_ACCOUNTS),
+        "monitored_accounts": list(GETXAPI_MONITORED_ACCOUNTS),
     }
 
 
@@ -159,8 +192,11 @@ __all__ = [
     "GETXAPI_BASE_URL",
     "GETXAPI_COST_PER_CALL",
     "GETXAPI_DAILY_CALL_LIMIT",
+    "GETXAPI_DEFI_MEV_ACCOUNTS",
     "GETXAPI_KEY",
     "GETXAPI_MENTIONS_INTERVAL_MIN",
+    "GETXAPI_MONITORED_ACCOUNTS",
+    "GETXAPI_NEWS_ACCOUNTS",
     "GETXAPI_SEARCH_INTERVAL_MIN",
     "GETXAPI_SECURITY_ACCOUNTS",
     "GETXAPI_TOTAL_BUDGET",
