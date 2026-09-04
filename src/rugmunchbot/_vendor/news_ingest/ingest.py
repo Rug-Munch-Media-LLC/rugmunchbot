@@ -1147,3 +1147,117 @@ async def sweep_newsletters_with_pry() -> list[NewsArticle]:
             )
             articles.append(news_article)
     return articles
+
+
+#: Base URL of the rmi-backend news API (local loopback).
+_BACKEND_NEWS_BASE: Final[str] = "http://127.0.0.1:8000"
+#: Timeout for backend news HTTP calls (seconds).
+_BACKEND_NEWS_TIMEOUT: Final[float] = 10.0
+
+
+def _parse_article_datetime(value: Any) -> datetime | None:
+    """Best-effort parse of a backend ``published_at`` value into an aware UTC datetime."""
+    if not value:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(value, tz=UTC)
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return _as_utc(parsed)
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
+def fetch_backend_news(limit: int = 50) -> list[NewsArticle]:
+    """Fetch the latest news feed from rmi-backend and return ``NewsArticle`` objects.
+
+    GET ``/api/v1/news/feed?limit={limit}`` and convert each item (title, url,
+    source, published_at, rating) into a :class:`NewsArticle`. Fail-open: any
+    error (backend down, connection refused, non-200, parse failure) degrades
+    to an empty list so a flaky backend can never take down the sweep.
+    """
+    try:
+        url = f"{_BACKEND_NEWS_BASE}/api/v1/news/feed?limit={int(limit)}"
+        with httpx.Client(timeout=_BACKEND_NEWS_TIMEOUT) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            payload = resp.json()
+
+        # Accept either a bare list or a wrapper dict with an "items"/"articles" key.
+        if isinstance(payload, list):
+            items = payload
+        elif isinstance(payload, dict):
+            items = payload.get("items") or payload.get("articles") or []
+        else:
+            items = []
+
+        articles: list[NewsArticle] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "").strip()
+            article_url = str(item.get("url") or "").strip()
+            source = str(item.get("source") or "").strip()
+            if not title and not article_url:
+                continue
+            rating = item.get("rating")
+            articles.append(
+                NewsArticle(
+                    title=title[:120],
+                    body=str(item.get("body") or item.get("summary") or ""),
+                    source_channel=source,
+                    source_url=article_url,
+                    category=str(rating) if rating is not None else "",
+                    posted_at=_parse_article_datetime(item.get("published_at")),
+                    content_hash="",  # computed by dedupe_articles if empty
+                    entities=extract_entities(f"{title} {item.get('body') or ''}"),
+                    media=item.get("media") or item.get("image"),
+                )
+            )
+        return articles
+    except Exception as e:  # noqa: BLE001 - fail-open contract
+        logger.warning("fetch_backend_news failed (fail-open -> []): %s", e)
+        return []
+
+
+def push_to_backend(articles: list) -> int:
+    """POST a list of articles to the rmi-backend news endpoint.
+
+    Returns the number of articles pushed. Fail-open: any error (backend down,
+    connection refused, non-200, serialization failure) degrades to ``0``.
+    """
+    if not articles:
+        return 0
+    try:
+        payloads = []
+        for article in articles:
+            if isinstance(article, NewsArticle):
+                payloads.append(
+                    {
+                        "title": article.title,
+                        "url": article.source_url,
+                        "source": article.source_channel,
+                        "published_at": (
+                            article.posted_at.isoformat() if article.posted_at else None
+                        ),
+                        "rating": article.category or None,
+                        "body": article.body,
+                        "media": article.media,
+                    }
+                )
+            elif isinstance(article, dict):
+                payloads.append(article)
+            else:
+                continue
+
+        if not payloads:
+            return 0
+
+        url = f"{_BACKEND_NEWS_BASE}/api/v1/news/articles"
+        with httpx.Client(timeout=_BACKEND_NEWS_TIMEOUT) as client:
+            resp = client.post(url, json=payloads)
+            resp.raise_for_status()
+        return len(payloads)
+    except Exception as e:  # noqa: BLE001 - fail-open contract
+        logger.warning("push_to_backend failed (fail-open -> 0): %s", e)
+        return 0
