@@ -946,6 +946,110 @@ def channel_username_from_config(channel: dict[str, Any]) -> str:
 
 # ── RSS Feed Support ─────────────────────────────────────────────────────
 
+#: PryScraper API base URL (Docker service, healthy on the host loopback).
+_PRY_BASE_URL: Final[str] = os.getenv("PRYSCRAPER_URL", "http://127.0.0.1:8005").rstrip("/")
+#: Redis cache TTL for Pry scrape results (1 hour).
+_PRY_CACHE_TTL_SECONDS: Final[int] = 3600
+#: Pry scrape timeout (15s per spec).
+_PRY_TIMEOUT_SECONDS: Final[float] = 15.0
+
+
+async def scrape_with_pry(url: str) -> dict | None:
+    """Scrape *url* via PryScraper, fail-open.
+
+    POSTs to ``{PRY_BASE_URL}/v1/scrape`` with ``bypassCloudflare`` and
+    ``onlyMainContent`` enabled so feeds that block direct httpx (403/429/
+    Cloudflare) can still be read. Results are cached in Redis for 1 hour
+    under ``pry:scrape:{url_hash}``.
+
+    Fail-open by contract: any error (network, HTTP, parse, Redis) returns
+    ``None`` so a Pry outage never aborts the RSS sweep.
+
+    Returns a dict with ``title`` / ``content`` / ``html`` when available,
+    else ``None``.
+    """
+    if not url:
+        return None
+
+    cache_key = f"pry:scrape:{url_hash(url)}"
+
+    # Try Redis cache first (best-effort, fail-open).
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis_async
+
+        r = get_redis_async()
+        if r is not None:
+            cached = await r.get(cache_key)
+            if cached:
+                try:
+                    return json.loads(cached)
+                except (TypeError, ValueError):
+                    pass  # corrupt cache entry — fall through to scrape
+    except Exception as exc:
+        logger.debug("news_ingest:pry_cache_read_failed url=%s err=%s", url, str(exc)[:100])
+
+    try:
+        async with httpx.AsyncClient(timeout=_PRY_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                f"{_PRY_BASE_URL}/v1/scrape",
+                json={"url": url, "bypassCloudflare": True, "onlyMainContent": True},
+            )
+            response.raise_for_status()
+            body = response.json()
+    except Exception as exc:
+        logger.warning("news_ingest:pry_scrape_failed url=%s err=%s", url, str(exc)[:200])
+        return None
+
+    if not isinstance(body, dict):
+        return None
+
+    # Pry returns the payload under ``data`` on success; tolerate both shapes.
+    data = body.get("data") if isinstance(body.get("data"), dict) else body
+    if not isinstance(data, dict):
+        return None
+
+    result: dict = {
+        "title": data.get("title") or "",
+        "content": data.get("content") or data.get("markdown") or "",
+        "html": data.get("html") or "",
+    }
+
+    # Cache the result for 1 hour (best-effort, fail-open).
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis_async
+
+        r = get_redis_async()
+        if r is not None:
+            await r.setex(cache_key, _PRY_CACHE_TTL_SECONDS, json.dumps(result))
+    except Exception as exc:
+        logger.debug("news_ingest:pry_cache_write_failed url=%s err=%s", url, str(exc)[:100])
+
+    return result
+
+
+async def scrape_rss_with_pry(feed_url: str) -> list[dict]:
+    """Scrape an RSS feed URL via Pry and parse the returned HTML as RSS/XML.
+
+    Some feeds block direct httpx (403/429/Cloudflare). Pry bypasses that and
+    returns the rendered page; when the page is the raw feed XML we parse it
+    with :func:`parse_rss_feed`. Fail-open: returns ``[]`` on any failure.
+
+    Returns a list of RSS item dicts (see :func:`parse_rss_feed`).
+    """
+    if not feed_url:
+        return []
+
+    result = await scrape_with_pry(feed_url)
+    if not result:
+        return []
+
+    # Prefer the raw HTML (the feed body); fall back to the extracted content.
+    xml_content = result.get("html") or result.get("content") or ""
+    if not xml_content:
+        return []
+
+    return parse_rss_feed(xml_content)
+
 
 async def fetch_rss_feed(url: str) -> str | None:
     """Fetch an RSS feed from the given URL.
@@ -1119,15 +1223,21 @@ async def sweep_rss_feeds(
         if not feed.enabled:
             continue
 
-        # Fetch the RSS feed
+        # Fetch the RSS feed — try direct httpx first (fast, no overhead),
+        # then fall back to PryScraper for feeds that block direct requests
+        # (403/429/Cloudflare). If both fail, skip the feed.
         xml_content = await fetch_rss_feed(feed.url)
         if xml_content is None:
-            continue
-
-        # Parse the feed
-        items = parse_rss_feed(xml_content)
-        if not items:
-            continue
+            logger.info("news_ingest:rss_direct_failed_fallback_pry url=%s", feed.url)
+            items = await scrape_rss_with_pry(feed.url)
+            if not items:
+                logger.warning("news_ingest:rss_pry_fallback_failed_skip url=%s", feed.url)
+                continue
+        else:
+            # Parse the feed
+            items = parse_rss_feed(xml_content)
+            if not items:
+                continue
 
         # Convert each item to a NewsArticle
         for item in items:
