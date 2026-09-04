@@ -351,4 +351,6 @@ __all__ = [
     "GateResult",
     "pre_post_quality_gate",
     "strip_duplicate_urls",
+    "main_channel_quality_gate",
+    "feed_quality_gate",
 ]
