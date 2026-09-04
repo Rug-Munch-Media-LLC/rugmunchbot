@@ -1,7 +1,7 @@
-# VENDORED 2026-08-24 from rmi-backend/app/domains/news_ingest/ingest.py (frozen copy; do not edit).
+# VENDORED 2026-09-04 from rmi-backend/app/domains/news_ingest/ingest.py (frozen copy; do not edit).
 # Re-vendor: bash scripts/refresh-vendors.sh
 # ---
-"""Channel-monitoring ingestion: read → normalize → dedupe → rank.
+
 
 ``read_channel_messages`` is a thin async reader over the headless Telegram
 client. It never edits ``app.domains.telegram.headless_client`` and never
@@ -24,23 +24,22 @@ cross-run Redis dedup (``filter_seen_articles`` / ``mark_articles_ingested``),
 so a story seen in a previous sweep — even rephrased — is never re-read.
 """
 
-from __future__ import annotations
-
-import json
-import os
 import re
 import time
-import xml.etree.ElementTree as ET
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Final
 
-import httpx
-
-from rugmunchbot._vendor.dedup import content_hash, url_hash
 from rugmunchbot._vendor.logging_shim import get_logger
-from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsArticle
-from rugmunchbot._vendor.news_ingest.normalize import channel_message_to_article, extract_entities
+from rugmunchbot._vendor.news_ingest.models import ChannelMessage, NewsActor
+from rugmunchbot._vendor.dedup import content_hash, url_hash
+
+import os
+import json
+import httpx
+from xml.etree.ElementTree import ET as ET
+from rugmunchbot._vendor.news_ingest.normalize import extract_entities
+from html.parser import HTMLParser
 
 logger = get_logger(__name__)
 
@@ -216,7 +215,7 @@ def filter_seen_articles(
 
     Returns ``(fresh, skipped)``; ``fresh`` preserves input order.
     """
-    from rugmunchbot._vendor.dedup import is_duplicate_content
+    from app.utils.dedup import is_duplicate_content
 
     fresh: list[NewsArticle] = []
     skipped = 0
@@ -226,32 +225,23 @@ def filter_seen_articles(
             fresh.append(article)
             continue
         duplicate = False
-    for fp in fps:
-        try:  # fail-open by contract: dedup must never raise or drop articles
-            if is_duplicate_content(fp, collection):
-                duplicate = True
-                break
-        except Exception as exc:
-            logger.debug(
-                "news_ingest:dedup_check_failed fp=%s error=%s", str(fp)[:50], str(exc)[:100]
-            )
+        for fp in fps:
+            try:  # fail-open by contract: dedup must never raise or drop articles
+                if is_duplicate_content(fp, collection):
+                    duplicate = True
+                    break
+            except Exception:
+                logger.debug("news_ingest:dedup_check_failed", exc_info=True)
         if duplicate:
             skipped += 1
             continue
         fresh.append(article)
     if skipped:
-        logger.info(
-            "news_ingest:seen_skipped collection=%s fresh=%s skipped=%s",
-            collection,
-            len(fresh),
-            skipped,
-        )
+        logger.info("news_ingest:seen_skipped collection=%s fresh=%s skipped=%s", collection, len(fresh), skipped)
     return fresh, skipped
 
 
-def mark_articles_ingested(
-    articles: list[NewsArticle], collection: str = DEFAULT_DEDUP_COLLECTION
-) -> int:
+def mark_articles_ingested(articles: list[NewsArticle], collection: str = DEFAULT_DEDUP_COLLECTION) -> int:
     """Record article dedup keys in the shared Redis sets.
 
     Best-effort (never raises): the ``app.rag.dedup`` markers are fail-open,
@@ -262,7 +252,7 @@ def mark_articles_ingested(
     later rephrase of the same story is caught by the cross-run check.
     Returns the number of articles marked.
     """
-    from rugmunchbot._vendor.dedup import mark_content_ingested
+    from app.utils.dedup import mark_content_ingested
 
     marked = 0
     for article in articles or []:
@@ -387,9 +377,7 @@ def lightweight_importance(article: NewsArticle, now: datetime | None = None) ->
 
     if article.posted_at is not None:
         try:
-            age_hours = (
-                _as_utc(article.posted_at) - _as_utc(now or datetime.now(UTC))
-            ).total_seconds() / 3600.0
+            age_hours = (_as_utc(article.posted_at) - _as_utc(now or datetime.now(UTC))).total_seconds() / 3600.0
             if age_hours < 1:
                 score += 0.1
             elif age_hours < 3:
@@ -411,287 +399,6 @@ def rank_articles(articles: list[NewsArticle], now: datetime | None = None) -> l
     return sorted(
         articles,
         key=lambda article: lightweight_importance(article, now=now),
-        reverse=True,
-    )
-
-
-# ── Content quality scoring (2026-09-04) ───────────────────────────────────
-# Multiplicative quality model for the RAG content pipeline. Each factor is a
-# multiplier around 1.0; the final score is their product, so a story that is
-# credible, important, corroborated, diverse, and fresh compounds, while a
-# weak story on any single axis is pulled down. Every factor is pure and
-# fail-open (missing fields degrade to the remaining signals, never raise).
-
-#: Security-researcher / on-chain-forensics sources — highest trust (1.0).
-_SECURITY_RESEARCHER_HINTS: Final = (
-    "zachxbt",
-    "zachxbt_",
-    "peckshield",
-    "peckshieldalert",
-    "slowmist",
-    "slowmist_team",
-    "certik",
-    "certikalert",
-    "rekt",
-    "rektnews",
-    "cyvers",
-    "cyversalerts",
-    "blocksec",
-    "blocksec_team",
-    "chainalysis",
-    "elliptic",
-    "trmlabs",
-    "halborn",
-    "immunefi",
-)
-#: Major news outlets — high trust (0.8).
-_MAJOR_NEWS_HINTS: Final = (
-    "coindesk",
-    "cointelegraph",
-    "theblock",
-    "bloomberg",
-    "reuters",
-    "wsj",
-    "wall street journal",
-    "financial times",
-    "associated press",
-    "apnews",
-    "forbes",
-    "decrypt",
-    "bitcoin magazine",
-    "blockworks",
-    "the defiant",
-)
-#: Blog / independent / aggregator channels — medium trust (0.5).
-_BLOG_HINTS: Final = (
-    "medium",
-    "substack",
-    "mirror",
-    "blog",
-    "wordpress",
-    "ghost",
-    "hashnode",
-    "dev.to",
-    "cryptoslate",
-    "cryptonews",
-    "daily hodl",
-    "altcoin buzz",
-    "watcher",
-    "panews",
-    "cryptopanic",
-)
-
-#: Exploit / security-critical vocabulary → importance boost.
-_EXPLOIT_KEYWORD_RE: Final = re.compile(
-    r"\b(?:exploit|exploits|exploited|exploiting|hack|hacks|hacked|hacking|"
-    r"drained|drain|drains|draining|rug|rugs|rugpull|rug pull|stolen|steal|"
-    r"steals|stole|breach|breaches|breached|vulnerability|vulnerabilities|"
-    r"vulnerable|compromised|compromise|attack|attacks|attacked|attacker|"
-    r"phishing|scam|scams|scammed|fraud|theft|pulled|liquidity removed)\b",
-    re.IGNORECASE,
-)
-
-#: Minimum distinct sources before a story counts as corroborated.
-_CORROBORATION_MIN_SOURCES: Final = 3
-#: Corroboration boost when >= ``_CORROBORATION_MIN_SOURCES`` report the story.
-_CORROBORATION_BOOST: Final = 0.2
-#: Max share of a feed a single source may own before diversity is penalized.
-_DIVERSITY_MAX_SHARE: Final = 0.30
-#: Diversity penalty applied to over-represented sources.
-_DIVERSITY_PENALTY: Final = 0.2
-#: Engagement threshold for the importance boost.
-_ENGAGEMENT_THRESHOLD: Final = 50
-#: Importance boost for exploit/security-critical articles.
-_EXPLOIT_BOOST: Final = 0.3
-#: Importance boost for high-engagement articles.
-_ENGAGEMENT_BOOST: Final = 0.2
-
-
-def source_credibility(source_channel: str) -> float:
-    """Credibility multiplier for a source channel (1.0 / 0.8 / 0.5 / 0.3).
-
-    Security researchers / on-chain forensics (zachxbt, peckshield, ...) are
-    the most trusted (1.0); major news outlets (coindesk, cointelegraph, ...)
-    are 0.8; blogs / independent / aggregator channels are 0.5; anything
-    unknown is 0.3. Pure and deterministic.
-    """
-    source = (source_channel or "").lower()
-    if any(hint in source for hint in _SECURITY_RESEARCHER_HINTS):
-        return 1.0
-    if any(hint in source for hint in _MAJOR_NEWS_HINTS):
-        return 0.8
-    if any(hint in source for hint in _BLOG_HINTS):
-        return 0.5
-    return 0.3
-
-
-def _article_engagements(article: NewsArticle) -> int:
-    """Best-effort engagement count for an article (duck-typed, fail-open).
-
-    ``NewsArticle`` does not carry views/reactions today (they live on the raw
-    ``ChannelMessage``), so this reads optional duck-typed attributes
-    (``engagements`` / ``views`` / ``reactions``) and returns 0 when absent.
-    """
-    if article is None:
-        return 0
-    for attr in ("engagements", "views"):
-        value = getattr(article, attr, None)
-        if isinstance(value, int):
-            return value
-    reactions = getattr(article, "reactions", None)
-    if isinstance(reactions, dict):
-        return sum(int(v) for v in reactions.values() if isinstance(v, (int, float)))
-    return 0
-
-
-def content_importance(article: NewsArticle) -> float:
-    """Importance multiplier for an article (1.0 base, +0.3 / +0.2 boosts).
-
-    Articles mentioning exploit/security-critical vocabulary (exploit, hack,
-    drained, rug, ...) get +0.3; articles with >50 engagements get +0.2.
-    Returns a multiplier in ``[1.0, 1.5]``. Fail-open: missing fields degrade
-    to the remaining signals.
-    """
-    if article is None:
-        return 1.0
-    boost = 1.0
-    text = f"{article.title or ''} {article.body or ''}"
-    if _EXPLOIT_KEYWORD_RE.search(text):
-        boost += _EXPLOIT_BOOST
-    if _article_engagements(article) > _ENGAGEMENT_THRESHOLD:
-        boost += _ENGAGEMENT_BOOST
-    return round(boost, 4)
-
-
-def _story_key(article: NewsArticle) -> str:
-    """A stable 'same story' fingerprint for corroboration counting.
-
-    Prefers the canonical source URL (strongest same-story signal), then the
-    article's own ``source_url`` when it is a real article link (not a
-    ``t.me`` share link), then the normalized title. Returns ``""`` when none
-    is usable (cannot corroborate).
-    """
-    if article is None:
-        return ""
-    canonical = extract_canonical_url(article)
-    if canonical:
-        return f"url:{url_hash(canonical)}"
-    src_url = (article.source_url or "").strip()
-    if src_url and not _TME_LINK_RE.match(src_url):
-        return f"url:{url_hash(src_url)}"
-    norm = normalize_title(article.title)
-    if len(norm) >= _MIN_TITLE_KEY_CHARS:
-        return f"title:{content_hash(norm)}"
-    return ""
-
-
-def corroboration_factor(articles: list[NewsArticle], article: NewsArticle) -> float:
-    """Corroboration multiplier: +0.2 when 3+ distinct sources report the story.
-
-    Groups *articles* by story fingerprint (canonical URL / normalized title)
-    and counts distinct ``source_channel`` values. Returns 1.0 when fewer than
-    ``_CORROBORATION_MIN_SOURCES`` distinct sources report it, else 1.2.
-    """
-    if article is None:
-        return 1.0
-    key = _story_key(article)
-    if not key:
-        return 1.0
-    sources: set[str] = set()
-    for other in articles or []:
-        if other is None:
-            continue
-        if _story_key(other) == key:
-            src = (other.source_channel or "").strip().lower()
-            if src:
-                sources.add(src)
-    if len(sources) >= _CORROBORATION_MIN_SOURCES:
-        return 1.0 + _CORROBORATION_BOOST
-    return 1.0
-
-
-def diversity_factor(articles: list[NewsArticle], article: NewsArticle) -> float:
-    """Diversity multiplier: penalize a source that dominates the feed.
-
-    Computes the share of *articles* that come from the article's source; when
-    that share exceeds ``_DIVERSITY_MAX_SHARE`` (30%), the multiplier drops by
-    ``_DIVERSITY_PENALTY`` (0.8). Returns 1.0 otherwise. Fail-open: an empty
-    feed or unknown source returns 1.0.
-    """
-    if article is None or not articles:
-        return 1.0
-    source = (article.source_channel or "").strip().lower()
-    if not source:
-        return 1.0
-    total = len(articles)
-    same = sum(
-        1
-        for other in articles
-        if other is not None and (other.source_channel or "").strip().lower() == source
-    )
-    share = same / total
-    if share > _DIVERSITY_MAX_SHARE:
-        return 1.0 - _DIVERSITY_PENALTY
-    return 1.0
-
-
-def freshness_factor(article: NewsArticle, now: datetime | None = None) -> float:
-    """Freshness multiplier: +0.2 (<1h), +0.1 (1-6h), 1.0 (6-24h), -0.2 (>24h).
-
-    Newer stories score higher; stale stories (>24h) are penalized. Fail-open:
-    a missing ``posted_at`` returns 1.0 (no freshness signal).
-    """
-    if article is None or article.posted_at is None:
-        return 1.0
-    try:
-        age_hours = (
-            _as_utc(now or datetime.now(UTC)) - _as_utc(article.posted_at)
-        ).total_seconds() / 3600.0
-    except (TypeError, ValueError, OverflowError):
-        return 1.0
-    if age_hours < 1:
-        return 1.2
-    if age_hours < 6:
-        return 1.1
-    if age_hours > 24:
-        return 0.8
-    return 1.0
-
-
-def content_quality_score(
-    articles: list[NewsArticle], article: NewsArticle, now: datetime | None = None
-) -> float:
-    """Multiplicative content-quality score: credibility x importance x
-    corroboration x diversity x freshness.
-
-    Each factor is a multiplier around 1.0; the product is the final score.
-    Returns a value in ``[0, ~2.6]`` (all factors bounded). Fail-open: any
-    missing field degrades to the remaining factors; never raises.
-    """
-    if article is None:
-        return 0.0
-    score = (
-        source_credibility(article.source_channel)
-        * content_importance(article)
-        * corroboration_factor(articles, article)
-        * diversity_factor(articles, article)
-        * freshness_factor(article, now=now)
-    )
-    return round(score, 4)
-
-
-def rank_by_quality(articles: list[NewsArticle], now: datetime | None = None) -> list[NewsArticle]:
-    """Return *articles* sorted by content-quality score, best first.
-
-    Stable sort: equal scores keep input order (deterministic digest). This is
-    the gate that lets only top-scoring content through to the main channel
-    (@cryptorugmuncher). Pure and dependency-free.
-    """
-    if not articles:
-        return []
-    return sorted(
-        articles,
-        key=lambda article: content_quality_score(articles, article, now=now),
         reverse=True,
     )
 
@@ -733,8 +440,8 @@ def _message_to_channel_message(msg: Any, channel_username: str) -> ChannelMessa
             views=int(views) if views is not None else None,
             reactions=_reaction_counts(getattr(msg, "reactions", None)),
         )
-    except Exception as exc:
-        logger.debug("news_ingest_convert_failed error=%s", str(exc)[:100])
+    except Exception:
+        logger.debug("news_ingest_convert_failed", exc_info=True)
         return None
 
 
@@ -758,11 +465,7 @@ def _reaction_counts(reactions: Any) -> dict[str, int] | None:
         count = int(getattr(item, "count", None) or 0)
         key: Any = None
         if reaction is not None:
-            key = (
-                getattr(reaction, "emoticon", None)
-                or getattr(reaction, "document_id", None)
-                or str(reaction)
-            )
+            key = getattr(reaction, "emoticon", None) or getattr(reaction, "document_id", None) or str(reaction)
         if key is not None:
             counts[str(key)] = count
     return counts or None
@@ -784,53 +487,6 @@ _CHANNEL_READ_FAILURES: dict[str, int] = {}
 #: channel_username -> monotonic timestamp until which the channel is skipped.
 _CHANNEL_COOLDOWN_UNTIL: dict[str, float] = {}
 
-# ── Cooldown persistence (bot-side deviation, 2026-08-25) ──────────────────
-# Upstream keeps cooldowns in memory only, so every bot restart re-probes all
-# dead channels (3 failures × ~14 dead channels × every sweep = log-noise
-# bursts and wasted Telegram RPCs after each deploy). Persist the cooldown
-# map to disk; failures-counters stay in-memory (cheap to rebuild).
-# Deviation note: upstream app/domains/news_ingest has no persistence yet —
-# refresh-vendors.sh would drop this. Re-add after refresh if reverted.
-_COOLDOWN_STATE_PATH: Final[str] = os.getenv(
-    "TG_NEWS_COOLDOWN_STATE", "/var/lib/rugmunchbot/tg_news_channel_cooldowns.json"
-)
-_cooldown_state_loaded = False
-
-
-def _load_cooldown_state() -> None:
-    """Load persisted cooldown deadlines once per process (fail-open)."""
-    global _cooldown_state_loaded
-    _cooldown_state_loaded = True
-    try:
-        with open(_COOLDOWN_STATE_PATH) as f:
-            raw = json.load(f)
-        now = time.monotonic()
-        for username, deadline in raw.items():
-            # Stored as remaining-seconds offsets from save time → rebase.
-            until = now + float(deadline)
-            if until > now:
-                _CHANNEL_COOLDOWN_UNTIL[username] = until
-    except FileNotFoundError:
-        pass
-    except Exception as e:
-        logger.debug("news_ingest_cooldown_state_load_failed err=%s", e)
-
-
-def _save_cooldown_state() -> None:
-    """Persist remaining cooldown seconds per channel atomically (best-effort)."""
-    try:
-        now = time.monotonic()
-        remaining = {
-            u: round(until - now, 1) for u, until in _CHANNEL_COOLDOWN_UNTIL.items() if until > now
-        }
-        os.makedirs(os.path.dirname(_COOLDOWN_STATE_PATH), exist_ok=True)
-        tmp = f"{_COOLDOWN_STATE_PATH}.tmp"
-        with open(tmp, "w") as f:
-            json.dump(remaining, f)
-        os.replace(tmp, _COOLDOWN_STATE_PATH)
-    except Exception as e:
-        logger.debug("news_ingest_cooldown_state_save_failed err=%s", e)
-
 
 def is_channel_cooldown(channel_username: str, now: float | None = None) -> bool:
     """True while *channel_username* is in auto-disable cooldown (skip the RPC).
@@ -839,8 +495,6 @@ def is_channel_cooldown(channel_username: str, now: float | None = None) -> bool
     """
     if not channel_username:
         return False
-    if not _cooldown_state_loaded:
-        _load_cooldown_state()
     until = _CHANNEL_COOLDOWN_UNTIL.get(channel_username)
     if until is None:
         return False
@@ -865,7 +519,6 @@ def note_channel_failure(
     if count >= max(1, threshold):
         _CHANNEL_READ_FAILURES.pop(channel_username, None)
         _CHANNEL_COOLDOWN_UNTIL[channel_username] = time.monotonic() + max(0.0, cooldown_seconds)
-        _save_cooldown_state()
         return True
     _CHANNEL_READ_FAILURES[channel_username] = count
     return False
@@ -875,13 +528,9 @@ def note_channel_success(channel_username: str) -> None:
     """Reset the failure counter — the channel resolved and read fine."""
     if channel_username:
         _CHANNEL_READ_FAILURES.pop(channel_username, None)
-        if _CHANNEL_COOLDOWN_UNTIL.pop(channel_username, None) is not None:
-            _save_cooldown_state()
 
 
-async def read_channel_messages(
-    client: Any, channel_username: str, limit: int = 50
-) -> list[ChannelMessage]:
+async def read_channel_messages(client: Any, channel_username: str, limit: int = 50) -> list[ChannelMessage]:
     """Read the last *limit* messages from a channel. Never raises.
 
     Accepts either:
@@ -944,7 +593,68 @@ def channel_username_from_config(channel: dict[str, Any]) -> str:
     return ""
 
 
-# ── RSS Feed Support ─────────────────────────────────────────────────────
+async def sweep_channels(client: Any, channels: list[dict[str, Any]], limit: int = 50) -> list[NewsArticle]:
+    """Read → normalize → dedupe across every configured channel.
+
+    Each entry of *channels* follows the ``unified_news_sources.json`` schema
+    (``username``/``id``/``url`` + optional ``category``). Channels without a
+    resolvable username are skipped; individual channel failures degrade to
+    empty without aborting the sweep.
+    """
+    articles: list[NewsArticle] = []
+    for channel in channels or []:
+        username = channel_username_from_config(channel)
+        if not username:
+            continue
+        if is_channel_cooldown(username):
+            logger.debug("news_ingest:channel_cooldown_skip channel=%s", username)
+            continue
+        category = str(channel.get("category") or "crypto_news")
+        messages = await read_channel_messages(client, username, limit)
+        for message in messages:
+            article = channel_message_to_article(message, category)
+            if article is not None:
+                articles.append(article)
+    return dedupe_articles(articles)
+
+# ── Newsletter Scraping Support ────────────────────────────────────────
+#: List of newsletter sources to scrape (those without RSS)
+NEWSLETTER_SOURCES: list[dict[str, str]] = [
+    {"name": "Hayes Substack", "url": "https://hayes.substack.com", "category": "alpha"},
+    {"name": "DeFi Mirror", "url": "https://defi.mirror.xyz", "category": "defi"},
+    {"name": "Not Only Black and White", "url": "https://notonlyblackandwhite.substack.com", "category": "alpha"},
+    {"name": "Mirror.xyz Crypto", "url": "https://mirror.xyz/tag/crypto", "category": "news"},
+    {"name": "Paragraph.xyz Crypto", "url": "https://paragraph.xyz/tag/crypto", "category": "news"},
+    {"name": "Bankless Newsletter", "url": "https://bankless.substack.com", "category": "alpha"},
+    {"name": "The Defiant Newsletter", "url": "https://thedefiant.io/subscribe", "category": "defi"},
+    {"name": "Messari Free", "url": "https://messari.io/newsletter", "category": "news"},
+    {"name": "CoinGecko Newsletter", "url": "https://www.coingecko.com/en/newsletter", "category": "news"},
+    {"name": "Uniswap Blog", "url": "https://uniswap.org/blog", "category": "defi"},
+    {"name": "Aave Blog", "url": "https://aave.com/blog", "category": "defi"},
+    {"name": "Compound Blog", "url": "https://compound.finance/blog", "category": "defi"},
+    {"name": "MakerDAO Blog", "url": "https://blog.makerdao.com", "category": "defi"},
+    {"name": "Lido Blog", "url": "https://blog.lido.fi", "category": "defi"},
+    {"name": "EigenLayer Blog", "url": "https://blog.eigenlayer.xyz", "category": "defi"},
+    {"name": "Celestia Blog", "url": "https://blog.celestia.org", "category": "defi"},
+    {"name": "Solana Blog", "url": "https://solana.com/blog", "category": "defi"},
+    {"name": "Helius Blog", "url": "https://helius.dev/blog", "category": "defi"},
+    {"name": "Jito Blog", "url": "https://jito.xyz/blog", "category": "defi"},
+    {"name": "Jupiter Blog", "url": "https://jup.ag/blog", "category": "defi"},
+    {"name": "Pyth Blog", "url": "https://pyth.network/blog", "category": "defi"},
+    {"name": "Chainlink Blog", "url": "https://blog.chainlink.org", "category": "defi"},
+    {"name": "Wormhole Blog", "url": "https://wormhole.com/blog", "category": "defi"},
+    {"name": "LayerZero Blog", "url": "https://layerzero.network/blog", "category": "defi"},
+    {"name": "Across Blog", "url": "https://across.to/blog", "category": "defi"},
+    {"name": "Stargate Blog", "url": "https://stargate.finance/blog", "category": "defi"},
+    {"name": "0x Blog", "url": "https://blog.0xproject.com", "category": "defi"},
+    {"name": "Matcha Blog", "url": "https://matcha.xyz/blog", "category": "defi"},
+    {"name": "DexScreener Blog", "url": "https://dexscreener.com/blog", "category": "defi"},
+    {"name": "GeckoTerminal Blog", "url": "https://www.geckoterminal.com/blog", "category": "defi"},
+    {"name": "Bubblemaps Blog", "url": "https://bubblemaps.io/blog", "category": "security"},
+    {"name": "Arkham Blog", "url": "https://arkhamintelligence.com/blog", "category": "security"},
+    {"name": "Etherscan Blog", "url": "https://etherscan.io/blog", "category": "news",
+    }
+]
 
 #: PryScraper API base URL (Docker service, healthy on the host loopback).
 _PRY_BASE_URL: Final[str] = os.getenv("PRYSCRAPER_URL", "http://127.0.0.1:8005").rstrip("/")
@@ -953,7 +663,7 @@ _PRY_CACHE_TTL_SECONDS: Final[int] = 3600
 #: Pry scrape timeout (15s per spec).
 _PRY_TIMEOUT_SECONDS: Final[float] = 15.0
 
-
+# Async function to scrape a URL via PryScraper, fail-open.
 async def scrape_with_pry(url: str) -> dict | None:
     """Scrape *url* via PryScraper, fail-open.
 
@@ -985,7 +695,7 @@ async def scrape_with_pry(url: str) -> dict | None:
                     return json.loads(cached)
                 except (TypeError, ValueError):
                     pass  # corrupt cache entry — fall through to scrape
-    except Exception as exc:
+    except Exception as exc:  # noqa: S110 — best-effort cache
         logger.debug("news_ingest:pry_cache_read_failed url=%s err=%s", url, str(exc)[:100])
 
     try:
@@ -1021,7 +731,7 @@ async def scrape_with_pry(url: str) -> dict | None:
         r = get_redis_async()
         if r is not None:
             await r.setex(cache_key, _PRY_CACHE_TTL_SECONDS, json.dumps(result))
-    except Exception as exc:
+    except Exception as exc:  # noqa: S110 — best-effort cache
         logger.debug("news_ingest:pry_cache_write_failed url=%s err=%s", url, str(exc)[:100])
 
     return result
@@ -1258,145 +968,144 @@ async def sweep_rss_feeds(
     return articles
 
 
-async def sweep_channels(
-    client: Any, channels: list[dict[str, Any]], limit: int = 50
-) -> list[NewsArticle]:
-    """Read → normalize → dedupe across every configured channel.
+# Helper to extract links from HTML
+from html.parser import HTMLParser
 
-    Each entry of *channels* follows the ``unified_news_sources.json`` schema
-    (``username``/``id``/``url`` + optional ``category``). Channels without a
-    resolvable username are skipped; individual channel failures degrade to
-    empty without aborting the sweep.
+class LinkExtractor(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            for attr in attrs:
+                if attr[0] == "href":
+                    self.links.append(attr[1])
+
+# Async function to scrape a newsletter page and extract article links
+async def scrape_newsletter_with_pry(url: str) -> list[dict]:
+    """Scrape a newsletter page via Pry, extract article links, and scrape each article.
+    Returns a list of article dicts with keys: title, url, content, image.
+    Fail-open: returns [] on any error.
     """
-    articles: list[NewsArticle] = []
-    for channel in channels or []:
-        username = channel_username_from_config(channel)
-        if not username:
-            continue
-        if is_channel_cooldown(username):
-            logger.debug("news_ingest:channel_cooldown_skip channel=%s", username)
-            continue
-        category = str(channel.get("category") or "crypto_news")
-        messages = await read_channel_messages(client, username, limit)
-        for message in messages:
-            article = channel_message_to_article(message, category)
-            if article is not None:
-                articles.append(article)
-    return dedupe_articles(articles)
-
-
-# ── Backend news bridge (bot-side addition, 2026-09-04) ────────────────────
-# The bot and the rmi-backend news system share ONE ingestion/dedup/rerank
-# pipeline. The backend aggregates 200+ sources, dedups, applies Ground
-# News-style ratings (bias, factuality, market impact, corroboration) and
-# stores in Qdrant — the single source of truth. The bot:
-#
-#   1. PULLS the already-deduped, rated feed via ``fetch_backend_news``
-#      (``GET /api/v1/news/feed``) as its PRIMARY content source.
-#   2. PUSHES its own RSS/Telegram/X ingestion via ``push_to_backend``
-#      (``POST /api/v1/news/articles``) so the backend dedups + rates +
-#      stores it — no double ingestion, no divergent dedup sets.
-#
-# Both are fail-open by contract: a backend outage degrades to the bot's own
-# direct ingestion (fallback) instead of crashing the sweep.
-
-
-def _article_to_backend_payload(article: NewsArticle) -> dict[str, Any]:
-    """Map a bot ``NewsArticle`` to the backend ``NewsArticle`` wire shape.
-
-    The backend ``NewsArticle`` Pydantic model (``app/routers/news.py``) uses
-    ``url``/``description``/``source``/``published_at``/``image_url``/
-    ``tokens_mentioned`` where the bot dataclass uses ``source_url``/``body``/
-    ``source_channel``/``posted_at``/``media``/``entities``. ``resolved_url``
-    (the real article URL after dereferencing a ``t.me`` link) wins over the
-    raw ``source_url`` when present so the backend dedups on the true story
-    URL, not the Telegram share link.
-    """
-    if article is None:
-        return {}
-    published_at = article.posted_at.isoformat() if article.posted_at else ""
-    url = article.resolved_url or article.source_url or ""
-    return {
-        "title": article.title or "",
-        "description": article.body or "",
-        "url": url,
-        "source": article.source_channel or "",
-        "published_at": published_at,
-        "category": article.category or "",
-        "image_url": article.media or "",
-        "tokens_mentioned": list(article.entities or []),
-        "content_hash": article.content_hash or "",
-    }
-
-
-async def fetch_backend_news(limit: int = 50) -> list[dict[str, Any]]:
-    """Pull already-deduped, rated articles from the backend news feed.
-
-    PRIMARY source for the bot's content pipeline. The backend aggregates
-    200+ sources, dedups, and applies Ground News-style ratings before
-    storing in Qdrant — so the bot gets a single, deduplicated, ranked feed
-    instead of running its own ingestion.
-
-    Fail-open: returns ``[]`` on any network/HTTP/parse failure so a backend
-    outage degrades to the bot's own direct ingestion (fallback), never a
-    crash.
-
-    Args:
-        limit: Max articles to fetch (clamped to the backend's 1..200 range).
-
-    Returns:
-        List of rated article dicts (backend ``NewsArticle`` shape).
-    """
-    from rugmunchbot.data_resolver import backend_get_json
-
-    body = await backend_get_json(
-        "/api/v1/news/feed",
-        params={"limit": max(1, min(int(limit), 200))},
-        timeout_secs=8.0,
-    )
-    if not body:
-        return []
-    articles = body.get("articles") or []
-    return [a for a in articles if isinstance(a, dict) and a.get("title")]
-
-
-async def push_to_backend(articles: list[NewsArticle]) -> int:
-    """Push freshly-ingested bot articles to the backend for dedup + rating.
-
-    The bot's own RSS/Telegram/X ingestion pushes raw articles here so the
-    backend can dedup (against its 200+ sources), rate (Ground News-style),
-    and store in Qdrant — the single source of truth. The bot then pulls the
-    rated feed back via :func:`fetch_backend_news` for content generation.
-
-    Fail-open: returns the number of articles the backend accepted (0 on any
-    failure) so a backend outage never aborts the sweep — the bot keeps its
-    own direct ingestion as a fallback.
-
-    Args:
-        articles: Bot-normalized ``NewsArticle`` objects to push.
-
-    Returns:
-        Count of articles the backend accepted (``accepted``/``ingested``
-        from the response, else 0).
-    """
-    if not articles:
-        return 0
-    from rugmunchbot.config import BACKEND_URL, backend_headers
-    from rugmunchbot.tools._client import http_post_json
-
-    payload = [_article_to_backend_payload(a) for a in articles]
-    body = await http_post_json(
-        f"{BACKEND_URL}/api/v1/news/articles",
-        json={"articles": payload},
-        headers=backend_headers(),
-        timeout=10.0,
-    )
-    if not body:
-        return 0
-    accepted = body.get("accepted")
-    if accepted is None:
-        accepted = body.get("ingested")
     try:
-        return int(accepted or 0)
-    except (TypeError, ValueError):
-        return 0
+        # Scrape the newsletter page
+        newsletter_page = await scrape_with_pry(url)
+        if not newsletter_page:
+            return []
+        html_content = newsletter_page.get("html", "")
+        if not html_content:
+            return []
+
+        # Extract links from the HTML
+        extractor = LinkExtractor()
+        extractor.feed(html_content)
+        links = extractor.links
+
+        # Filter links to those that are likely article URLs (same domain and not common non-article paths)
+        from urllib.parse import urlparse, urljoin
+        parsed_base = urlparse(url)
+        base_domain = parsed_base.netloc
+        article_links = []
+        for link in links:
+            # Make absolute URL
+            abs_link = urljoin(url, link)
+            parsed_link = urlparse(abs_link)
+            # Skip if not same domain
+            if parsed_link.netloc != base_domain:
+                continue
+            # Skip common non-article paths
+            skip_paths = [
+                "/about",
+                "/archive",
+                "/subscribe",
+                "/newsletter",
+                "/search",
+                "/tag/",
+                "/author/",
+                "/feed",
+                "/rss",
+                "/privacy",
+                "/terms",
+            ]
+            if any(path in parsed_link.path for path in skip_paths):
+                continue
+            # Skip if it's the base URL itself (the newsletter homepage)
+            if abs_link == url or abs_link == url + "/":
+                continue
+            article_links.append(abs_link)
+
+        # Scrape each article link
+        articles = []
+        for article_url in article_links:
+            article_data = await scrape_with_pry(article_url)
+            if not article_data:
+                continue
+            # Pry returns title, content, html. We also want to extract an image if available.
+            # We'll try to get an image from the HTML content if available, or from the content if it contains an img tag.
+            # For simplicity, we'll use the HTML to extract the first image URL.
+            image_url = ""
+            html_content = article_data.get("html", "")
+            if html_content:
+                # Use a simple regex to find the first img src
+                import re
+                img_match = re.search(r'<img[^>]+src="([^"]+)"', html_content, re.IGNORECASE)
+                if img_match:
+                    image_url = img_match.group(1)
+            # If no image found in HTML, try to look in the content (markdown) for an image?
+            # We'll leave it empty if not found.
+
+            articles.append({
+                "title": article_data.get("title", ""),
+                "url": article_url,
+                "content": article_data.get("content", "") or article_data.get("markdown", ""),
+                "image": image_url,
+            })
+        return articles
+    except Exception as e:
+        logger.warning(f"news_ingest:newsletter_scrape_failed url={url} error={e}")
+        return []
+
+# Function to sweep all newsletter sources
+async def sweep_newsletters_with_pry() -> list[NewsArticle]:
+    """Scrape all newsletter sources and return a list of NewsArticle objects."""
+    from rugmunchbot._vendor.news_ingest.models import NewsArticle
+    from rugmunchbot._vendor.news_ingest.normalize import extract_entities
+    articles: list[NewsArticle] = []
+    for source in NEWSLETTER_SOURCES:
+        url = source["url"]
+        name = source["name"]
+        category = source["category"]
+        newsletter_articles = await scrape_newsletter_with_pry(url)
+        for article_dict in newsletter_articles:
+            # Convert the article dict to a NewsArticle
+            title = article_dict.get("title", "")
+            body = article_dict.get("content", "")
+            article_url = article_dict.get("url", "")
+            image_url = article_dict.get("image", "")
+
+            # Skip if no title or body
+            if not title and not body:
+                continue
+
+            # Extract crypto entities
+            entities = extract_entities(f"{title} {body}")
+
+            # Truncate title to fit NewsArticle model
+            title = title[:120] if title else ""
+
+            # We don't have a publication date from the scraping, so leave it as None
+            # The content_hash will be computed by dedupe_articles if empty.
+            news_article = NewsArticle(
+                title=title,
+                body=body,
+                source_channel=name,
+                source_url=article_url,
+                category=category,
+                posted_at=None,  # unknown
+                content_hash="",  # will be computed by dedupe_articles
+                entities=entities,
+                media=image_url,  # Note: the NewsArticle model has a `media` field for the image URL
+            )
+            articles.append(news_article)
+    return articles
