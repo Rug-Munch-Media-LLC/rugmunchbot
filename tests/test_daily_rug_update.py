@@ -228,7 +228,20 @@ class TestPostDailyRugUpdate:
             "SCAMTOKEN (SCAM) on Solana is today's textbook honeypot — risk "
             "score <b>92</b>, mint authority live. The deployer can mint at "
             "will; buyers are exit liquidity. Source: "
-            '<a href="https://rugmunch.io/scan/SCAM">scanner</a>.'
+            '<a href="https://rugmunch.io/scan/SCAM">scanner</a>.\n\n'
+            "<b>━━━ BREAKING NEWS ━━━</b>\n\n"
+            "The market is pricing in hopium again after the latest ETF filing "
+            "cleared the exchange review, pushing volume higher across the "
+            "major pairs. Traders rotated into the top names while the "
+            "mid-caps lagged on thin books. Source: "
+            '<a href="https://news.example.com/etf">Cointelegraph</a>.\n\n'
+            "A second exploit hit a Solana AMM this week, draining the "
+            "liquidity pool before the team paused withdrawals. The mechanism "
+            "was a price-oracle mismatch, not a private key leak. Source: "
+            '<a href="https://news.example.com/amm">Blockaid</a>.\n\n'
+            "<b>━━━ THE RUG TOOLKIT ━━━</b>\n\n"
+            "Run /scan before you ape — it answers whether a token is a "
+            "honeypot in seconds."
         )
         llm = AsyncMock(return_value=report)
         send = AsyncMock(return_value=True)

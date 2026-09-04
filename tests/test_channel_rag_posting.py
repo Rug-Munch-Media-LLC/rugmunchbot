@@ -50,12 +50,13 @@ _LONG_TEXT_A = (
     "Whale wallet 0xabc moved 12,400 ETH to Binance hot wallets overnight, "
     "the largest single transfer this month. Exchange inflows of this size "
     "have preceded every major distribution window this quarter. "
-    "https://example.com/a"
+    "https://example.com/a https://example.com/a2 https://example.com/a3"
 )
 _LONG_TEXT_B = (
     "The same whale cluster rotated another 8,100 ETH into stablecoins this "
     "morning, extending a three-day distribution streak that desks are now "
-    "tracking closely across every major venue. https://example.com/b"
+    "tracking closely across every major venue. "
+    "https://example.com/b https://example.com/b2 https://example.com/b3"
 )
 
 
@@ -65,7 +66,7 @@ def _draft(
         "Whale wallet 0xabc moved 12,400 ETH to Binance hot wallets overnight, "
         "the largest single transfer this month. Exchange inflows of this size "
         "have preceded every major distribution window this quarter. "
-        "Source: https://example.com/x"
+        "Source: https://example.com/x https://example.com/y https://example.com/z"
     ),
     mirror: bool = False,
 ) -> dict[str, Any]:

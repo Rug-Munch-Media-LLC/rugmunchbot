@@ -72,12 +72,18 @@ async def test_daily_summary_mirrors_to_feed(monkeypatch, tmp_path):
     async def _noop_llm(messages, tier):
         # Realistic-length report with varied lines (the old 40x-identical
         # fixture tripped the gibberish detector — by design it IS degenerate).
+        # Carries 3+ http links so the post-generation story guard passes.
         lines = [f"<b>Section {i}</b>" for i in range(1, 9)]
         body = "\n".join(
             f"Item {i}: token moved {i * 137} ETH to a fresh wallet at {i * 11}:00 UTC."
             for i in range(1, 25)
         )
-        return "<b>Market overview</b>\n" + body + "\n" + "\n".join(lines)
+        links = (
+            '\n<a href="https://news.example.com/etf">ETF filing</a> '
+            '<a href="https://news.example.com/amm">AMM exploit</a> '
+            '<a href="https://news.example.com/whale">whale move</a>'
+        )
+        return "<b>Market overview</b>\n" + body + links + "\n" + "\n".join(lines)
 
     async def _noop_feed(report, *, title=None):
         return {}

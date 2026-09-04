@@ -107,6 +107,92 @@ async def _regenerate_draft_text(text: str, violations: list[Any]) -> str:
     return (await chat_with_fallback(messages, "snappy")).strip()
 
 
+#: Main-channel quality gate (2026-09-04): a final deterministic slop
+#: firewall on @cryptorugmuncher. Even after the LLM quality gate and the
+#: human approval gate, a post must still clear these hard content checks
+#: or it is skipped — silence beats slop, always.
+_MAIN_FOREIGN_SENTENCE_STARTS: tuple[str, ...] = ("El ", "Los ", "Das ", "Le ", "Der ")
+_MAIN_INTERNAL_MONOLOGUE: tuple[str, ...] = (
+    "The user",
+    "No further action",
+    "ha sido",
+    "cumpliendo",
+)
+#: Redis key prefix for the daily main-channel rejection counter.
+_MAIN_REJECTION_REDIS_PREFIX = "rmi:quality:rejected:main:"
+
+
+def _is_empty_roundup(text: str) -> bool:
+    """True when the post is a roundup-shaped stub: mostly header/title lines
+    with almost no real commentary. A genuine roundup carries substantive
+    prose per item; a stub is just headers + a link or two. Pure — never
+    raises."""
+    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
+    if len(lines) < 3:
+        return False
+    header_like = 0
+    prose_words = 0
+    for ln in lines:
+        if "http" in ln:
+            continue
+        # Header-like: ends with ':' or is a short title line with no
+        # sentence-ending punctuation.
+        if ln.endswith(":") or (len(ln) < 60 and not re.search(r"[.!?]\s*$", ln)):
+            header_like += 1
+        else:
+            prose_words += len(re.findall(r"\b\w+\b", ln))
+    return header_like >= 2 and prose_words < 20
+
+
+def _main_quality_gate(text: str) -> str:
+    """Deterministic main-channel quality gate. Returns "" when the post may
+    ship, else the rejection reason. Pure — never raises.
+
+    Checks (in order): minimum content length, minimum link count, no
+    foreign-language sentence starts (Spanish/German/French), no internal
+    monologue / assistant leakage, and no empty roundup stubs.
+    """
+    text = text or ""
+    if len(text) <= 200:
+        return "too_short"
+    if text.count("http") < 3:
+        return "too_few_links"
+    # Foreign-language sentence starts (Spanish/German/French).
+    for token in _MAIN_FOREIGN_SENTENCE_STARTS:
+        if re.search(rf"(?m)^\s*{re.escape(token)}", text):
+            return f"foreign_sentence_start({token.strip()})"
+    # Internal monologue / assistant leakage.
+    low = text.lower()
+    for phrase in _MAIN_INTERNAL_MONOLOGUE:
+        if phrase.lower() in low:
+            return f"internal_monologue({phrase})"
+    if _is_empty_roundup(text):
+        return "empty_roundup"
+    return ""
+
+
+async def _count_main_rejection(reason: str) -> None:
+    """Increment the daily main-channel rejection counter in Redis. Fail-open:
+    a Redis outage must never block the skip decision (the post is already
+    rejected). Key: ``rmi:quality:rejected:main:{YYYY-MM-DD}``."""
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis_async
+
+        r = get_redis_async()
+        if r is None:
+            return
+        date = datetime.now(UTC).strftime("%Y-%m-%d")
+        key = f"{_MAIN_REJECTION_REDIS_PREFIX}{date}"
+        await r.incr(key)
+        await r.expire(key, 3 * 86400)
+    except Exception as exc:  # fail-open by contract
+        _pkg.logger.debug(
+            "main_quality_gate:redis_incr_failed reason=%s err=%s",
+            reason,
+            str(exc)[:120],
+        )
+
+
 async def gather_main_drafts(limit: int = 8) -> list[dict[str, Any]]:
     """Single unified main-content gather: RAG primary → scored fallback → gate.
 
@@ -277,6 +363,22 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 continue
             text = gate.text
             item = {**item, "image_url": gate.image_url}
+
+            # Main-channel quality gate (2026-09-04): a final deterministic
+            # slop firewall on @cryptorugmuncher. Even after the LLM quality
+            # gate (and before the human approval gate), a main post must
+            # still clear these hard content checks or it is skipped — slop
+            # never reaches the flagship channel, ever.
+            if channel == "main":
+                reason = _main_quality_gate(text)
+                if reason:
+                    _pkg.logger.warning(
+                        "main_channel_quality_gate: REJECTED — %s ref=%s",
+                        reason,
+                        str(item.get("story_ref") or "")[:60],
+                    )
+                    await _count_main_rejection(reason)
+                    continue
 
             # Content-type contract: a RAG draft is chartered for its native
             # channel's content type (news→news, alerts→alert, scans→scan;

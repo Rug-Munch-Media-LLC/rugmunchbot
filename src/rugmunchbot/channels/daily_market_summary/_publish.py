@@ -172,7 +172,9 @@ HARD RULES:
 - ONE STORY PER EVENT (hard rule): if multiple sources cover the same event
   (same exploit, same ETF filing, same hack), pick the BEST one and link
   only that. NEVER list the same event twice with different URLs.
-- One emoji max in the opening line (📊). Section headers use the tags above. No other emojis."""
+- One emoji max in the opening line (📊). Section headers use the tags above. No other emojis.
+- You MUST write in English only. Never output any other language. If you start writing in another language, stop and rewrite in English.
+- The brief MUST contain at least 3 stories with links. If you have fewer than 3 stories, do NOT post — return 'SKIP' instead."""
 
 
 def build_messages(context: dict[str, Any], *, edition: str | None = None) -> list[dict[str, str]]:
@@ -368,6 +370,334 @@ def _strip_prompt_marker(raw: str, marker: str, *, guarded: bool = False) -> str
     return raw[:idx].rstrip()
 
 
+#: Common non-English (Spanish/French/German) stopwords used for the cheap
+#: language gate. A brief whose word share of these exceeds the threshold is
+#: treated as a language leak and skipped rather than shipped to subscribers.
+_NON_ENGLISH_WORDS = frozenset(
+    {
+        # Spanish
+        "el",
+        "la",
+        "los",
+        "las",
+        "un",
+        "una",
+        "unos",
+        "unas",
+        "y",
+        "o",
+        "u",
+        "de",
+        "del",
+        "en",
+        "con",
+        "por",
+        "para",
+        "que",
+        "es",
+        "son",
+        "se",
+        "informe",
+        "viernes",
+        "lunes",
+        "martes",
+        "miércoles",
+        "jueves",
+        "sábado",
+        "domingo",
+        "ha",
+        "han",
+        "he",
+        "hemos",
+        "está",
+        "están",
+        "este",
+        "esta",
+        "esto",
+        "estos",
+        "estas",
+        "su",
+        "sus",
+        "nuestro",
+        "nuestra",
+        "también",
+        "pero",
+        "más",
+        "menos",
+        "como",
+        "cuando",
+        "donde",
+        "porque",
+        "ya",
+        "hoy",
+        "ayer",
+        "mañana",
+        "después",
+        "antes",
+        "sobre",
+        "entre",
+        "hacia",
+        "desde",
+        "hasta",
+        "sin",
+        "muy",
+        "bien",
+        "mal",
+        "todo",
+        "toda",
+        "todos",
+        "todas",
+        "nuevo",
+        "nueva",
+        "nuevos",
+        "nuevas",
+        "mercado",
+        "precio",
+        "precios",
+        "token",
+        "tokens",
+        "cripto",
+        "criptomonedas",
+        "generado",
+        "cumpliendo",
+        "filler",
+        "colores",
+        "masthead",
+        "forma",
+        "resumen",
+        "análisis",
+        "analisis",
+        "noticias",
+        "semana",
+        "semanal",
+        "diario",
+        "diaria",
+        "usuario",
+        "usuarios",
+        "preguntó",
+        "pregunto",
+        "escribir",
+        "escribe",
+        "escribiré",
+        "voy",
+        "vamos",
+        "necesito",
+        "necesita",
+        "debo",
+        "debe",
+        "puedo",
+        "puede",
+        "quiero",
+        "quiere",
+        "hacer",
+        "hago",
+        "haré",
+        "ahora",
+        "luego",
+        # French
+        "le",
+        "les",
+        "une",
+        "des",
+        "et",
+        "ou",
+        "du",
+        "avec",
+        "pour",
+        "par",
+        "qui",
+        "est",
+        "sont",
+        "ce",
+        "cet",
+        "cette",
+        "ces",
+        "sa",
+        "ses",
+        "notre",
+        "nos",
+        "aussi",
+        "mais",
+        "plus",
+        "moins",
+        "comme",
+        "quand",
+        "où",
+        "parce",
+        "déjà",
+        "aujourd'hui",
+        "hier",
+        "demain",
+        "après",
+        "avant",
+        "sur",
+        "vers",
+        "depuis",
+        "jusqu'à",
+        "sans",
+        "très",
+        "tout",
+        "toute",
+        "tous",
+        "toutes",
+        "nouveau",
+        "nouvelle",
+        "marché",
+        "prix",
+        "crypto",
+        "cryptomonnaies",
+        "généré",
+        "respectant",
+        "remplissage",
+        "couleurs",
+        "en-tête",
+        "forme",
+        "rapport",
+        "résumé",
+        "analyse",
+        "actualités",
+        "semaine",
+        "hebdomadaire",
+        "quotidien",
+        "utilisateur",
+        "utilisateurs",
+        "demandé",
+        "écrire",
+        "écris",
+        "écrirai",
+        "vais",
+        "allons",
+        "besoin",
+        "dois",
+        "doit",
+        "peux",
+        "peut",
+        "veux",
+        "veut",
+        "faire",
+        "fais",
+        "ferai",
+        "maintenant",
+        "ensuite",
+        # German
+        "der",
+        "die",
+        "das",
+        "ein",
+        "eine",
+        "einer",
+        "eines",
+        "und",
+        "oder",
+        "von",
+        "vom",
+        "im",
+        "am",
+        "mit",
+        "für",
+        "durch",
+        "dass",
+        "ist",
+        "sind",
+        "war",
+        "waren",
+        "sein",
+        "seine",
+        "seiner",
+        "unser",
+        "unsere",
+        "auch",
+        "aber",
+        "mehr",
+        "weniger",
+        "wie",
+        "wann",
+        "wo",
+        "weil",
+        "schon",
+        "heute",
+        "gestern",
+        "morgen",
+        "nach",
+        "vor",
+        "über",
+        "zwischen",
+        "gegen",
+        "seit",
+        "bis",
+        "ohne",
+        "sehr",
+        "gut",
+        "alles",
+        "alle",
+        "neue",
+        "neuer",
+        "neues",
+        "markt",
+        "preis",
+        "preise",
+        "krypto",
+        "kryptowährungen",
+        "generiert",
+        "erfüllt",
+        "füller",
+        "farben",
+        "kopfzeile",
+        "form",
+        "bericht",
+        "zusammenfassung",
+        "nachrichten",
+        "woche",
+        "wöchentlich",
+        "täglich",
+        "benutzer",
+        "gefragt",
+        "schreiben",
+        "schreibe",
+        "werde",
+        "werden",
+        "brauche",
+        "muss",
+        "müssen",
+        "kann",
+        "können",
+        "will",
+        "wollen",
+        "machen",
+        "mache",
+        "jetzt",
+        "dann",
+    }
+)
+
+#: Max share of non-English words before a brief is treated as a language leak.
+_LANGUAGE_LEAK_THRESHOLD = 0.20
+
+
+def _is_language_leak(text: str) -> bool:
+    """True when >20% of the words are common Spanish/French/German stopwords.
+
+    Cheap deterministic guard against the LLM drifting into another language.
+    HTML tags/attrs are stripped first so markup doesn't skew the word count.
+    """
+    plain = re.sub(r"<[^>]+>", " ", text)
+    words = re.findall(r"[A-Za-zÀ-ÿ']+", plain.lower())
+    if not words:
+        return False
+    non_english = sum(1 for w in words if w in _NON_ENGLISH_WORDS)
+    return (non_english / len(words)) > _LANGUAGE_LEAK_THRESHOLD
+
+
+def _has_min_stories(text: str, *, min_links: int = 3) -> bool:
+    """True when the brief carries at least ``min_links`` distinct http links.
+
+    Guards against the LLM emitting a brief with no real stories (empty
+    content / single-link posts).
+    """
+    links = set(re.findall(r"https?://[^\s)>\"']+", text))
+    return len(links) >= min_links
+
+
 async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """Gather → LLM-write → clean → post to @cryptorugmuncher + feed.
     Returns 1 when the Telegram post shipped, 0 otherwise. Fails open at every
@@ -426,6 +756,14 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         "## SENTIMENT",
         "## KOL",
         "## THE RUG TOOLKIT",
+        "El informe",
+        "The user just asked",
+        "No further action needed",
+        "ha sido generado",
+        "cumpliendo todas",
+        "Sin filler",
+        "Colores y",
+        "Masthead con la forma",
     ):
         raw = _strip_prompt_marker(
             raw, marker, guarded=marker.startswith("## ") or marker == "MARKET DRIVERS"
@@ -458,6 +796,25 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     report = cleanup_html(raw)
     if not report:
         logger.info("daily_market_summary:cleaned_empty_skipped")
+        return 0
+
+    # Post-generation guard (2026-09-04): never ship an empty brief or a
+    # language leak. A report with <100 words or fewer than 3 distinct links
+    # is an empty/placeholder draft — skip. A report whose word share of
+    # common Spanish/French/German stopwords exceeds 20% is a language
+    # drift — skip.
+    word_count = len(re.findall(r"\S+", report))
+    if word_count < 100:
+        logger.warning("daily_market_summary:too_short_skipped words=%d min=100", word_count)
+        return 0
+    if not _has_min_stories(report):
+        logger.warning(
+            "daily_market_summary:too_few_stories_skipped links=%d min=3",
+            len(set(re.findall(r"https?://[^\s)>\"']+", report))),
+        )
+        return 0
+    if _is_language_leak(report):
+        logger.warning("daily_market_summary:language_leak_skipped")
         return 0
 
     # HARD quality gate (2026-08-31): the flagship report must pass the

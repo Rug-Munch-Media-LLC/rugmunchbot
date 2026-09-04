@@ -55,7 +55,8 @@ def _draft(ref: str | None = None) -> dict[str, Any]:
             "Whale wallet 0xabc moved 12,400 ETH to Binance hot wallets "
             "overnight, the largest single transfer this month. Exchange "
             "inflows of this size have preceded every major distribution "
-            "window this quarter. Source: https://example.com/x"
+            "window this quarter. Source: https://example.com/x "
+            "https://example.com/y https://example.com/z"
         ),
         "kind": "story",
         "mirror": False,
