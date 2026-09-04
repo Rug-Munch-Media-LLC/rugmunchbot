@@ -37,6 +37,10 @@ class ShillCampaign:
     scanner_evidence: dict[str, Any] = field(
         default_factory=dict
     )  # {scanned, risk_level, safety_score, bullets, note}
+    #: 2026-09-04 KOL reporting: per-account enrichment (follower count +
+    #: track record from ``data/kol/wall_of_shame.json``) so the alert can
+    #: name the KOL, their reach, and their prior shill/rug history.
+    kol_stats: dict[str, Any] = field(default_factory=dict)
 
     @property
     def key(self) -> str:

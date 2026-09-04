@@ -63,6 +63,9 @@ The biggest rugs/scams detected in the last 24h from the SCANNER ALERTS block. F
 ## SHILL CAMPAIGNS
 Coordinated pushes from the SHILL CAMPAIGNS block: token, how many KOLs, how many posts, over what span. Real analysis of the pattern — coordination this tight is usually an exit ramp, say so. Absent = OMIT.
 
+## KOL ACTIVITY
+The top 3 shill campaigns detected today, from the SHILL CAMPAIGNS block — name the KOL handles, the token, the follower reach, and the evidence count. This is the "who is shilling what" desk: name names, cite the evidence, never invent a handle. Absent = OMIT.
+
 ## KOLS CAUGHT
 KOLs caught pushing scam tokens, from the shill-campaign handles and RAG INTEL shill_evidence items. Name the handles, name the token, state the evidence count. Never invent a handle. CATEGORY DISCIPLINE: institutional flow / ETF news is NOT a caught KOL — if it is not a named handle pushing a scam token, it does not belong here (route it to BREAKING NEWS instead). Absent = OMIT.
 

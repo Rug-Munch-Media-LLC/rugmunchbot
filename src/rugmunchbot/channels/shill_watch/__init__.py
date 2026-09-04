@@ -92,6 +92,7 @@ from rugmunchbot.channels.shill_watch._runner import (
     _campaign_from_dict as _campaign_from_dict,
     _detect_via_backend as _detect_via_backend,
     _sweep_shill_sources as _sweep_shill_sources,
+    post_kol_wall_of_shame as post_kol_wall_of_shame,
     run_shill_watch as run_shill_watch,
 )
 from rugmunchbot.channels.shill_watch._scoring import (
@@ -127,5 +128,6 @@ __all__ = [
     "capture_tweet_screenshot",
     "detect_shill_campaigns",
     "format_shill_alert",
+    "post_kol_wall_of_shame",
     "run_shill_watch",
 ]

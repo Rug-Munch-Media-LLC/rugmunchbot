@@ -235,6 +235,26 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_shill_watch",
         )
 
+    # Weekly KOL Wall of Shame (2026-09-04): every Sunday 18:00 UTC, post the
+    # top-10 worst KOLs (by scams shilled / reach / damage) to @rmialerts and
+    # mirror to feed.rugmunch.io. Reads ``data/kol/wall_of_shame.json``.
+    if (
+        ALERTS_CHANNEL_ENABLED
+        and _chat_id("alerts")
+        and hasattr(job_queue, "run_daily")
+        and os.getenv("RMI_KOL_WALL_OF_SHAME_ENABLED", "true").lower() in ("1", "true", "yes")
+    ):
+        from datetime import UTC, time as _wos_time
+
+        from rugmunchbot.channels.shill_watch import post_kol_wall_of_shame
+
+        job_queue.run_daily(
+            _tick_wrapper("channel_kol_wall_of_shame", post_kol_wall_of_shame, envelope=True),
+            time=_wos_time(hour=18, minute=0, tzinfo=UTC),
+            days=(6,),  # Sunday (Python weekday: Monday=0 … Sunday=6)
+            name="channel_kol_wall_of_shame",
+        )
+
     # Shill-campaign auto-poster (2026-08-31): rugbrain's clustered shill
     # campaigns (POST /rag/shill-campaigns) → main channel with screenshot +
     # commentary. Dedup on campaign signature; fail-open. Env knobs:

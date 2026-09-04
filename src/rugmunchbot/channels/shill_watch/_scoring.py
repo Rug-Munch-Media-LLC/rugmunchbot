@@ -8,6 +8,7 @@ formats the HTML alert card. Fail-open everywhere.
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
 
@@ -245,14 +246,115 @@ async def build_scanner_evidence(token: str, chain: str) -> dict[str, Any]:
     }
 
 
+# ── KOL track-record enrichment (2026-09-04) ───────────────────────────────
+# The alert names the primary KOL and their prior shill/rug history. That
+# history lives in ``data/kol/wall_of_shame.json`` (written by
+# ``ct_shill_watch.record_shill`` / ``kol_ingest``). We read it best-effort
+# and attach a compact ``kol_stats`` dict to the campaign so the formatter
+# can render follower count + prior shills/rugs. Fail-open: a missing file
+# or unknown handle yields ``{}`` → the alert renders "N/A".
+_WALL_OF_SHAME_PATH = os.getenv(
+    "RMI_WALL_OF_SHAME_PATH",
+    os.path.join(
+        os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        ),
+        "data",
+        "kol",
+        "wall_of_shame.json",
+    ),
+)
+
+
+def _load_wall_of_shame() -> list[dict[str, Any]]:
+    """Wall-of-shame entries (fail-open [])."""
+    try:
+        with open(_WALL_OF_SHAME_PATH, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as exc:
+        logger.debug("shill_watch:wall_of_shame_load_failed err=%s", str(exc)[:120])
+        return []
+    wall = data.get("wall_of_shame", []) if isinstance(data, dict) else []
+    return [e for e in wall if isinstance(e, dict)]
+
+
+def _norm_handle(value: object) -> str:
+    return str(value or "").strip().lstrip("@").lower()
+
+
+def build_kol_stats(accounts: list[str]) -> dict[str, Any]:
+    """Compact KOL stats for the primary account (fail-open {}).
+
+    Looks up the first account handle in ``wall_of_shame.json`` and returns
+    ``{followers, shill_count, rug_count, tokens_shilled}``. ``rug_count`` is
+    the entry's own ``rug_count`` field (written by ``ct_shill_watch`` /
+    ``kol_ingest`` when the KOL's shilled tokens rugged). Never raises.
+    """
+    if not accounts:
+        return {}
+    handle = _norm_handle(accounts[0])
+    if not handle:
+        return {}
+    entry = next(
+        (e for e in _load_wall_of_shame() if _norm_handle(e.get("handle")) == handle),
+        None,
+    )
+    if not entry:
+        return {}
+    followers = entry.get("followers") or entry.get("follower_count") or 0
+    shill_count = int(entry.get("shill_count") or 0)
+    rug_count = int(entry.get("rug_count") or 0)
+    tokens = [str(t) for t in (entry.get("tokens_shilled") or []) if t]
+    return {
+        "followers": followers,
+        "shill_count": shill_count,
+        "rug_count": rug_count,
+        "tokens_shilled": tokens[:20],
+    }
+
+
+def _kol_followers(kol_stats: dict[str, Any]) -> str:
+    """Human-readable follower count from ``kol_stats`` (fail-open "N/A")."""
+    try:
+        f = int(kol_stats.get("followers") or 0)
+    except (TypeError, ValueError):
+        return "N/A"
+    if f <= 0:
+        return "N/A"
+    if f >= 1_000_000:
+        return f"{f / 1_000_000:.1f}M"
+    if f >= 1_000:
+        return f"{f / 1_000:.0f}K"
+    return str(f)
+
+
+def _kol_track_record(kol_stats: dict[str, Any]) -> str:
+    """One-line KOL track record: prior shills + prior rugs (fail-open)."""
+    shills = int(kol_stats.get("shill_count") or kol_stats.get("previous_shills") or 0)
+    rugs = int(kol_stats.get("rug_count") or kol_stats.get("previous_rugs") or 0)
+    if shills <= 0 and rugs <= 0:
+        return "No prior shill history"
+    parts = []
+    if shills:
+        parts.append(f"{shills} prior shill(s)")
+    if rugs:
+        parts.append(f"{rugs} prior rug(s)")
+    return ", ".join(parts)
+
+
 def format_shill_alert(campaign: ShillCampaign) -> str:
     """HTML alert card for one campaign (Telegram parse_mode=html).
 
-    2026-09-04: Enhanced reporting with KOL track records and detailed token info.
+    2026-09-04: Evidence-based KOL reporting. The card names the primary KOL
+    with their follower count and prior shill/rug track record (from
+    ``data/kol/wall_of_shame.json``), the token + chain + contract address,
+    the scanner risk score, a link to the original tweet, and the screenshot
+    evidence path when one was captured. Fail-open: any missing field renders
+    as "N/A" / is omitted — never fabricated.
     """
     token = str(campaign.token)
 
-    # 1. Token Info
+    # 1. Token Info (name, chain, contract address).
     if campaign.chain == "ticker":
         head = f"🚨 <b>Coordinated shill: {token}</b>"
         token_info = f"Ticker: <code>{token}</code>"
@@ -261,20 +363,18 @@ def format_shill_alert(campaign: ShillCampaign) -> str:
         head = f"🚨 <b>Coordinated shill: <code>{short}</code></b> ({campaign.chain})"
         token_info = f"Address: <code>{token}</code> | Chain: <b>{campaign.chain}</b>"
 
-    # 2. KOL Info (using first account as primary)
+    # 2. KOL Info (primary account + follower count + track record).
     primary_kol = campaign.accounts[0] if campaign.accounts else "Unknown"
-    # Note: In a real implementation, we'd fetch follower count/track record from a DB/Service.
-    # For this task, we assume these are available in the campaign object or via a helper.
-    kol_stats = getattr(campaign, "kol_stats", {})
-    followers = kol_stats.get("followers", "N/A")
-    track_record = kol_stats.get("track_record", "No history available")
+    kol_stats = campaign.kol_stats or {}
+    followers = _kol_followers(kol_stats)
+    track_record = _kol_track_record(kol_stats)
 
     lines = [
         head,
         "",
         f"<b>Token:</b> {token_info}",
         f"<b>KOL:</b> {_esc(primary_kol)} ({followers} followers)",
-        f"<b>Track Record:</b> {track_record}",
+        f"<b>Track Record:</b> {_esc(track_record)}",
         f"<b>Scale:</b> {len(campaign.accounts)} accounts in {SHILL_WINDOW_HOURS}h",
         "",
     ]
@@ -289,18 +389,27 @@ def format_shill_alert(campaign: ShillCampaign) -> str:
         ]
     )
 
-    # 4. Scanner evidence
+    # 4. Scanner evidence (risk score + on-chain findings).
     scanners = campaign.scanner_evidence or {}
     sc_bullets = scanners.get("bullets") or []
-    if sc_bullets:
+    risk_level = str(scanners.get("risk_level") or "").upper()
+    safety = scanners.get("safety_score")
+    if risk_level or safety is not None:
         lines.append("")
+        risk_bits = []
+        if risk_level:
+            risk_bits.append(f"risk {risk_level}")
+        if isinstance(safety, (int, float)):
+            risk_bits.append(f"safety {float(safety):.0f}/100")
+        lines.append(f"<b>Scanner risk:</b> {' · '.join(risk_bits)}")
+    if sc_bullets:
         lines.append("<b>On-chain evidence (scanned):</b>")
         for b in sc_bullets[:5]:
             lines.append(f"  • {_esc(b)}")
         if scanners.get("note") and len(sc_bullets) > 5:
             lines.append(f"  … {_esc(scanners['note'][:160])}")
 
-    # 5. Earliest pushes
+    # 5. Earliest pushes (link to original tweet).
     sample = campaign.mentions[:2]
     if sample:
         lines.append("")
@@ -313,7 +422,7 @@ def format_shill_alert(campaign: ShillCampaign) -> str:
             else:
                 lines.append(f"  → {_esc(title)}")
 
-    # 6. Screenshots
+    # 6. Screenshot evidence (path + link).
     if campaign.screenshots:
         lines.append("")
         lines.append("<b>Evidence (screenshot capture):</b>")
@@ -325,6 +434,9 @@ def format_shill_alert(campaign: ShillCampaign) -> str:
                 lines.append(f"  • {_esc(src)}: {_esc(txt)}")
             if sx:
                 lines.append(f'    <a href="{_esc(sx)}">{_esc(sx)}</a>')
+            img = str(shot.get("image_path") or "")
+            if img:
+                lines.append(f"    <code>{_esc(img)}</code>")
 
     lines.append("")
     lines.append("Coordinated shill = high rug-pump risk. Verify before ape: /scan @rugmunchbot")

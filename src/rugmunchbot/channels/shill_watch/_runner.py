@@ -8,6 +8,8 @@ at every stage.
 
 from __future__ import annotations
 
+import json
+import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -30,6 +32,7 @@ from rugmunchbot.channels.shill_watch._config import (
 from rugmunchbot.channels.shill_watch._detect import (
     ShillCampaign,
     _article_fields,
+    _esc,
     detect_shill_campaigns,
 )
 from rugmunchbot.channels.shill_watch._evidence import (
@@ -39,6 +42,7 @@ from rugmunchbot.channels.shill_watch._evidence import (
 from rugmunchbot.channels.shill_watch._scoring import (
     _looks_like_address,
     _score_shill_campaign,
+    build_kol_stats,
     build_scanner_evidence,
     format_shill_alert,
 )
@@ -247,6 +251,12 @@ async def run_shill_watch(ctx: Any = None) -> int:
             _release("shill_watch", dedupe_key)
             continue
 
+        # 2026-09-04 KOL reporting: enrich the primary account with follower
+        # count + prior shill/rug track record from wall_of_shame.json so the
+        # alert names the KOL, their reach, and their history. Fail-open {}.
+        if not campaign.kol_stats:
+            campaign.kol_stats = build_kol_stats(campaign.accounts)
+
         text = format_shill_alert(campaign)
         routed = False
         # Danger intel: never the news channel. Main only at/above the gate.
@@ -302,3 +312,153 @@ async def run_shill_watch(ctx: Any = None) -> int:
         posted,
     )
     return posted
+
+
+# ── Weekly KOL Wall of Shame (2026-09-04) ──────────────────────────────────
+# Every Sunday 18:00 UTC the bot posts the top-10 worst KOLs to @rmialerts
+# and mirrors the same list to feed.rugmunch.io as "Weekly KOL Wall of
+# Shame". The ranking reads ``data/kol/wall_of_shame.json`` (written by
+# ``ct_shill_watch.record_shill`` / ``kol_ingest``) and orders by damage:
+# scams shilled (desc) → total follower count (desc, reach = more victims) →
+# shill count. Fail-open: a missing/empty file creates it and no-ops; a
+# broken send never crashes the tick.
+WALL_OF_SHAME_PATH = os.getenv(
+    "RMI_WALL_OF_SHAME_PATH",
+    os.path.join(
+        os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        ),
+        "data",
+        "kol",
+        "wall_of_shame.json",
+    ),
+)
+#: Max KOLs on the weekly shame list.
+KOL_WALL_OF_SHAME_TOP_N = int(os.getenv("RMI_KOL_WALL_OF_SHAME_TOP_N", "10"))
+
+
+def _load_wall_of_shame_entries() -> list[dict[str, Any]]:
+    """Wall-of-shame entries (creates the file if missing; fail-open [])."""
+    try:
+        os.makedirs(os.path.dirname(WALL_OF_SHAME_PATH), exist_ok=True)
+        if not os.path.exists(WALL_OF_SHAME_PATH):
+            with open(WALL_OF_SHAME_PATH, "w", encoding="utf-8") as fh:
+                json.dump(
+                    {"updated": datetime.now(UTC).isoformat(), "count": 0, "wall_of_shame": []}, fh
+                )
+            return []
+        with open(WALL_OF_SHAME_PATH, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as exc:
+        logger.debug("shill_watch:wall_of_shame_load_failed err=%s", str(exc)[:120])
+        return []
+    wall = data.get("wall_of_shame", []) if isinstance(data, dict) else []
+    return [e for e in wall if isinstance(e, dict)]
+
+
+def _kol_damage_score(entry: dict[str, Any]) -> tuple[int, int, int]:
+    """(scams_shilled, followers, shill_count) sort key — higher = worse.
+
+    ``scams_shilled`` is the count of distinct tokens the KOL pushed that
+    also appear in the scanner's rug history (``rug_count``) when present,
+    else the entry's own ``shill_count``. Followers proxy reach (more
+    followers = more victims). Pure.
+    """
+    scams = int(entry.get("rug_count") or 0)
+    if scams <= 0:
+        scams = int(entry.get("shill_count") or 0)
+    followers = int(entry.get("followers") or entry.get("follower_count") or 0)
+    shill_count = int(entry.get("shill_count") or 0)
+    return scams, followers, shill_count
+
+
+def _rank_wall_of_shame(entries: list[dict[str, Any]], top_n: int) -> list[dict[str, Any]]:
+    """Top-N worst KOLs by damage (scams desc → followers desc → shills desc)."""
+    ranked = sorted(
+        entries,
+        key=lambda e: _kol_damage_score(e),
+        reverse=True,
+    )
+    return ranked[: max(0, top_n)]
+
+
+def _format_wall_of_shame(ranked: list[dict[str, Any]]) -> str:
+    """HTML card for the weekly Wall of Shame (Telegram parse_mode=html)."""
+    lines = [
+        "🏛 <b>Weekly KOL Wall of Shame</b>",
+        "<i>Top KOLs caught shilling scam tokens this week — ranked by damage.</i>",
+        "",
+    ]
+    if not ranked:
+        lines.append("No KOLs on the wall this week. Clean slate — for now.")
+        return "\n".join(lines)
+    for idx, entry in enumerate(ranked, 1):
+        handle = str(entry.get("handle") or "unknown").lstrip("@")
+        followers = int(entry.get("followers") or entry.get("follower_count") or 0)
+        shills = int(entry.get("shill_count") or 0)
+        rugs = int(entry.get("rug_count") or 0)
+        tokens = [str(t) for t in (entry.get("tokens_shilled") or []) if t]
+        ev_url = str(entry.get("evidence_url") or "")
+        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(idx, f"{idx}.")
+        bits = [f"{medal} <b>@{_esc(handle)}</b>"]
+        if followers:
+            bits.append(f"{followers:,} followers")
+        if shills:
+            bits.append(f"{shills} shill(s)")
+        if rugs:
+            bits.append(f"{rugs} rug(s)")
+        lines.append(" · ".join(bits))
+        if tokens:
+            lines.append(f"   Tokens: {_esc(', '.join(t[:12] for t in tokens[:5]))}")
+        if ev_url:
+            lines.append(f'   <a href="{_esc(ev_url)}">evidence</a>')
+    lines.append("")
+    lines.append(
+        "These KOLs shill scam tokens for exit liquidity. Verify before ape: /scan @rugmunchbot"
+    )
+    return "\n".join(lines)
+
+
+async def post_kol_wall_of_shame(ctx: Any = None) -> int:
+    """Post the weekly top-10 KOL Wall of Shame to @rmialerts + feed mirror.
+
+    Reads ``data/kol/wall_of_shame.json`` (creating it if missing), ranks by
+    damage (scams shilled desc → followers desc → shill count desc), posts
+    the top ``KOL_WALL_OF_SHAME_TOP_N`` to the alerts channel, and mirrors
+    the same list to feed.rugmunch.io as "Weekly KOL Wall of Shame".
+    Returns 1 when the Telegram post shipped, 0 otherwise. Fail-open.
+    """
+    from rugmunchbot.channels.scheduler._core import _chat_id, _safe_send
+
+    alerts_chat = _chat_id("alerts")
+    if not alerts_chat:
+        logger.debug("shill_watch:wall_of_shame_skipped_no_alerts_chat")
+        return 0
+
+    entries = _load_wall_of_shame_entries()
+    ranked = _rank_wall_of_shame(entries, KOL_WALL_OF_SHAME_TOP_N)
+    text = _format_wall_of_shame(ranked)
+
+    # Mirror to feed.rugmunch.io as "Weekly KOL Wall of Shame" (best-effort).
+    try:
+        from rugmunchbot.channels.scheduler._posts_rag import mirror_post_to_feed
+
+        mirror_post_to_feed(
+            {
+                "text": text[:3900],
+                "story_ref": f"weekly-kol-wall-of-shame-{datetime.now(UTC).strftime('%Y%m%d')}",
+                "source": "shill_watch",
+                "kind": "kol_wall_of_shame",
+                "title": "Weekly KOL Wall of Shame",
+            }
+        )
+    except Exception as exc:
+        logger.warning("shill_watch:wall_of_shame_feed_mirror_failed err=%s", str(exc)[:120])
+
+    if ctx is None:
+        logger.debug("shill_watch:wall_of_shame_skipped_no_ctx")
+        return 0
+    sent = await _safe_send(ctx.bot, alerts_chat, text, content_type="alert")
+    if sent:
+        logger.info("shill_watch:wall_of_shame_posted top=%s", len(ranked))
+    return 1 if sent else 0
