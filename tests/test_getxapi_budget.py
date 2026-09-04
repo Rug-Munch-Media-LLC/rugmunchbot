@@ -32,10 +32,18 @@ class _FakeRedis:
         self._data[key] = str(val)
         return val
 
+    def incrby(self, key: str, amount: int) -> int:
+        val = int(self._data.get(key, "0")) + amount
+        self._data[key] = str(val)
+        return val
+
     def incrbyfloat(self, key: str, amount: float) -> float:
         val = float(self._data.get(key, "0")) + amount
         self._data[key] = str(val)
         return val
+
+    def set(self, key: str, value: str) -> None:
+        self._data[key] = value
 
     def expire(self, key: str, ttl: int) -> None:
         pass
@@ -174,3 +182,109 @@ def test_reset_counters_clears():
     budget.reset_counters()
     assert budget.get_daily_usage()["calls"] == 0
     assert budget.get_daily_usage()["spend"] == 0.0
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# INTELLIGENT ROUTING — should_use_getxapi
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_routing_search_always_getxapi():
+    assert budget.should_use_getxapi("search") is True
+    assert budget.should_use_getxapi("advanced_search") is True
+
+
+def test_routing_user_tweets_high_value_uses_getxapi():
+    assert budget.should_use_getxapi("user/tweets", {"followers_count": 100_000}) is True
+
+
+def test_routing_user_tweets_low_value_uses_pry():
+    assert budget.should_use_getxapi("user/tweets", {"followers_count": 1_000}) is False
+
+
+def test_routing_user_tweets_unknown_followers_conservative_getxapi():
+    # No follower count → default to GetXAPI (never silently degrade reliability).
+    assert budget.should_use_getxapi("user-tweets", {"username": "zachxbt"}) is True
+
+
+def test_routing_user_info_uses_getxapi():
+    assert budget.should_use_getxapi("user/info") is True
+
+
+def test_routing_user_mentions_uses_pry():
+    assert budget.should_use_getxapi("user/mentions") is False
+
+
+def test_routing_trends_uses_getxapi():
+    assert budget.should_use_getxapi("trends") is True
+
+
+def test_routing_user_status_uses_getxapi():
+    assert budget.should_use_getxapi("user/status") is True
+
+
+def test_routing_unknown_endpoint_conservative_getxapi():
+    assert budget.should_use_getxapi("some/unknown") is True
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# PRY FALLBACK ACCOUNTING
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_record_pry_call_increments_pry_and_content():
+    budget.record_pry_call("user-tweets")
+    usage = budget.get_daily_usage()
+    assert usage["pry_calls"] == 1
+    assert usage["total_content"] == 1
+    # Pry calls must NOT count against the GetXAPI daily/spend ledger.
+    assert usage["calls"] == 0
+    assert usage["spend"] == 0.0
+
+
+def test_record_content_fetched_increments_content_only():
+    budget.record_content_fetched(20)
+    usage = budget.get_daily_usage()
+    assert usage["total_content"] == 20
+    assert usage["calls"] == 0
+    assert usage["pry_calls"] == 0
+
+
+def test_get_daily_usage_reports_pry_and_content():
+    budget.record_call("search")
+    budget.record_pry_call("mentions")
+    budget.record_content_fetched(5)
+    usage = budget.get_daily_usage()
+    assert usage["calls"] == 1
+    assert usage["pry_calls"] == 1
+    assert usage["total_content"] == 6
+    assert "pacing_active" in usage
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# PACING — hourly / daily Pry-only switch
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_pacing_active_forces_pry_only(monkeypatch):
+    # Simulate an active pacing lock (until far in the future).
+    fake = _FakeRedis()
+    fake._data["getxapi:pacing_until"] = str(10**12)
+    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
+    # Even search (normally always GetXAPI) must route to Pry while pacing.
+    assert budget.should_use_getxapi("search") is False
+    assert budget.should_use_getxapi("trends") is False
+
+
+def test_pacing_not_active_when_no_lock():
+    assert budget.should_use_getxapi("search") is True
+
+
+def test_hourly_pacing_engages_after_limit(monkeypatch):
+    # Record more than the hourly limit (50) calls in the current hour.
+    for _ in range(51):
+        budget.record_call("search")
+    usage = budget.get_daily_usage()
+    assert usage["pacing_active"] is True
+    # While pacing, even search routes to Pry.
+    assert budget.should_use_getxapi("search") is False
