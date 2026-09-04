@@ -39,7 +39,10 @@ Dedup contract (matches the TG news sweep)
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -98,6 +101,372 @@ X_INGEST_TWEETS_PER_ACCOUNT = _env_int(
     "RMI_X_INGEST_TWEETS_PER_ACCOUNT", X_INGEST_TWEETS_PER_ACCOUNT
 )
 X_INGEST_MIN_TWEET_CHARS = _env_int("RMI_X_INGEST_MIN_TWEET_CHARS", X_INGEST_MIN_TWEET_CHARS)
+
+# ══════════════════════════════════════════════════════════════════════════
+# PRY SCRAPING — FREE fallback for X content (saves the $5 GetXAPI budget)
+# ══════════════════════════════════════════════════════════════════════════
+
+#: Pry API base URL (self-hosted, healthy on the host loopback). Same default
+#: the RSS lane uses (``news_ingest.ingest._PRY_BASE_URL``) so one service
+#: serves both rails. Env-overridable via ``PRYSCRAPER_URL``.
+PRY_BASE_URL: str = os.getenv("PRYSCRAPER_URL", "http://127.0.0.1:8005").rstrip("/")
+#: Per-request timeout (seconds) for Pry scrapes. X pages are JS-heavy and can
+#: take a while to render through FlareSolverr, so this is generous.
+PRY_SCRAPE_TIMEOUT_S: float = float(os.getenv("PRY_SCRAPE_TIMEOUT_S", "45"))
+#: Redis cache TTL (seconds) for Pry-scraped tweet content — 15 min, matching
+#: the GetXAPI tweet cache so a cached hit costs ZERO (no Pry call, no budget).
+PRY_CACHE_TWEETS_S: float = float(os.getenv("PRY_CACHE_TWEETS_S", "900"))
+#: Redis cache TTL (seconds) for Pry-scraped profile content — 1 hour.
+PRY_CACHE_PROFILE_S: float = float(os.getenv("PRY_CACHE_PROFILE_S", "3600"))
+
+#: TIER 1 accounts (30) — the highest-value security/news/DeFi-MEV sources.
+#: Polled via GetXAPI (paid, reliable) every 6h. Sourced from the config's
+#: security + news + DeFi/MEV categories (the first 30 of the monitored set).
+TIER1_ACCOUNTS: tuple[str, ...] = GETXAPI_MONITORED_ACCOUNTS[:30]
+#: TIER 2 accounts (100) — KOLs / analysts / funds. Polled via GetXAPI every
+#: 24h. These are the next 100 of the monitored set.
+TIER2_ACCOUNTS: tuple[str, ...] = GETXAPI_MONITORED_ACCOUNTS[30:130]
+#: TIER 3+4 accounts (700+) — long-tail / shiller / emerging. NOT polled
+#: individually via GetXAPI; their tweets are caught by keyword search, then
+#: the FULL content is scraped via Pry (FREE). This is the budget lever: it
+#: saves ~400 GetXAPI calls/day.
+TIER3_4_ACCOUNTS: tuple[str, ...] = GETXAPI_MONITORED_ACCOUNTS[130:]
+
+
+def _pry_cache_key(prefix: str, *parts: str) -> str:
+    """Build a namespaced Redis cache key for Pry results."""
+    joined = ":".join(str(p).strip().lower() for p in parts if str(p).strip())
+    return f"pry:{prefix}:{joined}"
+
+
+async def _pry_cache_get(key: str) -> Any | None:
+    """Read a JSON value from Redis; returns the parsed value or None.
+
+    Fail-open: Redis down / missing / malformed → None (caller hits Pry).
+    """
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis_async
+
+        client = get_redis_async()
+        if client is None:
+            return None
+        raw = await client.get(key)
+        if raw is None:
+            return None
+        return json.loads(raw)
+    except Exception:  # fail-open by contract
+        logger.debug("x_ingest:pry_cache_read_failed key=%s", key)
+        return None
+
+
+async def _pry_cache_set(key: str, value: Any, ttl: float) -> None:
+    """Write a JSON value to Redis with a TTL (fail-open)."""
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis_async
+
+        client = get_redis_async()
+        if client is None:
+            return
+        await client.set(key, json.dumps(value), ex=int(ttl))
+    except Exception:  # fail-open by contract
+        logger.debug("x_ingest:pry_cache_write_failed key=%s", key)
+
+
+async def _pry_scrape(url: str) -> dict[str, Any] | None:
+    """POST *url* to Pry ``/v1/scrape`` with Cloudflare bypass + JS render.
+
+    Returns the Pry ``data`` dict (``markdown`` / ``metadata``) on success,
+    else ``None``. Fail-open by contract: any network / HTTP / parse error
+    returns ``None`` so a Pry outage never breaks a tick.
+
+    Uses ``jsRender: true`` because X/Twitter is a JS-heavy SPA — the tweet
+    content only exists after client-side rendering (which FlareSolverr
+    provides). Mirrors the RSS lane's ``scrape_with_pry`` but with JS render
+    enabled for X.
+    """
+    if not url:
+        return None
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=PRY_SCRAPE_TIMEOUT_S) as client:
+            response = await client.post(
+                f"{PRY_BASE_URL}/v1/scrape",
+                json={"url": url, "bypassCloudflare": True, "jsRender": True},
+            )
+            response.raise_for_status()
+            body = response.json()
+    except Exception as exc:  # fail-open by contract
+        logger.debug("x_ingest:pry_scrape_failed url=%s err=%s", url, str(exc)[:160])
+        return None
+
+    if not isinstance(body, dict):
+        return None
+    # Pry returns the payload under ``data`` on success; tolerate both shapes.
+    data = body.get("data") if isinstance(body.get("data"), dict) else body
+    return data if isinstance(data, dict) else None
+
+
+def _tweet_id_from_url(tweet_url: str) -> str:
+    """Extract the numeric tweet id from an x.com/twitter status URL."""
+    m = re.search(r"/status/(\d+)", tweet_url or "")
+    return m.group(1) if m else ""
+
+
+def _handle_from_url(tweet_url: str) -> str:
+    """Extract the @handle from an x.com/<handle>/status/<id> URL."""
+    m = re.search(r"x\.com/([^/]+)/status/", tweet_url or "")
+    return m.group(1).strip().lstrip("@") if m else ""
+
+
+def _parse_int(value: Any) -> int:
+    """Best-effort int parse (strips commas / K / M suffixes). Fail-open 0."""
+    if value is None:
+        return 0
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value).strip().replace(",", "")
+    if not text:
+        return 0
+    mult = 1
+    if text[-1:].lower() == "k":
+        mult, text = 1000, text[:-1]
+    elif text[-1:].lower() == "m":
+        mult, text = 1_000_000, text[:-1]
+    try:
+        return int(float(text) * mult)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _extract_engagement(markdown: str) -> dict[str, int]:
+    """Pull like / retweet / reply counts out of a rendered X page.
+
+    X pages rendered to markdown surface engagement as labelled numbers
+    (e.g. ``1,234 Likes``, ``56 Reposts``, ``12 Replies``). We scan for the
+    first number preceding each label. Tolerant: any missing metric → 0.
+    """
+    text = markdown or ""
+    out = {"like_count": 0, "retweet_count": 0, "reply_count": 0}
+
+    def _find(labels: tuple[str, ...]) -> int:
+        for label in labels:
+            # Number immediately before the label, e.g. "1,234 Likes".
+            m = re.search(r"([\d.,]+[kKmM]?)\s*" + re.escape(label), text, re.IGNORECASE)
+            if m:
+                return _parse_int(m.group(1))
+        return 0
+
+    out["like_count"] = _find(("likes", "like", "hearts", "favorites"))
+    out["retweet_count"] = _find(("reposts", "retweets", "retweet", "reposts"))
+    out["reply_count"] = _find(("replies", "reply", "comments"))
+    return out
+
+
+def _extract_tweet_text(markdown: str, tweet_url: str) -> str:
+    """Best-effort extraction of the tweet body from a rendered X page.
+
+    X tweet pages render the post body as the first substantial paragraph of
+    markdown. We strip the leading author line (``@handle`` / ``Name``) and
+    any trailing engagement / metadata lines, returning the clean tweet text.
+    """
+    text = (markdown or "").strip()
+    if not text:
+        return ""
+    # Drop the first line if it's just an @handle or a bare name (author line).
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if lines and re.fullmatch(r"@?[\w.]+", lines[0]):
+        lines = lines[1:]
+    # Join the remaining lines up to a reasonable tweet length.
+    body = " ".join(lines)
+    # Cut at common trailing markers (engagement / metadata / "Show more").
+    for marker in ("Show more", "·", "Replying to", "Retweeted"):
+        idx = body.find(marker)
+        if idx > 0:
+            body = body[:idx]
+    # Cut at a trailing engagement label (e.g. "1,234 Likes").
+    m = re.search(
+        r"\s[\d.,]+[kKmM]?\s*(?:Likes?|Reposts?|Retweets?|Replies?|Comments?)\s*$",
+        body,
+        re.IGNORECASE,
+    )
+    if m:
+        body = body[: m.start()]
+    return body.strip()[:500]
+
+
+def _extract_created_at(markdown: str) -> str:
+    """Best-effort extraction of a tweet timestamp from a rendered X page.
+
+    X renders timestamps like ``2:30 PM · Sep 2, 2026`` or ISO strings. We
+    return the raw matched string (the pipeline's ``_parse_created_at``
+    normalizes it); empty string when not found (fail-open).
+    """
+    text = markdown or ""
+    # ISO-8601 first.
+    m = re.search(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?", text)
+    if m:
+        return m.group(0)
+    # X native: "2:30 PM · Sep 2, 2026".
+    m = re.search(r"\d{1,2}:\d{2}\s*[APap][Mm]\s*[·•]\s*[A-Za-z]{3}\s+\d{1,2},\s+\d{4}", text)
+    if m:
+        return m.group(0)
+    return ""
+
+
+async def scrape_tweet_with_pry(tweet_url: str) -> dict[str, Any] | None:
+    """Scrape one X tweet via Pry (FREE) and return it in GetXAPI format.
+
+    POSTs *tweet_url* to Pry ``/v1/scrape`` (Cloudflare bypass + JS render),
+    parses the rendered markdown for tweet text / author / date / engagement,
+    and returns a dict matching the GetXAPI normalized tweet shape so the
+    downstream pipeline (``tweet_to_article``) works unchanged.
+
+    Fail-open: any error (network, HTTP, parse, no text) returns ``None`` so a
+    Pry outage never breaks a tick. Results are Redis-cached 15 min (a cached
+    hit costs ZERO — no Pry call, no budget).
+
+    Returned shape (matches ``getxapi.normalize_tweet``):
+    ``{tweet_id, text, handle, author_name, created_at, retweet_count,
+    like_count, reply_count, quote_count, url, source}`` with ``source="pry"``.
+    """
+    tweet_url = str(tweet_url or "").strip()
+    if not tweet_url:
+        return None
+    tweet_id = _tweet_id_from_url(tweet_url)
+    if not tweet_id:
+        logger.debug("x_ingest:pry_tweet_no_id url=%s", tweet_url)
+        return None
+
+    cache_key = _pry_cache_key("tweet", tweet_id)
+    cached = await _pry_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    data = await _pry_scrape(tweet_url)
+    if not data:
+        return None
+    markdown = str(data.get("markdown") or data.get("content") or "").strip()
+    if not markdown:
+        logger.debug("x_ingest:pry_tweet_empty_markdown url=%s", tweet_url)
+        return None
+
+    text = _extract_tweet_text(markdown, tweet_url)
+    if len(text) < X_INGEST_MIN_TWEET_CHARS:
+        logger.debug("x_ingest:pry_tweet_too_short url=%s", tweet_url)
+        return None
+
+    handle = _handle_from_url(tweet_url)
+    author_name = str(data.get("metadata", {}).get("title") or "").strip() or handle
+    engagement = _extract_engagement(markdown)
+    result: dict[str, Any] = {
+        "tweet_id": tweet_id,
+        "text": text,
+        "handle": handle,
+        "author_name": author_name,
+        "created_at": _extract_created_at(markdown),
+        "retweet_count": engagement["retweet_count"],
+        "like_count": engagement["like_count"],
+        "reply_count": engagement["reply_count"],
+        "quote_count": 0,
+        "url": tweet_url,
+        "source": "pry",
+    }
+    await _pry_cache_set(cache_key, result, PRY_CACHE_TWEETS_S)
+    return result
+
+
+async def scrape_x_profile_with_pry(username: str) -> dict[str, Any] | None:
+    """Scrape one X profile via Pry (FREE) and return it in GetXAPI format.
+
+    Scrapes ``https://x.com/{username}`` via Pry (Cloudflare bypass + JS
+    render) and extracts the bio, follower count, and recent tweets. Returns a
+    dict shaped like the GetXAPI user-info payload so callers that expect a
+    profile dict work unchanged.
+
+    Fail-open: any error returns ``None``. Results are Redis-cached 1 hour.
+
+    Returned shape:
+    ``{username, name, bio, followers_count, following_count, tweets_count,
+    recent_tweets: [<GetXAPI tweet dicts>], source}`` with ``source="pry"``.
+    """
+    username = str(username or "").strip().lstrip("@")
+    if not username:
+        return None
+
+    cache_key = _pry_cache_key("profile", username)
+    cached = await _pry_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    profile_url = f"https://x.com/{username}"
+    data = await _pry_scrape(profile_url)
+    if not data:
+        return None
+    markdown = str(data.get("markdown") or data.get("content") or "").strip()
+    if not markdown:
+        logger.debug("x_ingest:pry_profile_empty_markdown user=%s", username)
+        return None
+
+    # Bio: the first substantial paragraph after the name/@handle header.
+    bio = ""
+    lines = [ln.strip() for ln in markdown.splitlines() if ln.strip()]
+    for ln in lines:
+        if re.fullmatch(r"@?[\w.]+", ln):
+            continue
+        if len(ln) >= 8:
+            bio = ln[:300]
+            break
+
+    # Follower count: first number before "Followers" / "followers".
+    followers = 0
+    m = re.search(r"([\d.,]+[kKmM]?)\s*[Ff]ollowers", markdown)
+    if m:
+        followers = _parse_int(m.group(1))
+
+    # Recent tweets: pull status URLs from the page and scrape the first few.
+    recent_tweets: list[dict[str, Any]] = []
+    status_ids = re.findall(rf"x\.com/{re.escape(username)}/status/(\d+)", markdown)
+    seen: set[str] = set()
+    for tid in status_ids:
+        if tid in seen:
+            continue
+        seen.add(tid)
+        tweet = await scrape_tweet_with_pry(f"https://x.com/{username}/status/{tid}")
+        if tweet is not None:
+            recent_tweets.append(tweet)
+        if len(recent_tweets) >= 5:
+            break
+
+    result: dict[str, Any] = {
+        "username": username,
+        "name": str(data.get("metadata", {}).get("title") or "").strip() or username,
+        "bio": bio,
+        "followers_count": followers,
+        "following_count": 0,
+        "tweets_count": 0,
+        "recent_tweets": recent_tweets,
+        "source": "pry",
+    }
+    await _pry_cache_set(cache_key, result, PRY_CACHE_PROFILE_S)
+    return result
+
+
+def route_account_to_source(handle: str) -> str:
+    """Route one monitored account to its data source (``getxapi`` or ``pry``).
+
+    TIER 1 (first 30) and TIER 2 (next 100) use GetXAPI (paid, reliable);
+    TIER 3+4 (the long tail) use Pry scraping (FREE). This is the budget lever
+    that keeps the $5 envelope alive: the 700+ long-tail accounts never cost a
+    GetXAPI call — their tweets are found by keyword search and the full
+    content is scraped via Pry.
+    """
+    handle = str(handle or "").strip().lstrip("@")
+    if handle in TIER1_ACCOUNTS or handle in TIER2_ACCOUNTS:
+        return "getxapi"
+    return "pry"
 
 
 def _parse_created_at(value: str | None) -> datetime | None:
@@ -323,6 +692,10 @@ async def ingest_x_news() -> dict[str, Any]:
 
 
 __all__ = [
+    "PRY_BASE_URL",
+    "TIER1_ACCOUNTS",
+    "TIER2_ACCOUNTS",
+    "TIER3_4_ACCOUNTS",
     "X_INGEST_MAX_ACCOUNTS_PER_TICK",
     "X_INGEST_MIN_TWEET_CHARS",
     "X_INGEST_RAG_COLLECTION",
@@ -330,5 +703,8 @@ __all__ = [
     "X_SECURITY_ACCOUNTS",
     "fetch_security_tweets",
     "ingest_x_news",
+    "route_account_to_source",
+    "scrape_tweet_with_pry",
+    "scrape_x_profile_with_pry",
     "tweet_to_article",
 ]
