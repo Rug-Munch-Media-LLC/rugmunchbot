@@ -5,6 +5,8 @@ on:
     branches: [main, wip/*, feat/**]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "0 3 * * *" # nightly — enables scheduled k6 smoke test
 
 env:
   PYTHON_VERSION: "3.12"
@@ -382,3 +384,44 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
           grype dir:. --fail-on critical || echo "::warning::critical vulns in tree"
+
+  # ── k6 performance smoke (nightly, non-blocking) ─────────────
+  k6-smoke:
+    # k6 needs a RUNNING bot to test against. In PR CI the full bot runtime
+    # (Telegram client, Redis, backend API) would be required, and secrets
+    # are not available in PR context. Runs on schedule against the live
+    # deployment instead.
+    # To enable: set K6_TARGET_URL as a repo variable (vars) or secret
+    # pointing to the deployed bot's /healthz server (default port 9191).
+    #
+    # Non-blocking (continue-on-error) until the bot is available in CI.
+    # Graduate to blocking by removing continue-on-error once a test
+    # environment is provisioned.
+    if: github.event_name == 'schedule'
+    continue-on-error: true
+    runs-on: docker-x64
+    container:
+      image: grafana/k6:latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Create results directory
+        run: mkdir -p tests/k6/results
+      - name: Connectivity pre-check
+        run: |
+          echo "🔍 Checking bot reachability at ${{ vars.K6_TARGET_URL || 'http://localhost:9191' }} ..."
+          curl -sSf -o /dev/null -w "HTTP %{http_code}\n" \
+            "${{ vars.K6_TARGET_URL || 'http://localhost:9191' }}/healthz" \
+            --connect-timeout 10 --max-time 15 \
+            && echo "✅ Bot is reachable — proceeding with k6 smoke test" \
+            || echo "⚠️  Bot not reachable — k6 will report failures (non-blocking)"
+        continue-on-error: true
+      - name: Run k6 smoke test against live deployment
+        run: |
+          k6 run tests/k6/smoke.js \
+            -e BASE_URL=${{ vars.K6_TARGET_URL || 'http://localhost:9191' }} \
+            --summary-export=tests/k6/results/smoke-summary.json
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: k6-smoke-report
+          path: tests/k6/results/
