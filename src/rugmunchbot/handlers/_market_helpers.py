@@ -14,7 +14,7 @@ from typing import Any
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from rugmunchbot.config import fmt_number, fmt_pct
+from rugmunchbot.config import WEBSITE_URL, fmt_number, fmt_pct
 from rugmunchbot.formatters import footer_links, sep
 from rugmunchbot.support.logging import get_logger
 
@@ -87,9 +87,13 @@ LIQ_TIERS = [
 
 
 def _resolve_chain(arg: str | None) -> str:
-    """Normalize a /trending chain argument (aliases → canonical names)."""
+    """Normalize a /trending chain argument (aliases → canonical names).
+
+    No argument (or an unrecognised alias) resolves to ``all`` — the fused
+    multi-chain feed is the default view.
+    """
     if not arg:
-        return "solana"
+        return "all"
     chain = arg.lower().strip()
     return RUGCHARTS_CHAIN_ALIASES.get(chain, chain)
 
@@ -371,6 +375,21 @@ def _window_note(window: str, tokens: list[dict[str, Any]]) -> str:
     return ""
 
 
+def _fmt_price(price: Any) -> str:
+    """Compact USD price for the trending detail line ("" when unknown/zero)."""
+    try:
+        v = float(price or 0)
+    except (TypeError, ValueError):
+        return ""
+    if v >= 1:
+        return f"${v:,.2f}"
+    if v >= 0.01:
+        return f"${v:.4f}"
+    if v > 0:
+        return f"${v:.8f}".rstrip("0")
+    return ""
+
+
 def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str) -> str:
     """HTML trending list with badges, clickable CAs, risk indicators."""
     tokens = _sort_trending(tokens, window)
@@ -383,7 +402,7 @@ def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str)
             continue
         name, symbol = _trending_display(t)
         rendered += 1
-        if rendered > 8:
+        if rendered > 10:
             break
         # Paragraph break between token cards so multi-line entries never
         # blur into a wall of text.
@@ -395,12 +414,13 @@ def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str)
         risk = t.get("risk_score")
         created = t.get("created_at")
 
-        # Badges
-        chain_badge = _chain_badge(chain)
+        # Badges — per-token chain so the "all" view shows each token's home chain
+        chain_badge = _chain_badge(t.get("chain") or chain)
         age_badge = _age_badge(created)
         liq_badge = _liq_badge(liq)
         risk_emoji = _risk_emoji(risk)
         chg_emoji = "🟢" if chg >= 0 else "🔴"
+        price_txt = _fmt_price(t.get("price_usd") or t.get("price"))
 
         # Bundle warning
         bundle_flag = " 🚨" if t.get("bundle_detected") else ""
@@ -408,9 +428,10 @@ def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str)
         # If name unknown, show truncated address instead
         display_name = name if name not in ("Unknown", "???", "") else f"{addr[:8]}...{addr[-6:]}"
         display_symbol = symbol if symbol not in ("Unknown", "???", "") else "?"
+        price_part = f"Price: {price_txt} | " if price_txt else ""
         lines.append(
             f"{rendered}. {chain_badge} {age_badge} {risk_emoji} <b>{display_name}</b> ({display_symbol}){bundle_flag}\n"
-            f"   {liq_badge} | {chg_emoji} {fmt_pct(chg)} | Vol: {fmt_number(vol)}\n"
+            f"   {liq_badge} | {chg_emoji} {fmt_pct(chg)} | {price_part}Vol: {fmt_number(vol)}\n"
             f"   <code>{addr}</code>"
         )
 
@@ -426,44 +447,47 @@ def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str)
 def _build_trending_kb(
     tokens: list[dict[str, Any]], chain: str, window: str
 ) -> InlineKeyboardMarkup:
-    """Trending keyboard: named token buttons + chain/window selectors.
+    """Trending keyboard: rugcharts deep-link token buttons + chain/window selectors.
 
-    Design: each token gets ONE button with its name → opens scan.
-    Chain row switches chain, window row changes time frame.
-    Clean, scannable, no button overload.
+    Design: each token gets ONE button that deep-links to the RugCharts web
+    chart (``rugmunch.io/charts?chain=X&address=Y``). The chain row switches
+    chain, the window row changes the time frame. Clean, scannable, no
+    button overload.
     """
     rows: list[list[InlineKeyboardButton]] = []
 
-    # Token buttons — one per token, named, opens scan
-    for t in tokens[:8]:
+    # Token buttons — one per token, deep link to rugcharts chart page
+    for t in tokens[:10]:
         addr = t.get("address", "")
         if not addr:
             continue
         name, symbol = _trending_display(t)
         # If name/symbol are unknown, use truncated address
         if name in ("Unknown", "???", "") or symbol in ("Unknown", "???", ""):
-            label = f"🔍 {addr[:8]}...{addr[-6:]}"[:40]
+            label = f"📈 {addr[:8]}...{addr[-6:]}"[:40]
         else:
-            label = f"🔍 {name} ({symbol})"[:40]
-        rows.append([InlineKeyboardButton(label, callback_data=f"scan_{addr}_{chain}")])
-
-    # Chain selector row (2 per row for compact layout)
-    chain_list = ["solana", "ethereum", "base", "bsc", "arbitrum"]
-    chain_emoji = {"solana": "🟣", "ethereum": "🔵", "base": "🔵", "bsc": "🟡", "arbitrum": "🔵"}
-    chain_row = []
-    for c in chain_list:
-        emoji = chain_emoji.get(c, "⚪")
-        label = f"{emoji} {c.capitalize()}"
-        if len(chain_row) >= 3:
-            rows.append(chain_row)
-            chain_row = []
-        chain_row.append(
-            InlineKeyboardButton(
-                f"[{label}]" if c == chain else label, callback_data=f"trending_chain_{c}"
-            )
+            label = f"📈 {name} ({symbol})"[:40]
+        tok_chain = (t.get("chain") or chain).lower()
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    label, url=f"{WEBSITE_URL}/charts?chain={tok_chain}&address={addr}"
+                )
+            ]
         )
-    if chain_row:
-        rows.append(chain_row)
+
+    # Chain selector row: [SOL] [ETH] [BSC] [BASE] [ALL]
+    chain_list = ["solana", "ethereum", "bsc", "base", "all"]
+    chain_label = {"solana": "SOL", "ethereum": "ETH", "bsc": "BSC", "base": "BASE", "all": "ALL"}
+    rows.append(
+        [
+            InlineKeyboardButton(
+                f"[{chain_label[c]}]" if c == chain else chain_label[c],
+                callback_data=f"trending_chain_{c}",
+            )
+            for c in chain_list
+        ]
+    )
 
     # Window selector row
     win_row = [

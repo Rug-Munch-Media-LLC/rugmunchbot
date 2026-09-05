@@ -52,8 +52,8 @@ def test_time_ago_malformed_iso_degrades_to_empty() -> None:
 
 
 def test_resolve_chain_aliases_and_default() -> None:
-    assert _resolve_chain(None) == "solana"
-    assert _resolve_chain("") == "solana"
+    assert _resolve_chain(None) == "all"
+    assert _resolve_chain("") == "all"
     assert _resolve_chain(" SOL ") == "solana"
     assert _resolve_chain("eth") == "ethereum"
     assert _resolve_chain("base") == "base"  # canonical passthrough

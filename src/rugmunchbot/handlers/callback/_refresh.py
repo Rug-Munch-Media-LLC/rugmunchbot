@@ -63,11 +63,15 @@ async def handle(
     """Handle refresh/reload callbacks. True when a branch matched."""
     if data == "trending_refresh":
         await query.answer("Refreshing...")
-        await query.edit_message_text("\U0001f504 <b>Refreshing trending...</b>", parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            "\U0001f504 <b>Refreshing trending...</b>", parse_mode=ParseMode.HTML
+        )
         await _render_trending_reply(query, "solana", "24h")
     elif data == "news_refresh":
         await query.answer("Refreshing...")
-        await query.edit_message_text("\U0001f4f0 <b>Refreshing news...</b>", parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            "\U0001f4f0 <b>Refreshing news...</b>", parse_mode=ParseMode.HTML
+        )
         articles = []
         source_label = "Backend"
         body = await http_get_json(
@@ -121,7 +125,9 @@ async def handle(
                 reply_markup=back_kb(),
             )
     elif data.startswith("news_refresh"):
-        await query.edit_message_text("\U0001f4f0 <b>Refreshing news...</b>", parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            "\U0001f4f0 <b>Refreshing news...</b>", parse_mode=ParseMode.HTML
+        )
         # Import and re-run cmd_news
         from rugmunchbot.handlers.market import cmd_news as _news
 
@@ -130,7 +136,9 @@ async def handle(
     elif data.startswith("sentiment_refresh"):
         # Shadowed by the earlier ``sentiment_`` branch (see module docstring);
         # kept for structural fidelity with the original chain.
-        await query.edit_message_text("\U0001f4c8 <b>Refreshing sentiment...</b>", parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            "\U0001f4c8 <b>Refreshing sentiment...</b>", parse_mode=ParseMode.HTML
+        )
         from rugmunchbot.handlers.sentiment import cmd_sentiment as _sentiment
 
         ctx.args = []
@@ -138,7 +146,7 @@ async def handle(
     elif data.startswith("trending_chain_"):
         # Switch chain: trending_chain_{chain}
         new_chain = data[len("trending_chain_") :]
-        if new_chain in ("solana", "ethereum", "base", "bsc", "arbitrum"):
+        if new_chain in ("solana", "ethereum", "base", "bsc", "arbitrum", "all"):
             await query.edit_message_text(
                 f"\U0001f525 <b>Loading {new_chain.capitalize()} trending...</b>",
                 parse_mode=ParseMode.HTML,
@@ -150,12 +158,16 @@ async def handle(
         parts = data.split("_", 3)
         if len(parts) == 4 and parts[3] in ("1h", "24h", "7d"):
             win_chain, win = parts[2], parts[3]
-            await query.edit_message_text("\U0001f525 <b>Loading trending...</b>", parse_mode=ParseMode.HTML)
+            await query.edit_message_text(
+                "\U0001f525 <b>Loading trending...</b>", parse_mode=ParseMode.HTML
+            )
             await _render_trending_reply(query, win_chain, win)
         else:
             await query.answer("Invalid request.", show_alert=True)
     elif data.startswith("trending_refresh"):
-        await query.edit_message_text("\U0001f525 <b>Refreshing trending...</b>", parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            "\U0001f525 <b>Refreshing trending...</b>", parse_mode=ParseMode.HTML
+        )
         from rugmunchbot.handlers.market import cmd_trending as _trending
 
         parts = data.split("_", 2)

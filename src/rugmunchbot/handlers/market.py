@@ -198,7 +198,7 @@ async def render_trending(
 
 async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /trending [chain] — hot tokens from fused multi-source data."""
-    chain = _resolve_chain(ctx.args[0]) if ctx.args else "solana"
+    chain = _resolve_chain(ctx.args[0]) if ctx.args else "all"
     msg = await update.message.reply_text(
         "🔥 <b>Fetching trending tokens...</b>", parse_mode=ParseMode.HTML
     )  # type: ignore[union-attr]  # PTB None-able fields
