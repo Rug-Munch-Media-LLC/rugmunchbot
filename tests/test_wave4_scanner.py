@@ -6,6 +6,10 @@ no ClickHouse, no network.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("rugmunch_scanner")
+
 from rugmunch_scanner.unified.engines.deployer_profiles import (
     _row_to_profile,
     build_deployer_label,

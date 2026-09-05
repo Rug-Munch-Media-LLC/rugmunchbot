@@ -7,6 +7,10 @@ no network, no Redis.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("rugmunch_scanner")
+
 from rugmunch_scanner.unified.engines.behavioral_fingerprint import (
     _DOW_BINS,
     _HOURS_BINS,
