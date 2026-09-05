@@ -55,7 +55,7 @@ def test_mirror_fail_open_returns_none_on_bad_path(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_daily_summary_mirrors_to_feed(monkeypatch, tmp_path):
     """The Morning/Midday Rug Market Report also mirrors to feed.rugmunch.io."""
-    from rugmunchbot.channels.daily_market_summary import _publish
+    from rugmunchbot.channels.daily_market_summary._publish import send as _publish
 
     writes: list[dict] = []
 
