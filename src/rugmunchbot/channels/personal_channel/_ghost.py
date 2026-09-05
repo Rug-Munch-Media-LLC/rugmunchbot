@@ -31,7 +31,7 @@ logger = get_logger("rmi_bot.channels.personal")
 
 # ── Ghost Admin API client (fail-open) ──────────────────────────────────────
 
-#: TODO(ghost-admin-key) (2026-09-02: still open): provision
+#: FIXME(issue): provision
 #: GHOST_ADMIN_API_KEY for the cross-post
 #: job. secrets-store entry: ghost-admin-api-key (name
 #: only — never log the value). Content API key (GHOST_CONTENT_API_KEY) is

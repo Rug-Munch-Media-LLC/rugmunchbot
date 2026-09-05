@@ -236,7 +236,7 @@ async def run_shill_watch(ctx: Any = None) -> int:
     # preview) and persisted with source='telegram', independent of campaign
     # detection — so KOL posts are evidenced even when no campaign fires.
     # Deleted-post detection is NOT possible in this poll-based sweep — see
-    # the TODO(deleted-posts) note above ``capture_telegram_kol_posts``.
+    # the FIXME(issue) note above ``capture_telegram_kol_posts``.
     if TG_CAPTURE_ENABLED:
         await capture_telegram_kol_posts(articles, TG_CAPTURE_BUDGET)
 

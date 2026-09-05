@@ -253,7 +253,7 @@ async def _capture_campaign_shills(campaign: ShillCampaign, budget: int) -> int:
 # KOL post requires a Telethon ``events.MessageDeleted`` handler on a live
 # client plus a "seen vs gone" diff against the last sweep — the headless
 # client used here exposes no event loop for that.
-# TODO(deleted-posts) (2026-09-02: still open): register a MessageDeleted handler on the live client
+# FIXME(issue): register a MessageDeleted handler on the live client
 # (``_build_headless_client`` consumer) that, on deletion of a message from a
 # ``SHILL_WATCH_CHANNELS`` channel captured in a prior sweep, re-persists the
 # already-captured screenshot/OCR with ``deleted=True`` so the site can show
