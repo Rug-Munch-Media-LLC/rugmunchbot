@@ -229,8 +229,8 @@ def _normalize_dex_pair(pair: dict[str, Any], token: str) -> dict[str, Any]:
         if price_native > 0:
             swapped["priceUsd"] = price_usd / price_native
             swapped["priceNative"] = 1.0 / price_native
-    except (TypeError, ValueError, ZeroDivisionError):
-        pass
+    except (TypeError, ValueError, ZeroDivisionError) as e:
+        logger.debug("pair_swap:price_recompute_failed err=%s", e)
     return swapped
 
 

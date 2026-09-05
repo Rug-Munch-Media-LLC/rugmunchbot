@@ -48,7 +48,9 @@ async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if isinstance(retry_after, timedelta):
             retry_after = retry_after.total_seconds()
         backoff = min(float(retry_after or 1.0), RETRY_AFTER_SLEEP_CAP)
-        logger.warning("telegram_rate_limited retry_after=%.1fs sleeping=%.1fs", retry_after, backoff)
+        logger.warning(
+            "telegram_rate_limited retry_after=%.1fs sleeping=%.1fs", retry_after, backoff
+        )
         await asyncio.sleep(backoff)
         return  # transient — no user-facing error
 
@@ -92,8 +94,8 @@ def _classify_error(error: Exception) -> tuple[str, str | None]:
                 return ("Not found -- double-check the address or handle.", None)
             if status >= 500 or status == 0:
                 return ("Backend hiccup -- try again shortly.", None)
-    except ImportError:
-        pass
+    except ImportError as e:
+        logger.debug("error_classify:backend_api_error_import_failed err=%s", e)
 
     # Timeouts (asyncio, httpx, bare OSError timeouts).
     if isinstance(error, (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException)):

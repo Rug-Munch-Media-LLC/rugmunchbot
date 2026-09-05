@@ -101,10 +101,12 @@ def _cache_clear(handle: str | None = None) -> int:
                     try:
                         os.remove(os.path.join(_pkg.APIPASS_CACHE_DIR, name))
                         removed += 1
-                    except OSError:
-                        pass
-    except OSError:
-        pass
+                    except OSError as e:
+                        _pkg.logger.debug(
+                            "apipass_x:cache_file_remove_failed name=%s err=%s", name, e
+                        )
+    except OSError as e:
+        _pkg.logger.debug("apipass_x:cache_clear_failed err=%s", e)
     return removed
 
 

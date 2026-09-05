@@ -263,8 +263,10 @@ def _fresh_wallet_pct(r: dict[str, Any]) -> float | None:
     if isinstance(ha, dict) and ha.get("new_wallets_pct") is not None:
         try:
             return float(ha["new_wallets_pct"])
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            logger.debug(
+                "fields:new_wallets_pct_unparsable raw=%r err=%s", ha["new_wallets_pct"], e
+            )
     raw = r.get("fresh_wallet_pct")
     try:
         return float(raw) if raw is not None else None

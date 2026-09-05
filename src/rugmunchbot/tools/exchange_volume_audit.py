@@ -97,10 +97,7 @@ def audit_venues(tickers: list[dict[str, Any]]) -> dict[str, Any]:
             notes.append(f"majority untrusted tickers ({red}/{len(ts)})")
 
         # 2) vol share vs depth
-        depth = sum(
-            _f((t.get("market") or {}).get("depth_usd", 0)) or 0.0
-            for t in ts
-        )
+        depth = sum(_f((t.get("market") or {}).get("depth_usd", 0)) or 0.0 for t in ts)
         vol_share = vol / total_vol
         if depth and depth > 0 and vol > 0:
             vol_depth_ratio = vol / depth
@@ -129,23 +126,25 @@ def audit_venues(tickers: list[dict[str, Any]]) -> dict[str, Any]:
                     dt = dt.replace(tzinfo=UTC)
                 if now - dt > timedelta(minutes=30):
                     stale += 1
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                logger.debug("stale_check:unparsable_ts venue=%s raw=%r err=%s", ex, lt, e)
         if ts and stale == len(ts) and vol > 0:
             score -= 20
             notes.append("all prints stale while volume accrues")
 
         score = max(0.0, min(100.0, score))
         verdict = "TRUSTED" if score >= 80 else "SUSPECT" if score >= 50 else "WASH_RISK"
-        venues.append({
-            "exchange": ex,
-            "score": round(score, 1),
-            "verdict": verdict,
-            "vol_usd_24h": round(vol),
-            "vol_share": round(vol_share * 100, 1),
-            "tickers": len(ts),
-            "notes": notes,
-        })
+        venues.append(
+            {
+                "exchange": ex,
+                "score": round(score, 1),
+                "verdict": verdict,
+                "vol_usd_24h": round(vol),
+                "vol_share": round(vol_share * 100, 1),
+                "tickers": len(ts),
+                "notes": notes,
+            }
+        )
 
     venues.sort(key=lambda v: v["score"])
     return {"venues": venues, "exchanges_audited": len(venues)}
@@ -155,15 +154,20 @@ async def exchange_volume_audit(*, token_id: str = "", symbol: str = "") -> Tool
     """ToolResult: venue-level wash-trading audit for one token."""
     tid = token_id or (symbol.lower() if symbol else "")
     if not tid:
-        return ToolResult(tool="exchange_volume_audit", ok=False, data={"error": "token_id or symbol required"})
+        return ToolResult(
+            tool="exchange_volume_audit", ok=False, data={"error": "token_id or symbol required"}
+        )
     tickers = await _fetch_tickers(tid)
     if not tickers:
-        return ToolResult(tool="exchange_volume_audit", ok=False, data={"error": "no ticker data available"})
+        return ToolResult(
+            tool="exchange_volume_audit", ok=False, data={"error": "no ticker data available"}
+        )
     report = audit_venues(tickers)
     report["token"] = tid
     wash_risk = [v for v in report["venues"] if v["verdict"] == "WASH_RISK"]
     report["headline"] = (
         f"{len(wash_risk)}/{report['exchanges_audited']} venues flagged WASH_RISK"
-        if wash_risk else "no venue-level wash signals"
+        if wash_risk
+        else "no venue-level wash signals"
     )
     return ToolResult(tool="exchange_volume_audit", ok=True, data=report)

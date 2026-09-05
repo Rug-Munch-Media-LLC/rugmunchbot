@@ -11,6 +11,8 @@ from typing import Any
 
 import rugmunchbot.channels.scheduler._posts_rag as _pkg
 
+logger = _pkg.logger
+
 
 def _draft_age_hours(item: dict[str, Any]) -> tuple[float | None, str]:
     """Best-effort age of a draft in hours + which probe matched.
@@ -25,8 +27,8 @@ def _draft_age_hours(item: dict[str, Any]) -> tuple[float | None, str]:
             if ts.tzinfo is None:
                 ts = ts.replace(tzinfo=UTC)
             return max((datetime.now(UTC) - ts).total_seconds() / 3600.0, 0.0), "field"
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.debug("draft_age:unparsable_ts raw=%r err=%s", raw, e)
     m = _pkg._EMBEDDED_DATE_RE.search(str(item.get("text") or ""))
     if m:
         try:

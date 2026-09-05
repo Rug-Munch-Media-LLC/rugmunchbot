@@ -39,6 +39,10 @@ import os
 import subprocess
 from typing import Any
 
+from rugmunchbot.support.logging import get_logger
+
+logger = get_logger(__name__)
+
 # ══════════════════════════════════════════════════════════════════════════
 # CORE SETTINGS
 # ══════════════════════════════════════════════════════════════════════════
@@ -245,8 +249,8 @@ def _resolve_api_key() -> str:
             value = fh.read().strip()
         if value:
             return value
-    except (OSError, UnicodeDecodeError):
-        pass
+    except (OSError, UnicodeDecodeError) as e:
+        logger.warning("getxapi:key_file_unreadable path=%s err=%s", _GETXAPI_KEY_FILE, e)
     try:
         value = (
             subprocess.check_output(  # noqa: S603 — gopass is the canonical secret store
@@ -260,8 +264,8 @@ def _resolve_api_key() -> str:
         )
         if value:
             return value
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        pass
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        logger.debug("getxapi:gopass_unavailable err=%s", e)
     return ""
 
 

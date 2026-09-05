@@ -99,8 +99,8 @@ def _resolve_api_key() -> str:
             value = fh.read().strip()
         if value:
             return value
-    except (OSError, UnicodeDecodeError):
-        pass
+    except (OSError, UnicodeDecodeError) as e:
+        _pkg.logger.warning("apipass_x:key_file_unreadable path=%s err=%s", _pkg._KEY_FILE, e)
     try:
         value = (
             subprocess.check_output(  # noqa: S603 — gopass is the canonical secret store
@@ -114,8 +114,8 @@ def _resolve_api_key() -> str:
         )
         if value:
             return value
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        pass
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        _pkg.logger.debug("apipass_x:gopass_unavailable err=%s", e)
     return ""
 
 

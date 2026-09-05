@@ -329,8 +329,8 @@ def _key_metrics_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
             rows.append(
                 f"  Top 10 Holders \U0001f465 <b>{top10:.1f}%</b>{' (' + cls + ')' if cls else ''}"
             )
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            logger.debug("layout:holder_concentration_unparsable raw=%r err=%s", hc["top10_pct"], e)
 
     # 2026-08-26 rich-output push: the new scanner engines (dev_sold,
     # dex_paid, price_metrics ATH, sniper_count, holder_concentration
@@ -353,8 +353,8 @@ def _key_metrics_rows(r: dict[str, Any], *, deep: bool = False) -> list[str]:
                     "EXTREME" if gini_val >= 0.8 else "HIGH" if gini_val >= 0.6 else "MODERATE"
                 )
                 rows.append(f"  Gini Coeff     \U0001f4ca <b>{gini_val:.2f}</b> ({gini_label})")
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as e:
+                logger.debug("layout:gini_unparsable raw=%r err=%s", gini, e)
         gmgn_holders = (
             (r.get("gmgn") or {}).get("holders") if isinstance(r.get("gmgn"), dict) else None
         )

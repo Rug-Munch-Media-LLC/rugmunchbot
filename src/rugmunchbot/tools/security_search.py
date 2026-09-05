@@ -114,8 +114,8 @@ def _parse_created_at(value: str | None) -> datetime | None:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=UTC)
         return dt.astimezone(UTC)
-    except ValueError:
-        pass
+    except ValueError as e:
+        logger.debug("ts_parse:iso_failed text=%r err=%s", text, e)
     # X native format: "Sun Jan 25 13:05:46 +0000 2026".
     try:
         dt = datetime.strptime(text, "%a %b %d %H:%M:%S %z %Y")

@@ -23,6 +23,9 @@ from telegram.constants import ParseMode
 from rugmunchbot import db
 from rugmunchbot.config import SCAM_SCHOOL_TOPICS, TIERS
 from rugmunchbot.keyboards import back_kb, scamschool_kb
+from rugmunchbot.support.logging import get_logger
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -77,14 +80,16 @@ async def handle(
                 "\u2705 Alert dismissed.",
                 parse_mode=ParseMode.HTML,
             )
-        except (ConnectionError, OSError, TimeoutError):
-            pass
+        except (ConnectionError, OSError, TimeoutError) as e:
+            logger.warning("callback:dismiss_alert_edit_failed data=%s err=%s", data, e)
         await query.answer("Alert dismissed.")
     elif data.startswith("scam_"):
         topic_key = data[5:]
         topic = SCAM_SCHOOL_TOPICS.get(topic_key)
         if topic:
-            await query.edit_message_text(topic["content"], parse_mode=ParseMode.MARKDOWN, reply_markup=scamschool_kb())
+            await query.edit_message_text(
+                topic["content"], parse_mode=ParseMode.MARKDOWN, reply_markup=scamschool_kb()
+            )
     elif data.startswith("scan_"):
         await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.scanning", "cmd_scan")
     elif data.startswith("share_"):
@@ -127,9 +132,7 @@ async def handle(
             )
         await _run_addr_cmd(update, ctx, data, "rugmunchbot.commands.rugmap", "cmd_rugmap")
     elif data.startswith("alert_"):
-        await _run_addr_cmd(
-            update, ctx, data, "rugmunchbot.handlers.alerts", "cmd_alerts", args=[]
-        )
+        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.alerts", "cmd_alerts", args=[])
     elif data.startswith("upgrade_"):
         tier_key = data[8:]
         if tier_key in TIERS:
@@ -143,7 +146,11 @@ async def handle(
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(
                     [
-                        [InlineKeyboardButton(f"⭐ Subscribe {tier_info['name']}", callback_data=f"sub_{tier_key}")],
+                        [
+                            InlineKeyboardButton(
+                                f"⭐ Subscribe {tier_info['name']}", callback_data=f"sub_{tier_key}"
+                            )
+                        ],
                         [InlineKeyboardButton("🔙 Plans", callback_data="menu_pricing")],
                     ]
                 ),
@@ -154,7 +161,11 @@ async def handle(
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(
                 [
-                    [InlineKeyboardButton("✅ Yes, Revoke All", callback_data="api_revoke_confirm")],
+                    [
+                        InlineKeyboardButton(
+                            "✅ Yes, Revoke All", callback_data="api_revoke_confirm"
+                        )
+                    ],
                     [InlineKeyboardButton("🔙 Cancel", callback_data="menu_main")],
                 ]
             ),
@@ -177,7 +188,9 @@ async def handle(
         if pair is not None:
             addr, chain = pair
             ok = db.add_watchlist(user.id, addr, chain)
-            await query.answer("Added to watchlist!" if ok else "Could not add (limit reached?)", show_alert=True)
+            await query.answer(
+                "Added to watchlist!" if ok else "Could not add (limit reached?)", show_alert=True
+            )
     elif data.startswith("research_"):
         parts = data.split("_", 2)
         if len(parts) == 2:
