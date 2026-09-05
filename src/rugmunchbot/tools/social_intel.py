@@ -8,6 +8,7 @@ narrative read. Real data only; gaps degrade honestly.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 from typing import Any
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 # Resolve like tools/web.py: settings shim (SEARXNG_BASE_URL, canon :8889).
 # Do NOT read SEARXNG_URL — stale shell exports point at a dead tailnet port.
-from rugmunchbot._vendor.settings_shim import settings as _settings
+from rugmunchbot._vendor.settings_shim import settings as _settings  # noqa: E402
 
 SEARXNG = _settings.searxng_base_url.rstrip("/")
 
@@ -45,10 +46,8 @@ async def _feed_sentiment(symbol: str) -> dict[str, Any]:
     sent, biased, factual = [], [], []
     for it in items:
         for k, bucket in (("sentiment", sent), ("bias_score", biased), ("factual_score", factual)):
-            try:
+            with contextlib.suppress(TypeError, ValueError):
                 bucket.append(float(it.get(k)))
-            except (TypeError, ValueError):
-                pass
     lean = sum(sent) / len(sent) * 100 if sent else None  # -1..1 -> -100..100
     return {
         "articles": len(items),

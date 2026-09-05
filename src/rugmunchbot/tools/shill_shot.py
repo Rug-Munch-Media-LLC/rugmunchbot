@@ -115,7 +115,7 @@ async def capture_screenshot(url: str, out_path: str, *, timeout_ms: int = 20000
             await page.goto(url, timeout=timeout_ms, wait_until="networkidle")
             await page.screenshot(path=out_path, full_page=False)
             await browser.close()
-        return os.path.isfile(out_path) and os.path.getsize(out_path) > 0
+        return os.path.isfile(out_path) and os.path.getsize(out_path) > 0  # noqa: ASYNC240 — local file check
     except Exception:
         return False
 
@@ -129,10 +129,10 @@ async def vision_ocr(image_path: str, prompt: str | None = None) -> str:
     key = _load_key()
     if not key:
         return ""
-    if not os.path.isfile(image_path):
+    if not os.path.isfile(image_path):  # noqa: ASYNC240 — local file check
         return ""
     try:
-        with open(image_path, "rb") as fh:
+        with open(image_path, "rb") as fh:  # noqa: ASYNC230 — small local file read
             b64 = base64.b64encode(fh.read()).decode()
     except OSError:
         return ""
@@ -170,7 +170,7 @@ async def vision_ocr(image_path: str, prompt: str | None = None) -> str:
 
 
 async def capture_and_ocr(
-    url: str, *, out_path: str = "/tmp/opencode/shill_shot.png"
+    url: str, *, out_path: str = "/tmp/opencode/shill_shot.png"  # noqa: S108 — ephemeral screenshot
 ) -> dict[str, str]:
     """Convenience: capture a URL then OCR it. Returns {url, image_path, text}.
 

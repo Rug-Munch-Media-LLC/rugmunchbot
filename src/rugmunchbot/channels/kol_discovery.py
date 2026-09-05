@@ -241,7 +241,7 @@ def add_discovered_kol(
         record["tokens_shilled"] = tokens[:20]
     ev = dict(evidence or {})
     ev_list = [e for e in (record.get("evidence") or []) if isinstance(e, dict)]
-    if ev := {k: str(v) for k, v in ev.items() if v}:
+    if ev := {k: str(v) for k, v in ev.items() if v}:  # noqa: SIM102 — walrus value must stay the dict
         if not any(
             str(e.get("tweet_id") or "") == ev.get("tweet_id", "") and ev.get("tweet_id")
             for e in ev_list

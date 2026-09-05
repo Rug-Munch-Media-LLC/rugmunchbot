@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import html
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
+
+if TYPE_CHECKING:
+    from telegram import Update
 
 from rugmunchbot.config._endpoints import backend_headers
 
@@ -96,7 +98,7 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 )
         if rows:
             lines.extend(["", "<b>Tool Metrics (this process)</b>", *rows])
-    except Exception:
+    except Exception:  # noqa: S110 — best-effort metrics, never block /status
         pass
     lines.extend(["", "via @rugmunchbot · rugmunch.io"])
     await wait.edit_text("\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True)

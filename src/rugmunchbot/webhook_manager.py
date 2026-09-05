@@ -23,7 +23,7 @@ from enum import Enum
 from typing import Any
 
 
-class WebhookStatus(str, Enum):
+class WebhookStatus(str, Enum):  # noqa: UP042 — str values serialized to API responses
     ACTIVE = "active"
     INACTIVE = "inactive"
     SUSPENDED = "suspended"
@@ -107,9 +107,7 @@ def should_retry_delivery(status_code: int | None, attempt: int, max_attempts: i
         return True
     if status_code == 429:
         return True
-    if status_code == 408:
-        return True
-    return False
+    return status_code == 408
 
 
 def get_retry_delay(attempt: int) -> float:
@@ -177,12 +175,7 @@ def batch_events(
     for event in events:
         current_batch.append(event)
 
-        if len(current_batch) >= max_batch_size:
-            batches.append(current_batch)
-            current_batch = []
-            batch_start_time = time.time()
-
-        elif max_wait_seconds > 0 and time.time() - batch_start_time >= max_wait_seconds:
+        if len(current_batch) >= max_batch_size or (max_wait_seconds > 0 and time.time() - batch_start_time >= max_wait_seconds):
             batches.append(current_batch)
             current_batch = []
             batch_start_time = time.time()

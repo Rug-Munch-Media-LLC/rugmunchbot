@@ -27,10 +27,13 @@ def _f(v):
     except (TypeError, ValueError):
         return None
 
+
 # Known CEX hot wallets (EVM). Curated from public labels + our own data.
 # This is a living list — expand as we identify more.
-from rugmunchbot.tools.cex_database import lookup as _cex_lookup
-
+from rugmunchbot.tools.cex_database import (  # noqa: E402
+    lookup as _cex_lookup,
+    total_known as _cex_total_known,
+)
 
 # Minimum balance to classify as whale (>5% of supply is set dynamically)
 WHALE_THRESHOLD_PCT = 5.0
@@ -61,11 +64,19 @@ def classify_wallet(
         tags.append(f"CEX:{cex_label}")
 
     # 2. Insider (received before LP add)
-    if first_seen_block is not None and lp_add_block is not None and first_seen_block < lp_add_block:
+    if (
+        first_seen_block is not None
+        and lp_add_block is not None
+        and first_seen_block < lp_add_block
+    ):
         tags.append("INSIDER")
 
     # 3. Sniper (bought within ~3 blocks of LP add, roughly 36s on ETH)
-    if first_seen_block is not None and lp_add_block is not None and 0 <= (first_seen_block - lp_add_block) <= 3:
+    if (
+        first_seen_block is not None
+        and lp_add_block is not None
+        and 0 <= (first_seen_block - lp_add_block) <= 3
+    ):
         tags.append("SNIPER")
 
     # 4. Fresh (no block history = new wallet proxy)
@@ -112,7 +123,7 @@ def classify_sample(
     profile_counts: dict[str, int] = {}
     cex_breakdown: dict[str, float] = {}  # exchange name → total % held
 
-    total_pct = sum(_f(h.get("percentage")) or 0 for h in holders) or 100.0
+    _total_pct = sum(_f(h.get("percentage")) or 0 for h in holders) or 100.0
 
     for h in holders:
         addr = (h.get("address") or "").lower().strip()
@@ -136,9 +147,7 @@ def classify_sample(
         "total_classified": len(classified),
         "profile_counts": profile_counts,
         "cex_breakdown": dict(sorted(cex_breakdown.items(), key=lambda x: x[1], reverse=True)),
-        "flagged_wallets": [
-            w for w in classified if w["primary"] != "ORGANIC"
-        ],
+        "flagged_wallets": [w for w in classified if w["primary"] != "ORGANIC"],
         "organic_count": profile_counts.get("ORGANIC", 0),
     }
 
@@ -153,5 +162,5 @@ async def enrich_holder_analysis(
     return {
         "wallet_profiles": classification,
         "enrichment_version": "1.0",
-        "cex_addresses_known": len(CEX_LABELS),
+        "cex_addresses_known": _cex_total_known(),
     }

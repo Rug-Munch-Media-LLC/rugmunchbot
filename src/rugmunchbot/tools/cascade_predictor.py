@@ -69,7 +69,7 @@ def analyze(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         short10 = _f(row.get("short_liq_10x"))
         if not all(v is not None and v > 0 for v in (mark, oi, long10, short10)):
             continue
-        assert mark and long10 and short10
+        assert mark and long10 and short10  # noqa: PT018 — guard, not test
 
         dist_long = abs(mark - long10) / mark * 100
         dist_short = abs(short10 - mark) / mark * 100
@@ -77,7 +77,7 @@ def analyze(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         near_dist = min(dist_long, dist_short)
 
         decay = _proximity_decay(near_dist)
-        pressure = oi * decay
+        _pressure = oi * decay
         risk_score = round(min(100.0, decay * 60 + min(oi / 1e9, 1.0) * 40), 1)
 
         band = "IMMINENT" if near_dist < 1 else "DANGER" if near_dist < 3 else "WATCH" if near_dist < 6 else "CLEAR"

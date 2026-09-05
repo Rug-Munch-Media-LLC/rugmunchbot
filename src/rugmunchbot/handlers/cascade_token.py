@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import html
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
+
+if TYPE_CHECKING:
+    from telegram import Update
 
 from rugmunchbot.tools import get_registry
 
@@ -70,7 +72,7 @@ async def cmd_tokeninfo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     cls = d.get("classification", {})
-    best = cls.get("best_match", {})
+    _best = cls.get("best_match", {})
     dna = d.get("dna", {})
     threat = cls.get("threat_level", "?")
     emoji = {"CRITICAL_MATCH": "🚨", "HIGH_SIMILARITY": "⚠️",

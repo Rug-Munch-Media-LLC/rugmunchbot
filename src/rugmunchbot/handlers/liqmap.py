@@ -8,11 +8,13 @@ per-venue breakdown for the queried asset, 10x liquidation levels.
 from __future__ import annotations
 
 import html
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
+
+if TYPE_CHECKING:
+    from telegram import Update
 
 from rugmunchbot.config._endpoints import backend_headers
 from rugmunchbot.tools._client import http_get_json

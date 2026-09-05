@@ -172,7 +172,7 @@ async def fetch_token_smart_money(address: str, chain: str) -> dict[str, Any] | 
     for path in _TOKEN_PATHS:
         try:
             data = await asyncio.wait_for(_try(path), timeout=_SMART_MONEY_TIMEOUT_S)
-        except Exception:
+        except Exception:  # noqa: S112 — try next provider path on failure
             continue
         if isinstance(data, dict):
             normalized = _normalize(data, address, chain)

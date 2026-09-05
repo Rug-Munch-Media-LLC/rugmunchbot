@@ -83,12 +83,12 @@ def _title_hash(title: str | None) -> str | None:
         return None
     # Apostrophes vanish (don't → dont, not "don s"); other punctuation
     # becomes a separator.
-    text = str(title).lower().replace("'", "").replace("’", "")
+    text = str(title).lower().replace("'", "").replace("\u2019", "")
     text = _TITLE_PUNCT_RE.sub(" ", text).strip()
     words = [w for w in text.split() if w and w not in _TITLE_STOPWORDS]
     if not words:
         return None
-    return hashlib.md5(" ".join(words)[:60].encode()).hexdigest()
+    return hashlib.md5(" ".join(words)[:60].encode()).hexdigest()  # noqa: S324 — non-crypto dedup hash
 
 
 def _env_retry_count(name: str, default: int) -> int:
@@ -176,12 +176,13 @@ def _remember(channel: str, key: str, title: str | None = None) -> bool:
     if any(k in seen for k in keys):
         return False
     # Durable backstop: check Redis on every call (best-effort, fail-open).
-    if scheduler_state.is_available():
-        if any(scheduler_state.has_posted(k) for k in keys):
-            # Re-seed the in-memory set so we don't re-query every tick.
-            for k in keys:
-                seen[k] = None
-            return False
+    if scheduler_state.is_available() and any(
+        scheduler_state.has_posted(k) for k in keys
+    ):
+        # Re-seed the in-memory set so we don't re-query every tick.
+        for k in keys:
+            seen[k] = None
+        return False
     for k in keys:
         seen[k] = None
     if len(seen) > _MAX_POSTED:

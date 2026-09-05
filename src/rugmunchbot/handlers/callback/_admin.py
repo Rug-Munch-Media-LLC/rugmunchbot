@@ -7,7 +7,6 @@ callback dispatch, stats/log cards and the shared non-owner deny helper.
 from __future__ import annotations
 
 import html
-
 from typing import TYPE_CHECKING
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup

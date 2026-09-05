@@ -45,15 +45,15 @@ from rugmunchbot.handlers.owner._dashboard import (
     cmd_admin_stats as cmd_admin_stats,
     cmd_admin_users as cmd_admin_users,
 )
+from rugmunchbot.handlers.owner._rpcstats import (
+    cmd_rpcstats as cmd_rpcstats,
+)
 from rugmunchbot.handlers.owner._shared import (
     _deny_admin_attempt as _deny_admin_attempt,
     _fetch_credit_block as _fetch_credit_block,
     _format_model_usage_line as _format_model_usage_line,
     _log as _log,
     _usage_line as _usage_line,
-)
-from rugmunchbot.handlers.owner._rpcstats import (
-    cmd_rpcstats as cmd_rpcstats,
 )
 from rugmunchbot.handlers.owner._users import (
     cmd_admin_ban as cmd_admin_ban,
@@ -72,7 +72,6 @@ __all__ = [
     "cmd_admin_broadcast",
     "cmd_admin_credits",
     "cmd_admin_logs",
-    "cmd_rpcstats",
     "cmd_admin_set_tier",
     "cmd_admin_stats",
     "cmd_admin_toggle",
@@ -80,5 +79,6 @@ __all__ = [
     "cmd_admin_unban",
     "cmd_admin_user",
     "cmd_admin_users",
+    "cmd_rpcstats",
     "pending_broadcast",
 ]
