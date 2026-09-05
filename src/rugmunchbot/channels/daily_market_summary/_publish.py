@@ -924,6 +924,17 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             break
     if sent == 0:
         return 0
+    # Cross-edition dedup (2026-09-05): once the morning edition has shipped,
+    # record its ranked stories so the Midday Market Update excludes them.
+    # Morning-only: the midday edition is the day's last brief, nothing
+    # downstream needs its list. Fail-open — never blocks the tick.
+    if edition == MORNING_EDITION:
+        try:
+            from rugmunchbot.channels._edition_dedup import mark_morning_stories
+
+            mark_morning_stories(context.get("ranked_stories") or [])
+        except Exception as exc:
+            logger.warning("daily_market_summary:dedup_mark_failed err=%s", str(exc)[:120])
     # W30 top-of-food-chain mirror: a main-channel post lands on
     # feed.rugmunch.io too (best-effort, never blocks the tick). The Ghost
     # publish above covers rugmunch.io; this covers the static feed store.
@@ -936,7 +947,11 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 "story_ref": feed_url
                 or f"{_edition_slug(edition)}-{datetime.now(UTC).strftime('%Y%m%d')}",
                 "source": feed_url or "rugmunch.io",
-                "kind": "market-summary",
+                # 2026-09-05: updates are FEED briefings, not blog posts —
+                # kind drives the Ghost tag + feed store.
+                "kind": "briefing",
+                "title": f"{edition} — {datetime.now(UTC).strftime('%B %d, %Y')}",
+                "tags": ["briefing", "market-update", edition.lower().replace(" ", "-")],
                 "image_url": gate.image_url or _pick_report_image(context),
             }
         )

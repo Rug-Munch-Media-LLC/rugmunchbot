@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 logger = logging.getLogger("rmi_bot.channels.daily_rug_update")
@@ -27,7 +27,12 @@ logger = logging.getLogger("rmi_bot.channels.daily_rug_update")
 _RAG_COLLECTIONS = ["news_v2", "threat_intel_v2", "scanner_memory"]
 _RAG_QUERY = (
     "rug pull scam exploit honeypot shill campaign KOL promotion whale movement "
-    "breaking news last 24 hours"
+    "breaking news last 24 hours "
+    # Recency guard (2026-09-05): vector search kept surfacing months-old
+    # stories (e.g. "SEC v. BlockFi settlement $100M, 2022-02-14") because
+    # similarity ignores publish date. The phrase biases the query toward
+    # fresh docs; the hard ``published_at`` filter below enforces it.
+    "last 12 hours only, no stories older than today"
 )
 _RAG_LIMIT = 4  # per collection — dedup keeps the prompt small
 _RAG_SNIPPET_MAX = 300
@@ -78,10 +83,46 @@ async def _fetch_ranked_stories() -> list[dict[str, Any]]:
     )
 
     try:
-        return await fetch_top_ranked_stories(window_hours=midday_window_hours())
+        stories = await fetch_top_ranked_stories(window_hours=midday_window_hours())
     except Exception as exc:  # fail-open — never block the update
         logger.warning("daily_rug_update:ranked_stories_failed err=%s", str(exc)[:140])
         return []
+
+    # Hard recency filter (2026-09-05): only stories published in the last
+    # 12 hours. The reranker keeps undated items (flagged ``_undated``) —
+    # those are exactly how months-old stories slip through when the doc
+    # lacks ``published_at``, so they are dropped here (fail-closed).
+    cutoff = datetime.now(UTC) - timedelta(hours=12)
+    fresh: list[dict[str, Any]] = []
+    for item in stories:
+        raw = item.get("published_at")
+        dt: datetime | None = None
+        try:
+            if isinstance(raw, (int, float)):
+                ts = float(raw)
+                if ts > 1e12:  # ms epoch
+                    ts /= 1000.0
+                dt = datetime.fromtimestamp(ts, tz=UTC)
+            elif raw:
+                dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
+        except (ValueError, TypeError, OSError):
+            dt = None
+        if dt is not None and dt >= cutoff:
+            fresh.append(item)
+    if len(fresh) < len(stories):
+        logger.info(
+            "daily_rug_update:recency_filter kept=%d dropped=%d",
+            len(fresh),
+            len(stories) - len(fresh),
+        )
+    return fresh
+    # Cross-edition dedup (2026-09-05): drop stories the Morning Rug already
+    # posted today so the Midday Update leads with fresh stories only.
+    from rugmunchbot.channels._edition_dedup import exclude_morning_stories
+
+    return exclude_morning_stories(ranked)
 
 
 async def gather_rug_update_data() -> dict[str, Any]:

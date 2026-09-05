@@ -116,7 +116,7 @@ async def test_daily_summary_mirrors_to_feed(monkeypatch, tmp_path):
     posted = await _publish.post_daily_market_summary(_Ctx())
     assert posted == 1
     assert writes, "daily summary must mirror to feed.rugmunch.io"
-    assert writes[0]["kind"] == "market-summary"
+    assert writes[0]["kind"] == "briefing"
 
 
 def test_tg_news_main_path_imports_the_mirror():

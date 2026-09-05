@@ -261,7 +261,7 @@ class TestPostDailyRugUpdate:
             assert await post_daily_rug_update(ctx) == 1
         # Mirror landed in the feed store with the image.
         posts = json.loads((tmp_path / "posts.json").read_text())
-        assert posts[0]["kind"] == "rug-update"
+        assert posts[0]["kind"] == "briefing"
         assert posts[0]["image"] == "https://img.rugmunch.io/scam.png"
         # Telegram got the post with the deep link to the exact mirrored post.
         sent_text = photo.call_args[0][2] if photo.call_args else send.call_args[0][2]

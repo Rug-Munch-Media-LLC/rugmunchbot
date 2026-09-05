@@ -698,7 +698,11 @@ async def post_daily_rug_update(ctx: Any) -> int:
                         "text": report[:3900],
                         "story_ref": f"daily-rug-update-{datetime.now(UTC).strftime('%Y%m%d')}",
                         "source": "rugmunch.io",
-                        "kind": "rug-update",
+                        # 2026-09-05: updates are FEED briefings, not blog
+                        # posts — kind drives the Ghost tag + feed store.
+                        "kind": "briefing",
+                        "title": f"{EDITION} — {datetime.now(UTC).strftime('%B %d, %Y')}",
+                        "tags": ["briefing", "market-update", EDITION.lower().replace(" ", "-")],
                         "image_url": image_url,
                     }
                 )

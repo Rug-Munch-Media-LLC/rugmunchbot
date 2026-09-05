@@ -167,6 +167,14 @@ def ghost_mirror_post(item: dict[str, Any], slug: str) -> str | None:
 
         if _image and not is_valid_image(_image):
             _image = ""
+        # 2026-09-05: callers may pass explicit tags (e.g. briefings carry
+        # ["briefing", "market-update", ...]); fall back to the kind tag.
+        _tags = item.get("tags")
+        _tag_names = (
+            [str(t) for t in _tags if str(t).strip()]
+            if isinstance(_tags, (list, tuple))
+            else [str(item.get("kind", "story"))]
+        ) or [str(item.get("kind", "story"))]
         payload = {
             "posts": [
                 {
@@ -175,7 +183,7 @@ def ghost_mirror_post(item: dict[str, Any], slug: str) -> str | None:
                     "status": "published",
                     "visibility": "public",
                     "slug": slug,
-                    "tags": [{"name": str(item.get("kind", "story"))}],
+                    "tags": [{"name": t} for t in _tag_names],
                     **(
                         {"feature_image": _image}
                         if _image.startswith(("http://", "https://"))
