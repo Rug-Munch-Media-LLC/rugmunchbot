@@ -2,7 +2,8 @@
 """
 RugMunchBot -- Watchlist command handlers.
 
-Commands: watchlist, watch, unwatch, monitor, monitors, unmonitor
+Commands: watchlist (backend-backed: list/add/remove/alert),
+watch, unwatch, monitor, monitors, unmonitor
 """
 
 from __future__ import annotations
@@ -10,68 +11,219 @@ from __future__ import annotations
 import secrets
 from typing import TYPE_CHECKING
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram import LabeledPrice
 from telegram.constants import ParseMode
 
 from rugmunchbot import db
-from rugmunchbot.config import SCAN_PACKS, TIERS
+from rugmunchbot.config import SCAN_PACKS
 from rugmunchbot.formatters import (
     detect_chain,
-    fmt_number,
     footer_links,
     sep,
 )
 from rugmunchbot.handlers.alerts import _unsubscribe_backend_monitor
-from rugmunchbot.keyboards import back_kb, pricing_kb, token_buttons
+from rugmunchbot.keyboards import back_kb, pricing_kb
+from rugmunchbot.services.pricing import resolve
+from rugmunchbot.support import backend_user
+from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._client import BackendApiError
 
 if TYPE_CHECKING:
     from telegram import Update
     from telegram.ext import ContextTypes
+
+logger = get_logger("rmi_bot.watchlist")
 
 # Monitor pack price comes from the same SCAN_PACKS table as the deep scan
 # (250★ — mirrors the deep-scan invoice pattern, see handlers/payments.py).
 MONITOR_STARS = int(SCAN_PACKS["monitor"]["stars"])
 MONITOR_DAYS = db.MONITOR_DEFAULT_DAYS
 
+_WL_USAGE = (
+    "👀 <b>Watchlist</b>\n\n"
+    "  <code>/watchlist</code> — show your watchlist\n"
+    "  <code>/watchlist add &lt;symbol&gt; &lt;chain&gt; &lt;address&gt;</code>\n"
+    "  <code>/watchlist remove &lt;id&gt;</code>\n"
+    "  <code>/watchlist alert &lt;id&gt; &lt;above|below&gt; &lt;price&gt;</code>\n\n"
+    "Example: <code>/watchlist add WETH ethereum 0xC02a…</code>"
+)
+
+
+def _short(address: str) -> str:
+    return address[:8] + "…" if len(address) > 10 else address
+
+
+def _alert_badge(entry: dict) -> str:
+    above, below = entry.get("alert_above"), entry.get("alert_below")
+    if above is not None:
+        return f" 🔔↑{above}"
+    if below is not None:
+        return f" 🔔↓{below}"
+    return ""
+
 
 async def cmd_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """List the user's watchlist with per-token alert/monitor badges."""
-    user = update.effective_user
-    if user is None:
+    """Backend-backed watchlist: list / add / remove / alert subcommands."""
+    if update.message is None:
         return
-    items = db.get_watchlist(user.id)
-    if not items:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "\U0001f440 <b>Watchlist Empty</b>\n\n"
-            "Add tokens to track:\n"
-            "  /watch <code>address</code> [chain]\n\n"
-            "<i>Free: 0 slots | Scout: 10 | Hunter: 50 | Pro: unlimited</i>\n\n"
-            "\U0001f6f0\ufe0f <b>Monitor</b> (250\u2605/30d) adds live LP/whale + "
-            "tax/ownership/mint change alerts: /monitor <code>address</code>",
+    args = ctx.args or []
+    sub = args[0].lower() if args else ""
+    if sub == "add":
+        await _wl_add(update, args[1:])
+    elif sub == "remove":
+        await _wl_remove(update, args[1:])
+    elif sub == "alert":
+        await _wl_alert(update, args[1:])
+    else:
+        await _wl_show(update)
+
+
+async def _wl_show(update: Update) -> None:
+    """List the user's backend watchlist with live prices, 24h change, alerts."""
+    user = update.effective_user
+    if user is None or update.message is None:
+        return
+    try:
+        data = await backend_user.get_watchlist(
+            user.id, username=user.username, first_name=user.first_name
+        )
+    except BackendApiError as exc:
+        logger.warning("watchlist_backend_error user=%s: %s", user.id, exc)
+        await update.message.reply_text(f"❌ Could not load your watchlist ({exc})")
+        return
+    entries = data.get("entries") or []
+    if not entries:
+        await update.message.reply_text(
+            "👀 <b>Watchlist Empty</b>\n\n" + _WL_USAGE,
             parse_mode=ParseMode.HTML,
             reply_markup=back_kb(),
         )
         return
-    tier = db.get_user_tier(user.id)
-    text = f"\U0001f440 <b>Watchlist</b> ({TIERS[tier]['emoji']} {TIERS[tier]['name']})\n{sep()}\n\n"
-    monitors = {m["token_address"].lower() for m in db.get_monitors(user.id)}
-    for i, w in enumerate(items, 1):
-        alert = ""
-        if w.get("alert_price"):
-            arrow = "\u2191" if w.get("alert_direction") == "above" else "\u2193"
-            alert = f" \U0001f514{arrow}{fmt_number(w['alert_price'])}"
-        mon = " \U0001f6f0\ufe0f" if w["token_address"].lower() in monitors else ""
-        text += f"{i}. <b>{w.get('symbol') or '???'}</b> <code>{w['token_address']}</code> ({w['chain']}){alert}{mon}\n"
-    text += f"\n{footer_links()}"
-    rows: list[list[InlineKeyboardButton]] = []
-    for w in items:
-        rows.append(token_buttons(w["token_address"], w.get("chain") or "solana"))
-    rows.append([InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")])
-    await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        text,
+
+    lines = [f"👀 <b>Your Watchlist</b> ({len(entries)} tokens)\n"]
+    for entry in entries[:20]:
+        symbol = entry.get("symbol") or "???"
+        chain = entry.get("chain") or "?"
+        address = entry.get("address") or ""
+        eid = entry.get("id")
+        price_txt = ""
+        if address:
+            pr = await resolve(address=address, chain=chain)
+            if pr.price_usd:
+                chg = f" · 24h {pr.change_24h:+.1f}%" if pr.change_24h is not None else ""
+                price_txt = f" — ${pr.price_usd:,.6g}{chg}"
+        lines.append(
+            f"• <b>#{eid}</b> <b>{symbol}</b> ({chain}) "
+            f"<code>{_short(address)}</code>{price_txt}{_alert_badge(entry)}"
+        )
+    lines.append(f"\n{footer_links()}")
+    await update.message.reply_text(
+        "\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True
+    )
+
+
+async def _wl_add(update: Update, args: list[str]) -> None:
+    """/watchlist add <symbol> <chain> <address>."""
+    user = update.effective_user
+    if user is None or update.message is None:
+        return
+    if len(args) < 3:
+        await update.message.reply_text(
+            "Usage: <code>/watchlist add &lt;symbol&gt; &lt;chain&gt; &lt;address&gt;</code>\n"
+            "Example: <code>/watchlist add WETH ethereum 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2</code>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    symbol, chain, address = args[0].upper(), args[1].lower(), args[2]
+    try:
+        data = await backend_user.add_watchlist(
+            user.id,
+            symbol,
+            chain,
+            address,
+            username=user.username,
+            first_name=user.first_name,
+        )
+    except BackendApiError as exc:
+        logger.warning("watchlist_add_error user=%s: %s", user.id, exc)
+        await update.message.reply_text(f"❌ Could not add token ({exc})")
+        return
+    entry = data.get("entry") or {}
+    await update.message.reply_text(
+        f"✅ Added <b>{symbol}</b> ({chain}) to your watchlist — id <b>#{entry.get('id')}</b>.\n"
+        "/watchlist to view all.",
         parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(rows),
-        disable_web_page_preview=True,
+    )
+
+
+async def _wl_remove(update: Update, args: list[str]) -> None:
+    """/watchlist remove <id>."""
+    user = update.effective_user
+    if user is None or update.message is None:
+        return
+    if not args:
+        await update.message.reply_text(
+            "Usage: <code>/watchlist remove &lt;id&gt;</code> — find IDs with /watchlist",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    entry_id = args[0]
+    try:
+        await backend_user.remove_watchlist(
+            user.id, entry_id, username=user.username, first_name=user.first_name
+        )
+    except BackendApiError as exc:
+        if exc.status_code == 404:
+            await update.message.reply_text("❌ No watchlist entry with that id.")
+        else:
+            logger.warning("watchlist_remove_error user=%s: %s", user.id, exc)
+            await update.message.reply_text(f"❌ Could not remove entry ({exc})")
+        return
+    await update.message.reply_text(
+        f"✅ Removed entry <b>#{entry_id}</b>.", parse_mode=ParseMode.HTML
+    )
+
+
+async def _wl_alert(update: Update, args: list[str]) -> None:
+    """/watchlist alert <id> <above|below> <price>."""
+    user = update.effective_user
+    if user is None or update.message is None:
+        return
+    if len(args) < 3 or args[1].lower() not in ("above", "below"):
+        await update.message.reply_text(
+            "Usage: <code>/watchlist alert &lt;id&gt; &lt;above|below&gt; &lt;price&gt;</code>\n"
+            "Example: <code>/watchlist alert 3 above 3000</code>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    entry_id, direction, raw_price = args[0], args[1].lower(), args[2]
+    try:
+        price = float(raw_price)
+        if price <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("❌ Price must be a positive number.")
+        return
+    try:
+        await backend_user.set_watchlist_alert(
+            user.id,
+            entry_id,
+            direction,
+            price,
+            username=user.username,
+            first_name=user.first_name,
+        )
+    except BackendApiError as exc:
+        if exc.status_code == 404:
+            await update.message.reply_text("❌ No watchlist entry with that id.")
+        else:
+            logger.warning("watchlist_alert_error user=%s: %s", user.id, exc)
+            await update.message.reply_text(f"❌ Could not set alert ({exc})")
+        return
+    arrow = "↑" if direction == "above" else "↓"
+    await update.message.reply_text(
+        f"🔔 Alert set: <b>#{entry_id}</b> {arrow} ${price:g}",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -134,7 +286,9 @@ async def cmd_unwatch(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f"\u2705 Removed <code>{addr}</code> from watchlist.", parse_mode=ParseMode.HTML
         )
     else:
-        await update.message.reply_text("\u274c Token not found in your watchlist.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(
+            "\u274c Token not found in your watchlist.", parse_mode=ParseMode.HTML
+        )  # type: ignore[union-attr]  # PTB None-able fields
 
 
 # ── Monitor (Stars-paid premium feature) ─────────────────────────────────
@@ -234,9 +388,7 @@ async def cmd_monitors(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     text = f"\U0001f6f0\ufe0f <b>Active Monitors</b>\n{sep()}\n\n"
     for m in items:
-        text += (
-            f"\u2022 <b>{m.get('symbol') or '???'}</b> <code>{m['token_address']}</code> ({m.get('chain') or '?'})\n"
-        )
+        text += f"\u2022 <b>{m.get('symbol') or '???'}</b> <code>{m['token_address']}</code> ({m.get('chain') or '?'})\n"
     text += f"\nStop: /unmonitor <code>address</code>\n{footer_links()}"
     await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
@@ -263,4 +415,6 @@ async def cmd_unmonitor(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f"\u2705 Stopped monitoring <code>{addr}</code>.", parse_mode=ParseMode.HTML
         )
     else:
-        await update.message.reply_text("\u274c No active monitor for that token.", parse_mode=ParseMode.HTML)  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(
+            "\u274c No active monitor for that token.", parse_mode=ParseMode.HTML
+        )  # type: ignore[union-attr]  # PTB None-able fields

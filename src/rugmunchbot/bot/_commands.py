@@ -92,7 +92,7 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("odds", "Sports & event odds"),
             ("tokeninfo", "Token DNA fingerprint"),
             ("cascadewatch", "Liquidation cascade risk for a token"),
-            ("portfolio", "Wallet holdings overview"),
+            ("portfolio", "Your portfolio: value, P&L, 24h change"),
             ("lpcheck", "LP health & lock check"),
         ],
     ),
@@ -146,7 +146,7 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Watch & Alerts",
         [
-            ("watchlist", "Your token watchlist"),
+            ("watchlist", "Watchlist: list/add/remove/alert"),
             ("watch", "Watch a token for changes"),
             ("unwatch", "Stop watching a token"),
             ("monitor", "List your active monitors"),
@@ -179,7 +179,6 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
 ]
-
 
 
 _BOT_COMMANDS: list[BotCommand] = [
@@ -244,9 +243,7 @@ def _check_help_text_coverage(registered: set[str]) -> None:
 
     # Negative lookbehind skips URL paths (t.me/x, rugmunch.io/pricing) —
     # only bare command mentions count.
-    mentioned = set(
-        re.findall(r"(?<![\w./@<])/([a-z_]{2,30})\b", HELP_TEXT + MENU_TEXT)
-    )
+    mentioned = set(re.findall(r"(?<![\w./@<])/([a-z_]{2,30})\b", HELP_TEXT + MENU_TEXT))
     unknown = sorted(mentioned - registered)
     if unknown:
         logger.error(
