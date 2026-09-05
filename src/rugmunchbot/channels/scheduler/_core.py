@@ -72,7 +72,7 @@ _MAX_POSTED = 5000
 _TITLE_PUNCT_RE = re.compile(r"[^\w\s]+")
 
 _TITLE_STOPWORDS = frozenset(
-    "a an and as at by for from in into is it its of on the to with".split()
+    ["a", "an", "and", "as", "at", "by", "for", "from", "in", "into", "is", "it", "its", "of", "on", "the", "to", "with"]
 )
 
 
@@ -430,7 +430,7 @@ def _item_to_article(item: dict[str, Any], *, category: str, source: str) -> New
 async def _post_photo_aware(
     bot: Any,
     chat_id: str,
-    post: "NewsPost | str",
+    post: NewsPost | str,
     safe_send: Any,
     *,
     content_type: str | None = None,

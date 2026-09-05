@@ -64,7 +64,7 @@ async def send_news_photo(bot: Any, chat_id: str, caption: str, photo_url: str) 
                 )
                 logger.info("channels:send_photo_split_sent chat=%s", chat_id)
                 return True
-            except Exception as exc2:  # noqa: BLE001
+            except Exception as exc2:
                 logger.warning("channels:send_photo_split_failed chat=%s err=%s", chat_id, exc2)
         else:
             logger.warning("channels:send_photo_failed chat=%s err=%s", chat_id, exc)

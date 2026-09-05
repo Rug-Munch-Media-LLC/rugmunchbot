@@ -152,7 +152,7 @@ class SchedulerState:
 
     # ── Load / save ──────────────────────────────────────────────────────
 
-    async def load(self, seed: dict[str, "set[str] | dict[str, None]"]) -> bool:
+    async def load(self, seed: dict[str, set[str] | dict[str, None]]) -> bool:
         """Hydrate ``seed`` (the scheduler's ``_posted_keys``) from Redis.
 
         Idempotent; call once at startup. Replaces per-channel sets with the
@@ -199,7 +199,7 @@ class SchedulerState:
             self._mark_down()
             return False
 
-    async def save(self, snapshot: dict[str, "set[str] | dict[str, None]"]) -> bool:
+    async def save(self, snapshot: dict[str, set[str] | dict[str, None]]) -> bool:
         """Flush the posted-key snapshot + last-run hash to Redis.
 
         Called at the end of every tick (idempotent — sadd is a no-op for
@@ -373,13 +373,13 @@ def reset_sync() -> None:
     _sync_down_until = 0.0
 
 
-async def load_state(seed: dict[str, "set[str] | dict[str, None]"]) -> bool:
+async def load_state(seed: dict[str, set[str] | dict[str, None]]) -> bool:
     """Hydrate the scheduler's dedupe sets + last-run from Redis (startup)."""
     return await _state.load(seed)
 
 
 async def save_state(
-    snapshot: dict[str, "set[str] | dict[str, None]"], job: str | None = None
+    snapshot: dict[str, set[str] | dict[str, None]], job: str | None = None
 ) -> bool:
     """Persist the posted-key snapshot + last-run hash (end of each tick)."""
     if job is not None:

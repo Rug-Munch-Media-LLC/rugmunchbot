@@ -40,6 +40,8 @@ from typing import TYPE_CHECKING, Any
 
 from telegram.constants import ParseMode
 
+from rugmunchbot.handlers.admin._accuracy import accuracy_command
+from rugmunchbot.handlers.admin._backtest import backtest_command
 from rugmunchbot.states import is_owner
 from rugmunchbot.support.logging import get_logger
 
@@ -648,12 +650,16 @@ def register_admin_commands(app: Application[Any, Any, Any, Any, Any, Any]) -> N
         ("alerts", cmd_alerts),
         ("budget", cmd_budget),
         ("sources", cmd_sources),
+        ("backtest", backtest_command),
+        ("accuracy", accuracy_command),
         ("help", cmd_help),
     ):
         app.add_handler(CommandHandler(name, handler))
 
 
 __all__ = [
+    "accuracy_command",
+    "backtest_command",
     "cmd_alerts",
     "cmd_backup",
     "cmd_budget",
