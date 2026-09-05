@@ -117,12 +117,11 @@ async def _fetch_ranked_stories() -> list[dict[str, Any]]:
             len(fresh),
             len(stories) - len(fresh),
         )
-    return fresh
     # Cross-edition dedup (2026-09-05): drop stories the Morning Rug already
     # posted today so the Midday Update leads with fresh stories only.
     from rugmunchbot.channels._edition_dedup import exclude_morning_stories
 
-    return exclude_morning_stories(ranked)
+    return exclude_morning_stories(fresh)
 
 
 async def gather_rug_update_data() -> dict[str, Any]:
