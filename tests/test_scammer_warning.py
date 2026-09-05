@@ -252,7 +252,7 @@ async def test_post_scammer_warning_routes(tmp_db, monkeypatch):
 
     sent: list[str] = []
 
-    async def _fake_safe_send(bot, chat_id, text) -> bool:
+    async def _fake_safe_send(bot, chat_id, text, **kw) -> bool:
         sent.append(chat_id)
         return True
 
@@ -291,7 +291,7 @@ async def test_plain_buy_stays_on_alerts(tmp_db, monkeypatch):
 
     sent: list[str] = []
 
-    async def fake_safe_send(bot, chat_id, text) -> bool:
+    async def fake_safe_send(bot, chat_id, text, **kw) -> bool:
         sent.append(chat_id)
         return True
 

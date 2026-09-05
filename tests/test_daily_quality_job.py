@@ -68,7 +68,7 @@ async def test_post_daily_quality_sends_and_mirrors(monkeypatch, tmp_path):
     sent: list[tuple[str, str]] = []
     mirrors: list[dict[str, Any]] = []
 
-    async def _send(bot, chat_id, text):
+    async def _send(bot, chat_id, text, **kw):
         sent.append((chat_id, text))
         return True
 
@@ -108,7 +108,7 @@ async def test_post_daily_quality_respects_budget_and_cap(monkeypatch):
     """Already at quality budget → no post; main cap full → no post."""
     sent: list[str] = []
 
-    async def _send(bot, chat_id, text):
+    async def _send(bot, chat_id, text, **kw):
         sent.append(text)
         return True
 
@@ -140,7 +140,7 @@ async def test_post_daily_quality_releases_mark_on_failed_send(monkeypatch):
     """Failed send releases the dedupe mark → next run retries."""
     fails: list[int] = [0]
 
-    async def _send(bot, chat_id, text):
+    async def _send(bot, chat_id, text, **kw):
         fails[0] += 1
         return fails[0] > 1  # first fails, second succeeds
 

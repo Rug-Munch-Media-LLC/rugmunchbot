@@ -88,7 +88,7 @@ class _Recorder:
         self.calls: list[tuple[str, str]] = []
         self.succeed = succeed
 
-    async def __call__(self, bot: Any, chat_id: str, text: str) -> bool:
+    async def __call__(self, bot: Any, chat_id: str, text: str, **kw: Any) -> bool:
         self.calls.append((chat_id, text))
         return self.succeed
 
@@ -203,7 +203,7 @@ async def test_missing_chat_id_does_not_consume_drafts(monkeypatch):
 
     assert posted == 0
     assert sender.calls == []
-    assert _core._posted_keys.get("__global__", set()) == set()
+    assert _core._posted_keys.get("__global__", {}) == {}
 
 
 @pytest.mark.asyncio
@@ -236,7 +236,7 @@ async def test_cross_channel_duplicate_posts_once_main_wins(monkeypatch):
     flagship (main) that claims it (loop order + global dedupe)."""
     seen_channels: list[str] = []
 
-    async def _send(bot: Any, chat_id: str, text: str) -> bool:
+    async def _send(bot: Any, chat_id: str, text: str, **kw: Any) -> bool:
         seen_channels.append(chat_id)
         return True
 
@@ -365,7 +365,7 @@ async def test_linkless_draft_is_gated_not_posted(monkeypatch):
 
     assert posted == 0
     assert sender.calls == []
-    assert _core._posted_keys.get("__global__", set()) == set()
+    assert _core._posted_keys.get("__global__", {}) == {}
 
 
 @pytest.mark.asyncio
@@ -381,7 +381,7 @@ async def test_scans_lane_posts_scanner_drafts(monkeypatch):
     }
     seen: list[tuple[str, str]] = []
 
-    async def _send(bot: Any, chat_id: str, text: str) -> bool:
+    async def _send(bot: Any, chat_id: str, text: str, **kw: Any) -> bool:
         seen.append((chat_id, text))
         return True
 
@@ -475,7 +475,7 @@ async def test_news_lane_blocks_non_news_kinds(monkeypatch):
     }
     seen: list[tuple[str, str]] = []
 
-    async def _send(bot: Any, chat_id: str, text: str) -> bool:
+    async def _send(bot: Any, chat_id: str, text: str, **kw: Any) -> bool:
         seen.append((chat_id, text))
         return True
 
@@ -502,7 +502,7 @@ async def test_news_lane_blocks_non_news_kinds(monkeypatch):
     assert posted == 1
     sends = seen + ctx.bot.calls
     assert len(sends) == 1
-    assert "Ethereum ETF" in sends[0][1]
+    assert "Ethereum spot ETF" in sends[0][1]
 
 
 # ── 2026-08-30 unified main content path (task 1/2/3) ──────────────────────
@@ -559,11 +559,14 @@ async def test_main_empty_falls_back_scored_and_warns(monkeypatch, caplog):
     monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
 
     async def _long_llm(messages, tier):
+        # 2026-09-04 main-channel doctrine: >200 chars AND >=3 source links.
         return (
             "A quiet tape hides real rotation: stablecoin inflows hit a "
             "monthly high while perp funding stayed flat, the classic "
             "pre-move accumulation signature desks watch for. "
-            "https://rekt.news/bridge-190m"
+            "https://rekt.news/bridge-190m "
+            "https://rekt.news/bridge-190m-analysis "
+            "https://rekt.news/bridge-190m-postmortem"
         )
 
     monkeypatch.setattr("rugmunchbot.llm_config.chat_with_fallback", _long_llm, raising=False)

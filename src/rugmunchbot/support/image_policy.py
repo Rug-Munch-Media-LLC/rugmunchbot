@@ -71,6 +71,10 @@ def _valid_image(url: object) -> str:
         return ""
     lowered = value.lower()
     if any(pattern in lowered for pattern in _BANNED_IMAGE_PATTERNS):
+        # The branded placeholder is a first-party asset, not scraped chrome —
+        # it is the sanctioned fallback image and always allowed.
+        if lowered.startswith(PLACEHOLDER_IMAGE_URL.lower()):
+            return value
         return ""
     return value
 

@@ -39,7 +39,9 @@ class _Recorder:
     def __init__(self) -> None:
         self.calls: list[str] = []
 
-    async def __call__(self, bot: object, chat_id: str, post: object, _send: object) -> bool:
+    async def __call__(
+        self, bot: object, chat_id: str, post: object, _send: object, **kw: object
+    ) -> bool:
         text = str(post)
         addr = "pending" if "Scanning\u2026" in text else "full"
         self.calls.append(addr)

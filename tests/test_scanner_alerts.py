@@ -61,7 +61,7 @@ def isolate(monkeypatch):
     monkeypatch.setattr(
         core, "_resolve_channel_id", lambda ch: "-100alerts" if ch == "alerts" else None
     )
-    core._posted_keys.setdefault("__global__", set()).clear()
+    core._posted_keys.setdefault("__global__", {}).clear()
     return True
 
 

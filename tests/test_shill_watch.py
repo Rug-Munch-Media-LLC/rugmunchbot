@@ -137,7 +137,7 @@ def test_format_alert_lists_pushers_and_links():
     )
     text = format_shill_alert(campaign)
     assert "Coordinated shill: $MOON" in text
-    assert "3 distinct accounts" in text
+    assert "3 accounts in" in text
     assert "calls_one" in text
     assert "https://t.me/calls_one/1" in text
     assert "/scan" in text
@@ -169,13 +169,17 @@ async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
         campaign.importance = 0.6
         return 0.6
 
-    monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score
+    )
     # Screenshot capture is disabled in the runner unit test (no X URLs anyway).
-    monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
-    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", False)
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
     # Scanner-evidence pass must be off in unit tests (fake addresses would
     # otherwise trigger real scan calls against the network).
-    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False
+    )
 
     addr = "0x" + "e" * 40
     articles = [
@@ -189,7 +193,7 @@ async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
 
     sent: list[tuple[str, str]] = []
 
-    async def _fake_send(bot, chat_id, text):
+    async def _fake_send(bot, chat_id, text, **kw):
         sent.append((chat_id, text))
         return True
 
@@ -199,7 +203,9 @@ async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
 
         bot = _Bot()
 
-    monkeypatch.setattr(shill_watch, "_sweep_shill_sources", _fake_sweep)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
+    )
     # run_shill_watch imports _chat_id/_safe_send from scheduler._core at
     # call time — patch the core module, not the shill_watch namespace.
     monkeypatch.setattr(_core, "_chat_id", lambda ch: "-100alerts" if ch == "alerts" else None)
@@ -228,12 +234,16 @@ async def test_run_releases_mark_on_failed_send(monkeypatch):
         campaign.importance = 0.6
         return 0.6
 
-    monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
-    monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
-    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", False)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score
+    )
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
     # Scanner-evidence pass must be off in unit tests (fake addresses would
     # otherwise trigger real scan calls against the network).
-    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False
+    )
 
     addr = "0x" + "f" * 40
     articles = [
@@ -247,7 +257,7 @@ async def test_run_releases_mark_on_failed_send(monkeypatch):
 
     fails: list[int] = [0]
 
-    async def _fake_send(bot, chat_id, text):
+    async def _fake_send(bot, chat_id, text, **kw):
         fails[0] += 1
         return fails[0] > 1  # first fails, second succeeds
 
@@ -257,7 +267,9 @@ async def test_run_releases_mark_on_failed_send(monkeypatch):
 
         bot = _Bot()
 
-    monkeypatch.setattr(shill_watch, "_sweep_shill_sources", _fake_sweep)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
+    )
     monkeypatch.setattr(_core, "_chat_id", lambda ch: "-100alerts" if ch == "alerts" else None)
     monkeypatch.setattr(_core, "_safe_send", _fake_send)
 
@@ -309,8 +321,7 @@ def test_format_alert_includes_evidence():
     )
     alert = format_shill_alert(campaign)
     assert "Coordinated shill" in alert
-    assert "<b>What:</b>" in alert
-    assert "<b>Who:</b>" in alert
+    assert "<b>KOL:</b>" in alert
     assert "<b>Why this is likely a scam:</b>" in alert
     assert "GET IN $MOON NOW" in alert
 
@@ -327,12 +338,16 @@ async def test_run_holds_below_importance_floor(monkeypatch):
         campaign.importance = 0.2
         return 0.2
 
-    monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
-    monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
-    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", False)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score
+    )
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
     # Scanner-evidence pass must be off in unit tests (fake addresses would
     # otherwise trigger real scan calls against the network).
-    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False
+    )
 
     addr = "0x" + "d" * 40
     articles = [
@@ -346,7 +361,7 @@ async def test_run_holds_below_importance_floor(monkeypatch):
 
     sent: list[tuple[str, str]] = []
 
-    async def _fake_send(bot, chat_id, text):
+    async def _fake_send(bot, chat_id, text, **kw):
         sent.append((chat_id, text))
         return True
 
@@ -356,7 +371,9 @@ async def test_run_holds_below_importance_floor(monkeypatch):
 
         bot = _Bot()
 
-    monkeypatch.setattr(shill_watch, "_sweep_shill_sources", _fake_sweep)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
+    )
     monkeypatch.setattr(_core, "_chat_id", lambda ch: "-100alerts" if ch == "alerts" else None)
     monkeypatch.setattr(_core, "_safe_send", _fake_send)
 
@@ -376,12 +393,16 @@ async def test_run_escalates_main_at_gate(monkeypatch):
         campaign.importance = 0.8
         return 0.8
 
-    monkeypatch.setattr(shill_watch, "_score_shill_campaign", _fake_score)
-    monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", False)
-    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", False)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score
+    )
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
     # Scanner-evidence pass must be off in unit tests (fake addresses would
     # otherwise trigger real scan calls against the network).
-    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", False)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False
+    )
 
     addr = "0x" + "c" * 40
     articles = [
@@ -395,7 +416,7 @@ async def test_run_escalates_main_at_gate(monkeypatch):
 
     sent: list[tuple[str, str]] = []
 
-    async def _fake_send(bot, chat_id, text):
+    async def _fake_send(bot, chat_id, text, **kw):
         sent.append((chat_id, text))
         return True
 
@@ -405,7 +426,9 @@ async def test_run_escalates_main_at_gate(monkeypatch):
 
         bot = _Bot()
 
-    monkeypatch.setattr(shill_watch, "_sweep_shill_sources", _fake_sweep)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
+    )
     monkeypatch.setattr(
         _core,
         "_chat_id",
@@ -583,8 +606,10 @@ async def test_capture_telegram_kol_posts_persists_with_source(monkeypatch):
         return True
 
     monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", fake_capture_and_ocr)
-    monkeypatch.setattr(shill_watch, "_persist_shill_evidence", fake_persist)
-    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", True)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._evidence._persist_shill_evidence", fake_persist
+    )
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._evidence.TG_CAPTURE_ENABLED", True)
 
     article = NewsArticle(
         title="PUMP $MOON now",
@@ -615,9 +640,9 @@ async def test_capture_telegram_kol_posts_disabled_and_budget_zero(monkeypatch):
         return {"url": url, "image_path": "", "text": "", "captured": "false"}
 
     monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", fail_capture)
-    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", False)
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._evidence.TG_CAPTURE_ENABLED", False)
     assert await shill_watch.capture_telegram_kol_posts([_article("ch", "hi", ["$MOON"])]) == 0
-    monkeypatch.setattr(shill_watch, "TG_CAPTURE_ENABLED", True)
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._evidence.TG_CAPTURE_ENABLED", True)
     assert await shill_watch.capture_telegram_kol_posts([_article("ch", "hi", [])], budget=0) == 0
     assert called["n"] == 0
 
@@ -639,8 +664,10 @@ async def test_campaign_capture_uses_tg_preview_for_telegram_mentions(monkeypatc
         return True
 
     monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", fake_capture_and_ocr)
-    monkeypatch.setattr(shill_watch, "_persist_shill_evidence", fake_persist)
-    monkeypatch.setattr(shill_watch, "SHILL_SCREENSHOT_ENABLED", True)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._evidence._persist_shill_evidence", fake_persist
+    )
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._evidence.SHILL_SCREENSHOT_ENABLED", True)
 
     campaign = ShillCampaign(
         token="$MOON",

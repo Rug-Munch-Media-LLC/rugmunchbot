@@ -100,7 +100,7 @@ async def test_scheduler_post_formatted_drops_banned_image(
         sent["photo"] = photo_url
         return True
 
-    async def _fake_text(bot: object, chat_id: str, post: object) -> bool:
+    async def _fake_text(bot: object, chat_id: str, post: object, **kw: object) -> bool:
         sent["text"] = str(post)
         return True
 
@@ -205,7 +205,7 @@ class _FakeClient:
     async def __aexit__(self, *exc: object) -> None:
         return None
 
-    async def post(self, url: str, json: dict) -> _FakeResponse:
+    async def post(self, url: str, json: dict, **kw: object) -> _FakeResponse:
         return _FakeResponse(self._body)
 
 

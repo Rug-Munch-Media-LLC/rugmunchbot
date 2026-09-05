@@ -29,7 +29,7 @@ class _Recorder:
         self.calls: list[tuple[str, str]] = []
         self.succeed = succeed
 
-    async def __call__(self, bot: Any, chat_id: str, text: str) -> bool:
+    async def __call__(self, bot: Any, chat_id: str, text: str, **kw: Any) -> bool:
         self.calls.append((chat_id, text))
         return self.succeed
 
