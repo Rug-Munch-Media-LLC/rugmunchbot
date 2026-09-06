@@ -18,6 +18,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import CommandHandler
 
+from rugmunchbot import db
 from rugmunchbot.config import (
     BACKEND_URL,
     TELEGRAM_CHANNEL,
@@ -29,6 +30,8 @@ from rugmunchbot.config import (
 from rugmunchbot.formatters import (
     dexscreener_url,
     footer_links,
+    is_owner,
+    paywall_text,
     sep,
     thin_sep,
 )
@@ -522,39 +525,163 @@ async def cmd_launches(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+_FREE_WHALE_MOVES = 3  # free tier sees the top 3; premium unlocks the full 10
+
+
+def _whale_flow_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate buy/sell flow stats from whale feed items.
+
+    Returns buy/sell USD volumes, net flow, buy/sell ratio and a
+    confidence verdict (bullish / bearish / neutral). Pure.
+    """
+    buy_vol = 0.0
+    sell_vol = 0.0
+    buys = 0
+    sells = 0
+    for item in items:
+        try:
+            usd = float(item.get("value_usd") or 0)
+        except (TypeError, ValueError):
+            usd = 0.0
+        if (item.get("type") or "buy").lower() == "sell":
+            sell_vol += usd
+            sells += 1
+        else:
+            buy_vol += usd
+            buys += 1
+    net = buy_vol - sell_vol
+    ratio = buy_vol / sell_vol if sell_vol > 0 else None
+    if net > 0:
+        verdict = "\U0001f7e2 BULLISH \u2014 whales are net ACCUMULATING"
+    elif net < 0:
+        verdict = "\U0001f534 BEARISH \u2014 whales are net DISTRIBUTING"
+    else:
+        verdict = "\u26aa NEUTRAL \u2014 balanced two-way flow"
+    return {
+        "buy_vol": buy_vol,
+        "sell_vol": sell_vol,
+        "net": net,
+        "ratio": ratio,
+        "buys": buys,
+        "sells": sells,
+        "verdict": verdict,
+    }
+
+
+def _whale_analysis_bits(item: dict[str, Any]) -> list[str]:
+    """Per-whale intelligence bits: funding source, wallet age, pattern.
+
+    Reads the enrichment fields the backend whale feed writes when
+    available; falls back to the smart-money flag. Pure.
+    """
+    bits: list[str] = []
+    funding = item.get("funding_source") or item.get("funded_by") or item.get("exchange") or ""
+    if funding:
+        bits.append(f"funding: {html.escape(str(funding)[:40])}")
+    age = item.get("wallet_age_days")
+    if age is not None:
+        with contextlib.suppress(TypeError, ValueError):
+            bits.append(f"wallet age: {int(age)}d")
+    pattern = (
+        item.get("historical_pattern")
+        or item.get("pattern")
+        or ("known accumulator" if item.get("is_smart_money") else "")
+    )
+    if pattern:
+        bits.append(html.escape(str(pattern)[:48]))
+    return bits
+
+
 async def cmd_whales(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /whales — recent whale moves from the backend market router."""
+    """Handle /whales — deep whale analysis: top moves, funding sources,
+    wallet ages, historical patterns, net-flow summary and confidence."""
     msg = await update.message.reply_text(
-        "\U0001f40b <b>Fetching whale activity...</b>", parse_mode=ParseMode.HTML
+        "\U0001f40b <b>Deep-scanning whale flow (24h)...</b>", parse_mode=ParseMode.HTML
     )  # type: ignore[union-attr]  # PTB None-able fields
-    data = await _fetch_market_intel("/api/v1/market/whales", params={"limit": 5})
+    data = await _fetch_market_intel("/api/v1/market/whales", params={"limit": 10})
     items = (data or {}).get("items") or []
     if not items:
         await msg.edit_text(MARKET_UNAVAILABLE, parse_mode=ParseMode.HTML)
         return
 
-    lines = ["\U0001f40b <b>Whale Activity</b>", sep()]
-    for i, item in enumerate(items[:5], 1):
+    user = update.effective_user
+    tier = db.get_user_tier(user.id) if user else "free"
+    premium = tier in ("scout", "hunter", "pro") or (user is not None and is_owner(user.id))
+
+    summary = _whale_flow_summary(items)
+    shown = items if premium else items[:_FREE_WHALE_MOVES]
+
+    lines = ["\U0001f40b <b>Whale Flow \u2014 Deep Analysis (24h)</b>", sep()]
+    lines.append("<b>\U0001f4ca Whale Summary</b>")
+    lines.append(
+        f"   \U0001f7e2 Buy volume: <b>{_fmt_usd(summary['buy_vol'])}</b>"
+        f" ({summary['buys']} moves) \u00b7 \U0001f534 Sell volume: <b>{_fmt_usd(summary['sell_vol'])}</b>"
+        f" ({summary['sells']} moves)"
+    )
+    net = summary["net"]
+    net_txt = f"+{_fmt_usd(net)}" if net >= 0 else f"-{_fmt_usd(abs(net))}"
+    ratio = summary["ratio"]
+    ratio_txt = f"{ratio:.2f}:1" if ratio is not None else "all buys"
+    lines.append(
+        f"   \U0001f4b0 Net flow: <b>{net_txt}</b> \u00b7 Buy/sell ratio: <b>{ratio_txt}</b>"
+    )
+    lines.append(f"   \U0001f3af Whale Confidence: <b>{summary['verdict']}</b>")
+    lines.append("")
+
+    lines.append(f"<b>\U0001f40b Top Whale Moves</b> ({len(shown)}/{len(items)})")
+    lines.append(thin_sep())
+    for i, item in enumerate(shown, 1):
         symbol = (item.get("token_symbol") or "???").upper()[:12]
         action = (item.get("type") or "buy").lower()
         action_txt = "BUY" if action == "buy" else "SELL"
         action_emoji = "\U0001f7e2" if action == "buy" else "\U0001f534"
-        smart = " \U0001f4a1 smart money" if item.get("is_smart_money") else ""
         chain_raw = item.get("chain") or ""
         chain_txt = f" {fmt_chain(chain_raw)}" if chain_raw else ""
         addr = item.get("token_address") or ""
+        wallet = (
+            item.get("wallet") or item.get("from") or item.get("to") or item.get("exchange") or ""
+        )
+        amount = item.get("amount")
+        amount_txt = f" \u00b7 {amount}" if amount else ""
+        wallet_txt = f" | \U0001f3e6 {html.escape(str(wallet)[:24])}" if wallet else ""
         lines.append(
-            f"{i}. {action_emoji} <b>{action_txt} {symbol}</b>{chain_txt}{smart}\n"
-            f"   {_fmt_usd(item.get('value_usd'))}"
+            f"{i}. {action_emoji} <b>{action_txt} {symbol}</b>{chain_txt}\n"
+            f"   <b>{_fmt_usd(item.get('value_usd'))}</b>{amount_txt}"
+            f"{wallet_txt}"
             f"{f' | <code>{addr}</code>' if addr else ''}"
         )
-    lines.append("\n<i>Large moves detected across Solana/Ethereum/Bitcoin pairs.</i>")
+        if premium:
+            bits = _whale_analysis_bits(item)
+            if bits:
+                joined = " \u00b7 ".join(bits)
+                lines.append(f"   \U0001f9e0 {joined}")
+        if i < len(shown):
+            lines.append("")
+
+    if not premium:
+        locked = len(items) - _FREE_WHALE_MOVES
+        lines.append("")
+        lines.append(sep())
+        lines.append(
+            f"\U0001f512 <b>{locked} more whale moves locked</b> \u2014 plus funding sources, "
+            "wallet ages and accumulator/dumper history for every whale."
+        )
+        lines.append(paywall_text(user.id, "whales") if user else paywall_text(0, "scan"))
+
     lines.append(footer_links())
     rows: list[list[InlineKeyboardButton]] = []
-    for item in items[:5]:
+    for item in shown[:5]:
         addr = item.get("token_address") or ""
         if addr:
             rows.append(token_buttons(addr, item.get("chain") or "solana"))
+    if not premium:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    "\U0001f48e Unlock Full Whale Analysis", callback_data="menu_pricing"
+                )
+            ]
+        )
     rows.append([InlineKeyboardButton("\U0001f504 Refresh", callback_data="whales_refresh")])
     rows.append([InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")])
     await msg.edit_text(
