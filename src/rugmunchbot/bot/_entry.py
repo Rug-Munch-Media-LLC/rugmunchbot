@@ -93,10 +93,12 @@ from rugmunchbot.handlers.groups import (
     cmd_voicechat,
 )
 from rugmunchbot.handlers.hlwhales import register_hlwhales
+from rugmunchbot.handlers.whalewatch import register_whalewatch
 from rugmunchbot.handlers.holders import cmd_holders
 from rugmunchbot.handlers.inline import handle_inline
 from rugmunchbot.handlers.integrity_handlers import register_integrity
 from rugmunchbot.handlers.liqmap import register_liqmap
+from rugmunchbot.handlers._alpha_handlers import cmd_alpha
 from rugmunchbot.handlers.market import cmd_news, cmd_rugcheck, register_market
 from rugmunchbot.handlers.osint import (
     cmd_email,
@@ -211,6 +213,7 @@ def main() -> None:
     _reg(app, "compare", cmd_compare)
     _reg(app, "quick", cmd_quick)
     _reg(app, "rugcheck", cmd_rugcheck)
+    _reg(app, "alpha", cmd_alpha)  # premium alpha signals feed
 
     # Anti-abuse
     _reg(app, "report", cmd_report)
@@ -220,6 +223,7 @@ def main() -> None:
     register_integrity(app)  # /volume /exchangeaudit /dune
     register_liqmap(app)  # /liqmap
     register_hlwhales(app)  # /hlwhales
+    register_whalewatch(app)  # /whalewatch — premium whale-wallet deep-dive
     register_dislocation(app)  # /dislocation
     register_status(app)  # /status
     register_portfolio(app)  # /portfolio

@@ -82,6 +82,7 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         "Markets & Discovery",
         [
             ("trending", "Hot tokens right now"),
+            ("alpha", "Premium alpha signals — early detection, smart money, curated feeds"),
             ("movers", "Biggest 24h gainers & losers"),
             ("launches", "New token launch feed"),
             ("whales", "Recent whale moves feed"),

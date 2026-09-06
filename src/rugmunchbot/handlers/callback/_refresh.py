@@ -181,6 +181,13 @@ async def handle(
         await _inline_market_data(update, ctx, "launches")
     elif data.startswith("whales_refresh"):
         await _inline_market_data(update, ctx, "whales")
+    elif data.startswith("alpha_refresh"):
+        await query.edit_message_text(
+            "\U0001f3af <b>Refreshing alpha signals...</b>", parse_mode=ParseMode.HTML
+        )
+        from rugmunchbot.handlers._alpha_handlers import cmd_alpha as _alpha
+
+        await _alpha(update, ctx)
     else:
         return False
     return True
