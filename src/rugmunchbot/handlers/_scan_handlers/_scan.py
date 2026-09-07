@@ -217,9 +217,7 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         try:
             from rugmunchbot.tools.scanner._scans import lookup_prior_scan_intel
 
-            prior = await asyncio.wait_for(
-                lookup_prior_scan_intel(target, chain), timeout=6.0
-            )
+            prior = await asyncio.wait_for(lookup_prior_scan_intel(target, chain), timeout=6.0)
             if prior:
                 report += f"\n\U0001f9f0 {prior}"
         except Exception:
@@ -290,11 +288,9 @@ async def _poll_v2_scan_completion(
     or None on timeout/failure — the caller then renders whatever the fast
     path had.
 
-    Local-first (2026-08-29): when the scan ran on the VENDORED local
-    engine, its background phases publish to the SAME Redis under
-    ``scanner:status:{chain}:{address}`` — read that directly (no HTTP to
-    localhost:8000). The backend HTTP status endpoint remains fallback-only
-    (a scan served by the backend fallback path is polled there).
+    Thin client (2026-09-07): the bot polls ONLY the backend HTTP status
+    endpoint — the vendored in-process scanner engine is no longer invoked
+    from handlers (backend owns the data).
 
     Payload shape: the status endpoint nests the scan result under
     ``result`` (``{"state": ..., "phase": ..., "result": {...},
@@ -305,22 +301,6 @@ async def _poll_v2_scan_completion(
     deadline = time.monotonic() + max_wait_s
     await asyncio.sleep(head_start_s)  # head start for the background phases
     while time.monotonic() < deadline:
-        # Local-first: the vendored scanner publishes progress + the final
-        # result to the bot's Redis — read it directly, no backend HTTP.
-        try:
-            from rugmunchbot.tools.scanner._local_v2 import install_import_bridge
-
-            install_import_bridge()
-            from rugmunch_scanner.unified.unified.scanner import scan_status as _local_status
-
-            local = await _local_status(chain, address)
-            if isinstance(local, dict) and local.get("state") == "complete":
-                payload = local.get("result")
-                if isinstance(payload, dict):
-                    return payload
-                return local
-        except Exception as exc:
-            logger.debug("v2 scan local status failed for %s: %s", address[:12], exc)
         try:
             client = get_shared_client(10)
             r = await client.get(url, headers=backend_headers())
