@@ -594,7 +594,17 @@ def _whale_analysis_bits(item: dict[str, Any]) -> list[str]:
 
 async def cmd_whales(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /whales — deep whale analysis: top moves, funding sources,
-    wallet ages, historical patterns, net-flow summary and confidence."""
+    wallet ages, historical patterns, net-flow summary and confidence.
+
+    [REVIEW 2026-09-07] Backend also exposes per-token
+    ``GET /api/v1/whales/flow`` and ``GET /api/v1/whales/signals`` (both
+    require ``address`` + ``chain`` and return a SINGLE token's net-flow /
+    rendered signal). This command renders a MARKET-WIDE list of top whale
+    moves (``data["items"]``), so those per-token endpoints do NOT cover this
+    shape — switching here would break the feed. They are the right source
+    for a per-token whale panel (e.g. a scan/token-detail view), not for the
+    market-wide /whales list. Left on /api/v1/market/whales.
+    """
     msg = await update.message.reply_text(
         "\U0001f40b <b>Deep-scanning whale flow (24h)...</b>", parse_mode=ParseMode.HTML
     )  # type: ignore[union-attr]  # PTB None-able fields

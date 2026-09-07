@@ -43,6 +43,13 @@ async def run_kol_scoreboard_watch(ctx: Any = None) -> int:
 
     Returns the number of alerts posted (0..``KOL_SCOREBOARD_MAX_ALERTS``).
     Fail-open at every stage — a quiet tick is a valid outcome.
+
+    [REVIEW 2026-09-07] The backend ``GET /api/v1/kol/leaderboard`` is a
+    CONSUMER of this bot's own DB (``kol_scores`` ⋈ ``kol_identities`` via
+    ``load_scorecard``) — the bot is the source of truth and publishes the
+    scoreboard here. There is no bot-side handler that renders a leaderboard
+    from the backend, so there is nothing to wire: the bot already owns this
+    data and the backend reads it. No change needed.
     """
     from rugmunchbot.channels.scheduler._core import _chat_id, _release, _remember, _safe_send
     from rugmunchbot.db import (

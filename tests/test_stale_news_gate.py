@@ -17,13 +17,52 @@ from unittest.mock import patch
 
 import pytest
 
+# Deterministic clock: every time-dependent assertion is pinned to a fixed
+# "now" so the suite never drifts with the wall clock (the old hardcoded
+# dates went stale as the calendar moved on). FROZEN_NOW is a stable anchor
+# far enough in the past that "200 days old" and "2 hours old" are both
+# unambiguous, and far enough from any real-world date that embedded-date
+# probes (2024) are always stale.
+#
+# We patch the `datetime` class directly (unittest.mock) rather than using
+# freezegun: freezegun's stop() iterates dir() over every loaded module, and
+# transformers' lazy __dir__ triggers a broken llava_next_video import in this
+# venv. Patching the specific modules' datetime reference is deterministic and
+# avoids that whole class of failure.
+FROZEN_NOW = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
+
+
+class _FrozenDateTime(datetime):
+    """datetime stand-in whose now() always returns FROZEN_NOW."""
+
+    @classmethod
+    def now(cls, tz=None):
+        if tz is None:
+            return FROZEN_NOW
+        return FROZEN_NOW.astimezone(tz)
+
+
+@pytest.fixture
+def frozen_now():
+    """Pin datetime.now() to FROZEN_NOW in every module under test."""
+    targets = ["rugmunchbot.channels.scheduler._posts_rag._gates.datetime"]
+    # rugbrain is a sibling repo, not always installed in this venv — only
+    # patch it when present so the bot-layer tests stay runnable standalone.
+    try:
+        import rugbrain.content_engine  # noqa: F401
+    except ImportError:
+        pass
+    else:
+        targets.append("rugbrain.content_engine.datetime")
+    with patch(targets[0], _FrozenDateTime), patch(targets[1], _FrozenDateTime):
+        yield FROZEN_NOW
+
+
 # ── bot layer: _recency_gate / _draft_age_hours ──────────────────────
 
 
 def _iso(hours_ago: float) -> str:
-    from datetime import timedelta
-
-    return (datetime.now(UTC) - timedelta(hours=hours_ago)).isoformat()
+    return (FROZEN_NOW - timedelta(hours=hours_ago)).isoformat()
 
 
 def test_recency_gate_rejects_undated():
@@ -33,7 +72,7 @@ def test_recency_gate_rejects_undated():
     assert _recency_gate({}) == "undated"
 
 
-def test_recency_gate_rejects_stale_ts_field():
+def test_recency_gate_rejects_stale_ts_field(frozen_now):
     from rugmunchbot.channels.scheduler._posts_rag import _recency_gate
 
     item = {"ts": _iso(200 * 24)}  # 200 days old
@@ -42,13 +81,13 @@ def test_recency_gate_rejects_stale_ts_field():
     assert "via field" in reason
 
 
-def test_recency_gate_accepts_fresh_ts_field():
+def test_recency_gate_accepts_fresh_ts_field(frozen_now):
     from rugmunchbot.channels.scheduler._posts_rag import _recency_gate
 
     assert _recency_gate({"ts": _iso(5)}) == ""
 
 
-def test_recency_gate_probes_embedded_iso_date():
+def test_recency_gate_probes_embedded_iso_date(frozen_now):
     from rugmunchbot.channels.scheduler._posts_rag import _recency_gate
 
     item = {"text": "Rivus DAO exploit on 2024-09-16 drained funds."}
@@ -57,19 +96,18 @@ def test_recency_gate_probes_embedded_iso_date():
     assert "via text" in reason
 
 
-def test_recency_gate_probes_embedded_long_form_date():
+def test_recency_gate_probes_embedded_long_form_date(frozen_now):
     from rugmunchbot.channels.scheduler._posts_rag import _recency_gate
 
     item = {"text": "Kalax suffered a rugpull on October 14, 2024 draining $350k."}
     assert _recency_gate(item).startswith("stale(")
 
 
-def test_recency_gate_fresh_embedded_date_passes():
+def test_recency_gate_fresh_embedded_date_passes(frozen_now):
     from rugmunchbot.channels.scheduler._posts_rag import _recency_gate
 
-    # Relative to NOW (the old hardcoded 08-25 went stale as the calendar
-    # moved on — the gate correctly flags it; the test must embed a fresh date).
-    fresh = (datetime.now(UTC) - timedelta(hours=2)).strftime("%Y-%m-%d")
+    # Relative to the frozen clock — deterministic regardless of wall time.
+    fresh = (FROZEN_NOW - timedelta(hours=2)).strftime("%Y-%m-%d")
     item = {"text": f"Exploit detected on {fresh} affecting the vault."}
     assert _recency_gate(item) == ""
 
@@ -89,7 +127,7 @@ def test_recency_gate_disabled_via_env(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_post_loop_gates_stale_draft_before_send():
+async def test_post_loop_gates_stale_draft_before_send(frozen_now):
     """End-to-end: a stale draft is dropped and NEVER sent to Telegram."""
     from rugmunchbot.channels.scheduler import _posts_rag
 
@@ -135,7 +173,7 @@ class SimpleNamespaceCtx:
 pytest.importorskip("rugbrain", reason="sibling repo not installed in bot venv")
 
 
-def test_story_age_hours_parses_and_measures():
+def test_story_age_hours_parses_and_measures(frozen_now):
     from rugbrain.content_engine import _story_age_hours
 
     fresh = {"ts": _iso(3)}
