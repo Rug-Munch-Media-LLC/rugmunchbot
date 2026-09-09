@@ -69,7 +69,7 @@ _RMI_SERVICES: tuple[str, ...] = (
     "rmi-redis",
     "rmi-postgres",
     "rmi-clickhouse",
-    "rmi-rag",
+    "rugbrain-api",
     "rmi-mcp-x402",
     "degenfeed",
     "pryscraper",

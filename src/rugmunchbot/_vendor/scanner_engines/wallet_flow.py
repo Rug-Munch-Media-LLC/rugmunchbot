@@ -8,7 +8,7 @@ Builds a labeled, USD-denominated directed graph of fund flows around a
 wallet, entirely from our own ClickHouse data:
 
   - ``wallet_memory.evm_transfers`` — ERC-20 transfer edges (sender → receiver)
-  - ``wallet_memory.wallet_labels``  — node labels (39.4M curated)
+  - ``wallet_memory.wallet_labels``  — node labels (~140k curated)
   - ``wallet_memory.dex_events``     — contract detection (node type)
   - F2 price oracle (``price_oracle.normalize_amount``) — USD normalization
 

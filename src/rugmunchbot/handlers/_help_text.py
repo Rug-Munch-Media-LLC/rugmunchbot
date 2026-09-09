@@ -251,7 +251,8 @@ OPEN_SOURCE_REPOS: tuple[tuple[str, str], ...] = (
     ("bot", f"{CODEBERG_ORG}/rugmunchbot"),
     ("scraper", f"{CODEBERG_ORG}/pryscraper"),
     ("frontend", f"{CODEBERG_ORG}/rmi-frontend"),
-    ("rag", f"{CODEBERG_ORG}/rmi-rag"),
+    # Canonical RAG repo is rugbrain (rmi-rag is archived).
+    ("rag", "https://codeberg.org/RugMunchMedia/rugbrain"),
     ("indexer", f"{CODEBERG_ORG}/chain-indexer"),
     ("wallet", f"{CODEBERG_ORG}/walletpress"),
 )
