@@ -499,3 +499,73 @@ jobs:
             registry.rugmunch.io/rugmunchbot:${{ github.sha }}
         env:
           COSIGN_EXPERIMENTAL: "1"
+
+  # ── Dependency vulnerability audit (pip-audit) ─────────────────
+  # Audits the DECLARED runtime surface (requirements.txt) without
+  # installing the full tree — the bot's requirements drag in torch/
+  # transformers via guardrails, so env-mode auditing is too heavy for CI.
+  pip-audit:
+    runs-on: docker-x64
+    needs: [test]
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Run pip-audit on declared deps (blocking on HIGH/CRITICAL)
+        run: pip-audit -r requirements.txt --fail-on=high --desc
+
+  # ── Dependency freshness (informational) ───────────────────────
+  deps-freshness:
+    runs-on: docker-x64
+    needs: [test]
+    continue-on-error: true  # informational only for now
+    container:
+      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check dependency freshness
+        run: |
+          pip install libyear 2>/dev/null || true
+          libyear --file requirements.txt || echo "Dep freshness check noted (informational)"
+
+  # ── Mutation testing (informational) ───────────────────────────
+  mutation-test:
+    runs-on: docker-x64
+    needs: [test]
+    continue-on-error: true  # informational only for now
+    container:
+      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install system deps
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+          rm -rf /var/lib/apt/lists/*
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Setup Python
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Install dependencies + mutmut
+        run: |
+          uv pip install --python .venv/bin/python mutmut
+          if [ -f "requirements.txt" ]; then
+            uv pip install --python .venv/bin/python -r requirements.txt
+          fi
+          uv pip install --python .venv/bin/python -e .
+      - name: Mutation testing (scoped to formatters core)
+        run: |
+          source .venv/bin/activate
+          mutmut run --paths-to-mutate src/rugmunchbot/formatters/ --test-timeout 10 || echo "Mutation score noted (non-blocking)"
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: mutation-report
+          path: |
+            .mutmut-cache/
+            html/
