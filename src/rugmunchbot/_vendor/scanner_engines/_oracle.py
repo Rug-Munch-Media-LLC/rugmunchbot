@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 from rugmunchbot._vendor.logging_shim import get_logger
+from rugmunchbot._vendor.scanner_engines._common import bounded_set as _common_bounded_set
 from rugmunchbot._vendor.scanner_engines._price_adapters import (
     _coingecko_price,
     _decimals_from_dexscreener,
@@ -278,7 +279,15 @@ async def get_token_price_at_time(
                 "swap_count": 0,
                 "window_minutes": int(window_minutes),
             }
-    except (ConnectionError, OSError, TimeoutError, ValueError, KeyError, TypeError, CHDriverError) as exc:
+    except (
+        ConnectionError,
+        OSError,
+        TimeoutError,
+        ValueError,
+        KeyError,
+        TypeError,
+        CHDriverError,
+    ) as exc:
         logger.debug("price_oracle at-time fallback failed for %s: %s", token[:16], exc)
 
     return None
@@ -316,21 +325,29 @@ async def get_token_decimals(token_address: str, chain: str) -> int | None:
     try:
         meta = await _meta_get(token, chain)
         if meta and meta.get("decimals") is not None:
-            _decimals_mem[cache_key] = int(meta["decimals"])
+            _common_bounded_set(_decimals_mem, cache_key, int(meta["decimals"]), _MEM_MAX)
             return int(meta["decimals"])
-    except (ConnectionError, OSError, TimeoutError, ValueError, KeyError, TypeError, CHDriverError) as exc:
+    except (
+        ConnectionError,
+        OSError,
+        TimeoutError,
+        ValueError,
+        KeyError,
+        TypeError,
+        CHDriverError,
+    ) as exc:
         logger.debug("token_meta decimals read failed for %s: %s", token[:16], exc)
 
     # ── DexScreener pair response ──
     decimals = await _decimals_from_dexscreener(token, chain)
     if decimals is not None:
-        _decimals_mem[cache_key] = decimals
+        _common_bounded_set(_decimals_mem, cache_key, decimals, _MEM_MAX)
         return decimals
 
     # ── Hardcoded fallback map ──
     chain_map = _FALLBACK_DECIMALS.get(chain, {})
     if token in chain_map:
-        _decimals_mem[cache_key] = chain_map[token]
+        _common_bounded_set(_decimals_mem, cache_key, chain_map[token], _MEM_MAX)
         return chain_map[token]
 
     # ── own_dex_data known-token table + ClickHouse estimation ──
@@ -339,16 +356,22 @@ async def get_token_decimals(token_address: str, chain: str) -> int | None:
 
         known = _get_token_decimals(token, chain)
         if known is not None:
-            _decimals_mem[cache_key] = known
+            _common_bounded_set(_decimals_mem, cache_key, known, _MEM_MAX)
             return known
-    except (ConnectionError, OSError, TimeoutError, ValueError, KeyError, TypeError, CHDriverError) as exc:
+    except (
+        ConnectionError,
+        OSError,
+        TimeoutError,
+        ValueError,
+        KeyError,
+        TypeError,
+        CHDriverError,
+    ) as exc:
         logger.debug("own_dex_data decimals lookup failed for %s: %s", token[:16], exc)
 
     # ── Default ──
     default = 9 if chain == "solana" else 18
-    _decimals_mem[cache_key] = default
-    if len(_decimals_mem) > _MEM_MAX:
-        _decimals_mem.pop(next(iter(_decimals_mem)), None)
+    _common_bounded_set(_decimals_mem, cache_key, default, _MEM_MAX)
     return default
 
 
@@ -376,7 +399,9 @@ async def get_native_price(chain: str) -> float:
             price_result = await get_token_price(wrapped, chain, force_fresh=True)
             if price_result and price_result.get("price_usd", 0) > 0:
                 price = float(price_result["price_usd"])
-                _native_mem[chain] = {"price_usd": price, "_cached_at": time.time()}
+                _common_bounded_set(
+                    _native_mem, chain, {"price_usd": price, "_cached_at": time.time()}, _MEM_MAX
+                )
                 return price
         except (httpx.HTTPError, ConnectionError, OSError, TimeoutError, ValueError) as exc:
             logger.debug("native price via wrapped token failed for %s: %s", chain, exc)
@@ -384,13 +409,17 @@ async def get_native_price(chain: str) -> float:
     # ── CoinGecko by native coin id ──
     price = await _native_coingecko(chain)
     if price > 0:
-        _native_mem[chain] = {"price_usd": price, "_cached_at": time.time()}
+        _common_bounded_set(
+            _native_mem, chain, {"price_usd": price, "_cached_at": time.time()}, _MEM_MAX
+        )
         return price
 
     # ── DeFiLlama native (ethereum / bsc / solana / ...) ──
     price = await _native_defillama(chain)
     if price > 0:
-        _native_mem[chain] = {"price_usd": price, "_cached_at": time.time()}
+        _common_bounded_set(
+            _native_mem, chain, {"price_usd": price, "_cached_at": time.time()}, _MEM_MAX
+        )
         return price
 
     return 0.0

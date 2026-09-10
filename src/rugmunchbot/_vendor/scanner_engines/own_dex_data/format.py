@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover
     CHDriverError = Exception
 
 from rugmunchbot._vendor.logging_shim import get_logger
+from rugmunchbot._vendor.scanner_engines._common import bounded_set as _common_bounded_set
 from rugmunchbot._vendor.scanner_engines.own_dex_data.client import (
     _get_ch_client,
     _load_pair_cache,
@@ -163,28 +164,35 @@ def _get_token_decimals(token_address: str, chain: str) -> int:
     # Check well-known map
     chain_map = _KNOWN_DECIMALS.get(chain, {})
     if addr in chain_map:
-        _decimals_cache[cache_key] = chain_map[addr]
+        _common_bounded_set(_decimals_cache, cache_key, chain_map[addr], _DECIMALS_CACHE_MAX)
         return chain_map[addr]
 
     # Check known tokens across all chains (some are chain-agnostic)
     for _c, tokens in _KNOWN_DECIMALS.items():
         if addr in tokens:
-            _decimals_cache[cache_key] = tokens[addr]
+            _common_bounded_set(_decimals_cache, cache_key, tokens[addr], _DECIMALS_CACHE_MAX)
             return tokens[addr]
 
     # Try to estimate from ClickHouse evm_transfers data
     try:
         estimated = _estimate_decimals_from_transfers(addr, chain)
         if estimated is not None:
-            _decimals_cache[cache_key] = estimated
+            _common_bounded_set(_decimals_cache, cache_key, estimated, _DECIMALS_CACHE_MAX)
             return estimated
-    except (ConnectionError, OSError, TimeoutError, RuntimeError, ValueError, KeyError, TypeError, CHDriverError):
+    except (
+        ConnectionError,
+        OSError,
+        TimeoutError,
+        RuntimeError,
+        ValueError,
+        KeyError,
+        TypeError,
+        CHDriverError,
+    ):
         logger.debug("decimals_estimation_failed", token=addr[:16], chain=chain)
 
     # Default to 18 (most common ERC-20 standard)
-    _decimals_cache[cache_key] = 18
-    if len(_decimals_cache) > _DECIMALS_CACHE_MAX:
-        _decimals_cache.pop(next(iter(_decimals_cache)), None)
+    _common_bounded_set(_decimals_cache, cache_key, 18, _DECIMALS_CACHE_MAX)
 
     return 18
 
@@ -236,13 +244,24 @@ def _estimate_decimals_from_transfers(token_address: str, chain: str) -> int | N
                 return 6
             else:
                 return 18
-    except (ConnectionError, OSError, TimeoutError, RuntimeError, ValueError, KeyError, TypeError, CHDriverError):
+    except (
+        ConnectionError,
+        OSError,
+        TimeoutError,
+        RuntimeError,
+        ValueError,
+        KeyError,
+        TypeError,
+        CHDriverError,
+    ):
         logger.debug("transfer_value_query_failed", token=token_address[:16], chain=chain)
 
     return None
 
 
-def _normalize_amount(raw_amount: str | float | int | None, token_address: str, chain: str) -> float:
+def _normalize_amount(
+    raw_amount: str | float | int | None, token_address: str, chain: str
+) -> float:
     """Convert raw on-chain amount to human-readable value by dividing by 10^decimals.
 
     Args:
@@ -298,7 +317,9 @@ def _build_pairs(
     # Resolve the paired token (token0 or token1 in the pool)
     # We need decimals for our token and the paired token
     # For now, get the paired token from the first swap that has token data
-    def _resolve_paired_token(pool_addr: str, our_token_lower: str, dex_info: dict[str, Any]) -> str | None:
+    def _resolve_paired_token(
+        pool_addr: str, our_token_lower: str, dex_info: dict[str, Any]
+    ) -> str | None:
         t0, t1 = _get_tokens(pool_addr, dex_info)
         if t0.lower() == our_token_lower:
             return t1
@@ -355,7 +376,11 @@ def _build_pairs(
 
             # Determine buy/sell: if our token is token0 and amount0_out > 0,
             # someone is buying (our token leaves the pool = buy)
-            is_buy = float(swap["amount0_out"] or 0) > 0 if is_token0 else float(swap["amount1_out"] or 0) > 0
+            is_buy = (
+                float(swap["amount0_out"] or 0) > 0
+                if is_token0
+                else float(swap["amount1_out"] or 0) > 0
+            )
 
             if is_buy:
                 buy_count += 1

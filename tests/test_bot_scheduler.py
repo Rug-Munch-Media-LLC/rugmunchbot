@@ -1,4 +1,4 @@
-"""Bot scheduler wiring — exactly 4 CORE repeating jobs (audit 2026-08-21).
+"""Bot scheduler wiring — exactly 5 CORE repeating jobs (audit 2026-08-21, updated 2026-09-10).
 
 ``main()`` ends in the blocking ``run_polling`` and needs a live Telegram
 token, so the scheduling contract is unit-tested against the extracted
@@ -6,8 +6,8 @@ token, so the scheduling contract is unit-tested against the extracted
 ``Application.builder`` chain + fake ``job_queue`` (no network, no Redis).
 
 Contract under test:
-  * EXACTLY 4 core repeating jobs: check_alerts, check_monitors,
-    deliver_pending_broadcasts, deliver_pending_alerts.
+  * EXACTLY 5 core repeating jobs: check_alerts, check_monitors,
+    deliver_pending_broadcasts, deliver_pending_alerts, heap_trim.
   * Intervals/first-runs match the production wiring.
   * The daily scam-tip job stays DISABLED (no ``run_daily``).
   * Channel content jobs are NOT core — they are env-driven and owned by
@@ -77,16 +77,17 @@ def _build_fake_app() -> FakeApplication:
     return FakeBuilder(app).token("fake-token").request(None).concurrent_updates(4).build()
 
 
-def test_core_scheduler_registers_exactly_four_repeating_jobs():
+def test_core_scheduler_registers_exactly_five_repeating_jobs():
     app = _build_fake_app()
     bot_mod.register_core_jobs(app)
     jobs = app.job_queue.repeating
-    assert len(jobs) == 4
+    assert len(jobs) == 5
     assert [j["name"] for j in jobs] == [
         "check_alerts",
         "check_monitors",
         "deliver_pending_broadcasts",
         "deliver_pending_alerts",
+        "heap_trim",
     ]
 
 

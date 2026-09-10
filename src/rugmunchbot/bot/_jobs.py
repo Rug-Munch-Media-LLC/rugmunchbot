@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ctypes
+import gc
+from contextlib import suppress
 from datetime import time as dtime  # noqa: F401 — used by daily_scam_tip if re-enabled
 from functools import wraps
 from typing import TYPE_CHECKING, Any
@@ -52,12 +55,27 @@ def _metrics_job(name: str, fn: Any) -> Any:
     return wrapped
 
 
+async def heap_trim(context: Any = None) -> None:
+    """Run gc.collect + malloc_trim(0) to return fragmented heap to the OS.
+
+    Python's memory allocator (pymalloc + glibc malloc) grows arenas but
+    never shrinks them — once the heap expands (scanner caches, news
+    ingestion bursts, media processing) the RSS stays high even after
+    objects are freed.  This periodic trim reclaims that memory.
+    """
+    collected = gc.collect()
+    with suppress(OSError, AttributeError):
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    if collected:
+        logger.debug("heap_trim collected=%d", collected)
+
+
 def register_core_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     """Register the CORE repeating scheduler jobs on ``app.job_queue``.
 
-    Contract (unit-tested in tests/test_bot_scheduler.py): EXACTLY 4 core
+    Contract (unit-tested in tests/test_bot_scheduler.py): EXACTLY 5 core
     repeating jobs — check_alerts, check_monitors,
-    deliver_pending_broadcasts, deliver_pending_alerts. The daily scam tip
+    deliver_pending_broadcasts, deliver_pending_alerts, heap_trim. The daily scam tip
     stays DISABLED (2026-08-12); env-driven channel content jobs are a
     separate concern owned by :func:`register_channel_jobs`. Extracted from
     ``main()`` so the scheduling contract is testable without a Telegram
@@ -88,3 +106,7 @@ def register_core_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     job_queue.run_repeating(
         _metrics_job("deliver_pending_alerts", deliver_pending_alerts), interval=30, first=15
     )
+    # Memory-pressure relief: gc.collect + malloc_trim returns fragmented
+    # heap pages to the OS. Without this the bot's RSS grows monotonically
+    # (Python never shrinks its arenas) and eventually hits MemoryMax.
+    job_queue.run_repeating(_metrics_job("heap_trim", heap_trim), interval=1800, first=300)

@@ -147,6 +147,20 @@ def clear_cache(*caches: dict[Any, Any]) -> None:
         cache.clear()
 
 
+def bounded_set(cache: dict[Any, Any], key: Any, value: Any, max_size: int = 100_000) -> None:
+    """Set ``cache[key] = value`` with FIFO eviction when ``max_size`` is exceeded.
+
+    Prevents unbounded growth of in-process caches (decimals, native-token
+    metadata, chain-pair maps) that accumulate one entry per unique token
+    scanned across 20 chains over days of uptime.  Mirrors the ``_price_mem``
+    TTL+max pattern but for stable-fact caches where TTL is unnecessary.
+    """
+    cache[key] = value
+    if len(cache) > max_size:
+        # Evict oldest insertion (FIFO) — dict preserves insertion order in 3.7+
+        cache.pop(next(iter(cache)), None)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Results
 # ═══════════════════════════════════════════════════════════════════════════

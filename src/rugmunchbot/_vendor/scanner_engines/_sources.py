@@ -54,6 +54,7 @@ except ImportError:  # pragma: no cover
 
 from rugmunchbot._vendor.logging_shim import get_logger
 from rugmunchbot._vendor.scanner_engines._common import (
+    bounded_set as _common_bounded_set,
     clear_cache as _common_clear_cache,
     get_cache_stats as _common_get_cache_stats,
     run_sync,
@@ -114,7 +115,14 @@ def _get_ch_client() -> Any | None:
         _ch_client.execute("SELECT 1")
         logger.info("price_oracle ClickHouse connected: %s:%s/%s", ch_host, ch_port, ch_db)
         return _ch_client
-    except (ImportError, ConnectionError, TimeoutError, RuntimeError, OSError, CHDriverError) as exc:
+    except (
+        ImportError,
+        ConnectionError,
+        TimeoutError,
+        RuntimeError,
+        OSError,
+        CHDriverError,
+    ) as exc:
         logger.warning("price_oracle ClickHouse unavailable: %s", exc)
         _ch_client = None
         return None
@@ -314,7 +322,9 @@ async def _get_cached_price(token: str, chain: str, depth: int) -> dict[str, Any
         redis_val = await _redis_get(f"price:{chain}:{token}")
         if redis_val and float(redis_val.get("price_usd", 0) or 0) > 0:
             redis_val["source"] = f"redis_cache:{redis_val.get('source', 'unknown')}"
-            _price_mem[cache_key] = {**redis_val, "_cached_at": time.time()}
+            _common_bounded_set(
+                _price_mem, cache_key, {**redis_val, "_cached_at": time.time()}, _MEM_MAX
+            )
             return redis_val
     except (ConnectionError, OSError, TimeoutError, ValueError, RedisError) as exc:
         logger.debug("price_oracle Redis cache read failed: %s", exc)
@@ -337,9 +347,19 @@ async def _get_cached_price(token: str, chain: str, depth: int) -> dict[str, Any
                 }
                 if meta.get("decimals") is not None:
                     payload["decimals"] = int(meta["decimals"])
-                _price_mem[cache_key] = {**payload, "_cached_at": time.time()}
+                _common_bounded_set(
+                    _price_mem, cache_key, {**payload, "_cached_at": time.time()}, _MEM_MAX
+                )
                 return payload
-        except (ConnectionError, OSError, TimeoutError, ValueError, KeyError, TypeError, CHDriverError) as exc:
+        except (
+            ConnectionError,
+            OSError,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            TypeError,
+            CHDriverError,
+        ) as exc:
             logger.debug("price_oracle token_meta cache read failed: %s", exc)
 
     return None
@@ -367,7 +387,15 @@ async def _cache_set_price(token: str, chain: str, payload: dict[str, Any]) -> N
             symbol=str(payload.get("symbol", "") or ""),
             price_usd=float(payload.get("price_usd", 0) or 0),
         )
-    except (ConnectionError, OSError, TimeoutError, ValueError, KeyError, TypeError, CHDriverError) as exc:
+    except (
+        ConnectionError,
+        OSError,
+        TimeoutError,
+        ValueError,
+        KeyError,
+        TypeError,
+        CHDriverError,
+    ) as exc:
         logger.debug("price_oracle token_prices write-through failed: %s", exc)
 
 
@@ -505,14 +533,24 @@ async def _own_price_vwap(token: str, chain: str) -> dict[str, Any] | None:
         from rugmunchbot._vendor.scanner_engines.own_dex_data.query import _query_dex_swaps
 
         swaps = await _query_dex_swaps(token, chain, hours_back=24)
-    except (ConnectionError, OSError, TimeoutError, ValueError, KeyError, TypeError, CHDriverError) as exc:
+    except (
+        ConnectionError,
+        OSError,
+        TimeoutError,
+        ValueError,
+        KeyError,
+        TypeError,
+        CHDriverError,
+    ) as exc:
         logger.debug("price_oracle vwap swap query failed: %s", exc)
         return None
     if len(swaps) < 2:
         return None
 
     pair_cache = _load_pair_cache(chain)
-    prices_weighted, paired_counts = _collect_weighted_prices(swaps, token, pair_cache=pair_cache, strict_match=False)
+    prices_weighted, paired_counts = _collect_weighted_prices(
+        swaps, token, pair_cache=pair_cache, strict_match=False
+    )
 
     if not prices_weighted:
         return None

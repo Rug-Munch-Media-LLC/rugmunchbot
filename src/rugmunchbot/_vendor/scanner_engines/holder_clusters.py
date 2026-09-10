@@ -54,7 +54,7 @@ Usage:
 Data Sources:
   Primary: wallet_memory.evm_transfers (balances, first-seen, funders)
   Primary: wallet_memory.dex_events (first-buy blocks, pool contracts)
-  Primary: wallet_memory.wallet_labels (~154k curated labels)
+  Primary: wallet_memory.wallet_labels (~295k curated labels)
   Primary: wallet_memory.deployer_events (deployer + deploy block for
            team/sniper classification)
 
