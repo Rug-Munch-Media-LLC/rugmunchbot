@@ -30,7 +30,7 @@ Budget doctrine (the numbers that keep us under $5)
 
 The key NEVER enters git. Resolution order (mirrors ``apipass_x``):
 env ``GETXAPI_KEY`` → key file ``$RMI_SECRETS_DIR/getxapi_api_key`` →
-gopass ``rmi/getxapi/api_key``. Never logged.
+gopass ``[INTERNAL_SECRET_PATH]``. Never logged.
 """
 
 from __future__ import annotations
@@ -229,12 +229,12 @@ _GETXAPI_KEY_FILE: str = os.getenv("GETXAPI_KEY_FILE") or os.path.join(
     os.getenv("RMI_SECRETS_DIR", "/srv/secrets"), "getxapi_api_key"
 )
 #: Canonical gopass path for the GetXAPI key (never in git).
-_GETXAPI_GOPASS_PATH: str = "rmi/getxapi/api_key"
+_GETXAPI_GOPASS_PATH: str = "[INTERNAL_SECRET_PATH]"
 
 
 def _resolve_api_key() -> str:
     """GetXAPI key: env ``GETXAPI_KEY`` → key file
-    ``$RMI_SECRETS_DIR/getxapi_api_key`` → gopass ``rmi/getxapi/api_key``.
+    ``$RMI_SECRETS_DIR/getxapi_api_key`` → gopass ``[INTERNAL_SECRET_PATH]``.
 
     UNCACHED so a key added while the bot runs is picked up on the next tick
     without a restart. Returns "" when none is configured — callers fail open

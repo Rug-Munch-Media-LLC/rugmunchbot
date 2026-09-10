@@ -24,7 +24,7 @@ Budget doctrine (hard, enforced here)
   payload → ``None`` / ``[]`` with a debug log. A dead ApiPass never breaks
   a channel tick — callers fall back to the existing SearXNG rail.
 * The key never enters git. Resolution order: env ``APIPASS_API_KEY`` →
-  gopass ``rmi/apipass/api_key`` (same gopass→env ladder the rest of the
+  gopass ``[INTERNAL_SECRET_PATH]`` (same gopass→env ladder the rest of the
   bot uses). Never logged.
 
 ApiPass task flow (OpenAPI-verified 2026-08-29)
@@ -150,7 +150,7 @@ _KEY_FILE = os.getenv("RMI_APIPASS_KEY_FILE") or os.path.join(
     os.getenv("RMI_SECRETS_DIR", "/srv/secrets"), "apipass_api_key"
 )
 #: Canonical gopass path for the ApiPass key (never in git).
-_GOPASS_PATH = "rmi/apipass/api_key"
+_GOPASS_PATH = "[INTERNAL_SECRET_PATH]"
 _ENV_KEYS = ("APIPASS_API_KEY",)
 
 # ══════════════════════════════════════════════════════════════════════════

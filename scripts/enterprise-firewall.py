@@ -17,7 +17,7 @@ LAYERS:
 
 BLOCKED CONTENT CATEGORIES:
   PRIVATE_REPO_REF — References to standards, fleet-infra, fleet-template, rmi-security-framework
-  INTERNAL_IP — 100.104.x.x, 100.64.x.x, 100.74.x.x, talos.rugmunch.io
+  INTERNAL_IP — internal private addressing ([INTERNAL_IP], [INTERNAL_HOST])
   CLASSIFICATION_BANNER — Missing or invalid file classification
   COMPETITOR_INTEL — /tmp/compete/, teardown references
   PAYMENT_MODEL — Cost structures, pricing ladders

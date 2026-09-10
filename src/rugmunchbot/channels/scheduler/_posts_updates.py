@@ -283,7 +283,7 @@ async def post_updates_digest(ctx: Any) -> int:
         logger.error(
             "channels:updates_no_chat_id",
             job="channel_updates",
-            reason="set RMI_UPDATES_CHANNEL_ID, or seed gopass rmi/telegram/CHANNEL_RMI_UPDATES "
+            reason="set RMI_UPDATES_CHANNEL_ID, or seed gopass [INTERNAL_SECRET_PATH] "
             "(fallback -1003872387867 should have resolved)",
         )
         return 0

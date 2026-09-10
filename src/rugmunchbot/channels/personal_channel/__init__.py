@@ -7,7 +7,7 @@ signature is unchanged, and callers keep importing
 
 The **personal channel** is the operator's own Telegram surface
 (``t.me/cryptorugmuncher`` — registry role ``main``, gopass
-``rmi/telegram/CHANNEL_CRYPTO_RUGMUNCHER``). It receives ONLY the "bigger
+``[INTERNAL_SECRET_PATH]``). It receives ONLY the "bigger
 stories": the same qwen3 ``qwen3-reranker-4b`` importance scoring the
 news channel uses (``channels/importance.py``), but gated by a **stricter
 threshold** — ``RMI_PERSONAL_CHANNEL_THRESHOLD`` (default 0.7) instead of the

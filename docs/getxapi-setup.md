@@ -150,11 +150,11 @@ The key never enters git. Resolution order (mirrors the ApiPass lane):
 
 1. Env var `GETXAPI_KEY`
 2. Key file `$RMI_SECRETS_DIR/getxapi_api_key` (default `/srv/secrets/getxapi_api_key`)
-3. gopass `rmi/getxapi/api_key`
+3. gopass `[INTERNAL_SECRET_PATH]`
 
 ```bash
 # Store the key in gopass
-gopass insert rmi/getxapi/api_key
+gopass insert [INTERNAL_SECRET_PATH]
 # Or drop it in the secret-store file
 echo -n "your-key" > /srv/secrets/getxapi_api_key && chmod 600 /srv/secrets/getxapi_api_key
 ```

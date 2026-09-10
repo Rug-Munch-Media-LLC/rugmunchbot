@@ -19,7 +19,7 @@ journalctl -u rugmunchbot --since "5 minutes ago" --no-pager
    ```
    **Fix:** Ensure gopass has the token:
    ```bash
-   gopass show rmi/rugmunchbot/bot_token
+   gopass show [INTERNAL_SECRET_PATH]
    ```
 
 2. **Backend unreachable**
@@ -50,7 +50,7 @@ journalctl -u rugmunchbot --since "5 minutes ago" --no-pager
 **Check:**
 ```bash
 # Test backend directly
-curl -H "X-API-Key: $(gopass show rmi/backend/api_key)" \
+curl -H "X-API-Key: $(gopass show [INTERNAL_SECRET_PATH])" \
   -X POST http://localhost:8000/api/v1/scanner/token/scan \
   -d '{"address": "0xabc", "chain": "ethereum"}'
 ```
@@ -141,7 +141,7 @@ All X consumers share one hard budget of ≤6 task-creations/hr
 `twitter-api-simple` + endpoints (`twitter/simple/{tweet-detail,user-tweets,search,quotes,retweeters}`) are confirmed against the live `/v1/models` catalog. The 404 means the model type is **not enabled on the account** — a provisioning step, not a code defect.
 
 **Operator must:**
-1. Sign in to the ApiPass dashboard (apipass.dev) with the account whose key is in the secret store (`apipass_api_key`) / gopass (`rmi/apipass/api_key`).
+1. Sign in to the ApiPass dashboard (apipass.dev) with the account whose key is in the secret store (`apipass_api_key`) / gopass (`[INTERNAL_SECRET_PATH]`).
 2. Models Market → search `twitter` → `twitter-api-simple` (Twitter brand, "social-media-api" task type) → enable/configure it for the API key. If it cannot be self-served, open a support ticket (ApiPass advertises 24/7 human support).
 3. Make sure the account has credits for the route — 50 free credits ≈ 100 calls at ~0.5 credits/call; top up if the social-media-api channel needs a paid route.
 4. Verify end-to-end: `scripts/verify_apipass.py` must print `=== REAL TWEET PULLED ===`. Until then everything fails open (the /tweet command, `read_tweet` tool, KOL scoreboard, content channel X rail) — a dead ApiPass never breaks a tick.

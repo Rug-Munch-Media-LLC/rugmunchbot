@@ -3,7 +3,7 @@
 
 Usage:
     # 1. Store the key (never in git):
-    #    gopass insert rmi/apipass/api_key        # or export APIPASS_API_KEY=apk_...
+    #    gopass insert [INTERNAL_SECRET_PATH]        # or export APIPASS_API_KEY=apk_...
     # 2. Run:
     #    .venv/bin/python scripts/verify_apipass.py [tweet_id]
 
@@ -36,7 +36,7 @@ async def main() -> int:
         print(
             "        Store it in the deployment secrets dir (apipass_api_key), export APIPASS_API_KEY,"
         )
-        print("        or gopass insert rmi/apipass/api_key")
+        print("        or gopass insert [INTERNAL_SECRET_PATH]")
         print("        Then re-run this script for the real tweet pull.")
         return 1
 

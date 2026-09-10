@@ -36,8 +36,8 @@ Setup required before the sweep returns data (documented, never hardcoded):
 * ``telethon`` is a runtime dependency (see ``requirements.txt`` /
   ``pyproject.toml``).
 * gopass entries the headless client reads in
-  ``app.domains.telegram.headless_credentials``: ``rmi/telegram/api_id`` and
-  ``rmi/telegram/api_hash`` exist in the store; ``rmi/telegram/phone`` must be
+  ``app.domains.telegram.headless_credentials``: ``[INTERNAL_SECRET_PATH]`` and
+  ``[INTERNAL_SECRET_PATH]`` exist in the store; ``[INTERNAL_SECRET_PATH]`` must be
   created (``insert a phone entry in the secrets store (see headless_credentials)``). Until the phone entry exists
   the sweep degrades to ``[]`` and logs ``headless_client_unavailable``.
 
