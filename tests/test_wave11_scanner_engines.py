@@ -33,12 +33,12 @@ from rugmunch_scanner.unified.engines.holder_clusters import (
     _compute_gini,
     _compute_hhi,
 )
-
-from rugmunchbot._vendor.scanner_engines.wallet_flow import (
+from rugmunch_scanner.unified.engines.wallet_flow import (
     _classify_node,
     _rank_counterparties,
-    _summarize_flow,
 )
+
+from rugmunchbot.handlers.trace._flow_summary import _summarize_flow
 
 # ── holder concentration metrics ─────────────────────────────────────────────
 

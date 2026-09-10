@@ -199,6 +199,12 @@ for pkg_entry in \
   echo "vendored package: $pkg_src -> _vendor/$pkg_name"
 done
 
+# Cutover: wallet_flow is no longer vendored. The bot uses the canonical
+# rugmunch-scanner graph engine plus the bot-owned summary in
+# src/rugmunchbot/handlers/trace/_flow_summary.py. Do not resurrect the frozen
+# copy on refresh — see docs/SCANNER-ENGINES-CUTOVER.md.
+rm -f "$VENDOR/scanner_engines/wallet_flow.py"
+
 # redis_client: drop the app.config.settings lookup (env fallback below keeps
 # REDIS_URL support — bot-local config; documented deviation).
 python3 - "$VENDOR/redis_client.py" <<'PYFIX'

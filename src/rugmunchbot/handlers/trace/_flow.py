@@ -71,12 +71,13 @@ _TRACE_READ_SYSTEM = (
 async def _fetch_clickhouse_flow(address: str, chain: str) -> dict[str, Any] | None:
     """Best-effort fund-flow summary from our own ClickHouse chain-indexer data.
 
-    Wraps ``wallet_flow.build_flow_summary`` (hop-1/hop-2 evm_transfers,
-    wallet_labels, dex_events). Never raises — returns ``None`` on any
-    failure so /trace fails open to the legacy external-API path.
+    Wraps the bot-owned ``build_flow_summary`` (canonical
+    ``rugmunch_scanner.unified.engines.wallet_flow`` graph: hop-1/hop-2
+    evm_transfers, wallet_labels, dex_events). Never raises — returns ``None``
+    on any failure so /trace fails open to the legacy external-API path.
     """
     try:
-        from rugmunchbot._vendor.scanner_engines.wallet_flow import build_flow_summary
+        from rugmunchbot.handlers.trace._flow_summary import build_flow_summary
 
         summary = await asyncio.wait_for(
             build_flow_summary(address, chain, hops=2),
