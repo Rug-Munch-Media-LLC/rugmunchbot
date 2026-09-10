@@ -17,8 +17,8 @@ premium/billing is an operator opt-in.
 ## Features
 
 - 🔍 **Token scanning** — honeypot, rug-pull, bundle, wash-trade, and
-  fresh-wallet detection across 25+ chains (public APIs: DexScreener,
-  GoPlus, Honeypot.is)
+  fresh-wallet detection across major EVM chains and Solana (public APIs:
+  DexScreener, GoPlus, Honeypot.is)
 - 👛 **Wallet forensics** — P&L, counterparty analysis, dev wallet history
 - 📊 **Market intelligence** — prices, trending, news, technical analysis
 - 🤖 **AI chat** — free-text questions grounded in live data, with a local

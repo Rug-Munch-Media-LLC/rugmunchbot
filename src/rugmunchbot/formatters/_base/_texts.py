@@ -13,14 +13,14 @@ from rugmunchbot.formatters._base._primitives import BETA_BANNER
 def social_proof_text() -> str:
     """Evidence-first "why trust us" block.
 
-    Only figures verified in the fleet docs: 17 chains / 359M+ on-chain
+    Only figures verified in the fleet docs: 16 chains / 359M+ on-chain
     rows (lite-chain-indexer README) and 200+ tools (rmi-backend
     ARCHITECTURE.md). No invented user/scan counters and no DB access, so
     this stays a pure, deterministic string formatter.
     """
     return (
         "\U0001f3d7\ufe0f <b>Why trust us</b>\n"
-        "\U0001f517 17 chains indexed \u00b7 359M+ on-chain rows\n"
+        "\U0001f517 16 chains indexed \u00b7 359M+ on-chain rows\n"
         "\U0001f6e0\ufe0f 200+ tools \u00b7 24/7 AI \u2014 free during public beta"
     )
 

@@ -1,44 +1,65 @@
-# Wallet Memory Decoupling — Target Architecture & Cutover
+# Wallet Memory Decoupling — Architecture & Cutover
 
-> Status: **Planning / partial** (2026-09-09). Live code is NOT yet decoupled;
-> this file is the agreed target + the ordered cutover steps.
+> Status: **Consolidated** (2026-09-10). Label **storage + entity resolution**
+> now live on the **indexer** (`GET/POST /api/v1/labels`); the scanner queries
+> that API (with a local ClickHouse fallback), keeps risk scoring/detection,
+> and rugmunchbot is a thin client. This doc reflects the live code.
 
 ## Problem
 
 `wallet_memory` (the label graph + entity resolution) must NOT be provided by
-rugmunchbot — a standalone Telegram bot. Today the bot both **owns label
-provisioning** and **ships frozen copies of the scanner engines** that read the
+rugmunchbot — a standalone Telegram bot. Historically the bot both **owned label
+provisioning** and **shipped frozen copies of the scanner engines** that read the
 `wallet_memory` ClickHouse database, entangling it with data it should only
-consume:
+consume. The decoupling below moves label **ownership** to the indexer, keeps
+**detection** in the scanner, and reduces the bot to a consumer.
 
-| File (rugmunchbot) | What it does today | Wrong because |
+| File (rugmunchbot) | What it did | Resolution |
 |---|---|---|
-| `src/rugmunchbot/handlers/_scan_handlers/_wallet.py` | imports `_vendor.rag_pkg.scan_memory.schedule_wallet_memory_index` and fires it after every `/wallet` scan → **writes** Qdrant `scanned_wallets` trust/label points itself | Provisioning belongs to the indexer/scanner system; the bot should be read-only |
-| `src/rugmunchbot/_vendor/scanner_engines/own_wallet_trust.py`, `own_dex_data/*`, `own_whale_detect.py`, `launchpad_resolve_chain.py` | frozen copies of `rmi-backend/app/domains/scanner/engines/*` that query ClickHouse `wallet_memory.*` directly | duplicated scanner engines; canonical home is `rugmunch-scanner` |
-| `src/rugmunchbot/_vendor/rag_pkg/*` | frozen copies of `rmi-backend/app/rag/*` (incl. scan-memory Qdrant writer) | RAG lives in `rugbrain`; vendor copy drifts |
+| `handlers/_scan_handlers/_wallet.py` | imported `_vendor.rag_pkg.scan_memory.schedule_wallet_memory_index` and fired it after every `/wallet` scan → **wrote** Qdrant `scanned_wallets` points itself | Provisioning moved off the bot; scanned-wallet memory is scanner→rugbrain. See cutover TODOs. |
+| `_vendor/scanner_engines/own_wallet_trust.py`, `own_dex_data/*`, `own_whale_detect.py`, `launchpad_resolve_chain.py` | frozen copies of `rmi-backend/app/domains/scanner/engines/*` that query ClickHouse `wallet_memory.*` directly | Canonical home is `rugmunch-scanner`; `own_wallet_trust` is **deprecated** in favor of the label graph (see `SCANNER-ENGINES-CUTOVER.md`). |
+| `_vendor/rag_pkg/*` | frozen copies of `rmi-backend/app/rag/*` (incl. scan-memory Qdrant writer) | RAG lives in `rugbrain`; vendor copy drifts. |
 
 `_vendor/` files are **frozen** — never edit them in place (headers say
 "do not edit"; `bash scripts/refresh-vendors.sh` re-vendors). Cutover happens
 at **import sites** (handlers) and in the **refresh script**, not inside the
 vendored files.
 
-## Canonical owners (target state)
+## Canonical owners (live state)
 
-1. **Indexer** (chain-indexer / lite-chain-indexer) writes the label graph:
-   ClickHouse `wallet_memory.*` tables — SSOT is
-   `wallet_memory.wallet_labels` (see `rmi-backend/app/db/labels_sync.py`
-   batched upsert; PG `public.labels` is a downstream consumer).
-2. **Scanner** owns label queries + entity resolution + the label-graph API:
-   - `rugmunch-scanner/rugmunch_scanner/wallet_memory/` — `storage.py`,
-     `clustering.py`, `label_growth.py`, `router.py` (FastAPI router
-     `/api/v1/wallet/*`: wallet profiles, deployer intel, entity search —
-     consumers: WalletSafe frontend, SENTINEL).
-   - `rugmunch-scanner/rugmunch_scanner/scoring/wallet_labeler.py` — behavioral
-     labeler (Redis `wallet:labels:{chain}:{address}` etc.).
-   - `rugmunch-scanner/rugmunch_scanner/sources/indexer_client.py` — typed,
-     fail-open read access to the indexer's ClickHouse outputs.
-   - Consolidation roadmap: `rugmunch-scanner/docs/MIGRATION.md` (orders 1-4);
-     provenance log in `rugmunch-scanner/PROVENANCE.md`.
+1. **Indexer** (`lite-chain-indexer`) owns label **storage + entity
+   resolution** — labels are *data* and live with the on-chain warehouse:
+   - `api/routers/labels.py` — the label-graph API:
+     - `GET /api/v1/labels/{address}` — entity resolution. Reads
+       `wallet_memory.entity_labels` (`FINAL`, ranked by confidence); returns
+       `resolved=false` + empty list for unknown addresses (a valid answer,
+       not a 404). Optional `chain` filter, bounded `limit` (≤50).
+     - `POST /api/v1/labels` — the **canonical write path** for label growth
+       and the importer. Idempotent upsert on
+       `(address, chain_id, source)`; optional bearer auth
+       (`LABEL_API_TOKEN`), write gate `LABEL_API_WRITE_ENABLED`, `503` when
+       the store is disabled/unreachable.
+   - `api/label_store.py` — dedicated ClickHouse **write** user (reads use the
+     SELECT-only `chain_api` user); `entity_labels` is a `ReplacingMergeTree`.
+   - SSOT table: `wallet_memory.entity_labels` (9-column canonical schema).
+2. **Scanner** (`rugmunch-scanner`) owns **detection + risk scoring** and is a
+   **label-API client**:
+   - `wallet_memory/indexer_label_client.py` — typed, **fail-open**
+     read/write edge to the indexer (`resolve` → GET, `persist` → POST).
+     Config: `INDEXER_API_URL` (default `http://127.0.0.1:8100`),
+     `INDEXER_API_TOKEN`, `INDEXER_API_TIMEOUT`.
+   - `wallet_memory/entity_resolver.py` — entity resolution calls the indexer
+     first (`_labels_via_indexer`); only when the indexer is unreachable does
+     it fall back to a local ClickHouse read (`storage.get_entity_labels`).
+     A reachable-but-empty answer is authoritative (no fallback).
+   - `wallet_memory/label_growth.py` + `wallet_memory/label_importer/loaders.py`
+     — label writes POST to the indexer (`persist_entity_labels`); direct
+     ClickHouse `entity_labels` insert happens **only** when the API is down.
+   - Risk scoring / behavioral detection stay in the scanner:
+     `wallet_memory/risk_scoring.py`, `scoring/wallet_labeler.py` (Redis
+     `wallet:labels:{chain}:{address}`), and the label-growth extractors.
+   - Provenance/roadmap: `rugmunch-scanner/PROVENANCE.md`,
+     `rugmunch-scanner/docs/MIGRATION.md`.
 3. **RugBrain** (`rugbrain-api:8012`) owns the Qdrant `scanned_tokens` /
    `scanned_wallets` RAG-memory collections and their ingest subscriber
    (`rmi:rag:findings_queue`). Scans flow: scanner publishes → rugbrain
@@ -47,11 +68,12 @@ vendored files.
 ## Target architecture
 
 ```
-indexer (ClickHouse wallet_memory.* SSOT)
-   │  writes labels/transfers/events
+indexer (ClickHouse wallet_memory.entity_labels SSOT)
+   │  GET/POST /api/v1/labels   (storage + entity resolution)
    ▼
-rugmunch-scanner  ── wallet_memory modules + /api/v1/wallet/* API ──┐
-   │  (entity resolution, clustering, label growth)                 │ queries
+rugmunch-scanner  ── label API client (fail-open) ──────────────────┐
+   │  detection + risk scoring + label-growth extractors            │ queries
+   │  POSTs label growth to the indexer; GETs entity resolution     │
    ▼                                                                ▼
 rugbrain (RAG: scanned_tokens/scanned_wallets Qdrant)        rugmunchbot = THIN CLIENT
    ▲  subscriber indexes scanner findings                       (queries scanner API /
@@ -61,9 +83,10 @@ rugbrain (RAG: scanned_tokens/scanned_wallets Qdrant)        rugmunchbot = THIN 
 ```
 
 Bot rule of thumb: **query, don't own.** If the bot needs a label, trust score,
-or wallet-memory hit, it calls the scanner wallet API (`/api/v1/wallet/*`) or
-the rugbrain search API (`RAG_API_URL`, `http://rugbrain-api:8012`). It never
-computes labels from raw ClickHouse and never writes provisioning data.
+or wallet-memory hit, it calls the scanner wallet API (`/api/v1/wallet/*`), the
+indexer label API (`/api/v1/labels/*`), or the rugbrain search API
+(`RAG_API_URL`, `http://rugbrain-api:8012`). It never computes labels from raw
+ClickHouse and never writes provisioning data.
 
 ## Cutover TODOs
 
@@ -74,14 +97,14 @@ computes labels from raw ClickHouse and never writes provisioning data.
    live for wallet scans. Until then, keep the fire-and-forget (fail-open) so
    reports are never blocked, but log a `[TECH-DEBT]` marker.
 2. [ ] `handlers/_scan_handlers/_wallet.py` + `_wallet.py` trust block: replace
-   vendored `own_wallet_trust.get_wallet_trust` with a query to
-   `rugmunch-scanner` `/api/v1/wallet/*` (or `rmi-backend` public wallet API
-   `app/api/v1/public/wallet.py`) once those endpoints expose the 0-100 trust
-   + verdict shape the formatter renders.
+   vendored `own_wallet_trust.get_wallet_trust` with a query to the indexer
+   label API (`GET /api/v1/labels/{address}`, entity resolution) or the scanner
+   `/api/v1/wallet/*` API. `own_wallet_trust` is **deprecated** — the label
+   graph supersedes it (decision recorded in `SCANNER-ENGINES-CUTOVER.md`).
 3. [ ] `scripts/refresh-vendors.sh`: change the vendored-engine source from
    `rmi-backend/app/domains/scanner/engines/*` to `rugmunch-scanner` once the
-   rugmunch-scanner ports land (see `rugmunch-scanner/docs/MIGRATION.md`
-   orders 2-3). Then delete `_vendor/scanner_engines/own_wallet_trust.py`,
+   rugmunch-scanner ports land (see `rugmunch-scanner/docs/MIGRATION.md`).
+   Then delete `_vendor/scanner_engines/own_wallet_trust.py`,
    `own_dex_data/`, `own_whale_detect.py` from the bot and point importers at
    the API.
 4. [ ] Remove `_vendor/rag_pkg/scan_memory.py` wallet-indexing path entirely
@@ -89,7 +112,7 @@ computes labels from raw ClickHouse and never writes provisioning data.
 5. [ ] Keep `_vendor/rag_pkg` query-side wrappers (search via `RAG_API_URL`)
    only — re-vendor from `rugbrain`, never from `rmi-backend`.
 
-## Scanner engine home (Task 2 note)
+## Scanner engine home
 
 `rugmunch-scanner` is the **single canonical scanner engine** (PRIVATE —
 methodology is competitive IP; never mirror to radicle). Duplicated detection

@@ -21,34 +21,54 @@ detection logic and drifts from canonical.
 `_vendor/scanner_engines/wallet_flow.py` is deleted; `scripts/vendor-from-backend.sh`
 removes it after a refresh so the frozen copy cannot be resurrected.
 
-## Blocked cutovers
+## Decisions on the two blocked cutovers (2026-09-10)
 
-### 1. `rpc_router` — canonical is missing the bot's freemium API
+### 1. `rpc_router` — freemium tier logic is scanner-owned; PORT into canonical
 
-Consumers: `tools/scanner/_solana_onchain.py`, `tools/scanner/_chain_pools.py`,
-`handlers/owner/_rpcstats.py`, `_vendor/holder_mega_sampler.py`.
+**Decision:** the freemium tier machinery (`_split_tiers`, quota ledger,
+escalation telemetry, free-first pool ordering) is an **RPC-layer concern** and
+belongs in `rugmunch_scanner.unified.engines.rpc_router` — not in the bot. The
+canonical router already owns health tracking + endpoint fallback, so the port
+is **additive, not a rebuild**.
 
-A direct swap to `rugmunch_scanner.unified.engines.rpc_router` breaks 14 tests
-because the canonical router lacks the bot's freemium tier machinery:
+**Status:** blocked until the port lands. The bot keeps the vendored
+`rpc_router` in the interim (no behavior change).
 
-- `RpcRouter._split_tiers(chain)` — free/freemium pool split
-- `_record_quota` / `_quota_usage` / `_record_escalation` + `freemium_escalations`
-- free-first ordering inside `EVM_RPC_ENDPOINTS` (asserted by `test_wave35`)
+**Owner:** scanner maintainers (`@crmuncher`); bot integration by the
+rugmunchbot maintainer.
 
-**Cutover steps:** port the freemium tier machinery and free-first pool ordering
-from the vendored copy into `rugmunch-scanner`, re-run
-`test_wave31`/`test_wave33`/`test_wave5`/`test_wave35`, then swap the four
-imports.
+**Acceptance criteria for the cutover:**
 
-### 2. `own_wallet_trust` — no canonical equivalent
+- `RpcRouter._split_tiers(chain)` free/freemium pool split plus
+  `_record_quota` / `_quota_usage` / `_record_escalation` /
+  `freemium_escalations` ported.
+- Free-first ordering inside `EVM_RPC_ENDPOINTS` preserved (asserted by
+  `test_wave35`).
+- `test_wave31` / `test_wave33` / `test_wave5` / `test_wave35` pass against the
+  canonical router.
+- Swap the four consumers: `tools/scanner/_solana_onchain.py`,
+  `tools/scanner/_chain_pools.py`, `handlers/owner/_rpcstats.py`,
+  `_vendor/holder_mega_sampler.py`.
 
-Consumer: `handlers/_scan_handlers/_wallet.py`.
+### 2. `own_wallet_trust` — DEPRECATED in favor of the label graph; DO NOT PORT
 
-`rugmunch_scanner` has no wallet-trust scorer (no `get_wallet_trust` /
-`trust_score` anywhere in the package).
+**Decision:** `own_wallet_trust` (0-100 score derived from raw
+`wallet_memory.evm_transfers` / `deployer_history` reads) is **superseded by the
+label graph**. Wallet trust is answered by **entity resolution** against the
+indexer's `GET /api/v1/labels/{address}` (canonical labels) plus the scanner's
+risk scoring. Porting a second trust scorer into the canonical package would
+duplicate detection methodology — rejected.
 
-**Cutover steps:** port `own_wallet_trust.py` into
-`rugmunch_scanner.unified.engines.own_wallet_trust`, then swap the import.
+**Status:** blocked by design (won't-port). The bot's consumer migrates to the
+label API; the vendored `own_wallet_trust.py` is then deleted.
+
+**Owner:** rugmunchbot maintainer. The indexer label API is already live, so no
+scanner change is required.
+
+**Follow-up:** `handlers/_scan_handlers/_wallet.py` trust block queries
+`GET /api/v1/labels/{address}` (or the scanner `/api/v1/wallet/*` API) and
+renders the label-graph verdict; remove the `get_wallet_trust` import and the
+vendored file. See `WALLET-MEMORY-DECOUPLE.md` for the label-API contract.
 
 ## Remaining vendored engines
 

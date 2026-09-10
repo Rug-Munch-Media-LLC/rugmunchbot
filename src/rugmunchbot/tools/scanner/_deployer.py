@@ -169,7 +169,7 @@ async def _supplement_deployer_socials(
     pair_socials: dict[str, str] = {}
 
     # Leg 0 — OUR OWN INDEXER first (2026-08-25 quality push): the backend
-    # DataBus aggregate (359M+ on-chain rows, 17 chains) beats external
+    # DataBus aggregate (359M+ on-chain rows, 16 chains) beats external
     # sources for holders/taxes/security fields when it has the token.
     # Fail-open; never clobbers values the v2 scan already filled.
     try:
