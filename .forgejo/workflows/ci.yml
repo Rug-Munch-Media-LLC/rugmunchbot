@@ -40,21 +40,29 @@ jobs:
   docker-lint:
     runs-on: docker-x64
     container:
-      image: hadolint/hadolint:latest
+      # node image: checkout@v4 is a node20 action (hadolint image had no node).
+      image: node:22-bookworm-slim
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Hadolint Dockerfile
-        run: hadolint --failure-threshold error Dockerfile
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+          curl -sSfL https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint && chmod +x /usr/local/bin/hadolint
+          hadolint --failure-threshold error Dockerfile
 
   # ── Container scan (trivy) ────────────────────────────────────
   container-scan:
     runs-on: docker-x64
     container:
-      image: aquasec/trivy:latest
+      # node image: checkout@v4 is a node20 action (trivy image had no node).
+      image: node:22-bookworm-slim
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Trivy scan Dockerfile
-        run: trivy fs --severity CRITICAL,HIGH --exit-code 1 .
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy fs --severity CRITICAL,HIGH --exit-code 1 .
 
   # ── Lint (ruff) ───────────────────────────────────────────────
   # Vendor drift guard: vendored modules must match rmi-backend canon.
@@ -69,7 +77,10 @@ jobs:
   lint:
     runs-on: docker-x64
     container:
-      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+      # Fleet scanner checkout (OSS sibling repo; not on PyPI). Whitelisted
+      # in the runner config valid_volumes.
+      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system deps
@@ -101,7 +112,7 @@ jobs:
   content-lint:
     runs-on: docker-x64
     container:
-      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+      image: nikolaik/python-nodejs:python3.12-nodejs22
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Fetch feed store sample
@@ -124,7 +135,10 @@ jobs:
   typecheck:
     runs-on: docker-x64
     container:
-      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+      # Fleet scanner checkout (OSS sibling repo; not on PyPI). Whitelisted
+      # in the runner config valid_volumes.
+      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system deps
@@ -149,7 +163,7 @@ jobs:
   test:
     runs-on: docker-x64
     container:
-      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+      image: nikolaik/python-nodejs:python3.12-nodejs22
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -227,6 +241,11 @@ jobs:
   # seconds instead of waiting for the full pytest+coverage run.
   architecture:
     runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+      # Fleet scanner checkout (OSS sibling repo; not on PyPI). Whitelisted
+      # in the runner config valid_volumes.
+      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -253,6 +272,8 @@ jobs:
       - name: Install dependencies
         run: |
           uv pip install --python .venv/bin/python import-linter httpx python-telegram-bot python-dotenv
+          # Fleet scanner (OSS sibling; not on PyPI) from the mounted checkout.
+          uv pip install --python .venv/bin/python /opt/rugmunch-scanner
           if [ -f "requirements.txt" ]; then
             uv pip install --python .venv/bin/python -r requirements.txt
           fi
@@ -283,7 +304,7 @@ jobs:
   security:
     runs-on: docker-x64
     container:
-      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+      image: nikolaik/python-nodejs:python3.12-nodejs22
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -335,7 +356,7 @@ jobs:
   docstring-coverage:
     runs-on: docker-x64
     container:
-      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+      image: nikolaik/python-nodejs:python3.12-nodejs22
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Set up Python
@@ -401,9 +422,15 @@ jobs:
     continue-on-error: true
     runs-on: docker-x64
     container:
-      image: grafana/k6:latest
+      # node image: checkout@v4 is a node20 action (k6 image had no node).
+      image: node:22-bookworm-slim
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install k6
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+          curl -sSfL https://github.com/grafana/k6/releases/download/v0.54.0/k6-v0.54.0-linux-amd64.tar.gz | tar xz -C /tmp
+          mv /tmp/k6-v0.54.0-linux-amd64/k6 /usr/local/bin/k6
       - name: Create results directory
         run: mkdir -p tests/k6/results
       - name: Connectivity pre-check
@@ -522,7 +549,7 @@ jobs:
     needs: [test]
     continue-on-error: true  # informational only for now
     container:
-      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+      image: nikolaik/python-nodejs:python3.12-nodejs22
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Check dependency freshness
@@ -536,7 +563,7 @@ jobs:
     needs: [test]
     continue-on-error: true  # informational only for now
     container:
-      image: nikolaik/python-nodejs:python${{ env.PYTHON_VERSION }}-nodejs22
+      image: nikolaik/python-nodejs:python3.12-nodejs22
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system deps
