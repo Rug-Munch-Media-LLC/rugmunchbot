@@ -16,7 +16,10 @@ jobs:
   commitlint:
     runs-on: docker-x64
     container:
-      image: node:22-bookworm-slim
+      # Full node image: includes git. The slim image has no git, so
+      # checkout@v4 falls back to a REST download (no .git) and every
+      # git-based step fails.
+      image: node:22-bookworm
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -78,10 +81,12 @@ jobs:
     runs-on: docker-x64
     container:
       image: nikolaik/python-nodejs:python3.12-nodejs22
-      options: --volume /srv/work/repos/standards:/workspace/RugMunchMedia/standards:ro
-      # Fleet scanner checkout (OSS sibling repo; not on PyPI). Whitelisted
+      # standards: ruff config extends ../standards/templates/ruff-base.toml.
+      # scanner: OSS sibling repo, not on PyPI. Both host paths whitelisted
       # in the runner config valid_volumes.
-      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
+      options: >-
+        --volume /srv/work/repos/standards:/workspace/RugMunchMedia/standards:ro
+        --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system deps
@@ -165,6 +170,9 @@ jobs:
     runs-on: docker-x64
     container:
       image: nikolaik/python-nodejs:python3.12-nodejs22
+      # Fleet scanner (OSS sibling; not on PyPI) from the host checkout,
+      # whitelisted in the runner config valid_volumes.
+      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -195,6 +203,8 @@ jobs:
       - name: Install dependencies
         run: |
           uv pip install --python .venv/bin/python pytest pytest-asyncio pytest-cov httpx python-telegram-bot python-dotenv diff-cover import-linter
+          # Fleet scanner (OSS sibling; not on PyPI) from the mounted checkout.
+          uv pip install --python .venv/bin/python /opt/rugmunch-scanner
           if [ -f "requirements.txt" ]; then
             uv pip install --python .venv/bin/python -r requirements.txt
           fi
@@ -360,10 +370,8 @@ jobs:
       image: nikolaik/python-nodejs:python3.12-nodejs22
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+      # setup-python cannot download builds on this runner; the job image
+      # already ships Python 3.12 (matching env.PYTHON_VERSION).
       - name: Install interrogate
         run: pip install interrogate
       - name: Docstring coverage (BLOCKING at 60%)
@@ -462,6 +470,9 @@ jobs:
   changelog:
     runs-on: docker-x64
     needs: [lint]
+    container:
+      # python+node: pip for git-cliff; git for fetch-depth: 0.
+      image: nikolaik/python-nodejs:python3.12-nodejs22
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
