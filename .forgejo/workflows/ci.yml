@@ -78,6 +78,7 @@ jobs:
     runs-on: docker-x64
     container:
       image: nikolaik/python-nodejs:python3.12-nodejs22
+      options: --volume /srv/work/repos/standards:/workspace/RugMunchMedia/standards:ro
       # Fleet scanner checkout (OSS sibling repo; not on PyPI). Whitelisted
       # in the runner config valid_volumes.
       options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
@@ -373,6 +374,7 @@ jobs:
     runs-on: docker-x64
     container:
       image: nikolaik/python-nodejs:python3.11-nodejs22
+      options: --volume /srv/work/repos/standards:/workspace/RugMunchMedia/standards:ro
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
