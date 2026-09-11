@@ -70,6 +70,17 @@ tags = ["rmi", "critical"]
 
 [allowlist]
 description = "Global allowlist — applies to all repos"
+commits = [
+  # Historical findings remediated in the working tree (verified clean
+  # 2026-09-11 via --no-git). Scoped to these commits only so future
+  # findings in these files are still caught.
+  "4f5c60897d7e08b75377cd2c7f2f3c46c7b3b51a",  # scripts/verify_apipass.py gopass doc
+  "5d9cac4a68d2bcb1780ed9c9f2d7e47fe31d16da",  # tests/test_story_ingest_ssrf.py fixture
+  "8266dde7c1f88eb8b60d43e8ddf3268c5d69438b",  # docs/TROUBLESHOOTING.md gopass doc
+  "93f1a9d77206ac77ef16058499122208a93f598d",  # bot_sanitize.py self-referential blocklist
+  "dfe3ba92054962be075e5e1524b9dbf07c97f1da",  # docs/getxapi-setup.md gopass doc
+  "ec9168e85e63530f347b4f8d10be5a695343b6c2",  # scripts/verify_apipass.py gopass doc
+]
 paths = [
   '''node_modules/''',
   '''\.git/''',
