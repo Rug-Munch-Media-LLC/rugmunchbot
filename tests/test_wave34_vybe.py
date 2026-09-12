@@ -24,7 +24,8 @@ def _resp(payload, status=200):
 
 
 @pytest.mark.asyncio
-async def test_top_holders_parse():
+async def test_top_holders_parse(monkeypatch):
+    monkeypatch.setenv("VYBE_API_KEY", "k")
     with patch.object(
         vb,
         "get_shared_client",
@@ -93,7 +94,8 @@ async def test_memoization(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_cex_concentration_threat():
+async def test_cex_concentration_threat(monkeypatch):
+    monkeypatch.setenv("VYBE_API_KEY", "k")
     """Scan rung: >=30% CEX-labeled supply adds a threat + score."""
 
     holders = [
