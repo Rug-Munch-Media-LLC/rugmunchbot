@@ -62,10 +62,12 @@ MODULES = {
 def _fetch_from_gopass(gopass_path: str) -> str:
     """Fetch token from gopass. Returns empty string on failure."""
     try:
+        # gopass resolved from PATH by design (dev tooling); args are fixed.
+        cmd = ["gopass", "show", gopass_path]
         token = (
-            subprocess.check_output(
-                ["gopass", "show", gopass_path], stderr=subprocess.DEVNULL, timeout=10, shell=False
-            )  # noqa: S603, S607
+            subprocess.check_output(  # noqa: S603
+                cmd, stderr=subprocess.DEVNULL, timeout=10, shell=False
+            )
             .decode()
             .strip()
         )

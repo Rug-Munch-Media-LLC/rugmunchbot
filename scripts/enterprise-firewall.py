@@ -46,7 +46,7 @@ def simhash(text, bits=64):
     v = [0] * bits
     tokens = re.findall(r"[a-zA-Z_]\w+|[0-9]+", text)
     for token in tokens:
-        h = int(hashlib.md5(token.encode()).hexdigest(), 16) % (2**bits)
+        h = int(hashlib.md5(token.encode(), usedforsecurity=False).hexdigest(), 16) % (2**bits)
         for i in range(bits):
             if h & (1 << i):
                 v[i] += 1
@@ -114,7 +114,7 @@ ENCRYPTED_PATTERNS = [
     ("gopass\\s+(?:show|ls|insert)", "SECRET_REFERENCE"),
     ("rmi/(?:codeberg|gitlab|forgejo|github)/", "SECRET_REFERENCE"),
     ("OPENROUTER_API_KEY=|DEEPSEEK_API_KEY=", "SECRET_REFERENCE"),
-    ("/tmp/compete/", "COMPETITOR_INTEL"),
+    ("/tmp/compete/", "COMPETITOR_INTEL"),  # noqa: S108 — detection pattern string, not a temp path
     ("competitor.*teardown|reverse.engineer.*clone", "COMPETITOR_INTEL"),
     ("\\$0\\.0[0-9]+.*(?:input|token|1M)", "PAYMENT_MODEL"),
     ("\\bfree\\.layers.*provider|payment.*cascade", "PAYMENT_MODEL"),
@@ -191,7 +191,7 @@ def check_fingerprints(content):
     findings = []
     # Split into function-sized chunks for fingerprinting
     chunks = re.split(r"\n\s*\n", content)
-    for i, chunk in enumerate(chunks):
+    for chunk in chunks:
         if len(chunk) < 100:  # Skip tiny chunks
             continue
         fp = simhash(chunk)
@@ -227,14 +227,13 @@ def check_entropy(content):
     findings = []
     for i, line in enumerate(content.split("\n"), 1):
         stripped = line.strip()
-        if len(stripped) > 30 and len(stripped) < 200:
-            entropy = shannon_entropy(stripped.encode())
-            if entropy > ENTROPY_THRESHOLD:
-                # Avoid flagging known-safe patterns (base64, hashes)
-                if not re.match(r"^[A-Za-z0-9+/=]+$", stripped):
-                    findings.append(
-                        (f"High entropy ({entropy:.1f}) at line {i}", "HIGH_ENTROPY")
-                    )
+        entropy = shannon_entropy(stripped.encode())
+        if (
+            30 < len(stripped) < 200
+            and entropy > ENTROPY_THRESHOLD
+            and not re.match(r"^[A-Za-z0-9+/=]+$", stripped)
+        ):
+            findings.append((f"High entropy ({entropy:.1f}) at line {i}", "HIGH_ENTROPY"))
     return findings
 
 
@@ -271,9 +270,8 @@ def check_file(filepath):
 
 def main():
     # Get staged files
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"], capture_output=True, text=True
-    )
+    git_args = ["git", "diff", "--cached", "--name-only"]
+    result = subprocess.run(git_args, capture_output=True, text=True)  # noqa: S603
     staged = [f for f in result.stdout.strip().split("\n") if f and os.path.exists(f)]
 
     if not staged:
@@ -331,9 +329,7 @@ def main():
         print(
             "  Public repos: rmi-backend, rmi-frontend, pryscraper, walletpress, degenfeed-web, rugmunchbot"
         )
-        print(
-            "  Private repos: standards, fleet-infra, fleet-template, rmi-security-framework"
-        )
+        print("  Private repos: standards, fleet-infra, fleet-template, rmi-security-framework")
         print("=" * 72 + "\n")
         return 1
 

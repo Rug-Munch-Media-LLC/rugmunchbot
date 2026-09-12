@@ -161,9 +161,19 @@ jobs:
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
       - name: Install dev dependencies
         run: uv pip install --python .venv/bin/python mypy
-      - name: MyPy type check
-        run: source .venv/bin/activate && mypy src/rugmunchbot/ --ignore-missing-imports
-        continue-on-error: false
+      - name: MyPy type check (ratchet — no NEW errors)
+        # Backlog: 432 errors at first real run (2026-09-11; the gate was
+        # previously dead). This blocks REGRESSIONS only. Burn the baseline
+        # down and lower MYPY_BASELINE as errors are fixed.
+        run: |
+          source .venv/bin/activate
+          COUNT=$(mypy src/rugmunchbot/ --ignore-missing-imports 2>&1 | grep -cE "error:" || true)
+          echo "mypy errors: $COUNT (baseline: 432)"
+          if [ "$COUNT" -gt 432 ]; then
+            echo "❌ New type errors introduced (baseline 432)"
+            exit 1
+          fi
+          echo "✅ No new type errors"
 
   # ── Tests ─────────────────────────────────────────────────────
   test:
@@ -202,7 +212,7 @@ jobs:
             uv-${{ runner.os }}-
       - name: Install dependencies
         run: |
-          uv pip install --python .venv/bin/python pytest pytest-asyncio pytest-cov httpx python-telegram-bot python-dotenv diff-cover import-linter
+          uv pip install --python .venv/bin/python pytest pytest-asyncio pytest-cov respx httpx python-telegram-bot python-dotenv diff-cover import-linter
           # Fleet scanner (OSS sibling; not on PyPI) from the mounted checkout.
           uv pip install --python .venv/bin/python /opt/rugmunch-scanner
           if [ -f "requirements.txt" ]; then
@@ -354,7 +364,7 @@ jobs:
             --exclude='tests/' \
             --exclude='.venv/' \
             --exclude='src/rugmunchbot/_vendor/' \
-            --sarif=semgrep.sarif \
+            --sarif --output=semgrep.sarif \
             src/rugmunchbot/
       - uses: actions/upload-artifact@v3
         with:

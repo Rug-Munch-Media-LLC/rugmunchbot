@@ -41,7 +41,7 @@ BLOCKED_PATTERNS = [
     (r"talos\.rugmunch\.io", "INTERNAL-HOSTNAME"),
     (r"cinnabox", "INTERNAL-HOSTNAME"),
     # Competitor intel
-    (r"/tmp/compete/", "COMPETITOR-INTEL"),
+    (r"/tmp/compete/", "COMPETITOR-INTEL"),  # noqa: S108 — detection pattern string
     (r"competitor.teardown", "COMPETITOR-INTEL"),
     # Payment/cost
     (r"\$0\.0[0-9]+/M.*(?:input|token)", "PAYMENT-MODEL"),
@@ -64,19 +64,16 @@ def check_file(filepath):
             for lineno, line in enumerate(f, 1):
                 for pattern, rule in BLOCKED_PATTERNS:
                     if re.search(pattern, line, re.IGNORECASE):
-                        findings.append(
-                            f"  {filepath}:{lineno} [{rule}] {line.strip()[:80]}"
-                        )
-    except Exception:
+                        findings.append(f"  {filepath}:{lineno} [{rule}] {line.strip()[:80]}")
+    except Exception:  # noqa: S110 — scanner must never crash on unreadable files
         pass
     return findings
 
 
 def main():
     # Get staged files
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"], capture_output=True, text=True
-    )
+    git_args = ["git", "diff", "--cached", "--name-only"]
+    result = subprocess.run(git_args, capture_output=True, text=True)  # noqa: S603
     staged = result.stdout.strip().split("\n")
     staged = [f for f in staged if f and os.path.exists(f)]
 
@@ -84,8 +81,7 @@ def main():
     for f in staged:
         # Skip binary files
         if any(
-            f.endswith(ext)
-            for ext in [".png", ".jpg", ".gif", ".woff", ".ttf", ".ico", ".svg"]
+            f.endswith(ext) for ext in [".png", ".jpg", ".gif", ".woff", ".ttf", ".ico", ".svg"]
         ):
             continue
         all_findings.extend(check_file(f))
@@ -95,9 +91,7 @@ def main():
         for f in all_findings:
             print(f)
         print(f"\n{len(all_findings)} violation(s) found. Commit blocked.")
-        print(
-            "This content belongs in private repos (standards, fleet-infra) — not public."
-        )
+        print("This content belongs in private repos (standards, fleet-infra) — not public.")
         sys.exit(1)
 
     print("🛡️  Firewall: CLEAN — no proprietary content detected.")
