@@ -162,27 +162,29 @@ Response (v2 desired — synchronous full report):
 New module `handlers/scanning.py` (or extend existing) — `scan_token()` client:
 
 ```python
-async def scan_token_v2(address: str, chain: str | None = None,
-                        depth: str = "quick") -> dict:
+async def scan_token_v2(address: str, chain: str | None = None, depth: str = "quick") -> dict:
     """Call RugMunchScan v2; fall back to v1 async + poll if v2 unavailable."""
     payload = {"chain": chain or detect_chain(address), "address": address, "depth": depth}
     async with httpx.AsyncClient(timeout=30) as client:
         # 1) try v2 synchronous
         try:
-            r = await client.post(f"{BACKEND_URL}/api/v2/scanner/token/scan",
-                                  json=payload, headers=backend_headers())
+            r = await client.post(
+                f"{BACKEND_URL}/api/v2/scanner/token/scan", json=payload, headers=backend_headers()
+            )
             if r.status_code == 200:
                 return r.json()
         except (httpx.HTTPError, httpx.TimeoutException):
             pass  # fall through to v1
         # 2) v1 async + poll (max 8 tries, 2s apart)
-        r = await client.post(f"{BACKEND_URL}/api/v1/scanner/scan",
-                              json=payload, headers=backend_headers())
+        r = await client.post(
+            f"{BACKEND_URL}/api/v1/scanner/scan", json=payload, headers=backend_headers()
+        )
         scan_id = r.json().get("scan_id")
         for _ in range(8):
             await asyncio.sleep(2)
-            poll = await client.get(f"{BACKEND_URL}/api/v1/scanner/scan/{scan_id}",
-                                    headers=backend_headers())
+            poll = await client.get(
+                f"{BACKEND_URL}/api/v1/scanner/scan/{scan_id}", headers=backend_headers()
+            )
             body = poll.json()
             if body.get("status") in ("completed", "failed"):
                 return body
@@ -280,18 +282,25 @@ Wiring in the bot (both `cmd_chat` and the catch-all `handle_message` AI branch)
 ```python
 guardrails = ChatGuardrails()
 
+
 async def _llm_chat(user_id: int, text: str, token_ctx: str | None = None) -> str | None:
     allowed, safe_text = guardrails.sanitize_input(text)
     if not allowed:
         guardrails.record_block(str(user_id), text, reason=safe_text, category="input")
         return "⛔ I can't help with that request."
-    system_prompt = build_chat_system_prompt(token_ctx)   # includes RAG context
+    system_prompt = build_chat_system_prompt(token_ctx)  # includes RAG context
     messages = guardrails.build_safe_messages(system_prompt, [], safe_text)
     async with httpx.AsyncClient(timeout=45) as client:
-        r = await client.post(LLM_CHAT_URL, json={
-            "model": LLM_MODEL, "messages": messages, "temperature": 0.3,
-            "max_tokens": 600, "stream": False,
-        })
+        r = await client.post(
+            LLM_CHAT_URL,
+            json={
+                "model": LLM_MODEL,
+                "messages": messages,
+                "temperature": 0.3,
+                "max_tokens": 600,
+                "stream": False,
+            },
+        )
         r.raise_for_status()
         raw = r.json()["choices"][0]["message"]["content"]
     return guardrails.sanitize_output(raw)
@@ -359,13 +368,15 @@ Bot side — new module `handlers/alerts.py` (extend existing):
 ```python
 async def alert_delivery_job(context: ContextTypes.DEFAULT_TYPE):
     """Poll backend alert queue; fan out to subscribers (max 5/hour/user)."""
-    alerts = await fetch_pending_alerts()          # GET /api/v1/intelligence/my-alerts or webhook queue
+    alerts = await fetch_pending_alerts()  # GET /api/v1/intelligence/my-alerts or webhook queue
     for alert in alerts:
         for sub in db.get_alert_subscribers(alert["category"]):
-            if rate_limited(sub["user_id"]):        # 5/hour cap per user
+            if rate_limited(sub["user_id"]):  # 5/hour cap per user
                 continue
             await context.bot.send_message(
-                sub["channel_id"], format_alert(alert), parse_mode=ParseMode.HTML,
+                sub["channel_id"],
+                format_alert(alert),
+                parse_mode=ParseMode.HTML,
                 reply_markup=alert_kb(alert),
             )
 ```
@@ -426,11 +437,14 @@ Topic filtering [REVIEW]: backend feed has no topic param today; either (a) add
 
 ```python
 async def hourly_news_post(context: ContextTypes.DEFAULT_TYPE):
-    articles = await fetch_rated_news(limit=3)   # min_score=60, sort=impact
+    articles = await fetch_rated_news(limit=3)  # min_score=60, sort=impact
     for a in articles:
-        await context.bot.send_message(CHANNELS["news"], format_news_post(a),
-                                       parse_mode=ParseMode.HTML,
-                                       disable_web_page_preview=True)
+        await context.bot.send_message(
+            CHANNELS["news"],
+            format_news_post(a),
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
 ```
 
 - Posts to `CHANNELS["news"]` (`@rmicryptonews`, `-1003982391578`).

@@ -123,8 +123,7 @@ journalctl -u rugmunchbot --since "1 hour ago" | grep -E "channel|post|publish"
 ```python
 # WARNING: This will delete all indexed data
 client.recreate_collection(
-    collection_name="rag_documents",
-    vectors_config={"size": 2560, "distance": "Cosine"}
+    collection_name="rag_documents", vectors_config={"size": 2560, "distance": "Cosine"}
 )
 ```
 

@@ -499,61 +499,66 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Generate SBOM (CycloneDX)
-        uses: anchore/sbom-action@v0
-        with:
-          format: cyclonedx-json
-          output: sbom.cyclonedx.json
+        # syft binary: sbom-action v0 resolves to node24 (runner max node20)
+        # and action clones are flaky on this runner.
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          syft dir:. --output cyclonedx-json=sbom.cyclonedx.json
       - uses: actions/upload-artifact@v3
         with:
           name: sbom
           path: sbom.cyclonedx.json
 
-  # ── Keyless image signing (Cosign) ────────────────────────────────
-  sign-image:
-    runs-on: docker-x64
-    needs: [test]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
-        with:
-          cosign-release: 'v2.4.3'
-      - name: Set up Docker BuildKit
-        run: |
-          echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
-          echo "BUILDKIT_PROGRESS=plain" >> $GITHUB_ENV
-      - name: Pull build cache
-        run: docker pull registry.rugmunch.io/rugmunchbot:buildcache || echo "No cache image yet — building from scratch"
-      - name: Build Docker image with cache
-        run: |
-          docker build \
-            --cache-from registry.rugmunch.io/rugmunchbot:buildcache \
-            --build-arg BUILDKIT_INLINE_CACHE=1 \
-            -t registry.rugmunch.io/rugmunchbot:${{ github.sha }} \
-            .
-      - name: Push cache image
-        run: |
-          docker tag registry.rugmunch.io/rugmunchbot:${{ github.sha }} registry.rugmunch.io/rugmunchbot:buildcache
-          docker push registry.rugmunch.io/rugmunchbot:buildcache
-      - name: Push release image
-        run: docker push registry.rugmunch.io/rugmunchbot:${{ github.sha }}
-      - name: Sign image with keyless (OIDC)
-        run: cosign sign --yes registry.rugmunch.io/rugmunchbot:${{ github.sha }}
-        env:
-          COSIGN_EXPERIMENTAL: "1"
-      - name: Verify signature
-        run: |
-          cosign verify \
-            --certificate-identity "https://git.rugmunch.io/RugMunchMedia/rugmunchbot/.forgejo/workflows/ci.yml@refs/heads/main" \
-            --certificate-oidc-issuer "https://git.rugmunch.io" \
-            registry.rugmunch.io/rugmunchbot:${{ github.sha }}
-        env:
-          COSIGN_EXPERIMENTAL: "1"
+  # ── Sign image — DISABLED 2026-09-12 ────────────────────────────
+  # registry.rugmunch.io does not exist; no CI registry creds; keyless cosign
+  # needs a Fulcio OIDC issuer Forgejo does not provide. Path back: deploy a
+  # registry + creds + key-based cosign, then restore from git history.
+#   # ── Keyless image signing (Cosign) ────────────────────────────────
+#   sign-image:
+#     runs-on: docker-x64
+#     needs: [test]
+#     if: github.ref == 'refs/heads/main'
+#     steps:
+#       - name: Install Cosign
+#         uses: sigstore/cosign-installer@v3
+#         with:
+#           cosign-release: 'v2.4.3'
+#       - name: Set up Docker BuildKit
+#         run: |
+#           echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
+#           echo "BUILDKIT_PROGRESS=plain" >> $GITHUB_ENV
+#       - name: Pull build cache
+#         run: docker pull registry.rugmunch.io/rugmunchbot:buildcache || echo "No cache image yet — building from scratch"
+#       - name: Build Docker image with cache
+#         run: |
+#           docker build \
+#             --cache-from registry.rugmunch.io/rugmunchbot:buildcache \
+#             --build-arg BUILDKIT_INLINE_CACHE=1 \
+#             -t registry.rugmunch.io/rugmunchbot:${{ github.sha }} \
+#             .
+#       - name: Push cache image
+#         run: |
+#           docker tag registry.rugmunch.io/rugmunchbot:${{ github.sha }} registry.rugmunch.io/rugmunchbot:buildcache
+#           docker push registry.rugmunch.io/rugmunchbot:buildcache
+#       - name: Push release image
+#         run: docker push registry.rugmunch.io/rugmunchbot:${{ github.sha }}
+#       - name: Sign image with keyless (OIDC)
+#         run: cosign sign --yes registry.rugmunch.io/rugmunchbot:${{ github.sha }}
+#         env:
+#           COSIGN_EXPERIMENTAL: "1"
+#       - name: Verify signature
+#         run: |
+#           cosign verify \
+#             --certificate-identity "https://git.rugmunch.io/RugMunchMedia/rugmunchbot/.forgejo/workflows/ci.yml@refs/heads/main" \
+#             --certificate-oidc-issuer "https://git.rugmunch.io" \
+#             registry.rugmunch.io/rugmunchbot:${{ github.sha }}
+#         env:
+#           COSIGN_EXPERIMENTAL: "1"
 
-  # ── Dependency vulnerability audit (pip-audit) ─────────────────
-  # Audits the DECLARED runtime surface (requirements.txt) without
-  # installing the full tree — the bot's requirements drag in torch/
-  # transformers via guardrails, so env-mode auditing is too heavy for CI.
+#   # ── Dependency vulnerability audit (pip-audit) ─────────────────
+#   # Audits the DECLARED runtime surface (requirements.txt) without
+#   # installing the full tree — the bot's requirements drag in torch/
+#   # transformers via guardrails, so env-mode auditing is too heavy for CI.
   pip-audit:
     runs-on: docker-x64
     needs: [test]
@@ -564,7 +569,7 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Run pip-audit on declared deps (blocking on HIGH/CRITICAL)
-        run: pip-audit -r requirements.txt --fail-on=high --desc
+        run: pip-audit -r requirements.txt --desc
 
   # ── Dependency freshness (informational) ───────────────────────
   deps-freshness:
@@ -587,6 +592,8 @@ jobs:
     continue-on-error: true  # informational only for now
     container:
       image: nikolaik/python-nodejs:python3.12-nodejs22
+      # Fleet scanner (OSS sibling; not on PyPI) from the host checkout.
+      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system deps
@@ -603,6 +610,8 @@ jobs:
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
       - name: Install dependencies + mutmut
         run: |
+          # Fleet scanner (OSS sibling; not on PyPI) from the mounted checkout.
+          uv pip install --python .venv/bin/python /opt/rugmunch-scanner
           uv pip install --python .venv/bin/python mutmut
           if [ -f "requirements.txt" ]; then
             uv pip install --python .venv/bin/python -r requirements.txt
