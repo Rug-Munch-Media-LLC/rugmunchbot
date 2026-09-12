@@ -569,10 +569,13 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Run pip-audit on declared deps (blocking on HIGH/CRITICAL)
-        run: # Audit PyPI deps only: the private scanner is not on PyPI (pip-audit
+        run: |
+          # Audit PyPI deps only: the private scanner is not on PyPI (pip-audit
           # would try to install it and fail); its deps are covered by its own CI.
           grep -v '^rugmunch-scanner' requirements.txt > /tmp/req-audit.txt
-          pip-audit -r /tmp/req-audit.txt --desc
+          # PYSEC-2026-3740 (nltk, transitive): no patched version exists
+          # upstream yet — documented risk, re-check when a fix ships.
+          pip-audit -r /tmp/req-audit.txt --desc --ignore-vuln PYSEC-2026-3740
 
   # ── Dependency freshness (informational) ───────────────────────
   deps-freshness:
