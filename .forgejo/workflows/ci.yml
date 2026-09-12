@@ -28,7 +28,10 @@ jobs:
         run: |
           apt-get update && apt-get install -y --no-install-recommends git ca-certificates
           rm -rf /var/lib/apt/lists/*
-          npm install -g @commitlint/cli @commitlint/config-conventional
+          # Retry: npm registry access can blip on the runner.
+          for i in 1 2 3; do
+            npm install -g @commitlint/cli @commitlint/config-conventional && break || { [ "$i" -eq 3 ] && exit 1; echo "npm attempt $i failed — retrying"; sleep 15; }
+          done
       - name: Validate commits in PR
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
