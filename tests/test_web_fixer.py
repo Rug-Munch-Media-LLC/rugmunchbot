@@ -5,13 +5,17 @@ import subprocess
 import sys
 import tempfile
 
+# Repo-relative: CI checks out under /workspace/... (a hardcoded host path
+# broke this test in CI).
+FIXER = pathlib.Path(__file__).resolve().parent.parent / "scripts" / "fix-web-knowledge-fallback.py"
+
 
 def _run_fixer(tmp: str) -> subprocess.CompletedProcess:
     """Run the migration script on a fixture file (test-controlled args only)."""
     return subprocess.run(  # noqa: S603 — args are sys.executable + pytest tmp path
         [
             sys.executable,
-            "/srv/work/repos/rugmunchbot/scripts/fix-web-knowledge-fallback.py",
+            str(FIXER),
             str(pathlib.Path(tmp)),
         ],
         capture_output=True,
