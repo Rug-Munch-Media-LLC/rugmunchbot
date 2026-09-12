@@ -569,7 +569,10 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Run pip-audit on declared deps (blocking on HIGH/CRITICAL)
-        run: pip-audit -r requirements.txt --desc
+        run: # Audit PyPI deps only: the private scanner is not on PyPI (pip-audit
+          # would try to install it and fail); its deps are covered by its own CI.
+          grep -v '^rugmunch-scanner' requirements.txt > /tmp/req-audit.txt
+          pip-audit -r /tmp/req-audit.txt --desc
 
   # ── Dependency freshness (informational) ───────────────────────
   deps-freshness:
