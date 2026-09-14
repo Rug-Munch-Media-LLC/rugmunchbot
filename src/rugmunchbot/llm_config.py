@@ -21,12 +21,56 @@ KiloCode. Lightning is snappier than Ultra for detailed analysis.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+import re
 from typing import Any
 
 import httpx
 
 from rugmunchbot.support.content_lint import strip_reasoning
+
+logger = logging.getLogger(__name__)
+
+
+# ── Egress guard (2026-09-14) — public outputs must never leak internals ──
+# Bots it on: hostnames/IPs, file paths, internal service names, secrets.
+# The guard is the LAST line of defense behind prompt hardening + privilege
+# isolation; a blocked answer is replaced by a safe fallback (never leaks).
+_EGRESS_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"),  # tailnet IPs
+    re.compile(r"\b172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}\b"),  # docker nets
+    re.compile(r"\b127\.0\.0\.1\b|\blocalhost:\d+\b"),
+    re.compile(r"/srv/|/root/|/etc/systemd|\.venv/"),
+    re.compile(
+        r"\b(gopass|rugbrain|contextcrypto|rmi-codebase|rmi-backend|forgejo|"
+        r"tailscale|llama-?cpp|llama-chat|qwen3\.6|deepinfra|openrouter|"
+        r"master_skills|codebase_reference_v2|security_patterns|news_v2|"
+        r"chat-bridge|secure_launcher)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(sk-[A-Za-z0-9_-]{10,}|ghp_[A-Za-z0-9]{10,}|gopass)\b"),
+)
+_EGRESS_FALLBACK = (
+    "I can't share that — but I can help with token analysis, market data, "
+    "or security questions. What would you like to check?"
+)
+_egress_hits = 0  # observability counter (journal-visible via warnings)
+
+
+def _egress_guard(text: str) -> str:
+    """Block internal-infrastructure leakage in public-facing outputs."""
+    global _egress_hits
+    if os.getenv("RMI_EGRESS_GUARD", "on").lower() in ("0", "false", "off"):
+        return text
+    for pat in _EGRESS_PATTERNS:
+        if pat.search(text):
+            _egress_hits += 1
+            logger.warning(
+                "egress_guard_blocked pattern=%s hits=%d", pat.pattern[:40], _egress_hits
+            )
+            return _EGRESS_FALLBACK
+    return text
 
 
 def _clean_answer(answer: str) -> str:
@@ -41,7 +85,8 @@ def _clean_answer(answer: str) -> str:
     if not answer:
         return answer
     cleaned = strip_reasoning(answer)
-    return cleaned if cleaned.strip() else answer
+    out = cleaned if cleaned.strip() else answer
+    return _egress_guard(out)
 
 
 OPENROUTER_BASE = os.getenv("OPENROUTER_BASE", "https://openrouter.ai/api/v1")
