@@ -352,7 +352,7 @@ async def chat_with_fallback(
 
     2026-09-01 doctrine: when ``task_class`` is a light class (commentary,
     title_rewrite, classify, summary_short, social_caption) the call tries
-    the self-hosted Qwen3-8B (:8009) FIRST — zero API cost, no rate limit.
+    the self-hosted Qwen3.6-35B-A3B (:8009) FIRST — zero API cost, no rate limit.
     On any local failure (down, timeout, empty) it falls through to the
     hosted free-API chain below, so quality never depends on the local box.
     Quality-critical task classes skip the local rung entirely.
