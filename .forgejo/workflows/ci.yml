@@ -649,3 +649,5 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Structure gate
         run: python3 scripts/check-code-structure.py
+      - name: Antipattern gate (per-repo ratchet)
+        run: python3 scripts/check-antipatterns.py --repo .
