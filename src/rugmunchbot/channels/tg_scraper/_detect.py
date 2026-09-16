@@ -1,4 +1,5 @@
 """Scam/shill detection over scraped Telegram messages.
+import time
 
 Three signals, all fail-open and pure (unit-testable without network):
   1. Token mentions — $TICKER, EVM 0x addresses, Solana base58 addresses
@@ -164,23 +165,55 @@ def detect_scam_patterns(text: str) -> list[ScamHit]:
     return hits
 
 
+# 2026-09-17: per-message probes at message rate (uncached) hammered the
+# backend shill API (~0.6+/s sustained, 3s each). Cache results per handle —
+# scammer status changes rarely; negative results cached too (fail-open).
+_PROBE_CACHE: dict[str, tuple[float, bool]] = {}
+_PROBE_CACHE_TTL_S = 3600.0
+_PROBE_CACHE_MAX = 10_000
+
+
+def _probe_cache_get(key: str) -> bool | None:
+    hit = _PROBE_CACHE.get(key)
+    if not hit:
+        return None
+    ts, value = hit
+    if (time.time() - ts) >= _PROBE_CACHE_TTL_S:
+        _PROBE_CACHE.pop(key, None)
+        return None
+    return value
+
+
+def _probe_cache_put(key: str, value: bool) -> None:
+    if len(_PROBE_CACHE) >= _PROBE_CACHE_MAX:
+        _PROBE_CACHE.clear()
+    _PROBE_CACHE[key] = (time.time(), value)
+
+
 async def is_known_scammer(handle: str | None) -> bool:
     """Probe a sender handle against the backend shill API (wall_of_shame).
 
     Fail-open: any outage → False (unknown, not cleared — absence of signal
-    is not innocence; the language patterns still apply).
+    is not innocence; the language patterns still apply). Results cached
+    per handle (TTL) so message-rate traffic does not hammer the API.
     """
     if not handle:
         return False
+    key = handle.lstrip("@").lower()
+    cached = _probe_cache_get(key)
+    if cached is not None:
+        return cached
     try:
         from rugmunchbot.services import shill_api
 
-        result = await shill_api.probe_handle(handle.lstrip("@"))
+        result = await shill_api.probe_handle(key)
         if not result:
             return False
-        return bool(result.get("scammer") or result.get("flagged") or result.get("known"))
+        known = bool(result.get("scammer") or result.get("flagged") or result.get("known"))
+        _probe_cache_put(key, known)
+        return known
     except Exception as exc:  # fail-open by contract
-        logger.debug("tg_scraper:scammer_probe_failed handle=%s err=%s", handle, str(exc)[:120])
+        logger.debug("tg_scraper:scammer_probe_failed handle=%s err=%s", key, str(exc)[:120])
         return False
 
 
