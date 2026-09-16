@@ -157,8 +157,8 @@ _INTENT_RULES: list[tuple[re.Pattern[str], str]] = [
     ),
     (
         re.compile(
-            r"\b(scan|check|audit|rug|scam|honeypot|safu|drain|phish|malicious|"
-            r"dangerous|secure|risky|safe(ty)?|is this safe|is it safe|trustworthy)\b",
+            r"\b(?:scan|check|audit|rug\s*pull|scam|honeypot|safu|drain|phish|"
+            r"malicious|dangerous|is\s+this\s+safe|is\s+it\s+safe|trustworthy)\b",
             re.IGNORECASE,
         ),
         (
@@ -175,8 +175,11 @@ _INTENT_RULES: list[tuple[re.Pattern[str], str]] = [
     ),
     (
         re.compile(
-            r"\b(price|chart|worth|value|how much|cost|mc[aap]+|market cap|volume|"
-            r"liquidity|pump|dump|buy|sell|token price|usd)\b",
+            r"\b(?:price(?!\s*action)|chart(?!\s*pattern)|worth\s+(?:of|is|does)|"
+            r"how\s+much\s+(?:is|does|for|of)|"
+            r"token\s+price|usd\s+price|market\s+cap(?!\s*of)|"
+            r"\$\w{1,10}\b)"  # $TOKEN shorthand
+            r"(?:[^a-zA-Z]|$)",
             re.IGNORECASE,
         ),
         (
@@ -388,10 +391,10 @@ _INTENT_RULES: list[tuple[re.Pattern[str], str]] = [
     ),
     (
         re.compile(
-            r"\b(help|can you|capabilities|capability|features|commands|what do|what are|"
-            r"who are you|tell me about you|about you|about this bot|"
-            r"introduce yourself|describe yourself|what can you do|what else can you|"
-            r"show me what you|guide|tutorial|docs|documentation)\b",
+            r"\b(?:capabilities|capability|features|commands|"
+            r"what\s+can\s+you\s+do|what\s+else\s+can\s+you|"
+            r"show\s+me\s+what\s+you|guide|tutorial|docs|documentation|"
+            r"help\s*$)\b",
             re.IGNORECASE,
         ),
         (

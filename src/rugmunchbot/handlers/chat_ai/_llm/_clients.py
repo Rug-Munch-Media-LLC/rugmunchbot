@@ -100,6 +100,20 @@ def _local_chat_first_enabled() -> bool:
         return False
 
 
+def _local_snappy_patience() -> float:
+    """Max seconds to wait for the local snappy lane before racing the cloud.
+
+    Tuned so a fast local turn (≤8 s on the 2B respond lane) wins
+    automatically; a slow/queued local turn yields to the cloud chain so the
+    user never waits more than ~patience + cloud_latency (≈15–20 s total).
+    Override with RMI_LOCAL_SNAPPY_PATIENCE.
+    """
+    try:
+        return float(__import__("os").getenv("RMI_LOCAL_SNAPPY_PATIENCE", "12.0"))
+    except (TypeError, ValueError):
+        return 12.0
+
+
 async def _call_local_chat(
     messages: list[dict[str, str]],
     user_id: int,
@@ -219,10 +233,40 @@ async def _call_remote_fast(
     """
     # 2026-09-15: LOCAL-FIRST — Defiant 9B (:8009) answers the snappy tier
     # when enabled (zero cost, uncensored). The cloud chain stays the fallback.
+    # 2026-09-16: HEDGED — if local doesn't finish within the patience
+    # window, race it against the cloud chain and take whichever finishes
+    # first. This caps user-visible latency at ~patience + cloud_latency
+    # (≈15–20 s) while keeping idle turns zero-cost on the local lane.
     if tier == "snappy" and _local_chat_first_enabled():
-        local_result = await _call_local_chat(messages, user_id, sources=sources)
-        if local_result is not None:
-            return local_result
+        local_task = asyncio.create_task(
+            _call_local_chat(messages, user_id, sources=sources)
+        )
+        try:
+            local_result = await asyncio.wait_for(
+                local_task, timeout=_local_snappy_patience()
+            )
+            if local_result is not None:
+                return local_result
+        except asyncio.TimeoutError:
+            pass  # local is slow — fall through to the cloud race
+
+        # Patience exhausted: race local vs cloud, take first success.
+        cloud_task = asyncio.create_task(
+            _call_remote_fast(tier, messages, user_id, sources=sources)
+        )
+        done, pending = await asyncio.wait(
+            [local_task, cloud_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+        try:
+            result = done.pop().result()
+        except Exception:
+            result = None
+        if result is not None:
+            return result
+        # Both lost — fall through to the legacy remote chain below.
 
     messages = _owner_augment_messages(messages, user_id)
     try:
