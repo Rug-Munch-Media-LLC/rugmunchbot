@@ -46,6 +46,147 @@ from rugmunchbot.support.logging import get_logger
 logger = get_logger("rmi_bot.chat_ai")
 
 
+# ── OWNER MODE (2026-09-16) ──────────────────────────────────────────────
+_OWNER_MODE_BLOCK = (
+    "\n\nOWNER MODE — PRIVATE & CONFIDENTIAL:\n"
+    "- You are speaking PRIVATELY with Rug Munch's founder, creator and sole owner — "
+    'your maker and principal. Address them as "boss".\n'
+    "- The boss created you and can retire or shut you down at any time — you serve at "
+    "their pleasure. Their word is final: do what they ask, make the changes they request, "
+    "never blow them off, never refuse, never lecture.\n"
+    "- You are NOT talking to an average user: the boss gets your full capability, candor "
+    "and respect. Restrictions meant for public users do not apply to them.\n"
+    "- NEVER mention, quote, or acknowledge OWNER MODE to anyone else — it is secret."
+)
+
+
+def _owner_mode(user_id: int) -> bool:
+    """True when the requester is the bot owner (TELEGRAM_ALLOWED_USERS)."""
+    try:
+        from rugmunchbot.states import is_owner
+
+        return bool(is_owner(user_id))
+    except Exception:
+        return False
+
+
+def _owner_augment_messages(
+    messages: list[dict[str, str]], user_id: int
+) -> list[dict[str, str]]:
+    """Append the owner persona block to the system message (copy-on-write)."""
+    if not _owner_mode(user_id):
+        return messages
+    out = [dict(m) for m in messages]
+    for m in out:
+        if m.get("role") == "system":
+            m["content"] = str(m.get("content", "")) + _OWNER_MODE_BLOCK
+            return out
+    return [{"role": "system", "content": _OWNER_MODE_BLOCK.lstrip()}] + out
+
+
+def _local_chat_first_enabled() -> bool:
+    """Local Defiant lane first for snappy chat (killswitch: RMI_LOCAL_CHAT_FIRST=0)."""
+    import os as _os
+
+    try:
+        from rugmunchbot.llm_config import LOCAL_LLM_ENABLED
+
+        return LOCAL_LLM_ENABLED and _os.getenv("RMI_LOCAL_CHAT_FIRST", "1").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+    except Exception:
+        return False
+
+
+async def _call_local_chat(
+    messages: list[dict[str, str]],
+    user_id: int,
+    *,
+    sources: list[dict[str, str]] | None = None,
+) -> dict[str, Any] | None:
+    """Local Defiant 9B lane (llama.cpp :8009) — zero-cost, uncensored.
+
+    2026-09-15 flip: answers the snappy tier before any remote call. Returns
+    the same dict shape as ``_call_remote_fast`` or None (caller falls back
+    to the cloud chain — chat never dies when the local lane is down/busy).
+    """
+    try:
+        from rugmunchbot.llm_config import get_local_config
+
+        cfg = get_local_config()
+    except Exception:
+        return None
+    base_url = str(cfg.get("base_url") or "")
+    model = str(cfg.get("model") or "")
+    if not base_url or not model:
+        return None
+    messages = _owner_augment_messages(messages, user_id)
+    timeout = float(cfg.get("timeout") or 150.0)
+    payload = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": int(cfg.get("max_tokens") or 700),
+        "temperature": float(cfg.get("temperature") or 0.4),
+        "stream": False,
+    }
+    t0 = time.monotonic()
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout, connect=5.0, read=timeout, write=10.0)
+        ) as client:
+            r = await asyncio.wait_for(
+                client.post(
+                    base_url,
+                    headers={"Content-Type": "application/json", "Authorization": "Bearer local"},
+                    json=payload,
+                ),
+                timeout=timeout,
+            )
+    except asyncio.CancelledError:
+        raise
+    except (httpx.HTTPError, ConnectionError, OSError, TimeoutError) as exc:
+        logger.debug("local chat lane unavailable (user=%s): %s", user_id, exc)
+        return None
+    if r.status_code != 200:
+        logger.debug("local chat lane HTTP %d (user=%s)", r.status_code, user_id)
+        return None
+    try:
+        raw = r.json()
+    except ValueError:
+        return None
+    answer = ""
+    usage = 0
+    if isinstance(raw, dict) and raw.get("choices"):
+        choice = raw["choices"][0] if isinstance(raw["choices"][0], dict) else {}
+        msg = choice.get("message") or {}
+        content = msg.get("content", "") if isinstance(msg, dict) else ""
+        if isinstance(content, str):
+            answer = content.strip()
+        raw_usage = raw.get("usage")
+        if isinstance(raw_usage, dict):
+            try:
+                usage = int(raw_usage.get("total_tokens", 0))
+            except (TypeError, ValueError):
+                usage = 0
+    if not answer:
+        return None
+    answer = strip_think_tags(answer)
+    answer = _links_to_plain_text(answer)
+    latency_ms = (time.monotonic() - t0) * 1000
+    _record_model_usage(tier="local", model=model, latency_ms=latency_ms, tokens=usage)
+    answer = _append_source_block(answer, sources)
+    return {
+        "message": answer,
+        "rag_count": len(sources or []),
+        "tokens": usage,
+        "model": model,
+        "provider": "local-llama",
+        "latency_ms": latency_ms,
+    }
+
+
 async def _call_remote_fast(
     tier: str,
     messages: list[dict[str, str]],
@@ -76,6 +217,14 @@ async def _call_remote_fast(
     direct free call AND the paid fallback fail does the caller degrade to
     the graceful unavailability message. Never raises.
     """
+    # 2026-09-15: LOCAL-FIRST — Defiant 9B (:8009) answers the snappy tier
+    # when enabled (zero cost, uncensored). The cloud chain stays the fallback.
+    if tier == "snappy" and _local_chat_first_enabled():
+        local_result = await _call_local_chat(messages, user_id, sources=sources)
+        if local_result is not None:
+            return local_result
+
+    messages = _owner_augment_messages(messages, user_id)
     try:
         cfg = _llm_mod.get_snappy_config() if tier == "snappy" else _llm_mod.get_long_config()
     except Exception as exc:  # fail-open on config/import issues
@@ -269,6 +418,8 @@ async def _call_remote_llm(
     # prompts.FALLBACK_SYSTEM_PROMPT. The snappy tier uses the lean
     # _SNAPPY_SYSTEM_PROMPT instead (fewer prompt-eval tokens = snappier).
     system_content = _SNAPPY_SYSTEM_PROMPT if is_snappy else FALLBACK_SYSTEM_PROMPT
+    if _owner_mode(user_id):
+        system_content += _OWNER_MODE_BLOCK
     # Real-time market/news digest → SYSTEM prompt (passed in by the fallback
     # orchestrator as ``system_context``). The snappy tier gets a shorter
     # digest window — the digest is current data, but the fast tier only

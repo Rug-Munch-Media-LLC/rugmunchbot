@@ -197,6 +197,54 @@ def _verify_numeric_claims(answer: str, known_nums: list[float]) -> tuple[str, l
     return answer, flagged
 
 
+_LLMGUARD_URL = "http://127.0.0.1:8016"
+
+
+async def _ml_guard_check(text: str) -> str | None:
+    """ML second stage (llm-guard sidecar @ :8016) — catches paraphrased attacks.
+
+    Fail-open: any sidecar error/timeout returns None and the regex layer
+    remains the only guard (availability over paranoia).
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=1.5, read=8.0, write=3.0, pool=5.0)
+        ) as client:
+            resp = await client.post(
+                f"{_LLMGUARD_URL}/scan", json={"text": text[:6000], "kind": "input"}
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if not data.get("safe", True):
+                    return str(data.get("flag") or "flagged")
+    except Exception as exc:  # fail-open by design
+        logger.warning("llm-guard sidecar unavailable (%s)", str(exc)[:100])
+    return None
+
+
+async def _ml_guard_output_scrub(text: str) -> str:
+    """ML output redaction via the sidecar. Fail-open (returns input unchanged)."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=1.5, read=8.0, write=3.0, pool=5.0)
+        ) as client:
+            resp = await client.post(
+                f"{_LLMGUARD_URL}/scan", json={"text": text[:8000], "kind": "output"}
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                sanitized = data.get("sanitized")
+                if isinstance(sanitized, str):
+                    return sanitized
+    except Exception as exc:  # fail-open by design
+        logger.warning("llm-guard output unavailable (%s)", str(exc)[:100])
+    return text
+
+
 async def _injection_warning(update: Update, category: str) -> None:
     """Reply to a prompt-injection attempt with a targeted warning."""
     text = _INJECTION_MESSAGES.get(category, "I couldn't process that message. Ask me a normal question instead.")
@@ -327,12 +375,27 @@ async def _run_entry_guards(
     Every branch sends the reply itself (the redirect also traces its
     answer), so the caller simply stops when this returns True.
     """
+    # Owner mode: the boss bypasses every entry guard (trusted principal).
+    try:
+        from rugmunchbot.states import is_owner
+
+        if is_owner(user.id):
+            logger.info("owner mode: entry guards bypassed (user=%s)", user.id)
+            return False
+    except Exception:
+        pass
+
     if await run_db(db.get_bot_state, "chat_enabled", "on") != "on":
         await message.reply_text(_CHAT_DISABLED, parse_mode=ParseMode.HTML, reply_markup=main_menu_kb(user.id))
         return True
 
     # v6 anti-abuse: never forward prompt-injection attempts to the LLM.
     injection = anti_abuse.check_prompt_injection(text)
+    if not injection:
+        # v7: ML second stage — catches paraphrased attacks the regex misses.
+        _ml_flag = await _ml_guard_check(text)
+        if _ml_flag:
+            injection = f"ml guard: {_ml_flag}"
     if injection:
         logger.info("prompt-injection blocked (chat_ai) user=%s category=%s", user.id, injection)
         await _injection_warning(update, injection)
@@ -517,6 +580,7 @@ async def _post_guardrail(
     # Deliberately last: the guardrail can append citation/no-live-data lines
     # above, and the degenerate replacement must happen before this scrub.
     answer = sanitize_output(answer)
+    answer = await _ml_guard_output_scrub(answer)
 
     return answer, live_results, stripped_syms, stripped_addrs, answer_is_degenerate
 
