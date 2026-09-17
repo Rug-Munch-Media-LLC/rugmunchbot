@@ -63,7 +63,7 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         _probe("gateway-engines", "http://127.0.0.1:8010/health"),
         _probe("deep-embedder", "http://127.0.0.1:8004/health"),
         _probe("reranker-4b", "http://127.0.0.1:8003/health"),
-        _probe("chat-8b", "http://127.0.0.1:8009/health"),
+        _probe("chat-qwythos", "http://127.0.0.1:8009/health"),
     )
 
     def _mark(ok: bool, ms: float) -> str:
@@ -80,7 +80,7 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "<b>Model Services</b>",
         f"  {_mark(*checks[2])} deep embedder 4B (:8004)",
         f"  {_mark(*checks[3])} reranker 4B (:8003)",
-        f"  {_mark(*checks[4])} chat 8B (:8009)",
+        f"  {_mark(*checks[4])} chat Qwythos-9B (:8009)",
         "",
         "<b>Fallback Doctrine</b>",
         "  own index → free pool → keyed freemium → proxy → paid",

@@ -112,16 +112,16 @@ DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY", "")
 DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-30B-A3B-Instruct")
 
 
-# ── Local LLM lane (Talos llama.cpp Qwen3.6-35B-A3B) ─────────────────────
+# ── Local LLM lane (Talos llama.cpp Qwythos-9B Claude-Mythos) ─────────────────────
 # 2026-09-01 doctrine: light content tasks (commentary lines, title
 # rewrites, classification, short summaries) run LOCAL-FIRST on the
-# self-hosted Qwen3.6-35B-A3B Opus-ablit (:8009) — zero API cost, zero
-# rate limit, ~5-12 tok/s on CPU (2026-09-14 model upgrade). Quality-critical tasks
+# self-hosted Qwythos-9B Claude-Mythos (:8009) — zero API cost, zero
+# rate limit, ~8-10 tok/s on CPU (2026-09-18 Qwythos swap). Quality-critical tasks
 # stay on the hosted writer. RMI_LOCAL_LLM_ENABLED=false kills the lane
 # (everything falls through to the free-API chain).
 LOCAL_LLM_ENABLED = os.getenv("RMI_LOCAL_LLM_ENABLED", "true").lower() in ("1", "true", "yes")
 LOCAL_LLM_URL = os.getenv("RMI_LOCAL_LLM_URL", "http://127.0.0.1:8009/v1/chat/completions")
-LOCAL_LLM_MODEL = os.getenv("RMI_LOCAL_LLM_MODEL", "qwen3.6-35b-a3b")
+LOCAL_LLM_MODEL = os.getenv("RMI_LOCAL_LLM_MODEL", "qwythos-9b")
 #: Task classes that are cheap enough + short enough for the local workhorse.
 #: Everything else (flagship drafts, deep analysis) stays on the hosted lane.
 LOCAL_FIRST_TASKS = frozenset(
@@ -133,14 +133,14 @@ LOCAL_FIRST_TASKS = frozenset(
 
 
 def get_local_config(max_tokens: int = 700) -> dict[str, Any]:
-    """Local Qwen3.6-35B-A3B llama.cpp config — the zero-cost light-task lane."""
+    """Local Qwythos-9B llama.cpp config — the zero-cost light-task lane."""
     return {
         "model": LOCAL_LLM_MODEL,
         "base_url": LOCAL_LLM_URL,
         "api_key": "local",  # llama.cpp ignores auth
         "max_tokens": max_tokens,
         "temperature": 0.4,
-        "timeout": 150.0,  # 35B MoE async lane (was 45s on the 8B)
+        "timeout": 150.0,  # Qwythos-9B lane (thinking model; was 45s on the 8B)
     }
 
 
@@ -397,7 +397,7 @@ async def chat_with_fallback(
 
     2026-09-01 doctrine: when ``task_class`` is a light class (commentary,
     title_rewrite, classify, summary_short, social_caption) the call tries
-    the self-hosted Qwen3.6-35B-A3B (:8009) FIRST — zero API cost, no rate limit.
+    the self-hosted Qwythos-9B (:8009) FIRST — zero API cost, no rate limit.
     On any local failure (down, timeout, empty) it falls through to the
     hosted free-API chain below, so quality never depends on the local box.
     Quality-critical task classes skip the local rung entirely.

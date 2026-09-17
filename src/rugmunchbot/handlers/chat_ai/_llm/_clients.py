@@ -120,7 +120,7 @@ async def _call_local_chat(
     *,
     sources: list[dict[str, str]] | None = None,
 ) -> dict[str, Any] | None:
-    """Local Defiant 9B lane (llama.cpp :8009) — zero-cost, uncensored.
+    """Local Qwythos-9B lane (llama.cpp :8009) — zero-cost, uncensored.
 
     2026-09-15 flip: answers the snappy tier before any remote call. Returns
     the same dict shape as ``_call_remote_fast`` or None (caller falls back
@@ -231,7 +231,8 @@ async def _call_remote_fast(
     direct free call AND the paid fallback fail does the caller degrade to
     the graceful unavailability message. Never raises.
     """
-    # 2026-09-15: LOCAL-FIRST — Defiant 9B (:8009) answers the snappy tier
+    # 2026-09-15: LOCAL-FIRST — local 9B (:8009) answers the snappy tier
+    # 2026-09-18: model = Qwythos-9B Claude-Mythos (MTP, thinking separated).
     # when enabled (zero cost, uncensored). The cloud chain stays the fallback.
     # 2026-09-16: HEDGED — if local doesn't finish within the patience
     # window, race it against the cloud chain and take whichever finishes
