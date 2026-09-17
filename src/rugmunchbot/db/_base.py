@@ -79,6 +79,7 @@ def _connect(check_same_thread: bool = True) -> sqlite3.Connection:
     conn = sqlite3.connect(path, check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")  # wait out writer contention instead of failing fast
     return conn
 
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from typing import Any
 
 from .._base import get_db
@@ -23,6 +24,7 @@ def upsert_kol_identity(
     linked_kol_ids: list[str] | None = None,
     scammer_group: str = "",
     notes: str = "",
+    conn: sqlite3.Connection | None = None,
 ) -> bool:
     """Insert/update one canonical KOL identity (upsert by ``kol_id``).
 
@@ -37,7 +39,8 @@ def upsert_kol_identity(
     screen_name = str(screen_name or "").strip().lstrip("@") or kol_id
     if not kol_id:
         return False
-    conn = get_db()
+    own = conn is None
+    conn = conn or get_db()
     try:
         conn.execute(
             """
@@ -83,22 +86,28 @@ def upsert_kol_identity(
                 now_iso(),
             ),
         )
-        conn.commit()
+        if own:
+            conn.commit()
         return True
     finally:
-        conn.close()
+        if own:
+            conn.close()
 
 
-def get_kol_identity(kol_id: str) -> dict[str, Any] | None:
+def get_kol_identity(
+    kol_id: str, *, conn: sqlite3.Connection | None = None
+) -> dict[str, Any] | None:
     """One canonical identity by kol_id (None when unknown)."""
-    conn = get_db()
+    own = conn is None
+    conn = conn or get_db()
     try:
         row = conn.execute(
             "SELECT * FROM kol_identities WHERE kol_id = ?", (norm_handle(kol_id),)
         ).fetchone()
         return dict(row) if row is not None else None
     finally:
-        conn.close()
+        if own:
+            conn.close()
 
 
 def list_kol_identities(
@@ -193,7 +202,10 @@ def kol_registry_count() -> int:
         conn.close()
 
 
-def register_alias(kol_id: str, alias: str, *, is_current: bool = True) -> bool:
+def register_alias(
+    kol_id: str, alias: str, *, is_current: bool = True,
+    conn: sqlite3.Connection | None = None,
+) -> bool:
     """Map one handle (current or past) to a canonical kol_id.
 
     This is the table that makes screen-name changes resolve: a KOL who
@@ -204,7 +216,8 @@ def register_alias(kol_id: str, alias: str, *, is_current: bool = True) -> bool:
     alias = norm_handle(alias)
     if not kol_id or not alias:
         return False
-    conn = get_db()
+    own = conn is None
+    conn = conn or get_db()
     try:
         conn.execute(
             """
@@ -217,10 +230,12 @@ def register_alias(kol_id: str, alias: str, *, is_current: bool = True) -> bool:
             """,
             (alias, kol_id, 1 if is_current else 0, now_iso(), now_iso()),
         )
-        conn.commit()
+        if own:
+            conn.commit()
         return True
     finally:
-        conn.close()
+        if own:
+            conn.close()
 
 
 def demote_alias(alias: str) -> bool:
@@ -342,23 +357,32 @@ def seed_kol_registry(rows: list[tuple[str, str, str, str, str, str]]) -> int:
     Idempotent: identities upsert, primary alias registered, verified flag
     is preserved (seeding never un-verifies). Returns rows processed.
     """
-    count = 0
-    for handle, name, category, source, risk_level, notes in rows:
-        handle = str(handle or "").strip().lstrip("@")
-        if not handle:
-            continue
-        kol_id = norm_handle(handle)
-        existing = get_kol_identity(kol_id)
-        upsert_kol_identity(
-            kol_id=kol_id,
-            name=str(name or "").strip() or handle,
-            screen_name=handle,
-            category=str(category or "shiller"),
-            source=str(source or "ct_known"),
-            verified=bool(existing and existing.get("verified")),
-            risk_level=str(risk_level or "watch"),
-            notes=str(notes or ""),
-        )
-        register_alias(kol_id, handle, is_current=True)
-        count += 1
-    return count
+    # Batched (2026-09-18): ONE connection + ONE commit for the whole seed.
+    # Previously each row opened a connection and committed separately (500+
+    # fsyncs) — the cause of a 25-minute suite hang (see TECH-DEBT.md).
+    conn = get_db()
+    try:
+        count = 0
+        for handle, name, category, source, risk_level, notes in rows:
+            handle = str(handle or "").strip().lstrip("@")
+            if not handle:
+                continue
+            kol_id = norm_handle(handle)
+            existing = get_kol_identity(kol_id, conn=conn)
+            upsert_kol_identity(
+                kol_id=kol_id,
+                name=str(name or "").strip() or handle,
+                screen_name=handle,
+                category=str(category or "shiller"),
+                source=str(source or "ct_known"),
+                verified=bool(existing and existing.get("verified")),
+                risk_level=str(risk_level or "watch"),
+                notes=str(notes or ""),
+                conn=conn,
+            )
+            register_alias(kol_id, handle, is_current=True, conn=conn)
+            count += 1
+        conn.commit()
+        return count
+    finally:
+        conn.close()

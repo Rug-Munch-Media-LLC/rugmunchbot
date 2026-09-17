@@ -62,9 +62,9 @@
 - [x] **Suite can hang forever — found live.** `test_seed_into_db_round_trip`
       stalled 25+ min in `upsert_kol_identity` D-state on `jbd2_log_wait_commit`.
       Mitigation shipped: `pytest-timeout` + `timeout = 120` in pytest config.
-- [ ] **Root cause to fix:** `seed_kol_registry` (db/kol/identity.py) opens a
-      connection AND commits **per row** — 500+ rows = 500+ fsyncs. Batch the
-      whole seed into ONE transaction (single connection, one commit).
+- [x] **Root cause fixed (2026-09-18):** seed batching — `seed_kol_registry`
+      now uses ONE connection + ONE commit for the whole seed (was 500+ fsyncs).
+      Also added `PRAGMA busy_timeout=5000` on all connections (writer contention).
 - [x] **Suite verified (2026-09-18):** 1803 passed / 0 failed / 1 skipped in 7m55s.
 - [ ] **Coverage ratchet:** measured **47%** (2026-09-18, );
       CI floor 34; fleet target ≥70%. Feed the ratchet from the 0%-covered set
