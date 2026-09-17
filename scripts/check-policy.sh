@@ -48,7 +48,7 @@ OUT=$(find . -path ./.venv -prune -o \( -name '*.bak' -o -name '*.bak-*' -o -nam
 [ -n "$OUT" ] && { fail "dead artifacts (.bak/_old):"; echo "$OUT"; }
 
 # ── 6. silent swallows (informational) ─────────────────────────────────────
-OUT=$(grep -rnPzo 'except[^\n]*:\n[[:space:]]*pass\b' src/rugmunchbot --include='*.py' 2>/dev/null \
+OUT=$(grep -rnPzo 'except[^\n]*:\n[[:space:]]*pass[ \t]*\n' src/rugmunchbot --include='*.py' 2>/dev/null \
   | tr '\0' '\n' | grep -v '_vendor/' | grep -vE ':[0-9]+:[[:space:]]*#' || true)
 [ -n "$OUT" ] && warn "silent except…: pass (add a log or a handled-state comment — see policy §1)"
 

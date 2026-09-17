@@ -14,7 +14,6 @@ prefix always returns True (the original if/elif chain stopped once a
 
 from __future__ import annotations
 
-import importlib
 from typing import TYPE_CHECKING, Any
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -44,12 +43,11 @@ async def _run_addr_cmd(
     update: Update,
     ctx: ContextTypes.DEFAULT_TYPE,
     data: str,
-    module: str,
-    func: str,
+    handler: Any,
     *,
     args: list[str] | None = None,
 ) -> bool:
-    """Dispatch an ``prefix_addr_chain`` callback to a lazy-imported command.
+    """Dispatch an ``prefix_addr_chain`` callback to a statically imported handler.
 
     Mirrors the original branch bodies: when the payload carries fewer than
     three parts the branch is entered but does nothing — returns True so the
@@ -59,7 +57,6 @@ async def _run_addr_cmd(
     if pair is None:
         return True
     addr, chain = pair
-    handler = getattr(importlib.import_module(module), func)
     ctx.args = args if args is not None else [addr, chain]
     await handler(update, ctx)
     return True
@@ -91,7 +88,9 @@ async def handle(
                 topic["content"], parse_mode=ParseMode.MARKDOWN, reply_markup=scamschool_kb()
             )
     elif data.startswith("scan_"):
-        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.scanning", "cmd_scan")
+        from rugmunchbot.handlers.scanning import cmd_scan
+
+        await _run_addr_cmd(update, ctx, data, cmd_scan)
     elif data.startswith("share_"):
         pair = _addr_chain(data)
         if pair is not None:
@@ -108,11 +107,17 @@ async def handle(
                 reply_markup=back_kb(),
             )
     elif data.startswith("holders_"):
-        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.holders", "cmd_holders")
+        from rugmunchbot.handlers.holders import cmd_holders
+
+        await _run_addr_cmd(update, ctx, data, cmd_holders)
     elif data.startswith("trace_"):
-        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.trace", "cmd_trace")
+        from rugmunchbot.handlers.trace import cmd_trace
+
+        await _run_addr_cmd(update, ctx, data, cmd_trace)
     elif data.startswith("wallet_"):
-        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.scanning", "cmd_wallet")
+        from rugmunchbot.handlers.scanning import cmd_wallet
+
+        await _run_addr_cmd(update, ctx, data, cmd_wallet)
     elif data.startswith("chart_"):
         pair = _addr_chain(data)
         if pair is not None:
@@ -121,7 +126,9 @@ async def handle(
                 f"\U0001f4c8 <b>Generating chart...</b>\n<code>{addr}</code>",
                 parse_mode=ParseMode.HTML,
             )
-        await _run_addr_cmd(update, ctx, data, "rugmunchbot.commands.chart", "cmd_chart")
+        from rugmunchbot.commands.chart import cmd_chart
+
+        await _run_addr_cmd(update, ctx, data, cmd_chart)
     elif data.startswith("rugmap_"):
         pair = _addr_chain(data)
         if pair is not None:
@@ -130,9 +137,13 @@ async def handle(
                 f"\U0001f5fa\ufe0f <b>Generating RugMap...</b>\n<code>{addr}</code>",
                 parse_mode=ParseMode.HTML,
             )
-        await _run_addr_cmd(update, ctx, data, "rugmunchbot.commands.rugmap", "cmd_rugmap")
+        from rugmunchbot.commands.rugmap import cmd_rugmap
+
+        await _run_addr_cmd(update, ctx, data, cmd_rugmap)
     elif data.startswith("alert_"):
-        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.alerts", "cmd_alerts", args=[])
+        from rugmunchbot.handlers.alerts import cmd_alerts
+
+        await _run_addr_cmd(update, ctx, data, cmd_alerts, args=[])
     elif data.startswith("upgrade_"):
         tier_key = data[8:]
         if tier_key in TIERS:
@@ -222,15 +233,21 @@ async def handle(
             ctx.args = [addr_s]
             await cmd_research(update, ctx)
     elif data.startswith("sentiment_"):
-        await _run_addr_cmd(
-            update, ctx, data, "rugmunchbot.handlers.sentiment", "cmd_sentiment", args=[]
-        )
+        from rugmunchbot.handlers.sentiment import cmd_sentiment
+
+        await _run_addr_cmd(update, ctx, data, cmd_sentiment, args=[])
     elif data.startswith("investigate_"):
-        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.osint", "cmd_investigate")
+        from rugmunchbot.handlers.osint import cmd_investigate
+
+        await _run_addr_cmd(update, ctx, data, cmd_investigate)
     elif data.startswith("ta_"):
-        await _run_addr_cmd(update, ctx, data, "rugmunchbot.handlers.scanning", "cmd_ta")
+        from rugmunchbot.handlers.scanning import cmd_ta
+
+        await _run_addr_cmd(update, ctx, data, cmd_ta)
     elif data.startswith("mev_"):
-        await _run_addr_cmd(update, ctx, data, "rugmunchbot.commands.premium", "cmd_mev")
+        from rugmunchbot.commands.premium import cmd_mev
+
+        await _run_addr_cmd(update, ctx, data, cmd_mev)
     else:
         return False
     return True

@@ -382,8 +382,8 @@ async def _run_entry_guards(
         if is_owner(user.id):
             logger.info("owner mode: entry guards bypassed (user=%s)", user.id)
             return False
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("owner-mode check failed (treating as non-owner): %s", str(exc)[:120])
 
     if await run_db(db.get_bot_state, "chat_enabled", "on") != "on":
         await message.reply_text(_CHAT_DISABLED, parse_mode=ParseMode.HTML, reply_markup=main_menu_kb(user.id))

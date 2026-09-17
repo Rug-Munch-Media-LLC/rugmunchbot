@@ -88,8 +88,8 @@ def _pnl_lines(pnl: Any) -> list[str]:
             n = float(realized)
             emoji = "\U0001f7e2" if n >= 0 else "\U0001f534"
             rows.append(f"  {emoji} Realized PnL: <b>{_usd(n)}</b>")
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            logger.debug("whalewatch:realized_pnl_parse_failed err=%s", e)
     trades = pnl.get("total_trades") or pnl.get("trades") or pnl.get("trade_count")
     if trades is not None:
         rows.append(f"  \U0001f501 Trades tracked: <b>{_e(trades)}</b>")
