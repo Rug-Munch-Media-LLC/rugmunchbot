@@ -41,7 +41,8 @@ from rugmunchbot.handlers.chat_ai._guards import (
     _reply_local_intent,
     _run_entry_guards,
 )
-from rugmunchbot.handlers.chat_ai._helpers import _FALLBACK_MESSAGE
+from rugmunchbot.formatters import is_owner
+from rugmunchbot.handlers.chat_ai._helpers import _FALLBACK_MESSAGE, _thinking_template
 from rugmunchbot.handlers.chat_ai._live_tools import _run_rag_lookup
 from rugmunchbot.handlers.chat_ai._persistence import _persist_answer
 from rugmunchbot.handlers.chat_ai._routing._constants import (
@@ -196,9 +197,9 @@ async def chat_ai_response(
 
         # Preliminary "thinking" message — keeps user engaged
         preliminary = await message.reply_text(
-            "\U0001f916 <b>Thinking...</b>\n\n"
-            f"\U0001f4ac <i>{escape(text[:150])}</i>\n\n"
-            "\u23f1\ufe0f Working on a detailed answer...",
+            _thinking_template(text, bool(_extract_addresses(text))).format(
+                question=escape(text[:150])
+            ),
             parse_mode=ParseMode.HTML,
             disable_web_page_preview=True,
         )
@@ -209,7 +210,7 @@ async def chat_ai_response(
         # Interim "still digging" note: fired ~5s after the placeholder so a slow
         # context gather doesn't look stalled. Cancelled the moment the answer is
         # ready (below), so a fast response never gets clobbered by the edit.
-        placeholder_task = asyncio.create_task(_edit_placeholder_if_slow(preliminary))
+        placeholder_task = asyncio.create_task(_edit_placeholder_if_slow(preliminary, question=text))
 
         # CONCURRENT: fire ALL context fetches at once — bridge web search /
         # daily digest / scanner context / live tools / direct RAG lookup /
@@ -276,7 +277,15 @@ async def chat_ai_response(
         # serialized on it. If the price card already landed it IS the answer —
         # skip the AI answer and clean up the placeholder. Otherwise cancel the
         # still-running lookup so a late price card never duplicates the answer.
-        if await _token_card_won(token_lookup_task):
+        if not is_owner(user.id) and await _token_card_won(token_lookup_task):
+            trace_answer(
+                question=text,
+                user_id=user.id,
+                intent="chat",
+                route="token_card",
+                latency_ms=(time.monotonic() - pipeline_start) * 1000,
+                ok=True,
+            )
             with contextlib.suppress(TelegramError, ConnectionError, OSError, TimeoutError):
                 await preliminary.delete()
             return
@@ -286,7 +295,15 @@ async def chat_ai_response(
         # timed out (the shielded lookup keeps running for a beat after
         # _token_card_won returns, and _cancel_token_lookup can race it). If it
         # did, the card IS the answer — never double-send an AI reply.
-        if token_card_flag is not None and token_card_flag.sent:
+        if token_card_flag is not None and token_card_flag.sent and not is_owner(user.id):
+            trace_answer(
+                question=text,
+                user_id=user.id,
+                intent="chat",
+                route="token_card",
+                latency_ms=(time.monotonic() - pipeline_start) * 1000,
+                ok=True,
+            )
             with contextlib.suppress(TelegramError, ConnectionError, OSError, TimeoutError):
                 await preliminary.delete()
             return
@@ -336,7 +353,15 @@ async def chat_ai_response(
         # Last-chance P2 guard: a $TOKEN card can still land while the
         # guardrail finishes (it awaits live tools). The card wins — the AI
         # answer is skipped so the user never gets card + answer.
-        if token_card_flag is not None and token_card_flag.sent:
+        if token_card_flag is not None and token_card_flag.sent and not is_owner(user.id):
+            trace_answer(
+                question=text,
+                user_id=user.id,
+                intent="chat",
+                route="token_card",
+                latency_ms=(time.monotonic() - pipeline_start) * 1000,
+                ok=True,
+            )
             with contextlib.suppress(TelegramError, ConnectionError, OSError, TimeoutError):
                 await preliminary.delete()
             return

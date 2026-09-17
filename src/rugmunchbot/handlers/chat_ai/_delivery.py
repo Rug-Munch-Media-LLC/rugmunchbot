@@ -214,7 +214,15 @@ async def _keep_typing(chat: Any) -> None:
             break
 
 
-async def _edit_placeholder_if_slow(placeholder: Message, delay: float = 5.0) -> None:
+_STILL_DIGGING_TMPL = (
+    "\U0001f916 <b>Still digging...</b>\n\n\U0001f4ac <i>{question}</i>\n\n"
+    "\u23f3 Cross-referencing exploit databases + checking live news \u2014 full answer coming..."
+)
+
+
+async def _edit_placeholder_if_slow(
+    placeholder: Message, delay: float = 5.0, *, question=None
+) -> None:
     """After ``delay`` seconds, swap the thinking placeholder for a
     "still digging" note so long backend queries don't look stalled.
 
@@ -223,7 +231,11 @@ async def _edit_placeholder_if_slow(placeholder: Message, delay: float = 5.0) ->
     """
     try:
         await asyncio.sleep(delay)
-        await placeholder.edit_text(_STILL_DIGGING, parse_mode=ParseMode.HTML)
+        note = _STILL_DIGGING
+        if question:
+            q = str(question)[:90].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            note = _STILL_DIGGING_TMPL.format(question=q)
+        await placeholder.edit_text(note, parse_mode=ParseMode.HTML)
     except (asyncio.CancelledError, TelegramError, ConnectionError, OSError, TimeoutError):
         logger.debug("chat_ai interim placeholder edit skipped", exc_info=True)
 

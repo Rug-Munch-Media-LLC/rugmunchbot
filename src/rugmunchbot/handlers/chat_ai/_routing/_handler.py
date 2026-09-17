@@ -118,7 +118,7 @@ async def ai_chat_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     # bot_username is resolved from ctx.bot first (populated by get_me() at
     # startup), falling back to the update's attached bot inside the helper.
     ctx_bot_username = getattr(getattr(ctx, "bot", None), "username", None)
-    if not _is_bot_addressed(update, message, bot_username=ctx_bot_username):
+    if not is_owner(user.id) and not _is_bot_addressed(update, message, bot_username=ctx_bot_username):
         logger.debug(
             "free-text not addressed to bot — ignored (chat=%s)",
             getattr(update.effective_chat, "type", "?"),
