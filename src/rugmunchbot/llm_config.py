@@ -93,12 +93,12 @@ OPENROUTER_BASE = os.getenv("OPENROUTER_BASE", "https://openrouter.ai/api/v1")
 OPENROUTER_BACKUP_API_KEY = os.getenv("OPENROUTER_BACKUP_API_KEY", "")
 KILOCODE_BASE = os.getenv("KILOCODE_BASE", "http://127.0.0.1:18091/api/gateway")
 KILOCODE_API_KEY = os.getenv("KILOCODE_API_KEY", "")
-# 2026-08-25: OpenCode Zen — the only fallback lane that survives a full
-# OpenRouter outage (the old last-resort was ALSO OpenRouter, so an OR
-# outage killed every rung of the chain). lightning = short/snappy,
-# ultra-550b = long/reasoned.
-ZEN_BASE = os.getenv("OPENCODE_ZEN_BASE", "https://opencode.ai/zen/v1")
-ZEN_API_KEY = os.getenv("OPENCODE_ZEN_API_KEY", "")
+# 2026-09-18: OpenCode Zen lane RETIRED. Its free tier is session-locked to the
+# opencode app — calling it from the bot (a non-opencode client) returns
+# "free tier can only be used in opencode". The last free rung is now KiloCode,
+# which is a real open gateway with no client restriction.
+# See get_kilo_final_fallback_config().
+# (The OPENCODE_ZEN_* secrets are now unused by this module and can be retired.)
 # 2026-08-29: DeepInfra — cheap primary chat (Qwen3.5-9B ~$0.08/Mtok). The
 # reasoning model must be called with reasoning.enabled=false (see _chat_once).
 DEEPINFRA_BASE = os.getenv("DEEPINFRA_BASE", "https://api.deepinfra.com/v1/openai")
@@ -122,8 +122,13 @@ DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-30B-
 LOCAL_LLM_ENABLED = os.getenv("RMI_LOCAL_LLM_ENABLED", "true").lower() in ("1", "true", "yes")
 LOCAL_LLM_URL = os.getenv("RMI_LOCAL_LLM_URL", "http://127.0.0.1:8009/v1/chat/completions")
 LOCAL_LLM_MODEL = os.getenv("RMI_LOCAL_LLM_MODEL", "qwythos-9b")
-#: Task classes that are cheap enough + short enough for the local workhorse.
-#: Everything else (flagship drafts, deep analysis) stays on the hosted lane.
+#: Hard token cap for the local-first consumer-chat rung. A CPU-only 9B at
+#: ~8-10 tok/s must stay short to keep chat responsive; anything longer falls
+#: through to the free hosted chain instead of stalling the reply.
+LOCAL_CHAT_MAX_TOKENS = int(os.getenv("RMI_LOCAL_CHAT_MAX_TOKENS", "700"))
+#: Task classes cheap/short enough to prefer the local workhorse. Since
+#: 2026-09-18 the local lane is ALSO tried first for consumer chat (snappy);
+#: flagship drafts and deep analysis still stay on the hosted lane.
 LOCAL_FIRST_TASKS = frozenset(
     os.getenv(
         "RMI_LOCAL_FIRST_TASKS",
@@ -133,14 +138,20 @@ LOCAL_FIRST_TASKS = frozenset(
 
 
 def get_local_config(max_tokens: int = 700) -> dict[str, Any]:
-    """Local Qwythos-9B llama.cpp config — the zero-cost light-task lane."""
+    """Local Qwythos-9B llama.cpp config — our own model, the zero-cost lane.
+
+    2026-09-18: Qwythos-9B Claude-Mythos (MTP Q6_K) replaced the old 8B/35B.
+    Runs in INSTRUCT mode — ``enable_thinking=false`` is set server-side in
+    llama-chat.service, so there is no reasoning preamble to strip. 150s
+    timeout covers a cold CPU-only first token.
+    """
     return {
         "model": LOCAL_LLM_MODEL,
         "base_url": LOCAL_LLM_URL,
         "api_key": "local",  # llama.cpp ignores auth
         "max_tokens": max_tokens,
         "temperature": 0.4,
-        "timeout": 150.0,  # Qwythos-9B lane (thinking model; was 45s on the 8B)
+        "timeout": 150.0,  # cold CPU first-token on the 9B
     }
 
 
@@ -240,22 +251,32 @@ def get_kilo_nemotron_fallback_config(tier: str) -> dict[str, Any]:
     }
 
 
-def get_zen_fallback_config(tier: str) -> dict[str, Any]:
-    """OpenCode Zen fallback — survives a full OpenRouter outage (2026-08-25).
+def get_kilo_final_fallback_config(tier: str) -> dict[str, Any]:
+    """KiloCode final free rung — replaces the retired OpenCode Zen lane (2026-09-18).
 
-    ``snappy`` → ``nemotron-3.5-lightning-free`` (fast, short answers)
-    ``long``   → ``nemotron-3-ultra-free`` (550B, deep reasoned analysis)
+    Why it exists: a rung that survives a full OpenRouter outage. Zen used to do
+    that but is session-locked to the opencode app, so the bot got
+    "free tier can only be used in opencode" and the rung was dead weight.
 
-    Free tier, independent daily budget from OpenRouter/KiloCode. 90s
-    timeout — ultra can be slow under load but is the last resort.
+    Verified live 2026-09-18 against the Kilo gateway
+    (``GET :18091/api/gateway/models`` → 380 models, 19 free) plus a chat probe:
+      * ``poolside/laguna-s-2.1:free``  — 3.1s, CORRECT domain answer, 0 reasoning
+        tokens, 262K ctx  → snappy (and the model the old Zen rung already used)
+      * ``nvidia/nemotron-3-super-120b-a12b:free`` — verified working, 262K ctx
+        → long/deep analysis
+    Rejected in the same probe: ``qwen/*`` (local-lane family — do NOT put Qwen on
+    the consumer chat path), ``z-ai/glm-5.2:free`` (32K ctx + 429), ``stepfun/*``
+    (burns the whole budget on reasoning tokens → empty content),
+    ``dots-studio/*`` (malformed JSON), ``thinkingmachines/*`` (daily cap),
+    ``poolside/laguna-xs-2.1:free`` (429).
     """
-    # 2026-09-01: snappy -> laguna-s-2.1-free (verified 200 live; the old
-    # nemotron-3.5-lightning-free lane hung 90-180s and starved the chain)
-    model = "nemotron-3-ultra-free" if tier == "long" else "laguna-s-2.1-free"
+    model = (
+        "nvidia/nemotron-3-super-120b-a12b:free" if tier == "long" else "poolside/laguna-s-2.1:free"
+    )
     return {
         "model": model,
-        "base_url": f"{ZEN_BASE}/chat/completions",
-        "api_key": ZEN_API_KEY,
+        "base_url": f"{KILOCODE_BASE}/chat/completions",
+        "api_key": KILOCODE_API_KEY,
         "max_tokens": 3000 if tier == "long" else 2000,
         "temperature": 0.5,
         "timeout": 90.0,
@@ -402,16 +423,23 @@ async def chat_with_fallback(
     hosted free-API chain below, so quality never depends on the local box.
     Quality-critical task classes skip the local rung entirely.
 
-    ``tier`` selects the hosted provider:
-      ``"snappy"`` → DeepInfra Qwen3.5-9B → KiloCode StepFlash:free → OR
-                     GPT-OSS 20B:free → Zen nemotron-3.5-lightning-free
-      ``"long"``   → KiloCode Lightning:free → OR Nemotron Ultra:free
-                     → Zen nemotron-3-ultra-free (550B)
+    ``tier`` selects the hosted chain (only reached if our own model fails):
+      ``"snappy"`` → local Qwythos-9B (:8009, OUR MODEL) → KiloCode
+                     StepFlash:free → OpenRouter Nemotron Super:free →
+                     KiloCode Lightning:free → KiloCode laguna-s-2.1:free
+      ``"long"``   → KiloCode Lightning:free → OpenRouter Nemotron Ultra:free
+                     → KiloCode ultra-550b:free → KiloCode Nemotron Super:free
+      final (both) → DeepInfra Qwen3.5-9B (paid, last resort)
     Returns ``""`` when all fail.
     """
-    # Local-first rung for light task classes (zero cost, no rate limit)
-    if is_local_first_task(task_class):
-        answer = await _chat_once(get_local_config(max_tokens or 700), messages, max_tokens)
+    # ── Rung 0 (2026-09-18 doctrine): OUR OWN MODEL FIRST ──────────────────
+    # Local Qwythos-9B on Talos :8009 — zero API cost, zero rate limit, private.
+    # Tried first for consumer chat (snappy) and for light task classes. The
+    # token budget is capped so a CPU-only 9B (~8-10 tok/s) can't stall the
+    # reply; if it is slow/empty/unavailable the free chain below takes over.
+    if tier == "snappy" or is_local_first_task(task_class):
+        local_budget = min(max_tokens or LOCAL_CHAT_MAX_TOKENS, LOCAL_CHAT_MAX_TOKENS)
+        answer = await _chat_once(get_local_config(local_budget), messages, local_budget)
         if answer:
             return _clean_answer(answer)
     if tier == "snappy":
@@ -443,8 +471,11 @@ async def chat_with_fallback(
     if answer:
         return _clean_answer(answer)
 
-    # Last free resort: OpenCode Zen (independent of OpenRouter availability)
-    answer = await _chat_once(get_zen_fallback_config(tier), messages, max_tokens)
+    # Last free resort: KiloCode (independent of OpenRouter availability).
+    # 2026-09-18: replaced the retired OpenCode Zen lane — Zen's free tier is
+    # session-locked to the opencode app and rejected the bot with
+    # "free tier can only be used in opencode".
+    answer = await _chat_once(get_kilo_final_fallback_config(tier), messages, max_tokens)
     if answer:
         return _clean_answer(answer)
 
