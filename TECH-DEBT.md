@@ -65,6 +65,10 @@
 - [ ] **Root cause to fix:** `seed_kol_registry` (db/kol/identity.py) opens a
       connection AND commits **per row** — 500+ rows = 500+ fsyncs. Batch the
       whole seed into ONE transaction (single connection, one commit).
-- [ ] **Coverage ratchet:** measured 31.6% (2026-08-23); CI floor 34; fleet
-      target ≥70%. Start with the 0%-covered modules from the coverage XML —
-      smoke tests first (import + one happy path), then branch coverage.
+- [x] **Suite verified (2026-09-18):** 1803 passed / 0 failed / 1 skipped in 7m55s.
+- [ ] **Coverage ratchet:** measured **47%** (2026-09-18, );
+      CI floor 34; fleet target ≥70%. Feed the ratchet from the 0%-covered set
+      first: tools/scanner/_local_v2.py (308 lines), channels/_alert_story.py,
+      channels/scheduler/_content_rotation.py, tools/content_lint.py, bot/__main__.py
+      — then the <15% cluster (handlers/investigate.py, handlers/groups.py,
+      handlers/callback/_inline.py, handlers/chat_ai/_llm/_clients.py, tools/whale_profiler.py).

@@ -59,7 +59,7 @@ sys.path/importlib in src, god files, suppression ratchets).
 
 ## 5. Testing — the real gap
 
-- Measured total coverage: **31.6%** (2026-08-23). CI floor: **34%**
+- Measured total coverage: **47%** (2026-09-18). CI floor: **34%**
   (`--cov-fail-under=34`, ratchet) + a per-diff gate via `diff-cover`.
 - Fleet standard target: **≥ 70%** on first-party code. Ratchet up, never down.
 - Every new function/branch ships with a test; tests mirror source structure.
