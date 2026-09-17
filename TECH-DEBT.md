@@ -56,3 +56,15 @@
 |---|---|---|
 | 1 | `channels/shill_watch/_evidence.py` | Deleted-post detection — poll-based sweep never sees deletions; needs a Telethon `events.MessageDeleted` handler that re-persists captured evidence with `deleted=True`. |
 | 2 | `channels/personal_channel/_ghost.py` | Provision `GHOST_ADMIN_API_KEY` (secrets store: `ghost-admin-api-key`) for the cross-post job. Content API key cannot publish. |
+
+## Testing reliability (2026-09-18)
+
+- [x] **Suite can hang forever — found live.** `test_seed_into_db_round_trip`
+      stalled 25+ min in `upsert_kol_identity` D-state on `jbd2_log_wait_commit`.
+      Mitigation shipped: `pytest-timeout` + `timeout = 120` in pytest config.
+- [ ] **Root cause to fix:** `seed_kol_registry` (db/kol/identity.py) opens a
+      connection AND commits **per row** — 500+ rows = 500+ fsyncs. Batch the
+      whole seed into ONE transaction (single connection, one commit).
+- [ ] **Coverage ratchet:** measured 31.6% (2026-08-23); CI floor 34; fleet
+      target ≥70%. Start with the 0%-covered modules from the coverage XML —
+      smoke tests first (import + one happy path), then branch coverage.

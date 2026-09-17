@@ -23,6 +23,7 @@ scanner = [
 ]
 billing = []
 dev = [
+    "pytest-timeout",
     "pytest>=9.1.0",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
@@ -134,6 +135,7 @@ follow_imports_for_stubs = true
 minversion = "8.0"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+timeout = 120  # per-test hard timeout (pytest-timeout) — the suite hung once in prod; see TECH-DEBT.md
 
 # ── import-linter — architectural contracts (wired 2026-08-21) ──────────────
 # Locks in the god-file modularization: foundational packages stay leaf
