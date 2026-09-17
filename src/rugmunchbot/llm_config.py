@@ -5,17 +5,26 @@ Phase 2a extraction of the bits the bot uses from rmi-backend's
 bot's own environment — ``OPENROUTER_BACKUP_API_KEY`` and
 ``KILOCODE_API_KEY`` come from ``/srv/secrets/rugmunchbot.env``).
 
-Chain (canonical — updated 2026-08-19):
-  snappy = ``stepfun/step-3.7-flash:free`` via KiloCode (fast chat, free)
-  long   = ``nvidia/nemotron-3.5-lightning:free`` via KiloCode (deep analysis, fast)
-  paid   = ``nvidia/nemotron-3-super-120b-a12b:free`` via OpenRouter (last-resort fallback)
-On ANY free-tier failure (429 / non-200 / timeout / empty) the call is
-retried once with the paid ``:lowest`` model so chat never dies on a
-free-tier rate-limit. Returns ``""`` when both fail — callers fail open.
-Never raises; never logs the API key.
+Chain (canonical — rewritten 2026-09-18 after a 17-candidate free benchmark):
+  rung 0 = local ``qwythos-9b`` on Talos :8009 (our model, free, private)
+  snappy = ``poolside/laguna-s-2.1:free`` via KiloCode (0.8-3s, ZERO reasoning burn)
+  long   = ``nvidia/nemotron-3-ultra-550b-a55b:free`` via KiloCode (structured deep)
+  then   = OpenRouter ``nemotron-3-super-120b-a12b:free``
+  then   = KiloCode alternate (ultra-550b / laguna)
+  then   = KiloCode ``kilo-auto/free`` (gateway picks a healthy free model)
+  paid   = DeepInfra ``Qwen/Qwen3.5-9B`` (last resort only)
+On ANY free-tier failure (429 / non-200 / timeout / empty) the next rung is
+tried so chat never dies on a free-tier rate-limit. Returns ``""`` when all
+fail — callers fail open. Never raises; never logs the API key.
 
-Note: StepFlash on OpenRouter is 402 (needs credits). StepFlash IS free on
-KiloCode. Lightning is snappier than Ultra for detailed analysis.
+Retired 2026-09-18, do NOT re-add: ``stepfun/step-3.7-flash:free`` (returns
+EMPTY content below ~2000 max_tokens — it spends the whole budget on hidden
+chain-of-thought; 237 rt @200, 665 rt @700), ``nvidia/nemotron-3.5-lightning:free``
+(burns 218-691 rt and answers with "Here's a thinking process: ..."),
+``z-ai/glm-5.2:free`` (empty at 200/700 rt), ``google/gemma-4-*:free`` (404),
+``openai/gpt-oss-20b`` (empty on deep), ``cohere/north-mini-code:free``
+(wrong domain — described a web-form honeypot). See
+fleet-infra/docs/MODEL-TIERS-AND-ROUTING-2026-09-18.md for the full table.
 """
 
 from __future__ import annotations
@@ -126,6 +135,11 @@ LOCAL_LLM_MODEL = os.getenv("RMI_LOCAL_LLM_MODEL", "qwythos-9b")
 #: ~8-10 tok/s must stay short to keep chat responsive; anything longer falls
 #: through to the free hosted chain instead of stalling the reply.
 LOCAL_CHAT_MAX_TOKENS = int(os.getenv("RMI_LOCAL_CHAT_MAX_TOKENS", "700"))
+#: Fail-fast timeout for the local rung on the consumer-chat path. Measured
+#: 2026-09-18: the 9B answers a SHORT question in ~4.8s but a DEEP one takes
+#: ~78s on CPU — so we cap the wait and let the free chain answer instead. The
+#: 150s default remains for batch/light-task callers via get_local_config().
+LOCAL_CHAT_TIMEOUT_S = float(os.getenv("RMI_LOCAL_CHAT_TIMEOUT_S", "15"))
 #: Task classes cheap/short enough to prefer the local workhorse. Since
 #: 2026-09-18 the local lane is ALSO tried first for consumer chat (snappy);
 #: flagship drafts and deep analysis still stay on the hosted lane.
@@ -137,13 +151,17 @@ LOCAL_FIRST_TASKS = frozenset(
 )
 
 
-def get_local_config(max_tokens: int = 700) -> dict[str, Any]:
+def get_local_config(max_tokens: int = 700, timeout: float = 150.0) -> dict[str, Any]:
     """Local Qwythos-9B llama.cpp config — our own model, the zero-cost lane.
 
     2026-09-18: Qwythos-9B Claude-Mythos (MTP Q6_K) replaced the old 8B/35B.
     Runs in INSTRUCT mode — ``enable_thinking=false`` is set server-side in
-    llama-chat.service, so there is no reasoning preamble to strip. 150s
-    timeout covers a cold CPU-only first token.
+    llama-chat.service, so there is no reasoning preamble to strip.
+
+    ``timeout`` matters: measured 2026-09-18, the 9B does a SHORT answer in
+    ~4.8s but a DEEP one takes ~78s on CPU. Consumer chat must therefore use a
+    short timeout (LOCAL_CHAT_TIMEOUT_S) and fail fast into the free chain rather
+    than stall the reply; batch/light-task callers can keep the 150s default.
     """
     return {
         "model": LOCAL_LLM_MODEL,
@@ -151,55 +169,64 @@ def get_local_config(max_tokens: int = 700) -> dict[str, Any]:
         "api_key": "local",  # llama.cpp ignores auth
         "max_tokens": max_tokens,
         "temperature": 0.4,
-        "timeout": 150.0,  # cold CPU first-token on the 9B
+        "timeout": timeout,
     }
 
 
 def is_local_first_task(task_class: str) -> bool:
-    """True when *task_class* should try the local 8B before the API chain."""
+    """True when *task_class* should try our local Qwythos-9B before the API chain."""
     return LOCAL_LLM_ENABLED and task_class in LOCAL_FIRST_TASKS
 
 
 def get_snappy_config() -> dict[str, Any]:
-    """Config for fast chat answers.
+    """Config for fast chat answers — the SNAPPY tier.
 
-    2026-08-29: DeepInfra Qwen3.5-9B primary (~$0.08/Mtok, ~0.7s, RAG-friendly).
-    Falls back to KiloCode StepFlash:free if DeepInfra is down.
-    max_tokens 2000 — the snappy prompt tells the model to write the
-    COMPLETE answer when a question needs depth; the old cap truncated
-    detailed answers mid-sentence. Multi-part delivery splits long answers.
+    2026-09-18 (measured, bench 17 candidates x 2 tasks): primary is
+    ``poolside/laguna-s-2.1:free`` via KiloCode. It was the only free model
+    that was BOTH fast and clean on every run — 0.8-3 s, correct domain
+    answers, and **zero reasoning-token burn**.
+
+    Dropped ``stepfun/step-3.7-flash:free`` (the previous primary): measured
+    it returns EMPTY content below ~2000 max_tokens because it spends the whole
+    budget on hidden chain-of-thought (237 rt @200, 665 rt @700 -> content "").
+    It also leaks a "Here's a thinking process:" preamble when it does answer.
+    We are not budgeting around a model that answers nothing.
+
+    OpenRouter fallback stays Nemotron Super 120B (verified working).
+    max_tokens 3000 — headroom so a reasoning-capable fallback still emits content.
     """
-    # 2026-09-01 doctrine: FREE-FIRST. KiloCode StepFlash:free primary;
-    # the paid DeepInfra Qwen3.5-9B is the FINAL rung (see
-    # get_paid_final_config) — only hit when every free lane is down.
     return {
-        "model": "stepfun/step-3.7-flash:free",
+        "model": "poolside/laguna-s-2.1:free",
         "base_url": f"{KILOCODE_BASE}/chat/completions",
         "api_key": KILOCODE_API_KEY,
         "fallback_model": "nvidia/nemotron-3-super-120b-a12b:free",
         "fallback_base_url": f"{OPENROUTER_BASE}/chat/completions",
         "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
-        "max_tokens": 2000,
+        "max_tokens": 3000,
         "temperature": 0.3,
         "timeout": 40.0,
     }
 
 
 def get_long_config() -> dict[str, Any]:
-    """Config for deep analysis answers (Nemotron 3.5 Lightning via KiloCode, FREE).
+    """Config for deep analysis answers — the DEEP tier.
 
-    Lightning is snappier than Nemotron Ultra — delivers deep analysis in
-    ~1/5 the time. 256K context window fits full contract audits + reports.
-    Falls back to OpenRouter Nemotron Ultra:free if KiloCode is down.
-    max_tokens 3000 — deep analysis needs the budget to finish the
-    full structure (direct answer → figures → evidence → caveat → close).
-    120s timeout — Lightning can take 30-60s for a full analysis.
+    2026-09-18 (measured): primary is ``nvidia/nemotron-3-ultra-550b-a55b:free``.
+    On the deep-domain bench it produced structured, metric-naming answers with
+    only 28-73 reasoning tokens (7-27 s) — the best deep output of the free set.
+
+    Dropped ``nvidia/nemotron-3.5-lightning:free``: it burned 218-691 reasoning
+    tokens and answered with "Here's a thinking process: ..." — i.e. it leaked
+    chain-of-thought instead of an answer. Unusable as a user-facing tier.
+
+    max_tokens 3000 keeps the full structure (answer -> figures -> evidence ->
+    caveat -> close) inside budget. 120s timeout: ultra can be slow under load.
     """
     return {
-        "model": "nvidia/nemotron-3.5-lightning:free",
+        "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
         "base_url": f"{KILOCODE_BASE}/chat/completions",
         "api_key": KILOCODE_API_KEY,
-        "fallback_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "fallback_model": "nvidia/nemotron-3-super-120b-a12b:free",
         "fallback_base_url": f"{OPENROUTER_BASE}/chat/completions",
         "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
         "max_tokens": 3000,
@@ -229,17 +256,20 @@ def get_paid_final_config(tier: str) -> dict[str, Any]:
 def get_kilo_nemotron_fallback_config(tier: str) -> dict[str, Any]:
     """KiloCode free Nemotron rung — different MODEL than the tier primaries.
 
-    2026-08-25 decision: when the tier primary (StepFlash/Lightning) AND
-    OpenRouter both fail, try the OTHER KiloCode Nemotron before leaving
-    KiloCode entirely — a rate-limit on one model rarely affects its sibling.
+    2026-08-25 decision: when the tier primary AND OpenRouter both fail, try the
+    OTHER KiloCode model before leaving KiloCode entirely — a rate-limit on one
+    model rarely affects its sibling. Alternates the two best benches:
 
-    ``snappy`` → ``nvidia/nemotron-3.5-lightning:free`` (short/fast)
-    ``long``   → ``nvidia/nemotron-3-ultra-550b-a55b:free`` (deep reasoned)
+    ``snappy`` → ``nvidia/nemotron-3-ultra-550b-a55b:free`` (1.1s on the snappy
+                 bench, correct, only 16 rt)
+    ``long``   → ``poolside/laguna-s-2.1:free`` (clean structured deep answers,
+                 0 reasoning burn)
+
+    Dropped ``nvidia/nemotron-3.5-lightning:free`` (2026-09-18): 218-691
+    reasoning tokens and it answered with "Here's a thinking process: ...".
     """
     model = (
-        "nvidia/nemotron-3-ultra-550b-a55b:free"
-        if tier == "long"
-        else "nvidia/nemotron-3.5-lightning:free"
+        "poolside/laguna-s-2.1:free" if tier == "long" else "nvidia/nemotron-3-ultra-550b-a55b:free"
     )
     return {
         "model": model,
@@ -258,26 +288,27 @@ def get_kilo_final_fallback_config(tier: str) -> dict[str, Any]:
     that but is session-locked to the opencode app, so the bot got
     "free tier can only be used in opencode" and the rung was dead weight.
 
-    Verified live 2026-09-18 against the Kilo gateway
-    (``GET :18091/api/gateway/models`` → 380 models, 19 free) plus a chat probe:
-      * ``poolside/laguna-s-2.1:free``  — 3.1s, CORRECT domain answer, 0 reasoning
-        tokens, 262K ctx  → snappy (and the model the old Zen rung already used)
-      * ``nvidia/nemotron-3-super-120b-a12b:free`` — verified working, 262K ctx
-        → long/deep analysis
-    Rejected in the same probe: ``qwen/*`` (local-lane family — do NOT put Qwen on
-    the consumer chat path), ``z-ai/glm-5.2:free`` (32K ctx + 429), ``stepfun/*``
-    (burns the whole budget on reasoning tokens → empty content),
-    ``dots-studio/*`` (malformed JSON), ``thinkingmachines/*`` (daily cap),
-    ``poolside/laguna-xs-2.1:free`` (429).
+    This rung defers the choice to the gateway: ``kilo-auto/free`` lets Kilo route
+    to whichever free model is healthy right now, which is the right behaviour for
+    a last-resort rung (verified working live 2026-09-18; can 429 under load, in
+    which case the paid DeepInfra rung is the final backstop).
+
+    Full 17-candidate free benchmark 2026-09-18 (2 tasks each) — rejects recorded
+    so nobody re-adds them: ``stepfun/*`` (empty content below ~2000 max_tokens,
+    burns budget on hidden CoT), ``z-ai/glm-5.2:free`` (empty at 200/700 rt),
+    ``google/gemma-4-*:free`` (404 — listed but not served),
+    ``nvidia/nemotron-3.5-lightning:free`` (leaks "thinking process"),
+    ``openai/gpt-oss-20b`` + ``-safeguard-20b`` (empty on deep),
+    ``inclusionai/ling-3.0-flash-sante:free`` (empty on deep),
+    ``cohere/north-mini-code:free`` (wrong domain: described a web-form honeypot),
+    ``thinkingmachines/*`` (daily cap), ``qwen/*`` (keep off the consumer path).
     """
-    model = (
-        "nvidia/nemotron-3-super-120b-a12b:free" if tier == "long" else "poolside/laguna-s-2.1:free"
-    )
+    del tier  # one config for both tiers — the gateway picks the model
     return {
-        "model": model,
+        "model": "kilo-auto/free",
         "base_url": f"{KILOCODE_BASE}/chat/completions",
         "api_key": KILOCODE_API_KEY,
-        "max_tokens": 3000 if tier == "long" else 2000,
+        "max_tokens": 3000,
         "temperature": 0.5,
         "timeout": 90.0,
     }
@@ -425,10 +456,10 @@ async def chat_with_fallback(
 
     ``tier`` selects the hosted chain (only reached if our own model fails):
       ``"snappy"`` → local Qwythos-9B (:8009, OUR MODEL) → KiloCode
-                     StepFlash:free → OpenRouter Nemotron Super:free →
-                     KiloCode Lightning:free → KiloCode laguna-s-2.1:free
-      ``"long"``   → KiloCode Lightning:free → OpenRouter Nemotron Ultra:free
-                     → KiloCode ultra-550b:free → KiloCode Nemotron Super:free
+                     laguna-s-2.1:free → OpenRouter Nemotron Super:free →
+                     KiloCode ultra-550b:free → KiloCode kilo-auto/free
+      ``"long"``   → KiloCode ultra-550b:free → OpenRouter Nemotron Super:free
+                     → KiloCode laguna-s-2.1:free → KiloCode kilo-auto/free
       final (both) → DeepInfra Qwen3.5-9B (paid, last resort)
     Returns ``""`` when all fail.
     """
@@ -437,9 +468,12 @@ async def chat_with_fallback(
     # Tried first for consumer chat (snappy) and for light task classes. The
     # token budget is capped so a CPU-only 9B (~8-10 tok/s) can't stall the
     # reply; if it is slow/empty/unavailable the free chain below takes over.
+    # Consumer chat uses a SHORT timeout: measured ~78s for a deep answer, which
+    # must fail fast into the hosted chain rather than block the reply.
     if tier == "snappy" or is_local_first_task(task_class):
         local_budget = min(max_tokens or LOCAL_CHAT_MAX_TOKENS, LOCAL_CHAT_MAX_TOKENS)
-        answer = await _chat_once(get_local_config(local_budget), messages, local_budget)
+        local_cfg = get_local_config(local_budget, timeout=LOCAL_CHAT_TIMEOUT_S)
+        answer = await _chat_once(local_cfg, messages, local_budget)
         if answer:
             return _clean_answer(answer)
     if tier == "snappy":
