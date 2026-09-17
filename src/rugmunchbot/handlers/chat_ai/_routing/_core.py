@@ -113,6 +113,13 @@ async def chat_ai_response(
     if u.get("is_banned"):
         return True
     if chat_ai.check_spam(user.id):
+        # Never drop silently: say why (2s between messages). Owner-exempt.
+        with contextlib.suppress(TelegramError, ConnectionError, OSError, TimeoutError):
+            await message.reply_text(
+                "🐢 Easy there — give me a couple of seconds between messages "
+                "and I’ll get to this one.",
+                parse_mode=ParseMode.HTML,
+            )
         return True
 
     # End-to-end answer latency is measured from here (all paths that send an

@@ -25,6 +25,7 @@ from rugmunchbot.handlers.chat_ai._admin import (
 )
 from rugmunchbot.handlers.chat_ai._guards import _injection_warning
 from rugmunchbot.handlers.chat_ai._routing._core import chat_ai_response
+from rugmunchbot.handlers.chat_ai._vision import photo_chat_handler
 from rugmunchbot.handlers.chat_ai._routing._structural import _route_structural
 from rugmunchbot.handlers.chat_ai._routing._token_card import (
     _lookup_token_symbol,
@@ -232,3 +233,4 @@ def register_chat_ai(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     from telegram.ext import MessageHandler, filters
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_chat_handler))
+    app.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, photo_chat_handler))
