@@ -1,4 +1,7 @@
-# TECH-DEBT.md — rugmunchbot
+# TECH-DEBT.md — rugmunchbot (THE canonical debt ledger)
+
+> Policy: **docs/GOOD-CODE-POLICY.md**. Consolidated 2026-09-18: the old
+> `TECH_DEBT.md` (FIXME table) now lives in this file; `TECH_DEBT.md` is a pointer.
 
 > Living ledger. Items are ordered by payoff. Updated 2026-08-21 after the
 > platform audit (see rmi-backend `AUDIT-2026-Q3.md` for platform context).
@@ -10,17 +13,25 @@
       restart policy, named volume) — previously unshippable as a container
 - [x] Gitleaks sweep clean; hooks verified
 
-## God files — split plan (all >800 lines)
-| File | Lines | Split target |
+## God files — split plan (first-party >800 lines; `_vendor/` is out of scope)
+
+| File | Lines | Status |
 |---|---|---|
-| `handlers/chat_ai/_llm/_router.py` | 1166 | route table → `_router_tables.py`; provider fallback chain → `_fallback.py` |
-| `config.py` | 1069 | per-domain sections → `config/` package (`telegram.py`, `llm.py`, `channels.py`, `integrations.py`) |
-| `formatters/_scan_report_deepscan.py` | 992 | section renderers → `_deepscan_sections.py` |
-| `channels/telegram_news/_sources.py` | 984 | one module per source family; registry stays |
-| ~~`handlers/trace.py`~~ | ~~965~~ | **DONE 2026-08-21** → `handlers/trace/` pkg (`_common`/`_flow`/`_cmd_*`/`_register`, facade preserves public surface) |
-| `formatters/_scan_report_common.py` | 965 | shared blocks → `_blocks.py`; layout → `_layout.py` |
-| `channels/daily_market_summary.py` | 952 | data assembly vs rendering split |
-| `channels/formatters.py` | 923 | per-channel formatter modules |
+| `handlers/chat_ai/_llm/_router.py` | — | ✅ DONE → handlers/chat_ai/_llm/_router/ (package) |
+| `config.py` | — | ✅ DONE → config/ (package) |
+| `formatters/_scan_report_deepscan.py` | — | ✅ DONE → split (deepscan sections) |
+| `handlers/trace.py` | — | ✅ DONE → handlers/trace/ (package) |
+| `formatters/_scan_report_common.py` | — | ✅ DONE → split (blocks/layout) |
+| `channels/telegram_news/_sources.py` | — | ✅ DONE → one module per source family |
+| `channels/daily_market_summary.py` | — | ✅ DONE → assembly vs rendering split |
+| `channels/formatters.py` | — | ✅ DONE → per-channel formatter modules |
+
+**Currently >800 (first-party):**
+
+| File | Lines | Status |
+|---|---|---|
+| `handlers/market.py` | 847 | **OPEN** → split by responsibility |
+
 
 ## Vendored code (`_vendor/`)
 - `osint/exploit_db.py` (1094), `osint/exploit_sources.py` (1000),
@@ -38,3 +49,10 @@
 - Health surface: observability thread serves `/healthz` + `/metrics` on
   :9191 (`RUGMUNCHBOT_METRICS_*`); Docker HEALTHCHECK + compose wired to it.
 - Test suite: 16 files, green. Coverage gates not yet wired (platform win 29).
+
+## FIXME ledger (consolidated from TECH_DEBT.md, 2026-09-18)
+
+| # | Location | Item |
+|---|---|---|
+| 1 | `channels/shill_watch/_evidence.py` | Deleted-post detection — poll-based sweep never sees deletions; needs a Telethon `events.MessageDeleted` handler that re-persists captured evidence with `deleted=True`. |
+| 2 | `channels/personal_channel/_ghost.py` | Provision `GHOST_ADMIN_API_KEY` (secrets store: `ghost-admin-api-key`) for the cross-post job. Content API key cannot publish. |

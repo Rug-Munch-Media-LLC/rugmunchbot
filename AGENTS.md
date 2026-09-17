@@ -21,6 +21,8 @@ rugmunchbot — ACTIVE product: Telegram bot for the Rug Munch Intelligence plat
 - Standards: [git.rugmunch.io/RugMunchMedia/standards](https://git.rugmunch.io/RugMunchMedia/standards)
 - Toolchain: [TOOLCHAIN.md](https://git.rugmunch.io/RugMunchMedia/standards/raw/branch/main/TOOLCHAIN.md)
 - Conventions: [CONVENTIONS.md](https://git.rugmunch.io/RugMunchMedia/standards/raw/branch/main/CONVENTIONS.md)
+- Policy: [docs/GOOD-CODE-POLICY.md](docs/GOOD-CODE-POLICY.md)
+- Debt ledger: [TECH-DEBT.md](TECH-DEBT.md)
 
 ## 🚨 CRITICAL RULES
 

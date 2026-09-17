@@ -1,4 +1,8 @@
 # rugmunchbot — Production TODO
+
+> **HISTORICAL (2026-07-31 audit).** The BLOCKING items below were resolved in the
+> canonical live bot (this file predates the extraction). Live debt: **TECH-DEBT.md**.
+> Policy: **docs/GOOD-CODE-POLICY.md**.
 **Last audit:** 2026-07-31 · **Status:** Live & working, minor breakage · **Grade:** B-
 
 ## 🔴 BLOCKING

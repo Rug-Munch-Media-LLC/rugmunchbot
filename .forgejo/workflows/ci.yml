@@ -316,6 +316,8 @@ jobs:
           import rugmunchbot.formatters
           print('package imports OK')
           "
+      - name: Policy checks (BLOCKING)
+        run: bash scripts/check-policy.sh
       - name: Architecture contracts (lint-imports — BLOCKING)
         # Locks in the god-file modularization layering: config/formatters/
         # keyboards stay foundation packages; presentation never reaches into

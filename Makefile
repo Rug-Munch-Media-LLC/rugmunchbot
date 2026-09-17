@@ -3,7 +3,7 @@
 
 SHELL := /bin/bash
 
-.PHONY: help test lint typecheck clean
+.PHONY: help test lint typecheck policy clean
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -17,6 +17,9 @@ lint: ## Run ruff linter + formatter check
 
 typecheck: ## Run mypy type checking
 	mypy src/rugmunchbot/ tests/
+
+policy: ## Run good-code policy checks (docs/GOOD-CODE-POLICY.md)
+	bash scripts/check-policy.sh
 
 clean: ## Remove build artifacts
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
