@@ -140,6 +140,16 @@ LOCAL_CHAT_MAX_TOKENS = int(os.getenv("RMI_LOCAL_CHAT_MAX_TOKENS", "700"))
 #: ~78s on CPU — so we cap the wait and let the free chain answer instead. The
 #: 150s default remains for batch/light-task callers via get_local_config().
 LOCAL_CHAT_TIMEOUT_S = float(os.getenv("RMI_LOCAL_CHAT_TIMEOUT_S", "15"))
+
+#: Capability router front-path (2026-09-18). When on, chat_with_fallback first
+#: asks model_router which capability the message is (one local embedding,
+#: ~300-490 ms, free) and walks that capability's LOCKED model ladder. Falls
+#: through to the tier chain below if the router is unavailable or every rung
+#: fails. Set RMI_CAPABILITY_ROUTER=false to force the legacy tier chain.
+RMI_CAPABILITY_ROUTER = os.getenv("RMI_CAPABILITY_ROUTER", "true").lower() in ("1", "true", "yes")
+#: Max rungs to try from the capability ladder — bounds worst-case latency
+#: (a deep rung can take 120s; five of them would be unusable).
+CAPABILITY_MAX_ATTEMPTS = int(os.getenv("RMI_CAPABILITY_MAX_ATTEMPTS", "4"))
 #: Task classes cheap/short enough to prefer the local workhorse. Since
 #: 2026-09-18 the local lane is ALSO tried first for consumer chat (snappy);
 #: flagship drafts and deep analysis still stay on the hosted lane.
@@ -463,6 +473,39 @@ async def chat_with_fallback(
       final (both) → DeepInfra Qwen3.5-9B (paid, last resort)
     Returns ``""`` when all fail.
     """
+    # ── Capability-router front-path (2026-09-18) ──────────────────────────
+    # The capability -> model decision is LOCKED offline (model_router.py), so
+    # per call we pay exactly ONE local embedding (~300-490 ms, free) and then
+    # walk the locked ladder for that capability. No reranker call, no API call
+    # to decide. If the router is unavailable (embedder down) or every rung
+    # fails, we fall through to the tier chain below — degrade, never break.
+    if RMI_CAPABILITY_ROUTER:
+        user_text = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                user_text = str(msg.get("content") or "")
+                break
+        if user_text:
+            ladder: list[dict[str, Any]] = []
+            try:
+                from . import model_router  # local import: keeps import cost off cold paths
+
+                ladder = model_router.route(user_text)
+            except Exception as exc:  # router must never break chat
+                logger.warning("capability_router_unavailable", extra={"err": str(exc)[:120]})
+            for cfg in ladder[:CAPABILITY_MAX_ATTEMPTS]:
+                answer = await _chat_once(cfg, messages, int(cfg.get("max_tokens") or 2000))
+                if answer:
+                    logger.info(
+                        "capability_route",
+                        extra={
+                            "capability": cfg.get("_capability"),
+                            "confidence": cfg.get("_confidence"),
+                            "target": cfg.get("_target"),
+                        },
+                    )
+                    return _clean_answer(answer)
+
     # ── Rung 0 (2026-09-18 doctrine): OUR OWN MODEL FIRST ──────────────────
     # Local Qwythos-9B on Talos :8009 — zero API cost, zero rate limit, private.
     # Tried first for consumer chat (snappy) and for light task classes. The
