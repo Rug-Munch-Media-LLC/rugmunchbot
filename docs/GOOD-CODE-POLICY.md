@@ -39,8 +39,10 @@ sys.path/importlib in src, god files, suppression ratchets).
 - **One source of truth per topic.** Docs: `TECH-DEBT.md` is the debt
   ledger; `TODO.md` / `TRIAGE.md` are historical only. Code: search before
   you write (`search_code` / RAG) — duplicated helpers are bugs waiting.
-- **No god files:** first-party modules ≤ 800 lines; split by
-  responsibility (see import-linter contracts for the layering).
+- **No god files: first-party modules ≤ 500 lines** (operator standard,
+  2026-09-18). Current offenders are grandfathered in
+   () and that list may only
+  SHRINK; any NEW file > 500 lines fails the gate.
 - **No god functions:** ≤ 50 lines, ≤ 5 params; extract, use dataclasses/Pydantic.
 
 ## 3. Structure & layering

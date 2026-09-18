@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 RugMunchBot -- /investigate command: Deep investigation report.
 
@@ -37,7 +36,6 @@ from rugmunchbot.handlers._messages import (
     usage_hint,
 )
 from rugmunchbot.keyboards import back_kb, investigate_kb, paywall_kb
-from rugmunchbot.scanner import scan_token, scan_token_v2, v2_token_to_legacy
 from rugmunchbot.states import check_spam
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools._client import get_shared_client
@@ -46,9 +44,7 @@ from rugmunchbot.tools.rag_lookup import rag_lookup
 if TYPE_CHECKING:
     from telegram import Update
     from telegram.ext import ContextTypes
-
 logger = get_logger("rmi_bot.investigate")
-
 _VERDICT_EMOJIS = {
     "CRITICAL": "🔴",
     "HIGH": "🟠",
@@ -56,94 +52,12 @@ _VERDICT_EMOJIS = {
     "LOW": "🟢",
     "SAFE": "✅",
 }
-
-
-def _determine_verdict(scan_result: dict[str, Any], wallet_data: dict[str, Any]) -> tuple[str, str]:
-    """Determine overall investigation verdict."""
-    risk = scan_result.get("risk_score") or 0
-    threats = len(scan_result.get("threats") or [])
-    wallet_flags = len((wallet_data or {}).get("flags") or [])
-    bundle = bool(scan_result.get("bundle_detected"))
-    fresh = (scan_result.get("fresh_wallet_pct") or 0) > 50
-    honeypot = bool(scan_result.get("honeypot"))
-    low_liq = (scan_result.get("liquidity") or 0) < 1000 and (scan_result.get("mcap") or 0) > 10000
-
-    score = risk
-    if honeypot:
-        score = 100
-    if bundle:
-        score += 15
-    if fresh:
-        score += 10
-    if low_liq:
-        score += 10
-    if wallet_flags > 2:
-        score += 10
-
-    score = min(score, 100)
-
-    if score >= 80:
-        return "CRITICAL", f"DANGER: {threats} threats, {wallet_flags} wallet flags"
-    elif score >= 60:
-        return "HIGH", f"RISKY: {threats} threats found"
-    elif score >= 40:
-        return "MEDIUM", f"CAUTION: {threats} issues detected"
-    elif score >= 20:
-        return "LOW", "LOW RISK: Minor concerns"
-    else:
-        return "SAFE", "Clean — no significant risks detected"
-
-
-async def _run_scan(address: str, chain: str) -> dict[str, Any]:
-    """Security scan — v2 explainable first, legacy fallback."""
-    scan_v2 = await scan_token_v2(address, chain)
-    if scan_v2 is not None:
-        scan_result = v2_token_to_legacy(scan_v2)
-        if chain:
-            scan_result["chain"] = chain
-        return scan_result
-    return await scan_token(address, chain)
-
-
-async def _fetch_wallet_tokens(client: httpx.AsyncClient, address: str) -> dict[str, Any]:
-    """Fetch wallet token holdings from the backend (best-effort)."""
-    try:
-        wallet_resp = await client.get(
-            f"{BACKEND_URL}/api/v1/databus/wallet/{address}/tokens",
-            headers=backend_headers(),
-            timeout=10,
-        )
-        if wallet_resp.status_code == 200:
-            return wallet_resp.json()
-    except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
-        logger.warning("investigate backend fetch failed: %s", e)
-    return {}
-
-
-async def _fetch_cross_chain(client: httpx.AsyncClient, address: str, chain: str) -> list[Any]:
-    """Fetch cross-chain profile from the backend (best-effort)."""
-    try:
-        cc_resp = await client.get(
-            f"{BACKEND_URL}/api/v1/cross-chain/{address}",
-            params={"chain": chain},
-            headers=backend_headers(),
-            timeout=10,
-        )
-        if cc_resp.status_code == 200:
-            profile = cc_resp.json()
-            primary = profile.get("primary_chain", chain)
-            return [
-                {
-                    "source_chain": primary,
-                    "dest_chain": m.get("chain", ""),
-                    "address": m.get("address", ""),
-                    "confidence": m.get("confidence", 0),
-                }
-                for m in profile.get("addresses", [])
-            ]
-    except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
-        logger.warning("investigate history fetch failed: %s", e)
-    return []
+from ._investigate_data import (  # re-exported (split 2026-09-18)
+    _determine_verdict,
+    _fetch_cross_chain,
+    _fetch_wallet_tokens,
+    _run_scan,
+)
 
 
 async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -254,7 +168,9 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         # ── RAG context: similar known scams ────────────────────────
         rag_context = ""
         try:
-            rag_result = await rag_lookup(query=f"{scan_result.get('name', '')} {scan_result.get('symbol', '')} {scan_result.get('risk_level', '')} scam pattern")
+            rag_result = await rag_lookup(
+                query=f"{scan_result.get('name', '')} {scan_result.get('symbol', '')} {scan_result.get('risk_level', '')} scam pattern"
+            )
             if rag_result and rag_result.ok:
                 rag_context = rag_result.data.get("context", "")
         except Exception as exc:
@@ -414,7 +330,9 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             )
             dev_pnl = dev_data.get("pnl_estimate")
             if dev_pnl is not None:
-                lines.append(f"  {'📈' if dev_pnl >= 0 else '📉'} Dev P&L: <b>{fmt_number(dev_pnl)}</b>")
+                lines.append(
+                    f"  {'📈' if dev_pnl >= 0 else '📉'} Dev P&L: <b>{fmt_number(dev_pnl)}</b>"
+                )
             lines.append("")
 
         # Cross-Chain
@@ -437,9 +355,13 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         if scan_result.get("bundle_detected"):
             adv_threats.append("📦 Bundle activity detected — coordinated buys from funded wallets")
         if scan_result.get("fresh_wallet_pct", 0) > 50:
-            adv_threats.append(f"🆕 Fresh wallets: {scan_result['fresh_wallet_pct']:.0f}% — possible fake holders")
+            adv_threats.append(
+                f"🆕 Fresh wallets: {scan_result['fresh_wallet_pct']:.0f}% — possible fake holders"
+            )
         if scan_result.get("volume_real_ratio", 0) > 5:
-            adv_threats.append(f"📊 Suspicious Vol/MCap ratio: {scan_result['volume_real_ratio']:.1f}x")
+            adv_threats.append(
+                f"📊 Suspicious Vol/MCap ratio: {scan_result['volume_real_ratio']:.1f}x"
+            )
         if wallet_data.get("is_fresh"):
             adv_threats.append("🆕 Target wallet is fresh (<7 days old) — higher scam correlation")
 
@@ -456,16 +378,22 @@ async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
         # RAG context block (if available)
         if rag_context:
-            lines.extend([
-                "",
-                "<b>🧠 RAG Intelligence</b>",
-                d,
-                "Similar patterns from our intel database:",
-                rag_context[:500],
-            ])
+            lines.extend(
+                [
+                    "",
+                    "<b>🧠 RAG Intelligence</b>",
+                    d,
+                    "Similar patterns from our intel database:",
+                    rag_context[:500],
+                ]
+            )
 
         # Summary bar
-        total_flags = len(scan_result.get("threats", [])) + len(wallet_data.get("flags", [])) + len(adv_threats)
+        total_flags = (
+            len(scan_result.get("threats", []))
+            + len(wallet_data.get("flags", []))
+            + len(adv_threats)
+        )
         lines.extend(
             [
                 s,

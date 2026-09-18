@@ -33,15 +33,15 @@ OUT=$(grep -rn 'importlib\.import_module' src/rugmunchbot --include='*.py' 2>/de
   | grep -v '_vendor/' | trim_prose || true)
 [ -n "$OUT" ] && warn "dynamic import (importlib.import_module) in src — prefer a static registry: $(printf '%s' "$OUT" | grep -c . ) site(s)"
 
-# ── 4. god files (>800 lines, first-party; allowlist = split-pending) ───────
+# ── 4. god files (>500 lines, first-party; allowlist = grandfathered) ──────
 while read -r n f; do
   [ -z "${f:-}" ] && continue
   case " ${GOD_FILE_ALLOW:-} " in
     *" $f "*) warn "god file (allowlisted, split pending): $f ($n lines)" ;;
-    *)        fail "god file >800 lines (split by responsibility): $f ($n lines)" ;;
+    *)        fail "god file >500 lines (split by responsibility; 500 is the standard): $f ($n lines)" ;;
   esac
 done < <(find src/rugmunchbot -name '*.py' -not -path '*/_vendor/*' -exec wc -l {} + \
-  | awk '$1 > 800 && $2 != "total" {print $1, $2}')
+  | awk '$1 > 500 && $2 != "total" {print $1, $2}')
 
 # ── 5. dead/legacy artifacts ────────────────────────────────────────────────
 OUT=$(find . -path ./.venv -prune -o \( -name '*.bak' -o -name '*.bak-*' -o -name '*_old.py' \) -print 2>/dev/null | head -10)
