@@ -38,6 +38,14 @@ from rugmunchbot.handlers._messages import (
 from rugmunchbot.keyboards import back_kb, investigate_kb, paywall_kb
 from rugmunchbot.states import check_spam
 from rugmunchbot.support.logging import get_logger
+from ._investigate_data import (  # re-exported (split 2026-09-18)
+    _determine_verdict,
+    _fetch_cross_chain,
+    _fetch_wallet_tokens,
+    _run_scan,
+)
+
+
 from rugmunchbot.tools._client import get_shared_client
 from rugmunchbot.tools.rag_lookup import rag_lookup
 
@@ -52,14 +60,6 @@ _VERDICT_EMOJIS = {
     "LOW": "🟢",
     "SAFE": "✅",
 }
-from ._investigate_data import (  # re-exported (split 2026-09-18)
-    _determine_verdict,
-    _fetch_cross_chain,
-    _fetch_wallet_tokens,
-    _run_scan,
-)
-
-
 async def cmd_investigate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Deep investigation: Full token + wallet + holder + trace analysis.
 
