@@ -3,8 +3,6 @@
 from rugmunchbot._vendor.ai_guardrails import (
     sanitize_input,
     strip_think_tags,
-    validate_competitor,
-    validate_toxic,
 )
 
 
@@ -37,21 +35,6 @@ def test_strip_unwrapped_cot_preamble():
 def test_plain_text_unchanged():
     text = "here is the market read for this week"
     assert strip_think_tags(text) == text
-
-
-def test_toxic_passthrough_when_guard_unavailable(monkeypatch):
-    """Without guardrails-ai the wrapper must fail open (safe=True)."""
-    monkeypatch.setattr("rugmunchbot._vendor.ai_guardrails.GUARDRAILS_AI_LOADED", False)
-    r = validate_toxic("any text at all")
-    assert r["safe"] is True
-    assert r["cleaned"] == "any text at all"
-
-
-def test_competitor_passthrough_when_disabled(monkeypatch):
-    """CompetitorCheck is intentionally disabled until ops curates a list."""
-    monkeypatch.setattr("rugmunchbot._vendor.ai_guardrails._competitor_guard", None)
-    r = validate_competitor("dex screener shows volume up")
-    assert r["safe"] is True
 
 
 def test_sanitize_input_blocks_injection_patterns():

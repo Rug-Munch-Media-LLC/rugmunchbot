@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -262,10 +261,6 @@ class ThinkStreamFilter:
 # llm-guard sidecar (127.0.0.1:8016) + presidio; the pure-regex helpers here
 # (sanitize_input/output, strip_think_tags) are unaffected.
 #
-# Kept as constants for API compatibility; both validators are passthroughs.
-GUARDRAILS_AI_LOADED = False
-_toxic_guard = None
-_competitor_guard = None
 
 # CompetitorCheck: ops has not configured the competitor list yet — keep the
 # validator disabled (passthrough) until a curated list exists. Any
@@ -273,68 +268,3 @@ _competitor_guard = None
 # (DexScreener, CoinGecko, Birdeye) from scan answers.
 # _competitor_guard = Guard().use(CompetitorCheck(competitors=[...], on_fail="fix"))
 
-
-def validate_toxic(text: str) -> dict[str, Any]:
-    """Toxicity scan — passthrough by design (guardrails-ai removed 2026-09-18).
-
-    The AWS/CloudFront hub validator was cut (import-time network stall, see
-    the module header). ML toxicity/PII scanning is served by the self-hosted
-    llm-guard sidecar (:8016) and presidio; callers keep the same contract:
-    ``{"safe": bool, "cleaned": str}``.
-    """
-    return {"safe": True, "cleaned": text}
-
-
-def validate_competitor(text: str) -> dict[str, Any]:
-    """Check for competitor mentions via guardrails-ai CompetitorCheck.
-
-    Returns dict with ``safe`` flag and ``cleaned`` text.
-    """
-    if not GUARDRAILS_AI_LOADED or _competitor_guard is None:
-        return {"safe": True, "cleaned": text}
-
-    try:
-        result = _competitor_guard.validate(text)
-        if result.validation_passed:
-            return {"safe": True, "cleaned": text}
-        return {"safe": False, "cleaned": result.validated_output or text}
-    except Exception as exc:
-        logger.warning("guardrails_ai: CompetitorCheck validation error: %s", exc)
-        return {"safe": True, "cleaned": text}
-
-
-def full_pipeline(text: str) -> dict[str, Any]:
-    """Run the complete guardrails pipeline: injection check → toxic → competitor.
-
-    Returns dict with:
-        - safe: bool
-        - text: cleaned text (or block message)
-        - blocked: bool (True = completely blocked)
-        - reasons: list of rejection reasons
-    """
-    result: dict[str, Any] = {"safe": True, "blocked": False, "text": text, "reasons": []}
-
-    # Layer 1: Injection patterns (hard block)
-    cleaned = sanitize_input(text)
-    if cleaned.startswith("[BLOCKED"):
-        result["safe"] = False
-        result["blocked"] = True
-        result["text"] = cleaned
-        result["reasons"].append("prompt_injection")
-        return result
-
-    # Layer 2: Toxic language (fix if possible)
-    tox = validate_toxic(cleaned)
-    if not tox["safe"]:
-        result["reasons"].append("toxic_language")
-    cleaned = tox["cleaned"]
-
-    # Layer 3: Competitor check
-    comp = validate_competitor(cleaned)
-    if not comp["safe"]:
-        result["reasons"].append("competitor_mention")
-    cleaned = comp["cleaned"]
-
-    result["text"] = cleaned
-    result["safe"] = len(result["reasons"]) == 0
-    return result
