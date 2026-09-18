@@ -72,3 +72,19 @@
       channels/scheduler/_content_rotation.py, tools/content_lint.py, bot/__main__.py
       — then the <15% cluster (handlers/investigate.py, handlers/groups.py,
       handlers/callback/_inline.py, handlers/chat_ai/_llm/_clients.py, tools/whale_profiler.py).
+
+## Resolved 2026-09-18 — guardrails-ai hub validator (AWS/CF phone-home)
+
+- **What:** the vendored `ai_guardrails.py` initialized `ToxicLanguage` from
+  the guardrails **hub** at import time → TCP stall to
+  production-kb/telemetry.guardrailsai.com (AWS CloudFront) + a HuggingFace
+  model pull (albert-base-v2) on **every fresh process** (bot boot, pytest,
+  cron). Measured: `import _clients` **40.5s → 1.9s**; pytest startup
+  **38.9s → 0.8s**.
+- **Fix:** validator path removed (documented passthroughs); `guardrails-ai*`,
+  `spacy*`, `nltk` uninstalled from the bot venv; requirements.txt cleaned.
+  ML scanning stays self-hosted: llm-guard sidecar (:8016) + presidio +
+  the regex layer.
+- **Follow-up (reduction):** `validate_toxic`/`validate_competitor`/
+  `full_pipeline` in the vendored file are now passthroughs with no first-party
+  callers — delete on the next vendored-file touch.

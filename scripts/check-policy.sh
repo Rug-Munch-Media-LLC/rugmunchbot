@@ -66,6 +66,17 @@ check_budget "noqa" "$(count 'noqa')" "${NOQA_BUDGET:-9999}"
 check_budget "type-ignore" "$(count 'type: ignore')" "${TYPE_IGNORE_BUDGET:-9999}"
 check_budget "pragma-no-cover" "$(count 'pragma: no cover')" "${PRAGMA_NO_COVER_BUDGET:-9999}"
 
+# ── 8. monkeypatch ratchet (src pinned at 0; tests may only go down) ───────
+MP_SRC=$(grep -rnE 'monkeypatch\.(setattr|delattr|setitem)' src/rugmunchbot --include='*.py' 2>/dev/null \
+  | grep -v '_vendor/' | trim_prose | grep -c 'monkeypatch' || true)
+if [ "${MP_SRC:-0}" -gt 0 ]; then
+  fail "monkeypatch call sites in src/ — must be 0 (got $MP_SRC)"
+else
+  printf 'ok: src monkeypatch 0/0\n'
+fi
+MP_TESTS=$(grep -rc 'monkeypatch' tests --include='*.py' 2>/dev/null | awk -F: '{s+=$2} END {print s+0}')
+check_budget "tests monkeypatch refs" "$MP_TESTS" "${MONKEYPATCH_TEST_BUDGET:-99999}"
+
 echo
 if [ "$FAIL" -ne 0 ]; then
   echo "POLICY FAIL — see docs/GOOD-CODE-POLICY.md"

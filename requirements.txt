@@ -13,9 +13,6 @@ cachetools>=5.3
 
 # Guardrails (AI validators — ToxicLanguage/CompetitorCheck; requires
 # torch + transformers, already present in the rmi-backend venv)
-guardrails-ai>=0.11.0
-guardrails-ai-toxic-language>=0.0.2
-guardrails-ai-competitor-check>=0.0.2
 
 # OSINT / lookups
 phonenumbers>=8.13
