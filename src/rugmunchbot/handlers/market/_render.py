@@ -88,7 +88,7 @@ def _mover_link(item: dict[str, Any]) -> str:
     CoinGecko coin page for exchange-listed (CG) entries."""
     addr = item.get("address") or ""
     chain = (item.get("chain") or "solana").lower()
-    if item.get("source") == "gmgn" and addr:
+    if (item.get("source") or "").lower() == "gmgn" and addr:
         return dexscreener_url(addr, chain)
     if addr:
         return f"https://www.coingecko.com/en/coins/{addr}"
