@@ -514,33 +514,21 @@ async def cmd_alerts(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_budget(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show GetXAPI budget remaining (calls + dollars) (owner only)."""
+    """Show X-intel budget status (owner only).
+
+    X ingestion is owned by rugbrain (RAG); the bot no longer meters an
+    ApiPass/GetXAPI budget. This command reports the retirement.
+    """
     if _deny(update):
         await _reply(update, "\u26a0\ufe0f <b>Owner only.</b>")
         return
 
-    try:
-        from rugmunchbot.tools.getxapi_budget import get_daily_usage
-        from rugmunchbot.tools.getxapi_config import (
-            GETXAPI_DAILY_CALL_LIMIT,
-            GETXAPI_TOTAL_BUDGET,
-        )
-
-        usage = get_daily_usage()
-    except Exception as exc:
-        logger.warning("admin_budget_failed err=%s", str(exc)[:120])
-        await _reply(update, "\u274c GetXAPI budget check unavailable.")
-        return
-
-    lines = [
-        "\U0001f4b0 <b>GetXAPI Budget</b>",
-        "\u2500" * 20,
-        f"\U0001f4c8 Calls today: <b>{usage['calls']}</b> / {GETXAPI_DAILY_CALL_LIMIT}",
-        f"\U0001f4b5 Spent: <b>${usage['spend']:.4f}</b> of ${GETXAPI_TOTAL_BUDGET:.2f}",
-        f"\U0001f4b0 Remaining: <b>${usage['budget_remaining']:.4f}</b>",
-        f"\U0001f4a1 Calls remaining: <b>{usage['calls_remaining']}</b>",
-    ]
-    await _reply(update, "\n".join(lines))
+    await _reply(
+        update,
+        "\U0001f4b0 <b>X-intel budget</b>\n"
+        "\u2500" * 20 + "\nX ingestion is owned by <b>rugbrain</b> (RAG). The bot no longer "
+        "meters an ApiPass/GetXAPI budget.",
+    )
 
 
 # ── /sources ───────────────────────────────────────────────────────────────
@@ -580,14 +568,8 @@ async def cmd_sources(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception as exc:
         logger.warning("admin_sources_db_failed err=%s", str(exc)[:120])
 
-    # GetXAPI monitored accounts count as X sources.
-    try:
-        from rugmunchbot.tools.getxapi_config import GETXAPI_SECURITY_ACCOUNTS
-
-        x = max(x, len(GETXAPI_SECURITY_ACCOUNTS))
-    except Exception as exc:
-        logger.debug("admin_sources_getxapi_failed err=%s", str(exc)[:120])
-
+    # X sources are owned by rugbrain (RAG); the bot no longer tracks a
+    # GetXAPI monitored-account list. The DB count above is authoritative.
     lines = [
         "\U0001f4e1 <b>Active Content Sources</b>",
         "\u2500" * 20,

@@ -23,7 +23,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 def main() -> int:
     from rugmunchbot.db import (
-        apipass_usage_summary,
         kol_registry_count,
         list_kol_calls,
         seed_kol_registry,
@@ -60,12 +59,6 @@ def main() -> int:
     print(f"rug-history loss calls recorded: {rug_count}")
     print(f"calls in store: {len(list_kol_calls(limit=10000))}")
 
-    usage = apipass_usage_summary()
-    print(
-        f"apipass budget: {usage['credits_used']:.2f}/{usage['free_allowance']:.2f} "
-        f"credits used ({usage['total_calls']} calls), "
-        f"{usage['calls_today']} today, ~{usage['estimated_calls_remaining']} calls remaining"
-    )
     return 0
 
 

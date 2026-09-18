@@ -323,71 +323,25 @@ def _sweep_pool() -> list[str]:
 
 
 async def sweep_tracked_kol_tweets() -> list[KolCall]:
-    """Fetch recent tweets from one tracked KOL via ApiPass (budget-bounded).
+    """Fetch recent tweets from one tracked KOL — DISABLED: X owned by rugbrain.
 
-    Round-robin over the sweep pool — one handle per tick — so no tick
-    exceeds the ≤5 task-creations/hr burn. Fail-open ``[]``.
+    The bot no longer fetches X timelines (ApiPass rail retired). X-derived
+    intel is consumed through the RAG HTTP API. Fail-open ``[]``.
     """
-    try:
-        from rugmunchbot.tools.apipass_x import fetch_user_tweets
-    except Exception:  # pragma: no cover — import failure fails open
-        logger.warning("kol_scoreboard:apipass_import_failed")
-        return []
-
-    pool = _sweep_pool()
-    if not pool:
-        return []
-    offset = int(os.getenv("RMI_KOL_TRACKED_HANDLE_INDEX", "0"))
-    handle = pool[offset % len(pool)]
-    try:
-        tweets = await fetch_user_tweets(handle, limit=10)
-    except Exception as exc:  # fail-open by contract
-        logger.debug("kol_scoreboard:sweep_failed handle=%s err=%s", handle, str(exc)[:120])
-        return []
-
-    # Name-change detection: the payload screen_name may differ from swept.
-    for tweet in tweets[:1]:
-        payload_handle = str(tweet.get("handle") or "")
-        if payload_handle:
-            detect_name_change(handle, payload_handle)
-
-    calls: list[KolCall] = []
-    for tweet in tweets:
-        call = _call_from_tweet(tweet)
-        if call is not None:
-            calls.append(call)
-    logger.info(
-        "kol_scoreboard:swept handle=%s tweets=%s calls=%s",
-        handle,
-        len(tweets),
-        len(calls),
-    )
-    return calls
+    logger.debug("kol_scoreboard:sweep_skipped_x_ingest_owned_by_rugbrain")
+    return []
 
 
 async def detect_deleted_calls(
     calls: list[KolCall], window_hours: int = FRESH_CALL_HOURS
 ) -> list[KolCall]:
-    """Re-check this window's recorded calls; mark the ones now gone.
+    """Re-check this window's recorded calls — DISABLED: X owned by rugbrain.
 
-    A call whose tweet now 404s on ApiPass (tweet-detail → None) is
-    retracted. Bounded detail checks per tick (3 max). Calls with synthetic
-    ``rug-`` storage keys (documented rug-history evidence, no live tweet)
-    are skipped — they cannot 404 as tweets. Fail-open ``[]``.
+    The bot no longer re-checks tweets against X (ApiPass rail retired).
+    X-derived intel is consumed through the RAG HTTP API. Fail-open ``[]``.
     """
-    try:
-        from rugmunchbot.tools.apipass_x import fetch_tweet_detail
-    except Exception:
-        return []
-
-    deleted: list[KolCall] = []
-    for call in calls[:3]:
-        if str(call.tweet_id or "").startswith("rug-"):
-            continue  # synthetic evidence key, not a live tweet
-        detail = await fetch_tweet_detail(call.tweet_id)
-        if detail is None:
-            deleted.append(call)
-    return deleted
+    logger.debug("kol_scoreboard:detect_deleted_skipped_x_ingest_owned_by_rugbrain")
+    return []
 
 
 def _card_from_rows(

@@ -37,11 +37,6 @@ from rugmunchbot.channels.telegram_news import (
     TG_NEWS_ENABLED,
     post_tg_news_update,
 )
-from rugmunchbot.channels.x_ingest import (
-    X_INGEST_ENABLED,
-    X_INGEST_INTERVAL_MINUTES,
-    run_x_ingest,
-)
 from rugmunchbot.config import (
     ALERTS_CHANNEL_ENABLED,
     ALERTS_CHANNEL_INTERVAL_MINUTES,
@@ -523,16 +518,6 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             interval=SCAM_WATCH_INTERVAL_MINUTES * 60,
             first=_FIRST_RUN_SECONDS["scam_watch"],
             name="channel_scam_watch",
-        )
-    if X_INGEST_ENABLED:
-        # X/Twitter security-account ingestion → RAG news_v2 (no bot chat id
-        # needed — nothing is posted). Feeds the RAG corpus like the TG news
-        # lane does.
-        job_queue.run_repeating(
-            _tick_wrapper("channel_x_ingest", run_x_ingest, envelope=True),
-            interval=X_INGEST_INTERVAL_MINUTES * 60,
-            first=_FIRST_RUN_SECONDS["x_ingest"],
-            name="channel_x_ingest",
         )
     if SECURITY_SEARCH_ENABLED:
         # Security keyword search (2026-09-02): ONE GetXAPI advanced_search

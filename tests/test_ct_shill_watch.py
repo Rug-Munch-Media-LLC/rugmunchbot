@@ -1,13 +1,13 @@
 """CT shill watch — timeline ingestion, confirmation, wall-of-shame recording.
 
-Mocked transports only: no network, no ApiPass key required (fail-open paths
+Mocked transports only: no network, no X key required (fail-open paths
 exercised directly). Covers:
 
 * CT registry loading + rotation cursor (no starvation, wrap-around)
 * token-promotion → confirmation gating (scanner / TG cross-ref)
 * record_shill: new entry shape, idempotent increment, coordinated escalation
 * score_kol + rescore severity ladder
-* run_ct_shill_watch end-to-end with patched apipass/shill_shot/shill_api
+* run_ct_shill_watch retired no-op (X ingestion owned by rugbrain)
 """
 
 from __future__ import annotations
@@ -171,87 +171,6 @@ async def test_confirm_shill_scanner_risky(kol_dir):
 
 
 @pytest.mark.asyncio
-async def test_run_ct_shill_watch_catches_shill(kol_dir):
-    tweets = [
-        {
-            "text": "$RUGG is the next 100x, aping in",
-            "handle": "alphakol",
-            "url": "https://x.com/alphakol/status/9",
-            "like_count": 500,
-            "retweet_count": 100,
-        }
-    ]
-
-    class FakeApipass:
-        @staticmethod
-        def api_key_configured():
-            return True
-
-        @staticmethod
-        def task_creates_remaining():
-            return 10
-
-        @staticmethod
-        async def fetch_user_tweets(handle, limit=10):
-            return tweets
-
-    async def fake_confirm(handle, token, chain):
-        return True, False
-
-    async def fake_shot(url, **kw):
-        return {"url": url, "image_path": "shot.png", "text": "aping", "captured": "true"}
-
-    with (
-        patch("rugmunchbot.tools.apipass_x", FakeApipass, create=True),
-        patch("rugmunchbot.channels.ct_shill_watch.confirm_shill", fake_confirm),
-        patch("rugmunchbot.tools.shill_shot.capture_and_ocr", fake_shot, create=True),
-        patch(
-            "rugmunchbot.services.shill_api.add_evidence", return_value={"saved": True}, create=True
-        ),
-        patch("rugmunchbot.channels.ct_shill_watch.embed_shill", return_value=True),
-    ):
-        recorded = await m.run_ct_shill_watch()
-    assert recorded == 1
-    entry = json.loads((kol_dir / "wall_of_shame.json").read_text())["wall_of_shame"][0]
-    assert entry["handle"] == "alphakol"
-    assert entry["evidence"][0]["screenshot_url"] == "shot.png"
-
-
-@pytest.mark.asyncio
-async def test_run_ct_shill_watch_no_key_fail_open(kol_dir):
-    class FakeApipass:
-        @staticmethod
-        def api_key_configured():
-            return False
-
-    with patch("rugmunchbot.tools.apipass_x", FakeApipass, create=True):
-        assert await m.run_ct_shill_watch() == 0
-
-
-@pytest.mark.asyncio
-async def test_run_ct_shill_watch_drops_low_engagement(kol_dir):
-    tweets = [
-        {
-            "text": "$RUGG moon",
-            "handle": "alphakol",
-            "url": "https://x.com/alphakol/status/9",
-            "like_count": 1,
-            "retweet_count": 0,
-        }
-    ]
-
-    class FakeApipass:
-        @staticmethod
-        def api_key_configured():
-            return True
-
-        @staticmethod
-        def task_creates_remaining():
-            return 10
-
-        @staticmethod
-        async def fetch_user_tweets(handle, limit=10):
-            return tweets
-
-    with patch("rugmunchbot.tools.apipass_x", FakeApipass, create=True):
-        assert await m.run_ct_shill_watch() == 0
+async def test_run_ct_shill_watch_retired_noop(kol_dir):
+    """X ingestion is owned by rugbrain — the tick is a fail-open no-op."""
+    assert await m.run_ct_shill_watch() == 0

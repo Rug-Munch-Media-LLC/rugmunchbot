@@ -1,13 +1,13 @@
 """/tweet + /tweets command and read_tweet/story_fetch X wiring tests.
 
-Covers the X-post reader contract:
+X ingestion is owned by rugbrain (RAG); the bot no longer fetches X posts.
+Covers the retired contract:
 
 * ``tools.read_tweet.parse_target`` — URL / numeric id / @handle classification
 * ``commands.tweet.format_tweet`` / ``format_tweet_list`` — safe HTML cards
-* ``cmd_tweet`` fail-open paths — usage, no key, budget spent, provisioning
-  (fetch → None) — the command NEVER scrapes and NEVER fabricates content
-* ``read_tweet`` tool fail-open — no key
-* ``story_fetch`` X guard — x.com URLs route to ApiPass, never the crawler
+* ``cmd_tweet`` — usage + "moved to rugbrain" notice; NEVER scrapes/fabricates
+* ``read_tweet`` tool — always fails open with the moved notice
+* ``story_fetch`` X guard — x.com URLs refused, never the crawler
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 
 from rugmunchbot.commands.tweet import cmd_tweet, format_tweet, format_tweet_list
-from rugmunchbot.tools import apipass_x as ax, story_fetch as sf
+from rugmunchbot.tools import story_fetch as sf
 from rugmunchbot.tools.read_tweet import parse_target, read_tweet
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -148,53 +148,15 @@ def test_cmd_tweet_no_args_usage():
     asyncio.run(_go())
 
 
-def test_cmd_tweet_unparseable_input():
+def test_cmd_tweet_moved_notice():
     async def _go():
         msg = _FakeMessage()
-        await cmd_tweet(_FakeUpdate(msg), _FakeContext(["https://example.com/foo"]))
+        await cmd_tweet(_FakeUpdate(msg), _FakeContext(["https://x.com/foo/status/123"]))
         text = msg.replies[-1][0]
-        assert "Couldn't parse" in text
+        assert "moved" in text.lower()
+        assert "rugbrain" in text.lower()
 
     asyncio.run(_go())
-
-
-def test_cmd_tweet_no_key_fails_open(monkeypatch):
-    monkeypatch.setattr(ax, "api_key_configured", lambda: False)
-    out = asyncio.run(_run_cmd(["https://x.com/foo/status/123"], monkeypatch))
-    assert "No ApiPass key" in out
-    assert "never scrapes" in out
-
-
-def test_cmd_tweet_budget_spent_fails_open(monkeypatch):
-    monkeypatch.setattr(ax, "api_key_configured", lambda: True)
-    monkeypatch.setattr(ax, "task_creates_remaining", lambda: 0)
-    out = asyncio.run(_run_cmd(["https://x.com/foo/status/123"], monkeypatch))
-    assert "hourly budget" in out
-
-
-def test_cmd_tweet_provisioning_note_when_fetch_returns_none(monkeypatch):
-    monkeypatch.setattr(ax, "api_key_configured", lambda: True)
-    monkeypatch.setattr(ax, "task_creates_remaining", lambda: 5)
-
-    async def _none(*a, **k):
-        return None
-
-    monkeypatch.setattr(ax, "fetch_tweet_detail", _none)
-    out = asyncio.run(_run_cmd(["https://x.com/foo/status/123"], monkeypatch))
-    assert "ApiPass" in out
-    assert "never scrapes X directly" in out
-
-
-def test_cmd_tweet_handle_mode_provisioning_note(monkeypatch):
-    monkeypatch.setattr(ax, "api_key_configured", lambda: True)
-    monkeypatch.setattr(ax, "task_creates_remaining", lambda: 5)
-
-    async def _none(*a, **k):
-        return []
-
-    monkeypatch.setattr(ax, "fetch_user_tweets", _none)
-    out = asyncio.run(_run_cmd(["@cryptowhale"], monkeypatch))
-    assert "ApiPass" in out
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -202,12 +164,11 @@ def test_cmd_tweet_handle_mode_provisioning_note(monkeypatch):
 # ══════════════════════════════════════════════════════════════════════════
 
 
-def test_read_tweet_no_key_fails_open(monkeypatch):
-    monkeypatch.setattr(ax, "api_key_configured", lambda: False)
+def test_read_tweet_fails_open_moved(monkeypatch):
     res = asyncio.run(read_tweet(url="https://x.com/foo/status/123"))
     assert not res.ok
-    assert "no apipass key" in res.error.lower()
-    assert res.source == "apipass_x"
+    assert "rugbrain" in res.error.lower()
+    assert res.source == "rugbrain_rag"
 
 
 def test_read_tweet_requires_target():
@@ -216,60 +177,24 @@ def test_read_tweet_requires_target():
     assert "required" in res.error
 
 
-def test_read_tweet_provisioning_note_when_fetch_returns_none(monkeypatch):
-    monkeypatch.setattr(ax, "api_key_configured", lambda: True)
-
-    async def _none(*a, **k):
-        return None
-
-    monkeypatch.setattr(ax, "fetch_tweet_detail", _none)
-    res = asyncio.run(read_tweet(tweet_id="123456789"))
-    assert not res.ok
-    assert "never scrapes" in res.error
-
-
 # ══════════════════════════════════════════════════════════════════════════
 # story_fetch X guard — x.com URLs NEVER reach the generic crawler
 # ══════════════════════════════════════════════════════════════════════════
 
 
-def test_story_fetch_x_url_no_key_never_crawls(monkeypatch):
-    """Without a key the guard refuses BEFORE any crawler import/call."""
-    monkeypatch.setattr(ax, "api_key_configured", lambda: False)
+def test_story_fetch_x_url_refused_never_crawls():
+    """An x.com URL is refused BEFORE any crawler import/call."""
     res = asyncio.run(sf.story_fetch(url="https://x.com/foo/status/123"))
     assert not res.ok
-    assert "scraping of X is disabled" in res.error
-    assert res.data.get("source") == "apipass_x"
+    assert "rugbrain" in res.error.lower()
+    assert res.data.get("source") == "rugbrain_rag"
 
 
-def test_story_fetch_x_url_routes_to_apipass(monkeypatch):
-    """With a key + working ApiPass, the X post returns tweet payload, not HTML."""
-    monkeypatch.setattr(ax, "api_key_configured", lambda: True)
-
-    async def _fake_detail(tid):
-        return {
-            "tweet_id": tid,
-            "text": "$MOON is the call",
-            "handle": "kolo",
-            "author_name": "KOL",
-            "like_count": 9,
-            "url": f"https://x.com/kolo/status/{tid}",
-            "source": "apipass_x",
-        }
-
-    monkeypatch.setattr(ax, "fetch_tweet_detail", _fake_detail)
-    res = asyncio.run(sf.story_fetch(url="https://x.com/kolo/status/555"))
-    assert res.ok
-    assert res.data["source"] == "apipass_x"
-    assert res.data["text"] == "$MOON is the call"
-    assert res.data["fetch_chain"] == ["apipass_x"]
-
-
-def test_story_fetch_x_profile_url_refused(monkeypatch):
+def test_story_fetch_x_profile_url_refused():
     """A profile/timeline X page (no status id) is refused, never scraped."""
     res = asyncio.run(sf.story_fetch(url="https://x.com/elonmusk"))
     assert not res.ok
-    assert "scraping of X is disabled" in res.error
+    assert "rugbrain" in res.error.lower()
 
 
 def test_story_fetch_normal_url_still_works(monkeypatch):

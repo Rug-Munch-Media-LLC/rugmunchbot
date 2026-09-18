@@ -203,7 +203,10 @@ def kol_registry_count() -> int:
 
 
 def register_alias(
-    kol_id: str, alias: str, *, is_current: bool = True,
+    kol_id: str,
+    alias: str,
+    *,
+    is_current: bool = True,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
     """Map one handle (current or past) to a canonical kol_id.
@@ -281,7 +284,7 @@ def resolve_handle(handle: str) -> dict[str, Any] | None:
 
 
 def record_kol_name_change(
-    kol_id: str, *, from_handle: str, to_handle: str, source: str = "apipass_sweep"
+    kol_id: str, *, from_handle: str, to_handle: str, source: str = "rag"
 ) -> bool:
     """Record one detected screen-name change (old handle → new handle)."""
     kol_id = norm_handle(kol_id)

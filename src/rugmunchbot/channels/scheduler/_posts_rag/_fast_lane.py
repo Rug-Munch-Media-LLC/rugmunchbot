@@ -161,47 +161,11 @@ def format_security_tweet_escalation(tweet: dict[str, Any]) -> str:
 
 
 async def post_security_tweet_escalation(ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    """Escalate high-engagement security tweets to main as breaking news.
+    """Escalate high-engagement security tweets — DISABLED: X owned by rugbrain.
 
-    Runs on a short tick (independent of the daily roundup): a tweet from a
-    monitored security account that mentions a security keyword AND has high
-    engagement (>50 likes or >20 retweets) posts to @cryptorugmuncher
-    immediately — it does not wait for the daily roundup. Dedupes via the
-    shared global namespace so a tweet never posts twice. Fail-open: no main
-    chat id, empty sweep, or a failed send logs and returns 0 — never crashes
-    the scheduler.
+    The bot no longer fetches X security tweets (ApiPass/GetXAPI rails
+    retired). X-derived intel is consumed through the RAG HTTP API. Fail-open
+    no-op so the scheduler registration stays stable.
     """
-    chat_id = _pkg._chat_id("main")
-    if not chat_id:
-        return 0
-    try:
-        from rugmunchbot.tools.x_ingest import fetch_security_tweets
-
-        tweets = await fetch_security_tweets()
-    except Exception as exc:  # fail-open by contract
-        _pkg.logger.warning("security_tweet_escalation:fetch_failed err=%s", str(exc)[:120])
-        return 0
-    posted = 0
-    for tweet in tweets:
-        if not _security_tweet_matches(tweet):
-            continue
-        url = str(tweet.get("url") or "").strip()
-        tweet_id = str(tweet.get("tweet_id") or "").strip()
-        ref = url or tweet_id or str(tweet.get("text") or "")[:60]
-        dedupe_key = f"rag:sec:{ref}"
-        if not _pkg._remember("rag_security_tweet", dedupe_key, title=tweet.get("text")):
-            continue
-        text = format_security_tweet_escalation(tweet)
-        if await _pkg._safe_send(ctx.bot, chat_id, text, content_type="alert"):
-            posted += 1
-            _pkg.logger.info(
-                "security_tweet_escalated handle=%s ref=%s",
-                str(tweet.get("handle") or "")[:40],
-                ref[:60],
-            )
-        else:
-            # Release the dedupe mark (bare key + title hash) so the next
-            # tick retries this tweet instead of black-holing it (same
-            # contract as the RAG lanes).
-            _pkg._release("rag_security_tweet", dedupe_key, title=tweet.get("text"))
-    return posted
+    _pkg.logger.debug("security_tweet_escalation:skipped_x_ingest_owned_by_rugbrain")
+    return 0

@@ -51,7 +51,6 @@ from .identity import (
     upsert_kol_identity,
 )
 from .scores import get_kol_scores, upsert_kol_score
-from .usage import apipass_usage_summary, record_apipass_usage
 from .wallets import (
     attach_kol_wallet,
     cluster_kols_by_wallet,
@@ -65,7 +64,6 @@ from .wallets import (
 )
 
 __all__ = [
-    "apipass_usage_summary",
     "attach_kol_wallet",
     "cluster_kols_by_wallet",
     "demote_alias",
@@ -85,7 +83,6 @@ __all__ = [
     "list_kol_wallets",
     "mark_kol_call_deleted",
     "mark_kol_verified",
-    "record_apipass_usage",
     "record_kol_call",
     "record_kol_name_change",
     "register_alias",

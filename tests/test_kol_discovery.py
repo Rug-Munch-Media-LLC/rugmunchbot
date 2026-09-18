@@ -7,8 +7,7 @@ Covers the 2026-08-31 total-X-KOL-monitoring deliverable:
   engagement >= threshold; tracked handles and low engagement excluded.
 * ``add_discovered_kol`` / ``load_discovered_kols`` — dedupe by handle,
   evidence merge, atomic write (tmp path).
-* ``run_kol_discovery`` — budget-bounded runner with the ApiPass client and
-  scanner mocked (no network, no credits burned in tests).
+* ``run_kol_discovery`` — retired no-op (X ingestion owned by rugbrain).
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ def _tweet(
         "like_count": likes,
         "retweet_count": retweets,
         "url": f"https://x.com/{handle}/status/{tweet_id}",
-        "source": "apipass_x",
+        "source": "rugbrain_rag",
     }
 
 
@@ -116,98 +115,9 @@ def test_add_discovered_kol_rejects_empty(tmp_path) -> None:
     assert kd.add_discovered_kol("handle", "", {}, path=path) is False
 
 
-# ── runner (mocked I/O) ───────────────────────────────────────────────────
+# ── runner (retired) ──────────────────────────────────────────────────────
 
 
-class _FakeApipass:
-    """Stand-in for rugmunchbot.tools.apipass_x (no network, no credits)."""
-
-    def __init__(self, *, configured: bool = True, tweets: list[dict] | None = None) -> None:
-        self._configured = configured
-        self._tweets = tweets or []
-
-    def api_key_configured(self) -> bool:
-        return self._configured
-
-    async def search_tweets(self, query: str, limit: int = 10) -> list[dict]:
-        return list(self._tweets)
-
-
-def _install_fake_apipass(monkeypatch, fake: _FakeApipassModule) -> None:
-    """Install the fake apipass module for BOTH resolution paths.
-
-    ``from rugmunchbot.tools import apipass_x`` resolves via the package
-    attribute once the real submodule has been imported by any earlier test
-    (e.g. test_apipass_x) — sys.modules alone is not enough. Patching the
-    package attribute keeps the test hermetic (no real X API calls, which
-    WOULD fire on a machine with a configured key).
-    """
-    import sys
-
-    monkeypatch.setitem(sys.modules, "rugmunchbot.tools.apipass_x", fake)
-    monkeypatch.setattr("rugmunchbot.tools.apipass_x", fake, raising=False)
-
-
-async def test_run_kol_discovery_adds_new_kol(tmp_path, monkeypatch) -> None:
-    path = str(tmp_path / "discovered_kols.json")
-    monkeypatch.setattr(kd, "DISCOVERED_KOLS_PATH", path)
-
-    async def fake_risky(token: str, chain: str) -> bool:
-        return True
-
-    monkeypatch.setattr(kd, "_seed_tokens", lambda limit: ["$RUGG"])
-    monkeypatch.setattr(kd, "_is_risky_token", fake_risky)
-    _install_fake_apipass(
-        monkeypatch,
-        _FakeApipassModule(
-            tweets=[
-                _tweet("brandnewkol", "$RUGG 100x call", likes=200, retweets=50, tweet_id="999")
-            ]
-        ),
-    )
-
-    added = await kd.run_kol_discovery(ctx=None)
-    assert added == 1
-    records = kd.load_discovered_kols(path)
-    assert records[0]["handle"] == "brandnewkol"
-    assert records[0]["tokens_shilled"] == ["$RUGG"]
-    assert records[0]["evidence"][0]["tweet_id"] == "999"
-
-
-async def test_run_kol_discovery_no_key_noop(monkeypatch) -> None:
-    _install_fake_apipass(monkeypatch, _FakeApipassModule(configured=False))
+async def test_run_kol_discovery_retired_noop() -> None:
+    """X ingestion is owned by rugbrain — the runner is a fail-open no-op."""
     assert await kd.run_kol_discovery(ctx=None) == 0
-
-
-async def test_run_kol_discovery_safe_token_not_added(monkeypatch, tmp_path) -> None:
-    """A token the scanner does NOT flag risky produces zero discoveries."""
-    path = str(tmp_path / "discovered_kols.json")
-    monkeypatch.setattr(kd, "DISCOVERED_KOLS_PATH", path)
-
-    async def fake_risky(token: str, chain: str) -> bool:
-        return False
-
-    monkeypatch.setattr(kd, "_seed_tokens", lambda limit: ["$SAFE"])
-    monkeypatch.setattr(kd, "_is_risky_token", fake_risky)
-    _install_fake_apipass(
-        monkeypatch,
-        _FakeApipassModule(
-            tweets=[_tweet("someone", "$SAFE moon", likes=500, retweets=100, tweet_id="7")]
-        ),
-    )
-
-    assert await kd.run_kol_discovery(ctx=None) == 0
-    assert kd.load_discovered_kols(path) == []
-
-
-class _FakeApipassModule:
-    """Module-shaped apipass_x stub (run_kol_discovery imports the module)."""
-
-    def __init__(self, *, configured: bool = True, tweets: list[dict] | None = None) -> None:
-        self._inner = _FakeApipass(configured=configured, tweets=tweets)
-
-    def api_key_configured(self) -> bool:
-        return self._inner.api_key_configured()
-
-    async def search_tweets(self, query: str, limit: int = 10) -> list[dict]:
-        return await self._inner.search_tweets(query, limit=limit)

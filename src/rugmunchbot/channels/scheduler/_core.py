@@ -44,7 +44,6 @@ _FIRST_RUN_SECONDS = {
     "scam_watch": 165,
     "personal": 195,
     "scans": 225,
-    "x_ingest": 255,
     "security_search": 285,
     "social_monitor": 315,
 }
@@ -176,9 +175,7 @@ def _remember(channel: str, key: str, title: str | None = None) -> bool:
     if any(k in seen for k in keys):
         return False
     # Durable backstop: check Redis on every call (best-effort, fail-open).
-    if scheduler_state.is_available() and any(
-        scheduler_state.has_posted(k) for k in keys
-    ):
+    if scheduler_state.is_available() and any(scheduler_state.has_posted(k) for k in keys):
         # Re-seed the in-memory set so we don't re-query every tick.
         for k in keys:
             seen[k] = None

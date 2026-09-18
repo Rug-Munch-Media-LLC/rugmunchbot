@@ -303,14 +303,14 @@ def init_db() -> None:
         );
 
         -- v8: KOL Scoreboard — canonical identities, handle aliases, name
-        -- changes, ApiPass credit usage. ``kol_identities`` is the canonical
-        -- per-KOL row (name, current screen_name, traced wallets, category,
-        -- source, verification state, risk level); ``kol_aliases`` maps every
+        -- changes. ``kol_identities`` is the canonical per-KOL row (name,
+        -- current screen_name, traced wallets, category, source,
+        -- verification state, risk level); ``kol_aliases`` maps every
         -- current + past handle to its canonical kol_id (the lookup table
         -- that makes screen-name CHANGES resolve to the same report card);
-        -- ``kol_name_changes`` records each detected handle transition;
-        -- ``kol_apipass_usage`` meters the ApiPass burn (≤6 task
-        -- creations/hr ≈ 3 credits/hr) so the 50 free credits are tracked.
+        -- ``kol_name_changes`` records each detected handle transition.
+        -- (X ingestion is owned by rugbrain/RAG; the bot no longer meters
+        -- an ApiPass budget, so ``kol_apipass_usage`` is retired.)
         -- v9: ``scammer_group`` — syndicate attribution (e.g. the Solana KOL
         -- syndicate, CZ/support-impersonation syndicate, SEC-charged
         -- celebrity touters). A group id is a stable slug; display labels
@@ -348,16 +348,6 @@ def init_db() -> None:
             source TEXT DEFAULT 'apipass_sweep'
         );
         CREATE INDEX IF NOT EXISTS idx_kol_name_changes_kol ON kol_name_changes(kol_id);
-        CREATE TABLE IF NOT EXISTS kol_apipass_usage (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts TEXT NOT NULL,
-            endpoint TEXT,
-            model TEXT,
-            credits REAL DEFAULT 0.5,
-            task_id TEXT,
-            status TEXT DEFAULT 'created'
-        );
-        CREATE INDEX IF NOT EXISTS idx_kol_apipass_usage_ts ON kol_apipass_usage(ts);
     """)
     # Migration: add bonus columns if they don't exist (SQLite safe)
     with contextlib.suppress(sqlite3.OperationalError):

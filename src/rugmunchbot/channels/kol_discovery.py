@@ -1,13 +1,12 @@
 """KOL discovery from X shill monitoring — find NEW KOLs pushing scams.
 
-Mission (2026-08-31): while the bot watches X for shill activity
-(``channels.shill_watch`` + ``tools.apipass_x``), accounts that are NOT in
-our tracked KOL universe but are pushing scanner-flagged risky tokens with
-real engagement are exactly the new KOLs we want to track. This module:
+Mission (2026-08-31): accounts that are NOT in our tracked KOL universe
+but are pushing scanner-flagged risky tokens with real engagement are
+exactly the new KOLs we want to track. X ingestion is owned by rugbrain
+(RAG); the bot consumes X-derived intel through the RAG HTTP API. This
+module:
 
-  1. Pulls candidate tweets via the existing ApiPass client
-     (``tools.apipass_x.search_tweets`` — ONE createTask per searched token,
-     governed by the ≤ ``RMI_APIPASS_MAX_CALLS_PER_HOUR`` budget governor).
+  1. (Retired) Pulls candidate tweets via the ApiPass client.
   2. Extracts token identities from each tweet ($CASHTAG / address).
   3. Runs the searched token through the canonical scanner
      (``shill_watch.build_scanner_evidence``) — a token is "risky" when the
@@ -19,8 +18,8 @@ real engagement are exactly the new KOLs we want to track. This module:
   5. Auto-adds them to ``discovered_kols.json`` with status "discovered",
      the token they shilled, and the tweet evidence (id, url, engagement).
 
-Fail-open everywhere: no ApiPass key, rate-limited budget, scanner outage,
-or a read-only data dir degrades to zero discoveries — never raises. The
+Fail-open everywhere: no RAG API, scanner outage, or a read-only data dir
+degrades to zero discoveries — never raises. The
 storage path is env-overridable (``RMI_DISCOVERED_KOLS_PATH``) so ops can
 point the bot and the backend (``GET /api/v1/kol/discovered``) at the SAME
 file for a zero-copy handoff.
@@ -47,8 +46,7 @@ KOL_DISCOVERY_ENABLED = os.getenv("RMI_KOL_DISCOVERY_ENABLED", "true").lower() i
 KOL_DISCOVERY_MIN_ENGAGEMENT = int(os.getenv("RMI_KOL_DISCOVERY_MIN_ENGAGEMENT", "25"))
 #: Max new KOLs auto-added per run (bounded — no list spam).
 KOL_DISCOVERY_MAX_ADDS_PER_RUN = int(os.getenv("RMI_KOL_DISCOVERY_MAX_ADDS", "3"))
-#: Max X searches per run (each is one ApiPass createTask; the governor in
-#: ``apipass_x`` is the hard ceiling — this keeps discovery polite within it).
+#: Max X searches per run (retired — X ingestion is owned by rugbrain).
 KOL_DISCOVERY_MAX_SEARCHES = int(os.getenv("RMI_KOL_DISCOVERY_MAX_SEARCHES", "2"))
 #: Max tweets inspected per search.
 KOL_DISCOVERY_TWEETS_PER_SEARCH = int(os.getenv("RMI_KOL_DISCOVERY_TWEETS_PER_SEARCH", "20"))
@@ -147,8 +145,8 @@ def detect_new_kols(
 ) -> list[dict[str, Any]]:
     """Untracked handles pushing risky tokens with real engagement.
 
-    Pure + deterministic. ``tweets`` are normalized ApiPass tweet dicts
-    (``apipass_x.normalize_tweet`` shape). A tweet qualifies when it names a
+    Pure + deterministic. ``tweets`` are normalized tweet dicts (the shape
+    rugbrain's RAG API returns). A tweet qualifies when it names a
     token in ``risky_tokens`` (case-insensitive match on $TICKER or address)
     and ``like_count + retweet_count >= min_engagement``. The author handle
     must be non-empty and NOT in ``tracked_handles``. Returns one discovery
@@ -317,77 +315,14 @@ async def _is_risky_token(token: str, chain: str) -> bool:
 
 
 async def run_kol_discovery(ctx: Any = None) -> int:
-    """One discovery pass: search X for shilled tokens → auto-add new KOLs.
+    """One discovery pass — DISABLED: X ingestion is owned by rugbrain (RAG).
 
-    Budget: at most ``KOL_DISCOVERY_MAX_SEARCHES`` ApiPass createTasks (the
-    apipass_x governor is the hard ceiling) and at most
-    ``KOL_DISCOVERY_MAX_ADDS_PER_RUN`` auto-adds. Returns the number of new
-    KOL records written. Fail-open at every stage.
+    The bot no longer searches X for shilled tokens (ApiPass rail retired).
+    X-derived intel is consumed through the RAG HTTP API. Fail-open no-op so
+    the scheduler registration and callers stay stable.
     """
-    if not KOL_DISCOVERY_ENABLED:
-        return 0
-    try:
-        from rugmunchbot.tools import apipass_x
-    except Exception as exc:  # fail-open by contract
-        logger.debug("kol_discovery:apipass_import_failed err=%s", str(exc)[:120])
-        return 0
-    if not apipass_x.api_key_configured():
-        logger.debug("kol_discovery:skipped_no_key")
-        return 0
-
-    tracked = load_tracked_handles()
-    seeds = _seed_tokens(KOL_DISCOVERY_MAX_SEARCHES)
-    if not seeds:
-        logger.debug("kol_discovery:no_seed_tokens")
-        return 0
-
-    added = 0
-    risky_cache: dict[str, bool] = {}
-    for token in seeds:
-        if added >= KOL_DISCOVERY_MAX_ADDS_PER_RUN:
-            break
-        # ONE createTask per searched token (governed inside apipass_x).
-        try:
-            tweets = await apipass_x.search_tweets(token, limit=KOL_DISCOVERY_TWEETS_PER_SEARCH)
-        except Exception as exc:  # per-token fail-open
-            logger.debug("kol_discovery:search_failed token=%s err=%s", token[:24], str(exc)[:120])
-            continue
-        if not tweets:
-            continue
-        # Risky check: only tokens the scanner flags as risky qualify. Cache
-        # per run so repeated mentions cost one scan.
-        if token not in risky_cache:
-            chain = "ticker" if token.startswith("$") else "ethereum"
-            risky_cache[token] = await _is_risky_token(token, chain)
-        if not risky_cache[token]:
-            continue
-        for discovery in detect_new_kols(tweets, tracked_handles=tracked, risky_tokens={token}):
-            if added >= KOL_DISCOVERY_MAX_ADDS_PER_RUN:
-                break
-            saved = add_discovered_kol(
-                discovery["handle"],
-                discovery["token"],
-                {
-                    "tweet_id": discovery.get("tweet_id", ""),
-                    "url": discovery.get("url", ""),
-                    "text": discovery.get("text", ""),
-                    "likes": discovery.get("likes", 0),
-                    "retweets": discovery.get("retweets", 0),
-                    "engagement": discovery.get("engagement", 0),
-                    "captured_at": datetime.now(UTC).isoformat(),
-                },
-            )
-            if saved:
-                added += 1
-                logger.info(
-                    "kol_discovery:added handle=%s token=%s engagement=%s",
-                    discovery["handle"],
-                    discovery["token"],
-                    discovery.get("engagement", 0),
-                )
-    if added:
-        logger.info("kol_discovery:run_done added=%s", added)
-    return added
+    logger.debug("kol_discovery:skipped_x_ingest_owned_by_rugbrain")
+    return 0
 
 
 __all__ = [

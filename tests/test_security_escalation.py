@@ -5,6 +5,11 @@ AND has high engagement (>50 likes or >20 retweets) escalates to the main
 channel (@cryptorugmuncher) immediately — it must not wait for the daily
 roundup. The escalation names the researcher, links the original tweet,
 includes the key details, and tags it as breaking security news.
+
+2026-09-18: X ingestion (fetch/normalize/embed/ingest) moved to **rugbrain**
+(the RAG service). The bot's ``post_security_tweet_escalation`` is now a
+fail-open no-op; the pure predicate/formatter are retained for the RAG-read
+path and remain under test here.
 """
 
 from __future__ import annotations
@@ -13,32 +18,11 @@ from typing import Any
 
 import pytest
 
-from rugmunchbot.channels.scheduler import _core, _posts_rag
-
-
-@pytest.fixture(autouse=True)
-def _fresh_dedupe(monkeypatch):
-    monkeypatch.setattr(_core, "_posted_keys", {})
-    return
-
-
-class _Recorder:
-    def __init__(self, succeed: bool = True):
-        self.calls: list[tuple[str, str]] = []
-        self.succeed = succeed
-
-    async def __call__(self, bot: Any, chat_id: str, text: str, **kw: Any) -> bool:
-        self.calls.append((chat_id, text))
-        return self.succeed
-
-
-class _Bot:
-    async def send_message(self, *a, **k):
-        return True
+from rugmunchbot.channels.scheduler import _posts_rag
 
 
 class _Ctx:
-    bot = _Bot()
+    """Minimal context — the retired poster must not touch it."""
 
 
 def _tweet(**overrides: Any) -> dict[str, Any]:
@@ -151,99 +135,15 @@ def test_formatter_truncates_long_tweet():
     assert "…" in text
 
 
-# ── poster ──────────────────────────────────────────────────────────────
+# ── retired poster (X ingestion owned by rugbrain) ──────────────────────
 
 
 @pytest.mark.asyncio
-async def test_posts_qualifying_tweet_to_main(monkeypatch):
-    sender = _Recorder()
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: "-100main")
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
-    _patch_fetch(monkeypatch, [_tweet()])
+async def test_poster_is_retired_noop():
+    """The bot no longer fetches X security tweets — poster returns 0.
 
-    assert await _posts_rag.post_security_tweet_escalation(_Ctx()) == 1
-    assert len(sender.calls) == 1
-    assert sender.calls[0][0] == "-100main"
-    assert "ZachXBT" in sender.calls[0][1]
-
-
-@pytest.mark.asyncio
-async def test_skips_non_qualifying_tweet(monkeypatch):
-    sender = _Recorder()
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: "-100main")
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
-    _patch_fetch(monkeypatch, [_tweet(like_count=5, retweet_count=2)])
-
-    assert await _posts_rag.post_security_tweet_escalation(_Ctx()) == 0
-    assert sender.calls == []
-
-
-@pytest.mark.asyncio
-async def test_does_not_double_post_same_tweet(monkeypatch):
-    sender = _Recorder()
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: "-100main")
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
-    _patch_fetch(monkeypatch, [_tweet()])
-
-    assert await _posts_rag.post_security_tweet_escalation(_Ctx()) == 1
-    # Second tick sees the same tweet → deduped to zero.
-    assert await _posts_rag.post_security_tweet_escalation(_Ctx()) == 0
-    assert len(sender.calls) == 1
-
-
-@pytest.mark.asyncio
-async def test_releases_dedupe_on_failed_send(monkeypatch):
-    sender = _Recorder(succeed=False)
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: "-100main")
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
-    _patch_fetch(monkeypatch, [_tweet()])
-
-    assert await _posts_rag.post_security_tweet_escalation(_Ctx()) == 0
-    # Failed send released the mark → the next tick retries.
-    assert await _posts_rag.post_security_tweet_escalation(_Ctx()) == 0
-    assert len(sender.calls) == 2
-
-
-@pytest.mark.asyncio
-async def test_noop_without_main_chat_id(monkeypatch):
-    sender = _Recorder()
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: None)
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
-    _patch_fetch(monkeypatch, [_tweet()])
-
-    assert await _posts_rag.post_security_tweet_escalation(_Ctx()) == 0
-    assert sender.calls == []
-
-
-@pytest.mark.asyncio
-async def test_fails_open_on_fetch_error(monkeypatch):
-    sender = _Recorder()
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: "-100main")
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
-
-    async def _boom():
-        raise RuntimeError("getxapi down")
-
-    _patch_fetch(monkeypatch, _boom)
-
-    assert await _posts_rag.post_security_tweet_escalation(_Ctx()) == 0
-    assert sender.calls == []
-
-
-def _patch_fetch(monkeypatch, tweets):
-    """Patch the lazy-imported fetch_security_tweets in tools.x_ingest.
-
-    ``post_security_tweet_escalation`` imports ``fetch_security_tweets``
-    lazily inside the function body, so it is not a module attribute of
-    ``_posts_rag`` to monkeypatch — patch the source module instead.
+    X ingestion moved to rugbrain; the bot consumes X-derived intel through
+    the RAG HTTP API. The poster must stay a fail-open no-op so the scheduler
+    registration remains stable.
     """
-    import rugmunchbot.tools.x_ingest as x_ingest
-
-    if callable(tweets):
-        monkeypatch.setattr(x_ingest, "fetch_security_tweets", tweets)
-    else:
-
-        async def _fetch() -> list[dict[str, Any]]:
-            return [dict(t) for t in tweets]
-
-        monkeypatch.setattr(x_ingest, "fetch_security_tweets", _fetch)
+    assert await _posts_rag.post_security_tweet_escalation(_Ctx()) == 0

@@ -16,7 +16,6 @@ from __future__ import annotations
 from ._base import _resolve_db_path, get_db, init_db, logger
 from .alerts import get_active_alerts, mark_alert_triggered
 from .kol import (
-    apipass_usage_summary,
     attach_kol_wallet,
     cluster_kols_by_wallet,
     demote_alias,
@@ -36,7 +35,6 @@ from .kol import (
     list_kol_wallets,
     mark_kol_call_deleted,
     mark_kol_verified,
-    record_apipass_usage,
     record_kol_call,
     record_kol_name_change,
     register_alias,
@@ -127,7 +125,6 @@ __all__ = [
     "add_monitor",
     "add_stars",
     "add_watchlist",
-    "apipass_usage_summary",
     "apply_top_up",
     "attach_kol_wallet",
     "check_rate_limit",
@@ -179,7 +176,6 @@ __all__ = [
     "mark_kol_verified",
     "migrate_plaintext_api_tokens",
     "record_activity",
-    "record_apipass_usage",
     "record_kol_call",
     "record_kol_name_change",
     "register_alias",

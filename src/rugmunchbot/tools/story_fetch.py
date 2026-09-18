@@ -45,8 +45,9 @@ _X_DOMAIN_RE = re.compile(r"https?://(?:x\.com|twitter\.com)/", re.IGNORECASE)
 
 #: Generic refusal when an X page is handed to the story crawler.
 _X_SCRAPE_REFUSED = (
-    "X posts are read via ApiPass only — direct scraping of X is disabled. "
-    "Use /tweet <url> or /tweets <@handle>."
+    "X/Twitter ingestion is owned by rugbrain (RAG) — the bot no longer "
+    "fetches X posts and never scrapes X directly. X-derived intel is "
+    "available through the RAG API."
 )
 
 
@@ -69,76 +70,20 @@ async def story_fetch(*, url: str = "", ingest: bool = False, **ctx: Any) -> Too
     if not url:
         return ToolResult(tool="story_fetch", ok=False, error="url required")
 
-    # ── X-post guard (WIRE X via ApiPass — NEVER direct scrape) ─────────────
+    # ── X-post guard (X intel owned by rugbrain/RAG — NEVER direct scrape) ──
     # An x.com/twitter.com URL must NOT reach the generic crawler
-    # (crawl4ai / FlareSolverr / pryscraper / httpx). X post payloads come
-    # exclusively from tools.apipass_x; everything else fails open with a
-    # clean note (the chat answer then says it can't read X, never guesses).
+    # (crawl4ai / FlareSolverr / pryscraper / httpx). X ingestion is owned by
+    # rugbrain; the bot consumes X-derived intel through the RAG API. Every X
+    # URL fails open with a clean note (the chat answer then says it can't
+    # read X, never guesses).
     x_post = _X_STATUS_RE.search(url)
     if x_post or _X_DOMAIN_RE.match(url):
-        if not x_post:
-            # Profile / timeline / non-post X page — no tweet payload to read.
-            return ToolResult(
-                tool="story_fetch",
-                ok=False,
-                data={"url": url, "source": "apipass_x"},
-                error=_X_SCRAPE_REFUSED,
-            )
-        try:
-            from rugmunchbot.tools.apipass_x import api_key_configured, fetch_tweet_detail
-
-            if not api_key_configured():
-                return ToolResult(
-                    tool="story_fetch",
-                    ok=False,
-                    data={"url": url, "source": "apipass_x"},
-                    error=(
-                        "X posts are read via ApiPass only and no ApiPass key is "
-                        "configured — direct scraping of X is disabled (operator: "
-                        "see docs/TROUBLESHOOTING.md → ApiPass)."
-                    ),
-                )
-            tweet = await fetch_tweet_detail(x_post.group(1))
-            if not tweet:
-                return ToolResult(
-                    tool="story_fetch",
-                    ok=False,
-                    data={"url": url, "source": "apipass_x"},
-                    error=(
-                        "ApiPass could not fetch that X post (model not provisioned "
-                        "or task failed) — direct scraping of X is disabled."
-                    ),
-                )
-            text = str(tweet.get("text") or "")
-            data: dict[str, Any] = {
-                "url": tweet.get("url") or url,
-                "title": f"@{tweet.get('handle') or 'unknown'} on X",
-                "author": tweet.get("author_name") or tweet.get("handle") or "",
-                "published_at": tweet.get("created_at") or "",
-                "source": "apipass_x",
-                "fetch_chain": ["apipass_x"],
-                "text": text[:STORY_TEXT_MAX],
-                "text_preview": text[:STORY_TEXT_PREVIEW],
-                "chars": len(text),
-                "truncated": len(text) > STORY_TEXT_MAX,
-                "tweet": tweet,
-            }
-            return ToolResult(
-                tool="story_fetch",
-                ok=True,
-                data=data,
-                symbols=[],
-                addresses=[],
-                source="story_fetch:apipass_x",
-            )
-        except Exception as exc:  # fail-open by contract — never let X hit the crawler
-            logger.info("story_fetch_x_apipass_failed", url=url, error=str(exc)[:160])
-            return ToolResult(
-                tool="story_fetch",
-                ok=False,
-                data={"url": url, "source": "apipass_x"},
-                error=_X_SCRAPE_REFUSED,
-            )
+        return ToolResult(
+            tool="story_fetch",
+            ok=False,
+            data={"url": url, "source": "rugbrain_rag"},
+            error=_X_SCRAPE_REFUSED,
+        )
 
     try:
         from rugmunchbot._vendor.rag_pkg.story_ingest import fetch_story

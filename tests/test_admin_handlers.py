@@ -186,31 +186,13 @@ async def test_logs_docker_success() -> None:
 # ── /budget ────────────────────────────────────────────────────────────────
 
 
-async def test_budget_renders_usage() -> None:
+async def test_budget_reports_x_intel_moved() -> None:
     update = _make_update(owner=True)
     ctx = _make_ctx()
-    usage = {
-        "calls": 10,
-        "spend": 0.01,
-        "budget_remaining": 4.99,
-        "calls_remaining": 140,
-    }
-    with (
-        patch("rugmunchbot.handlers.admin.is_owner", return_value=True),
-        patch(
-            "rugmunchbot.tools.getxapi_budget.get_daily_usage",
-            return_value=usage,
-        ),
-        patch(
-            "rugmunchbot.tools.getxapi_config.GETXAPI_DAILY_CALL_LIMIT",
-            150,
-        ),
-        patch("rugmunchbot.tools.getxapi_config.GETXAPI_TOTAL_BUDGET", 5.0),
-    ):
+    with patch("rugmunchbot.handlers.admin.is_owner", return_value=True):
         await cmd_budget(update, ctx)
     text = update.effective_message.reply_text.await_args.args[0]
-    assert "GetXAPI Budget" in text
-    assert "10" in text
+    assert "rugbrain" in text.lower()
 
 
 # ── /alerts ────────────────────────────────────────────────────────────────
@@ -242,10 +224,6 @@ async def test_sources_renders_counts() -> None:
     with (
         patch("rugmunchbot.handlers.admin.is_owner", return_value=True),
         patch("rugmunchbot.db.get_db", return_value=conn),
-        patch(
-            "rugmunchbot.tools.getxapi_config.GETXAPI_SECURITY_ACCOUNTS",
-            ("a", "b"),
-        ),
     ):
         await cmd_sources(update, ctx)
     text = update.effective_message.reply_text.await_args.args[0]

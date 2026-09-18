@@ -73,91 +73,16 @@ async def _buzz(symbol: str) -> dict[str, Any]:
     return {"mentions_24h": len(results), "unique_domains": len(domains)}
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# X RAIL — real tweet intel via ApiPass (better-than-LunarCrush: real posts
-# with engagement + author attribution, not search-result counts)
-# ══════════════════════════════════════════════════════════════════════════
-
-#: Naive CT-lean keyword buckets — real tweets are scanned for these to give
-#: a directional lean (-100 bearish .. +100 bullish). The reranker refines
-#: importance downstream; this is the fast sentiment read.
-_BULLISH_WORDS = (
-    "pump",
-    "buy",
-    "bull",
-    "gem",
-    "moon",
-    "ape",
-    "long",
-    "alpha",
-    "100x",
-    "breakout",
-    "all in",
-)
-_BEARISH_WORDS = (
-    "dump",
-    "rug",
-    "scam",
-    "bear",
-    "ponzi",
-    "exit",
-    "liquid",
-    "sell",
-    "rekt",
-    "dead",
-    "fud",
-)
-
-
-def _x_lean(texts: list[str]) -> float | None:
-    """Directional CT lean from real tweet texts (-100..+100). None when empty."""
-    if not texts:
-        return None
-    bull = bear = 0
-    for text in texts:
-        low = text.lower()
-        bull += sum(1 for w in _BULLISH_WORDS if w in low)
-        bear += sum(1 for w in _BEARISH_WORDS if w in low)
-    total = bull + bear
-    if total == 0:
-        return None
-    return round((bull - bear) / total * 100, 1)
 
 
 async def _x_intel(symbol: str) -> dict[str, Any]:
-    """Real X tweets mentioning the symbol (ApiPass, budget-bounded).
+    """X intel for the symbol — DISABLED: X ingestion owned by rugbrain (RAG).
 
-    Bounded by the ApiPass ≤3/hr burn: one search task per call, fail-open
-    to {} when the key is unconfigured or the budget is spent. Returns
-    ``{"x_tweets": N, "x_engagement": total_likes, "x_ct_lean": float|None}``.
+    The bot no longer fetches X tweets (ApiPass rail retired). X-derived
+    intel is consumed through the RAG HTTP API. Fail-open ``{}``.
     """
-    try:
-        from rugmunchbot.tools.apipass_x import search_tweets
-
-        if not _apipass_available():
-            return {}
-        tweets = await search_tweets(f"${symbol} crypto", limit=10)
-    except Exception as exc:  # fail-open by contract
-        logger.debug("social_intel:x_failed err=%s", str(exc)[:100])
-        return {}
-    if not tweets:
-        return {}
-    likes = sum(int(t.get("like_count") or 0) for t in tweets)
-    retweets = sum(int(t.get("retweet_count") or 0) for t in tweets)
-    return {
-        "x_tweets": len(tweets),
-        "x_engagement": likes + retweets * 2,
-        "x_ct_lean": _x_lean([str(t.get("text") or "") for t in tweets]),
-    }
-
-
-def _apipass_available() -> bool:
-    try:
-        from rugmunchbot.tools.apipass_x import api_key_configured
-
-        return api_key_configured()
-    except Exception:
-        return False
+    logger.debug("social_intel:x_skipped_x_ingest_owned_by_rugbrain symbol=%s", symbol)
+    return {}
 
 
 async def social_intel(*, symbol: str = "", address: str = "") -> ToolResult:

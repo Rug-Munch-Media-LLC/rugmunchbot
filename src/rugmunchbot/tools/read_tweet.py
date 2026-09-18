@@ -1,16 +1,13 @@
-"""read_tweet tool — the chat loop's X-post reader via ApiPass (never scrape).
+"""read_tweet tool — X-post reader (X intel owned by rugbrain/RAG).
 
-The bot reads X posts EXCLUSIVELY through the ApiPass X source
-(``rugmunchbot.tools.apipass_x``): one key, real tweet payloads, and a hard
-≤6 task-creations/hr budget (``RMI_APIPASS_MAX_CALLS_PER_HOUR``). No nitter
-mirrors, no web-extract of x.com pages, no guest-API scraping — ApiPass only.
+X ingestion and fetching are owned by **rugbrain** (the RAG service). The
+bot no longer implements X fetching (the ApiPass rail is retired); it may
+consume X-derived intel through the RAG HTTP API (``tools/rag_lookup.py``).
 
-Fail-open everywhere: missing key, spent budget, failed task, or an
-unprovisioned ``twitter-api-simple`` model all return ``ok=False`` with an
-honest reason — the tool NEVER fabricates tweet content, and the chat layer
-answers "I can't read X right now" instead of guessing.
+``read_tweet`` is retained as a fail-open tool: it returns ``ok=False`` with
+an honest reason — it NEVER fabricates tweet content and never scrapes X.
 
-Target parsing (shared with the ``/tweet`` command):
+Target parsing (shared with the ``/tweet`` command and the intent router):
   * ``https://x.com/foo/status/123`` / ``https://twitter.com/foo/status/123``
     (incl. ``/i/status/``) → tweet-detail by id
   * bare numeric id (6-25 digits)                    → tweet-detail by id
@@ -36,10 +33,9 @@ _HANDLE_RE = re.compile(r"^@?[A-Za-z0-9_]{1,15}$")
 
 #: User/chat-facing reason when the X rail is unavailable (no fabrication).
 _UNAVAILABLE = (
-    "ApiPass X rail unavailable: no key configured, the hourly budget is spent, "
-    "or the twitter-api-simple model is not enabled on the account. The bot "
-    "never scrapes X directly — this tool fails open by design (operator: see "
-    "docs/TROUBLESHOOTING.md → ApiPass)."
+    "X reading is owned by rugbrain (RAG) — the bot no longer fetches X posts "
+    "directly. X-derived intel is available through the RAG API. This tool "
+    "fails open by design and never scrapes X."
 )
 
 
@@ -71,52 +67,23 @@ def parse_target(text: str) -> dict[str, str]:
 async def read_tweet(
     *, url: str = "", tweet_id: str = "", handle: str = "", **ctx: Any
 ) -> ToolResult:
-    """Read an X post (URL or numeric id) or an account's recent posts.
+    """Read an X post — retired: X reading is owned by rugbrain (RAG).
 
     Args:
         url: An X post URL (``https://x.com/foo/status/<id>``).
         tweet_id: Bare numeric tweet id.
-        handle: X handle (``@foo`` or ``foo``) — returns the latest posts.
+        handle: X handle (``@foo`` or ``foo``).
         **ctx: Ignored shared context.
 
     Returns:
-        ``ToolResult`` — ``ok=True`` with the normalized tweet dict (single
-        post) or a list of tweet dicts (handle mode). ``ok=False`` with an
-        honest reason when the X rail is unavailable.
+        ``ToolResult`` — always ``ok=False`` with an honest reason: the bot
+        no longer fetches X posts (rugbrain owns X ingestion). Never
+        fabricates tweet content and never scrapes X.
     """
     target = (url or tweet_id or handle or "").strip()
     if not target:
         return ToolResult(tool="read_tweet", ok=False, error="x url, tweet id, or handle required")
-
-    from rugmunchbot.tools import apipass_x as ax
-
-    if not ax.api_key_configured():
-        return ToolResult(
-            tool="read_tweet",
-            ok=False,
-            error="no ApiPass key configured — X reading is off (never scrapes)",
-            source="apipass_x",
-        )
-
-    parsed = parse_target(target)
-    tid = parsed.get("tweet_id", "")
-    if tid:
-        tweet = await ax.fetch_tweet_detail(tid)
-        if not tweet:
-            return ToolResult(tool="read_tweet", ok=False, error=_UNAVAILABLE, source="apipass_x")
-        return ToolResult(tool="read_tweet", ok=True, data=tweet, source="apipass_x")
-
-    handle_clean = parsed.get("handle", "")
-    if not handle_clean:
-        return ToolResult(
-            tool="read_tweet",
-            ok=False,
-            error="couldn't parse that as an X post URL, tweet id, or @handle",
-        )
-    tweets = await ax.fetch_user_tweets(handle_clean, limit=5)
-    if not tweets:
-        return ToolResult(tool="read_tweet", ok=False, error=_UNAVAILABLE, source="apipass_x")
-    return ToolResult(tool="read_tweet", ok=True, data=tweets, source="apipass_x")
+    return ToolResult(tool="read_tweet", ok=False, error=_UNAVAILABLE, source="rugbrain_rag")
 
 
 __all__ = [

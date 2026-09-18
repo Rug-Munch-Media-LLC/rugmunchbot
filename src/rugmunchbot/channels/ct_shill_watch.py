@@ -1,6 +1,9 @@
-"""CT timeline shill watch — ingest the X timeline of influential CT accounts
-via ApiPass, catch shills in the act, screenshot the evidence, and grow the
-Wall of Shame continuously.
+"""CT timeline shill watch — RETIRED (X ingestion owned by rugbrain/RAG).
+
+X ingestion (fetch, normalize, embed, ingest) is owned by **rugbrain**.
+The bot no longer ingests the X timeline; X-derived intel is consumed
+through the RAG HTTP API. The X-fetch tick and retweeter discovery are
+fail-open no-ops. The Wall of Shame scoring/embedding helpers remain.
 
 Operator mandate (2026-09-02): "make full use of our apipass.dev twitter
 privileges … ingest as much of the ct timeline as possible, catch shills in
@@ -13,7 +16,7 @@ What this module adds on top of the existing rails
   campaigns. ``channels.kol_discovery`` searches X for shilled tokens.
   Neither ingests the CT TIMELINE itself. This module rotates through the
   curated ``influential_accounts.json`` registry (~500 handles) on a 15-min
-  tick, pulling each account's recent tweets via ``tools.apipass_x``.
+  tick, pulling each account's recent tweets (retired — X owned by rugbrain).
 * Every tweet that promotes a token ($CASHTAG / address) with real
   engagement is a shill candidate. Confirmation is scanner-backed
   (``kol_discovery._is_risky_token`` → honeypot/rug/LP evidence) OR a
@@ -27,13 +30,12 @@ What this module adds on top of the existing rails
   rugged".
 * A daily refresh job rescores every Wall of Shame entry (shill severity =
   tokens shilled x rugged fraction x coordination) and discovers NEW KOLs
-  from the retweeters of known shill tweets (one governed ApiPass pull).
+  from the retweeters of known shill tweets (retired — X owned by rugbrain).
 
-Budget doctrine: the ``apipass_x`` governor (≤ ``RMI_APIPASS_MAX_CALLS_PER_HOUR``
-task creations) is the hard ceiling. Each account timeline costs 2 creates
-(handle→id resolve + timeline), so the per-tick account count is clamped to
-the remaining budget. Fail-open everywhere: no key, dead scanner, dead
-Qdrant, read-only data dir → zero catches, never raises.
+X ingestion is owned by rugbrain (RAG); the bot consumes X-derived intel
+through the RAG HTTP API. The X-fetch tick is retired. Fail-open
+everywhere: dead scanner, dead Qdrant, read-only data dir → zero catches,
+never raises.
 """
 
 from __future__ import annotations
@@ -58,9 +60,7 @@ logger = get_logger("rmi_bot.channels.ct_shill_watch")
 CT_SHILL_ENABLED = os.getenv("RMI_CT_SHILL_ENABLED", "true").lower() in ("1", "true", "yes")
 #: Tick interval (minutes). The operator asked for 15.
 CT_SHILL_INTERVAL_MIN = int(os.getenv("RMI_CT_SHILL_INTERVAL_MIN", "15"))
-#: Accounts pulled per tick. Each costs 2 ApiPass creates (resolve + timeline);
-#: the governor inside apipass_x is the hard ceiling — we never exceed
-#: ``task_creates_remaining()``.
+#: Accounts pulled per tick (retired — X ingestion is owned by rugbrain).
 CT_SHILL_ACCOUNTS_PER_TICK = int(os.getenv("RMI_CT_SHILL_ACCOUNTS_PER_TICK", "2"))
 #: Tweets inspected per account timeline.
 CT_SHILL_TWEETS_PER_ACCOUNT = int(os.getenv("RMI_CT_SHILL_TWEETS_PER_ACCOUNT", "10"))
@@ -78,7 +78,7 @@ KOL_DAILY_REFRESH_ENABLED = os.getenv("RMI_KOL_DAILY_REFRESH_ENABLED", "true").l
     "yes",
 )
 KOL_DAILY_INTERVAL_MIN = int(os.getenv("RMI_KOL_DAILY_INTERVAL_MIN", "1440"))
-#: Retweeter-discovery pulls per daily run (each is one ApiPass createTask).
+#: Retweeter-discovery pulls per daily run (retired — X owned by rugbrain).
 KOL_DAILY_MAX_RETWEETER_PULLS = int(os.getenv("RMI_KOL_DAILY_MAX_RETWEETER_PULLS", "1"))
 
 #: Canonical Qdrant endpoint + social-intel collection for shill records
@@ -395,118 +395,14 @@ async def embed_shill(record: dict[str, Any]) -> bool:
 
 
 async def run_ct_shill_watch(ctx: Any = None) -> int:
-    """One CT-timeline tick: rotate accounts → pull timelines → catch shills.
+    """One CT-timeline tick — DISABLED: X ingestion is owned by rugbrain (RAG).
 
-    Returns the number of confirmed shills recorded. Budget: at most
-    ``CT_SHILL_ACCOUNTS_PER_TICK`` accounts AND never more ApiPass creates
-    than ``task_creates_remaining()`` allows (2 per account). Fail-open.
+    The bot no longer fetches X timelines (ApiPass rail retired). X-derived
+    shill intel is consumed through the RAG HTTP API. Kept as a fail-open
+    no-op so the scheduler registration and callers stay stable.
     """
-    if not CT_SHILL_ENABLED:
-        return 0
-    try:
-        from rugmunchbot.tools import apipass_x
-    except Exception as exc:
-        logger.debug("ct_shill:apipass_import_failed err=%s", str(exc)[:120])
-        return 0
-    if not apipass_x.api_key_configured():
-        logger.debug("ct_shill:skipped_no_key")
-        return 0
-
-    handles = load_ct_handles()
-    if not handles:
-        return 0
-    # 2 creates per account (handle→id resolve + timeline); clamp to budget.
-    budget_accounts = max(0, apipass_x.task_creates_remaining() // 2)
-    count = min(CT_SHILL_ACCOUNTS_PER_TICK, budget_accounts)
-    batch = next_account_batch(handles, count)
-    if not batch:
-        return 0
-
-    try:
-        from rugmunchbot.channels.kol_discovery import extract_tweet_tokens
-        from rugmunchbot.tools.shill_shot import capture_and_ocr
-    except Exception as exc:
-        logger.debug("ct_shill:helper_import_failed err=%s", str(exc)[:120])
-        return 0
-
-    recorded = 0
-    shots_left = CT_SHILL_SCREENSHOT_BUDGET
-    seen_tweets: set[str] = set()
-    for handle in batch:
-        if recorded >= CT_SHILL_MAX_ADDS_PER_TICK:
-            break
-        try:
-            tweets = await apipass_x.fetch_user_tweets(handle, limit=CT_SHILL_TWEETS_PER_ACCOUNT)
-        except Exception as exc:
-            logger.debug("ct_shill:timeline_failed handle=%s err=%s", handle, str(exc)[:120])
-            continue
-        for tweet in tweets:
-            if recorded >= CT_SHILL_MAX_ADDS_PER_TICK:
-                break
-            text = str(tweet.get("text") or "")
-            tweet_key = str(tweet.get("id") or tweet.get("url") or f"{handle}:{text[:80]}")
-            if tweet_key in seen_tweets:
-                continue  # same tweet surfaced under two batch accounts
-            seen_tweets.add(tweet_key)
-            tokens = [t for t in extract_tweet_tokens(text) if t not in _BLUECHIP]
-            if not tokens:
-                continue
-            engagement = int(tweet.get("like_count") or 0) + int(tweet.get("retweet_count") or 0)
-            if engagement < CT_SHILL_MIN_ENGAGEMENT:
-                continue
-            token = tokens[0]
-            chain = "ticker" if token.startswith("$") else "ethereum"
-            confirmed, coordinated = await confirm_shill(handle, token, chain)
-            if not confirmed:
-                continue
-            screenshot_url = ""
-            if shots_left > 0 and tweet.get("url"):
-                try:
-                    shot = await capture_and_ocr(str(tweet["url"]))
-                    if shot.get("image_path"):
-                        screenshot_url = shot["image_path"]
-                        shots_left -= 1
-                except Exception as exc:
-                    logger.debug("ct_shill:screenshot_failed err=%s", str(exc)[:120])
-            saved = record_shill(
-                str(tweet.get("handle") or handle),  # tweet author is authoritative
-                handle_id=str(tweet.get("author_id") or tweet.get("handle") or handle),
-                token=token,
-                tweet_text=text,
-                tweet_url=str(tweet.get("url") or ""),
-                screenshot_url=screenshot_url,
-                coordinated=coordinated,
-                platform="x",
-            )
-            if saved:
-                recorded += 1
-                # Mirror evidence to the backend store + embed into social_intel.
-                try:
-                    from rugmunchbot.services import shill_api
-
-                    await shill_api.add_evidence(
-                        {
-                            "token": token,
-                            "chain": chain,
-                            "account": handle,
-                            "x_url": str(tweet.get("url") or ""),
-                            "url": str(tweet.get("url") or ""),
-                            "image_path": screenshot_url,
-                            "text": text[:1200],
-                            "source": "x",
-                        }
-                    )
-                except Exception as exc:
-                    logger.debug("ct_shill:evidence_mirror_failed err=%s", str(exc)[:120])
-                try:
-                    shame = _load_shame_entry(handle)
-                    if shame:
-                        await embed_shill(shame)
-                except Exception as exc:
-                    logger.debug("ct_shill:embed_step_failed err=%s", str(exc)[:120])
-    if recorded:
-        logger.info("ct_shill:tick_done batch=%s recorded=%s", ",".join(batch), recorded)
-    return recorded
+    logger.debug("ct_shill:skipped_x_ingest_owned_by_rugbrain")
+    return 0
 
 
 def _load_shame_entry(handle: str) -> dict[str, Any] | None:
@@ -609,50 +505,13 @@ def _extract_user_nodes(payload: Any) -> list[dict[str, Any]]:
 
 
 async def discover_from_retweeters() -> int:
-    """Pull retweeters of the newest shill evidence → untracked handles are
-    NEW KOL candidates → ``discovered_kols.json`` (one governed ApiPass pull).
+    """Retweeter-based KOL discovery — DISABLED: X ingestion owned by rugbrain.
 
-    Fail-open 0.
+    The bot no longer pulls X retweeter graphs (ApiPass rail retired).
+    Fail-open no-op so the daily refresh caller stays stable.
     """
-    try:
-        from rugmunchbot.channels.kol_discovery import add_discovered_kol, load_tracked_handles
-        from rugmunchbot.services import shill_api
-        from rugmunchbot.tools import apipass_x
-    except Exception as exc:
-        logger.debug("ct_shill:retweeter_import_failed err=%s", str(exc)[:120])
-        return 0
-    if not apipass_x.api_key_configured() or apipass_x.task_creates_remaining() < 1:
-        return 0
-    data = await shill_api.get_evidence(limit=20)
-    rows = (data or {}).get("evidence") or (data or {}).get("rows") or []
-    tweet_ids = [
-        str(r.get("x_url") or "").rsplit("/status/", 1)[-1].split("?")[0]
-        for r in rows
-        if isinstance(r, dict) and "/status/" in str(r.get("x_url") or "")
-    ][:KOL_DAILY_MAX_RETWEETER_PULLS]
-    tracked = load_tracked_handles()
-    added = 0
-    for tweet_id in tweet_ids:
-        if not tweet_id.isdigit():
-            continue
-        try:
-            input_body = apipass_x._build_input("twitter/simple/retweeters", {"tweet_id": tweet_id})
-            result = await apipass_x.run_task(
-                f"{apipass_x.APIPASS_TWITTER_MODEL}/retweeters", input_body
-            )
-        except Exception as exc:
-            logger.debug("ct_shill:retweeter_pull_failed err=%s", str(exc)[:120])
-            continue
-        for user in _extract_user_nodes(result):
-            handle = _norm_handle(apipass_x._first(user, "screen_name", "username"))
-            if not handle or handle in tracked:
-                continue
-            if add_discovered_kol(
-                handle, "retweeter_of_shill", {"tweet_id": tweet_id, "source": "ct_shill_watch"}
-            ):
-                added += 1
-                tracked.add(handle)
-    return added
+    logger.debug("ct_shill:retweeter_discovery_skipped_x_ingest_owned_by_rugbrain")
+    return 0
 
 
 async def run_kol_daily_refresh(ctx: Any = None) -> int:
