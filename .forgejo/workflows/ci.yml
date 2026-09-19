@@ -318,6 +318,14 @@ jobs:
           "
       - name: Policy checks (BLOCKING)
         run: bash scripts/check-policy.sh
+      - name: Structure gate — ≤200 lines/file, shrink-only (BLOCKING)
+        run: python3 scripts/check-structure.py --repo .
+      - name: Monkeypatch gate — shrink-only (BLOCKING)
+        run: python3 scripts/check-monkeypatch.py --repo .
+      - name: Antipattern gate — shrink-only (BLOCKING)
+        run: python3 scripts/check-antipatterns.py --repo .
+      - name: Gate self-test — prove gates catch violations (BLOCKING)
+        run: bash scripts/ci-gate-selftest.sh
       - name: Architecture contracts (lint-imports — BLOCKING)
         # Locks in the god-file modularization layering: config/formatters/
         # keyboards stay foundation packages; presentation never reaches into

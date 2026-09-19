@@ -47,9 +47,9 @@ SKIP_DIRS = {
 }
 
 MONKEY_RE = re.compile(r"monkeypatch\.|mock\.patch|@patch\(|patch\.object|del sys\.modules")
-SLOP_RE = re.compile(r"#\s*(HACK|WORKAROUND|TEMP|XXX|!!!|FIX ME|DO NOT SHIP)\b", re.I)
+SLOP_RE = re.compile(r"#\s*(HACK|WORKAROUND|TEMP|XXX|!!!|FIX ME|DO NOT SHIP)\b", re.IGNORECASE)
 FSTRING_LOG_RE = re.compile(r"log(?:ger)?\.(?:debug|info|warning|error|critical)\(\s*f[\"']")
-WILDCARD_RE = re.compile(r"^\s*from\s+[\w.]+\s+import\s+\*", re.M)
+WILDCARD_RE = re.compile(r"^\s*from\s+[\w.]+\s+import\s+\*", re.MULTILINE)
 EVAL_RE = re.compile(r"(?<![\w.])eval\(|(?<![\w.])exec\(")
 TS_IGNORE_RE = re.compile(r"@ts-ignore|@ts-nocheck|:\s*any\b|as any\b")
 SECRET_RE = re.compile(
@@ -152,7 +152,7 @@ def main() -> int:
         if baseline_path.exists():
             try:
                 old = json.loads(baseline_path.read_text()).get("rules", {})
-            except Exception:  # noqa: BLE001
+            except Exception:
                 old = {}
         grown = {r: (old.get(r, 0), n) for r, n in counts.items() if n > old.get(r, 0)}
         if grown and baseline_path.exists():
@@ -168,7 +168,7 @@ def main() -> int:
     if baseline_path.exists():
         try:
             baseline = json.loads(baseline_path.read_text()).get("rules", {})
-        except Exception:  # noqa: BLE001
+        except Exception:
             baseline = {}
 
     failures = []
