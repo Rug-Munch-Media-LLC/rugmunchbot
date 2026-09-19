@@ -22,29 +22,9 @@ FAIL_THRESHOLD = 200
 GOD_THRESHOLD = 500
 DEFAULT_BASELINE = "scripts/structure-baseline.json"
 
-SKIP_DIRS = {
-    ".git",
-    ".hg",
-    ".svn",
-    "node_modules",
-    "__pycache__",
-    ".venv",
-    "venv",
-    "dist",
-    "build",
-    ".mypy_cache",
-    ".ruff_cache",
-    ".pytest_cache",
-    "site-packages",
-    "mutants",
-    ".tox",
-    ".nox",
-    "htmlcov",
-    ".next",
-    "coverage",
-    ".openhands",
-}
-SKIP_TOP = {"scripts", "tests", "docs", "migrations", ".github", ".forgejo"}
+_SKIP = ".git .hg .svn node_modules __pycache__ .venv venv dist build .mypy_cache .ruff_cache .pytest_cache site-packages mutants .tox .nox htmlcov .next coverage .openhands"
+SKIP_DIRS = frozenset(_SKIP.split())
+SKIP_TOP = frozenset(["scripts", "tests", "docs", "migrations", ".github", ".forgejo"])
 
 
 def count_lines(path: Path) -> int:
@@ -64,6 +44,9 @@ def scan(root: Path, scan_roots: tuple[str, ...]) -> dict[str, int]:
             continue
         for p in base.rglob("*.py"):
             if any(part in SKIP_DIRS for part in p.parts):
+                continue
+            # Gate toolkit (check-*.py / ci-gate-*) is tooling, not product code.
+            if p.name.startswith(("check-", "ci-gate")):
                 continue
             n = count_lines(p)
             if n > ADVISORY_THRESHOLD:
