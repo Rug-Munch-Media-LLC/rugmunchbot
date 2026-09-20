@@ -63,3 +63,4 @@ htmlcov/
 # runtime cursors
 src/rugmunchbot/data/kol/ct_cursor.json
 .config/
+.methodology-patterns
