@@ -620,7 +620,12 @@ def register_admin_commands(app: Application[Any, Any, Any, Any, Any, Any]) -> N
     command is owner-gated inside its handler (defense-in-depth) and hidden
     from the BotFather menu (they are not added to ``_COMMAND_SECTIONS``).
     """
-    from telegram.ext import CommandHandler
+    # Register through the shared ``_reg`` helper (2026-09-20) so these
+    # commands get the same per-command activity tracking + flood gate as
+    # every other command, and so the menu-drift guard sees them. They stay
+    # OUT of ``_COMMAND_SECTIONS`` (owner-only, hidden from BotFather) and
+    # are declared in ``bot._menu_guard.ADMIN_MENU_COMMANDS``.
+    from rugmunchbot.bot._commands import _reg
 
     for name, handler in (
         ("status", cmd_status),
@@ -636,7 +641,7 @@ def register_admin_commands(app: Application[Any, Any, Any, Any, Any, Any]) -> N
         ("accuracy", accuracy_command),
         ("help", cmd_help),
     ):
-        app.add_handler(CommandHandler(name, handler))
+        _reg(app, name, handler)
 
 
 __all__ = [

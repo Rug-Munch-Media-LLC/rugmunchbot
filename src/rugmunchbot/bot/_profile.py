@@ -13,6 +13,7 @@ from rugmunchbot.bot._commands import (
     _COMMAND_SECTIONS,
     check_menu_coverage,
 )
+from rugmunchbot.bot._menu_guard import assert_menu_coverage
 from rugmunchbot.config import (
     BOT_DESCRIPTION,
     BOT_SHORT_DESCRIPTION,
@@ -33,9 +34,11 @@ if TYPE_CHECKING:
 
 async def setup_bot_profile(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     """Set bot description, about text, and command list via BotFather API."""
-    # Menu-drift check FIRST: the menu is the source of truth; log loudly
-    # (not crash) when the registry has unadvertised or phantom commands.
+    # Menu-drift check FIRST: the menu is the source of truth. The log-only
+    # check reports; the HARD guard (2026-09-20) raises MenuDriftError so a
+    # drift can never ship a stale BotFather menu silently.
     check_menu_coverage(app)
+    assert_menu_coverage(app)
     bot = app.bot
     # Resolve the bot's own identity (get_me) so ``bot.username`` is populated
     # for the free-text group gate (@mention matching in _is_bot_addressed).

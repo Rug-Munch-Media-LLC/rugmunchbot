@@ -28,61 +28,13 @@ Phase 5 (RugMunchScan capabilities):
 """
 
 # Public API exports
-from rugmunchbot._vendor.scanner_engines.cross_chain_entity import resolve_cross_chain_entity
-from rugmunchbot._vendor.scanner_engines.funding_analysis import (
-    analyze_funding_sources,
-    analyze_scam_overlap,
-    compute_holder_overlap,
-    compute_wallet_freshness,
-)
-from rugmunchbot._vendor.scanner_engines.holder_clusters import analyze_holder_clusters
-from rugmunchbot._vendor.scanner_engines.news_sentiment import analyze_token_news_sentiment
-from rugmunchbot._vendor.scanner_engines.own_cluster_analysis import get_own_cluster_analysis
-from rugmunchbot._vendor.scanner_engines.own_cross_token_link import get_own_cross_token_link
-from rugmunchbot._vendor.scanner_engines.own_decentralization import get_own_decentralization
-from rugmunchbot._vendor.scanner_engines.own_deployer_reputation import get_own_deployer_reputation
-from rugmunchbot._vendor.scanner_engines.own_deployer_timeline import get_own_deployer_timeline
-from rugmunchbot._vendor.scanner_engines.own_dex_data import check_data_freshness, get_own_dex_data
-from rugmunchbot._vendor.scanner_engines.own_holder_age import get_own_holder_age
-from rugmunchbot._vendor.scanner_engines.own_holder_analysis import (
-    get_holder_count,
-    get_own_holder_analysis,
-)
-from rugmunchbot._vendor.scanner_engines.own_price_oracle import get_batch_prices, get_token_price
-from rugmunchbot._vendor.scanner_engines.own_security_analysis import get_own_security
-from rugmunchbot._vendor.scanner_engines.own_volume_authenticity import get_own_volume_authenticity
+# Only the modules that survived the 2026-09-20 cutover are re-exported here.
+# The rest of the upstream engine set was removed; import those submodules
+# directly (e.g. ``...scanner_engines.rpc_router``) where still needed.
 from rugmunchbot._vendor.scanner_engines.own_wallet_map import get_own_wallet_map
 from rugmunchbot._vendor.scanner_engines.own_wallet_trust import get_wallet_trust
-from rugmunchbot._vendor.scanner_engines.own_whale_detect import get_own_whale_detection
 
 __all__ = [
-    # Clever wallet analysis
-    "analyze_funding_sources",
-    # Phase 5 — RugMunchScan capabilities
-    "analyze_holder_clusters",
-    "analyze_scam_overlap",
-    "analyze_token_news_sentiment",
-    "check_data_freshness",
-    "compute_holder_overlap",
-    "compute_wallet_freshness",
-    "get_batch_prices",
-    "get_holder_count",
-    # Phase 4
-    "get_own_cluster_analysis",
-    "get_own_cross_token_link",
-    "get_own_decentralization",
-    "get_own_deployer_reputation",
-    "get_own_deployer_timeline",
-    "get_own_dex_data",
-    "get_own_holder_age",
-    # Phase 2
-    "get_own_holder_analysis",
-    "get_own_security",
-    "get_own_volume_authenticity",
     "get_own_wallet_map",
-    "get_own_whale_detection",
-    # Phase 1
-    "get_token_price",
     "get_wallet_trust",
-    "resolve_cross_chain_entity",
 ]

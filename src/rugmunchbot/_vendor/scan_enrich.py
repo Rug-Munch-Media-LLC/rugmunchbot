@@ -67,76 +67,35 @@ logger = get_logger(__name__)
 # 10-20s; we never let the combined probe block the scan pipeline.
 _ENRICH_TIMEOUT_S = 8.0
 
-# ── Defensive module imports ────────────────────────────────────────────
-# Every enrichment module is optional: a missing module contributes None
-# fields (fail-open) instead of breaking the scan it decorates. The names
-# are pre-annotated as optional so a failed import (None) type-checks.
+# ── Enrichment entrypoints (vendored scanner modules removed) ──────────
+# The upstream ``app.domains.scanner.*`` enrichment modules are not vendored
+# into the bot, so every entrypoint is bound to ``None``. ``_run``/``_render``
+# treat ``None`` as "module absent" and contribute ``None`` fields, keeping
+# the fail-open contract: a scan is never blocked or failed by enrichment.
 _ResultDict = dict[str, Any]
 _SignalRenderer = Callable[[_ResultDict], str | None]
 _AsyncEnrich = Callable[[str, str], Awaitable[_ResultDict]]
 
-authority_signal: _SignalRenderer | None
-check_authority: _AsyncEnrich | None
+authority_signal: _SignalRenderer | None = None
+check_authority: _AsyncEnrich | None = None
 
-try:
-    from app.domains.scanner.authority_check import authority_signal, check_authority
-except ImportError:  # pragma: no cover - exercised only when the module is absent
-    authority_signal = None
-    check_authority = None
+bundle_signal: _SignalRenderer | None = None
+detect_bundle: _AsyncEnrich | None = None
 
-bundle_signal: _SignalRenderer | None
-detect_bundle: _AsyncEnrich | None
+deployer_reputation: _AsyncEnrich | None = None
+reputation_signal: _SignalRenderer | None = None
 
-try:
-    from app.domains.scanner.bundle_analysis import bundle_signal, detect_bundle
-except ImportError:  # pragma: no cover - exercised only when the module is absent
-    bundle_signal = None
-    detect_bundle = None
+detect_wash_trading: _AsyncEnrich | None = None
+wash_signal: Callable[[_ResultDict | None], str | None] | None = None
 
-deployer_reputation: _AsyncEnrich | None
-reputation_signal: _SignalRenderer | None
+whale_flow: _AsyncEnrich | None = None
+whale_signal: Callable[[_ResultDict | None], str | None] | None = None
 
-try:
-    from app.domains.scanner.deployer_reputation import deployer_reputation, reputation_signal
-except ImportError:  # pragma: no cover - exercised only when the module is absent
-    deployer_reputation = None
-    reputation_signal = None
+crossref_signal: _SignalRenderer | None = None
+crossref_wallet: Callable[[str, str], _ResultDict] | None = None
 
-detect_wash_trading: _AsyncEnrich | None
-wash_signal: Callable[[_ResultDict | None], str | None] | None
-
-try:
-    from app.domains.scanner.wash_trading_enrich import detect_wash_trading, wash_signal
-except ImportError:  # pragma: no cover - exercised only when the module is absent
-    detect_wash_trading = None
-    wash_signal = None
-
-whale_flow: _AsyncEnrich | None
-whale_signal: Callable[[_ResultDict | None], str | None] | None
-
-try:
-    from app.domains.scanner.whale_flow_enrich import whale_flow, whale_signal
-except ImportError:  # pragma: no cover - exercised only when the module is absent
-    whale_flow = None
-    whale_signal = None
-
-crossref_signal: _SignalRenderer | None
-crossref_wallet: Callable[[str, str], _ResultDict] | None
-
-try:
-    from app.domains.scanner.social_crossref import crossref_signal, crossref_wallet
-except ImportError:  # pragma: no cover - exercised only when the module is absent
-    crossref_signal = None
-    crossref_wallet = None
-
-risk_verdict_text: Callable[[_ResultDict], str] | None
-rug_risk_score: Callable[[_ResultDict], _ResultDict] | None
-
-try:
-    from app.domains.scanner.rug_risk_score import risk_verdict_text, rug_risk_score
-except ImportError:  # pragma: no cover - exercised only when the module is absent
-    risk_verdict_text = None
-    rug_risk_score = None
+risk_verdict_text: Callable[[_ResultDict], str] | None = None
+rug_risk_score: Callable[[_ResultDict], _ResultDict] | None = None
 
 
 # ── Per-module field extraction (defensive, never raise) ────────────────

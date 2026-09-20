@@ -61,6 +61,7 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("alerts", "Manage price alerts"),
             ("chat", "Freestyle AI chat"),
             ("help", "Full command guide"),
+            ("menu", "Full command atlas, grouped by category"),
             ("start", "Welcome & quick start"),
         ],
     ),
@@ -148,6 +149,7 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         "Watch & Alerts",
         [
             ("watchlist", "Watchlist: list/add/remove/alert"),
+            ("whalewatch", "Whale-wallet deep-dive: holdings, trades, PnL"),
             ("watch", "Watch a token for changes"),
             ("unwatch", "Stop watching a token"),
             ("monitor", "List your active monitors"),
@@ -176,6 +178,7 @@ _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("rpcstats", "RPC endpoint health stats"),
             ("groupinfo", "Group protection status"),
             ("mygroup", "Your protected group settings"),
+            ("banuser", "Ban a user from a protected group (admins)"),
             ("voicechat", "Voice-chat scam radar"),
         ],
     ),

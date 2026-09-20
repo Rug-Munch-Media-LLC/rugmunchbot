@@ -1,9 +1,13 @@
-"""Import smoke for the ``python -m rugmunchbot.bot`` entry point."""
+"""Import smoke for the ``python -m rugmunchbot.bot`` entry point.
 
-import runpy
+importlib (not runpy) so coverage instruments the module — the body is a
+single import + a ``__main__`` guard that must NOT fire here.
+"""
+
+import importlib
 
 
 def test_main_module_imports_without_running():
-    # run_name != "__main__" → the module body imports (covering the shim)
-    # without launching the bot.
-    runpy.run_module("rugmunchbot.bot.__main__", run_name="__smoke__")
+    mod = importlib.import_module("rugmunchbot.bot.__main__")
+    assert mod is not None
+    assert mod.__name__ == "rugmunchbot.bot.__main__"

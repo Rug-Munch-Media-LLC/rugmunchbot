@@ -167,32 +167,13 @@ from rugmunchbot.support.system_alerts import send_system_alert
 logger = get_logger("rmi_bot")
 
 
-def main() -> None:
-    if not BOT_TOKEN:
-        logger.error("RUGMUNCH_BOT_TOKEN not set!")
-        sys.exit(1)
+def _register_all_handlers(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
+    """Register every command, callback, message and gate handler on *app*.
 
-    # Force IPv4 for api.telegram.org: this host's IPv6 route is broken and
-    # resolves AAAA first, which caused 20+ ConnectTimeouts per 3h and made
-    # every outbound call fall through to the global error handler.
-    # PTB 21+ drops the `transport` kwarg in favor of `httpx_kwargs`.
-    # S104: binding the outbound source to 0.0.0.0 (all IPv4) is intentional —
-    # it forces IPv4 and avoids the broken IPv6 route.
-    transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0")  # noqa: S104  # nosec B104 - outbound source bind forces IPv4 to avoid broken IPv6 route (documented above)
-    # Bounded connection pool (4) + 20s read/write timeouts so the 4 concurrent
-    # update turns don't share a single connection or a tight 5s timeout.
-    request = HTTPXRequest(
-        connection_pool_size=4,
-        read_timeout=20,
-        write_timeout=20,
-        httpx_kwargs={"transport": transport},
-    )
-
-    # Process updates concurrently (N=4): a slow update (e.g. /chat hitting
-    # the remote LLM) no longer blocks every other user's command. Bounded
-    # at 4 to protect the SQLite-backed db module from concurrency thrash.
-    app = Application.builder().token(BOT_TOKEN).request(request).concurrent_updates(4).build()
-
+    Extracted from ``main()`` (2026-09-20) so the menu-drift guard and the
+    tests can build the REAL wiring without starting polling. ``main()``
+    calls this once after building the Application.
+    """
     # Core commands
     _reg(app, "start", cmd_start)
     _reg(app, "help", cmd_help)
@@ -362,6 +343,38 @@ def main() -> None:
     # is the outermost wrapper and takes priority (banned users get the ban
     # notice even during maintenance). Owners are exempt in both gates.
     install_ban_gate(app)
+
+
+def main() -> None:
+    if not BOT_TOKEN:
+        logger.error("RUGMUNCH_BOT_TOKEN not set!")
+        sys.exit(1)
+
+    # Force IPv4 for api.telegram.org: this host's IPv6 route is broken and
+    # resolves AAAA first, which caused 20+ ConnectTimeouts per 3h and made
+    # every outbound call fall through to the global error handler.
+    # PTB 21+ drops the `transport` kwarg in favor of `httpx_kwargs`.
+    # S104: binding the outbound source to 0.0.0.0 (all IPv4) is intentional —
+    # it forces IPv4 and avoids the broken IPv6 route.
+    transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0")  # noqa: S104  # nosec B104 - outbound source bind forces IPv4 to avoid broken IPv6 route (documented above)
+    # Bounded connection pool (4) + 20s read/write timeouts so the 4 concurrent
+    # update turns don't share a single connection or a tight 5s timeout.
+    request = HTTPXRequest(
+        connection_pool_size=4,
+        read_timeout=20,
+        write_timeout=20,
+        httpx_kwargs={"transport": transport},
+    )
+
+    # Process updates concurrently (N=4): a slow update (e.g. /chat hitting
+    # the remote LLM) no longer blocks every other user's command. Bounded
+    # at 4 to protect the SQLite-backed db module from concurrency thrash.
+    app = Application.builder().token(BOT_TOKEN).request(request).concurrent_updates(4).build()
+
+
+
+
+    _register_all_handlers(app)
 
     # Scheduled jobs
     job_queue = app.job_queue
