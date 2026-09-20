@@ -42,8 +42,9 @@ def test_llm_model_defaults():
 
     snappy = get_snappy_config()
     long_cfg = get_long_config()
-    # Current chain (2026-09-01): FREE-FIRST — snappy = KiloCode StepFlash
-    # primary; paid DeepInfra Qwen3.5-9B is the FINAL rung.
-    assert "step-3.7-flash" in snappy["model"]  # free-first primary
+    # Current chain (2026-09-18): FREE-FIRST — snappy = KiloCode laguna-s-2.1
+    # primary (stepfun/step-3.7-flash was dropped for empty content); paid
+    # DeepInfra Qwen3.5-9B is the FINAL rung.
+    assert snappy["model"] == "poolside/laguna-s-2.1:free"  # free-first primary
     assert "Qwen3.5" in llm_config.get_paid_final_config("snappy")["model"]  # paid final rung
-    assert "nemotron" in long_cfg["model"]  # long tier (nvidia/nemotron-3.5-lightning:free)
+    assert "nemotron" in long_cfg["model"]  # long tier (nvidia/nemotron-3-ultra-550b-a55b:free)
