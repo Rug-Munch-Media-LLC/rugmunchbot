@@ -82,11 +82,12 @@ commits = [
   "ec9168e85e63530f347b4f8d10be5a695343b6c2",  # scripts/verify_apipass.py gopass doc
 ]
 paths = [
-    # The companion pattern file for scripts/pre-commit-methodology-check.sh.
-    # A SCANNER DEFINITION (the detector, not the detected): it holds the
-    # internal literals the guard matches on, is gitignored, and is never
-    # committed or pushed. Same rationale as the guard script itself.
-    '''\.methodology-patterns''',
+  # The companion pattern file to scripts/pre-commit-methodology-check.sh.
+  # A SCANNER DEFINITION (the detector, not the detected): it holds the internal
+  # literals the guard matches on, is gitignored, and is never committed or pushed.
+  # The push hook runs 'gitleaks detect --source . --no-git', so an uncommitted
+  # file here DOES get scanned - hence this entry.
+  '''\.methodology-patterns''',
   '''node_modules/''',
   '''\.git/''',
   '''__pycache__/''',
