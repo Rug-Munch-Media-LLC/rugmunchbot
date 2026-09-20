@@ -78,6 +78,33 @@ canonical equivalent yet. `_vendor/scanner_engines/__init__.py` imports all of
 them, so the package stays until each engine is ported upstream — or the
 package `__init__` is trimmed to the remaining engines.
 
+## Direct scanner-service client (batch-4, 2026-09-20)
+
+`src/rugmunchbot/tools/scanner/_scanner_direct.py` is the feature-flagged seam
+that lets the bot call the **standalone** `rugmunch-scanner` service directly
+instead of routing every scan through rmi-backend. It is inert by default —
+zero behaviour change until an operator opts in — and fails open to the
+existing backend/local chain on any failure (never raises, never blocks a
+user scan).
+
+Two env vars, read at call time (no restart needed to flip):
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `SCANNER_DIRECT` | `0` | `1`/`true`/`yes`/`on` enables the direct client |
+| `SCANNER_SERVICE_URL` | unset | Base URL of the scanner service, e.g. `http://127.0.0.1:8098` |
+
+`SCANNER_DIRECT_URL` is accepted as a legacy alias (`SCANNER_SERVICE_URL` wins).
+
+Contract: readiness-gate on `GET {base}/readyz` (and `GET {base}/healthz` via
+`scanner_service_ready()`), then `POST {base}/api/v2/scanner/token/scan` and
+`POST {base}/api/v2/scanner/wallet/scan` with `{address, chain}` — the same v2
+shape `tools/scanner/_backend.py` uses. **The standalone runtime currently
+serves only the two probes**; the v2 scan routes land with the batch-3 scan
+rail (`rugmunch-scanner/docs/STANDALONE.md` §TODO), so a flag-on call
+health-gates, receives `404` on the scan route, and falls open. Wiring the
+`_scans.py` call-site legs is the follow-up batch.
+
 ## Verification
 
 `ruff check`, `mypy`, and `pytest tests/` must pass after each swap.
