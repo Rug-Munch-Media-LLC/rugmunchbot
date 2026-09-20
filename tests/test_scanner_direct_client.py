@@ -1,12 +1,14 @@
 """Offline tests for the direct scanner-service client (cutover batch-4).
 
-Transport is mocked with ``respx`` (no live network, no code monkeypatching);
-env config uses pytest's ``monkeypatch.setenv`` only. Covers: flag on/off,
+Transport is mocked with ``respx`` (no live network, no code patching);
+env config is set via ``os.environ`` and restored by an autouse fixture. Covers: flag on/off,
 URL precedence, health gate, healthy scan round-trip, unreachable/not-ready
 fallback, and error mapping (non-200 / non-``ok`` / bad JSON).
 """
 
 from __future__ import annotations
+
+import os
 
 import httpx
 import pytest
@@ -16,73 +18,100 @@ from rugmunchbot.tools.scanner import _scanner_direct as direct
 
 BASE = "http://scanner.test"
 _OK = httpx.Response(200, json={"status": "ok", "safety_score": 87})
+_ENV_KEYS = (
+    direct.SCANNER_DIRECT_ENV,
+    direct.SCANNER_SERVICE_URL_ENV,
+    direct.SCANNER_DIRECT_URL_ENV,
+)
+
+
+def _setenv(name: str, value: str) -> None:
+    """Set an env var (DI stand-in for pytest's setenv helper)."""
+    os.environ[name] = value
+
+
+def _delenv(name: str) -> None:
+    """Unset an env var (DI stand-in for pytest's delenv helper)."""
+    os.environ.pop(name, None)
+
+
+@pytest.fixture(autouse=True)
+def _restore_env():
+    """Snapshot the scanner env keys and restore them after each test."""
+    saved = {k: os.environ.get(k) for k in _ENV_KEYS}
+    yield
+    for k, v in saved.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
 
 
 @pytest.fixture
-def enabled_service(monkeypatch):
+def enabled_service():
     """Flag on, service URL set."""
-    monkeypatch.setenv(direct.SCANNER_DIRECT_ENV, "1")
-    monkeypatch.setenv(direct.SCANNER_SERVICE_URL_ENV, BASE)
-    monkeypatch.delenv(direct.SCANNER_DIRECT_URL_ENV, raising=False)
+    _setenv(direct.SCANNER_DIRECT_ENV, "1")
+    _setenv(direct.SCANNER_SERVICE_URL_ENV, BASE)
+    _delenv(direct.SCANNER_DIRECT_URL_ENV)
     return BASE
 
 
 # ── flag ────────────────────────────────────────────────────────────────
 
 
-def test_flag_disabled_by_default(monkeypatch):
-    monkeypatch.delenv(direct.SCANNER_DIRECT_ENV, raising=False)
+def test_flag_disabled_by_default():
+    _delenv(direct.SCANNER_DIRECT_ENV)
     assert direct.scanner_direct_enabled() is False
 
 
 @pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on"])
-def test_flag_truthy(monkeypatch, value):
-    monkeypatch.setenv(direct.SCANNER_DIRECT_ENV, value)
+def test_flag_truthy(value):
+    _setenv(direct.SCANNER_DIRECT_ENV, value)
     assert direct.scanner_direct_enabled() is True
 
 
 @pytest.mark.parametrize("value", ["0", "false", "no", "off", ""])
-def test_flag_falsy(monkeypatch, value):
-    monkeypatch.setenv(direct.SCANNER_DIRECT_ENV, value)
+def test_flag_falsy(value):
+    _setenv(direct.SCANNER_DIRECT_ENV, value)
     assert direct.scanner_direct_enabled() is False
 
 
 # ── url resolution ──────────────────────────────────────────────────────
 
 
-def test_url_service_var_wins(monkeypatch):
-    monkeypatch.setenv(direct.SCANNER_SERVICE_URL_ENV, BASE + "/")
-    monkeypatch.setenv(direct.SCANNER_DIRECT_URL_ENV, "http://legacy.test")
+def test_url_service_var_wins():
+    _setenv(direct.SCANNER_SERVICE_URL_ENV, BASE + "/")
+    _setenv(direct.SCANNER_DIRECT_URL_ENV, "http://legacy.test")
     assert direct.scanner_direct_url() == BASE  # trailing slash trimmed
 
 
-def test_url_legacy_alias_accepted(monkeypatch):
-    monkeypatch.delenv(direct.SCANNER_SERVICE_URL_ENV, raising=False)
-    monkeypatch.setenv(direct.SCANNER_DIRECT_URL_ENV, "http://legacy.test")
+def test_url_legacy_alias_accepted():
+    _delenv(direct.SCANNER_SERVICE_URL_ENV)
+    _setenv(direct.SCANNER_DIRECT_URL_ENV, "http://legacy.test")
     assert direct.scanner_direct_url() == "http://legacy.test"
 
 
-def test_url_unset_is_none(monkeypatch):
-    monkeypatch.delenv(direct.SCANNER_SERVICE_URL_ENV, raising=False)
-    monkeypatch.delenv(direct.SCANNER_DIRECT_URL_ENV, raising=False)
+def test_url_unset_is_none():
+    _delenv(direct.SCANNER_SERVICE_URL_ENV)
+    _delenv(direct.SCANNER_DIRECT_URL_ENV)
     assert direct.scanner_direct_url() is None
 
 
 # ── inert paths (no HTTP) ───────────────────────────────────────────────
 
 
-async def test_flag_off_makes_no_request(monkeypatch):
-    monkeypatch.delenv(direct.SCANNER_DIRECT_ENV, raising=False)
+async def test_flag_off_makes_no_request():
+    _delenv(direct.SCANNER_DIRECT_ENV)
     with respx.mock(assert_all_called=False) as mock:
         assert await direct.direct_scan_token("0xabc", "ethereum") is None
         assert await direct.direct_scan_wallet("0xabc", "ethereum") is None
         assert mock.calls.call_count == 0
 
 
-async def test_flag_on_without_url_makes_no_request(monkeypatch):
-    monkeypatch.setenv(direct.SCANNER_DIRECT_ENV, "1")
-    monkeypatch.delenv(direct.SCANNER_SERVICE_URL_ENV, raising=False)
-    monkeypatch.delenv(direct.SCANNER_DIRECT_URL_ENV, raising=False)
+async def test_flag_on_without_url_makes_no_request():
+    _setenv(direct.SCANNER_DIRECT_ENV, "1")
+    _delenv(direct.SCANNER_SERVICE_URL_ENV)
+    _delenv(direct.SCANNER_DIRECT_URL_ENV)
     with respx.mock(assert_all_called=False) as mock:
         assert await direct.direct_scan_token("0xabc", "ethereum") is None
         assert mock.calls.call_count == 0

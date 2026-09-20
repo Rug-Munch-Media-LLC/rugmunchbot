@@ -30,6 +30,39 @@ from rugmunchbot.channels.tg_scraper import (
 from rugmunchbot.channels.tg_scraper._ingest import _mark_seen, message_key as _mk
 from rugmunchbot.channels.tg_scraper._scrape import _flood_wait_seconds
 
+# ── DI patch helper (no pytest monkeypatch) ─────────────────────────────
+
+_UNSET = object()
+_PATCHES: list = []
+
+
+def _setattr(target, name, value=_UNSET) -> None:
+    """Set an attribute via DI (dotted path or live object), restored after test."""
+    import importlib
+
+    if value is _UNSET:
+        mod_path, _, attr = str(target).rpartition(".")
+        obj = importlib.import_module(mod_path)
+        new = name
+    else:
+        obj, attr, new = target, name, value
+    _PATCHES.append((obj, attr, getattr(obj, attr, None), hasattr(obj, attr)))
+    setattr(obj, attr, new)
+
+
+@pytest.fixture(autouse=True)
+def _restore():
+    """Restore every attribute ``_setattr`` touched, after each test."""
+    _PATCHES.clear()
+    yield
+    while _PATCHES:
+        obj, attr, old, had = _PATCHES.pop()
+        if had:
+            setattr(obj, attr, old)
+        else:
+            delattr(obj, attr)
+
+
 # ── Fakes ────────────────────────────────────────────────────────────────
 
 
@@ -227,9 +260,9 @@ def test_flood_wait_seconds_extraction() -> None:
 
 
 @pytest.mark.asyncio
-async def test_scrape_all_dialogs_dedup_and_jitter(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_scrape_all_dialogs_dedup_and_jitter() -> None:
     # Zero jitter for test speed.
-    monkeypatch.setattr("rugmunchbot.channels.tg_scraper._scrape.TG_SCRAPER_JITTER_MAX", 0)
+    _setattr("rugmunchbot.channels.tg_scraper._scrape.TG_SCRAPER_JITTER_MAX", 0)
     d1 = _dialog("One", "one")
     d2 = _dialog("Two", "two")
     dup = _msg(7, "dup")
@@ -279,11 +312,11 @@ def test_detect_scam_patterns_clean_text() -> None:
 
 
 @pytest.mark.asyncio
-async def test_detect_message_known_scammer(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_detect_message_known_scammer() -> None:
     async def fake_probe(handle: str | None) -> bool:
         return handle == "scammer123"
 
-    monkeypatch.setattr("rugmunchbot.channels.tg_scraper._detect.is_known_scammer", fake_probe)
+    _setattr("rugmunchbot.channels.tg_scraper._detect.is_known_scammer", fake_probe)
     msg = TgMessage(
         channel="c", channel_username="c", message_id=1, text="hello", sender_handle="scammer123"
     )
@@ -316,17 +349,15 @@ def test_detection_summary() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mark_seen_dedup(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_mark_seen_dedup() -> None:
     from rugmunchbot.channels.tg_scraper import _ingest
 
-    monkeypatch.setattr(_ingest, "_SEEN_CACHE", set())
+    _setattr(_ingest, "_SEEN_CACHE", set())
 
     class NoRedis:
         pass
 
-    monkeypatch.setattr(
-        "rugmunchbot._vendor.redis_client.get_redis_async", lambda: None, raising=False
-    )
+    _setattr("rugmunchbot._vendor.redis_client.get_redis_async", lambda: None)
     assert await _mark_seen("ch:1") is True
     assert await _mark_seen("ch:1") is False  # in-memory dedup
 
@@ -338,7 +369,7 @@ def test_message_key() -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_tg_scraper_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_run_tg_scraper_end_to_end() -> None:
     """Full pipeline with fakes: scrape → detect → ingest → persist."""
     from rugmunchbot.channels.tg_scraper import _ingest, _scrape
 
@@ -350,8 +381,8 @@ async def test_run_tg_scraper_end_to_end(monkeypatch: pytest.MonkeyPatch) -> Non
     async def fake_client() -> Any:
         return client
 
-    monkeypatch.setattr(_scrape, "_build_headless_client", fake_client)
-    monkeypatch.setattr("rugmunchbot.channels.tg_scraper._scrape.TG_SCRAPER_JITTER_MAX", 0)
+    _setattr(_scrape, "_build_headless_client", fake_client)
+    _setattr("rugmunchbot.channels.tg_scraper._scrape.TG_SCRAPER_JITTER_MAX", 0)
 
     # RAG: capture docs, accept all.
     ingested_docs: list[Any] = []
@@ -370,14 +401,12 @@ async def test_run_tg_scraper_end_to_end(monkeypatch: pytest.MonkeyPatch) -> Non
 
     import rugmunchbot._vendor.rag_pkg.ingestion as rag_ing
 
-    monkeypatch.setattr(rag_ing, "BatchIngestor", FakeIngestor, raising=False)
-    monkeypatch.setattr(rag_ing, "Document", FakeDocument, raising=False)
+    _setattr(rag_ing, "BatchIngestor", FakeIngestor)
+    _setattr(rag_ing, "Document", FakeDocument)
 
     # Redis dedup: in-memory only.
-    monkeypatch.setattr(
-        "rugmunchbot._vendor.redis_client.get_redis_async", lambda: None, raising=False
-    )
-    monkeypatch.setattr(_ingest, "_SEEN_CACHE", set())
+    _setattr("rugmunchbot._vendor.redis_client.get_redis_async", lambda: None)
+    _setattr(_ingest, "_SEEN_CACHE", set())
 
     # Backend evidence: capture records.
     evidence: list[dict[str, Any]] = []
@@ -390,7 +419,7 @@ async def test_run_tg_scraper_end_to_end(monkeypatch: pytest.MonkeyPatch) -> Non
 
     import rugmunchbot.services as services
 
-    monkeypatch.setattr(services, "shill_api", FakeShillApi, raising=False)
+    _setattr(services, "shill_api", FakeShillApi)
 
     counts = await run_tg_scraper()
     assert counts["messages"] == 2
@@ -409,19 +438,19 @@ async def test_run_tg_scraper_end_to_end(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 @pytest.mark.asyncio
-async def test_run_tg_scraper_no_client(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_run_tg_scraper_no_client() -> None:
     from rugmunchbot.channels.tg_scraper import _scrape
 
     async def fake_client() -> Any:
         return None
 
-    monkeypatch.setattr(_scrape, "_build_headless_client", fake_client)
+    _setattr(_scrape, "_build_headless_client", fake_client)
     counts = await run_tg_scraper()
     assert counts == {"messages": 0, "suspicious": 0, "rag": 0, "threat": 0}
 
 
 @pytest.mark.asyncio
-async def test_run_tg_scraper_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_run_tg_scraper_idempotent() -> None:
     """Second run with the same messages ingests nothing (seen-set dedup)."""
     from rugmunchbot.channels.tg_scraper import _ingest, _scrape
 
@@ -431,8 +460,8 @@ async def test_run_tg_scraper_idempotent(monkeypatch: pytest.MonkeyPatch) -> Non
     async def fake_client() -> Any:
         return client
 
-    monkeypatch.setattr(_scrape, "_build_headless_client", fake_client)
-    monkeypatch.setattr("rugmunchbot.channels.tg_scraper._scrape.TG_SCRAPER_JITTER_MAX", 0)
+    _setattr(_scrape, "_build_headless_client", fake_client)
+    _setattr("rugmunchbot.channels.tg_scraper._scrape.TG_SCRAPER_JITTER_MAX", 0)
 
     class FakeReport:
         accepted = 1
@@ -447,12 +476,10 @@ async def test_run_tg_scraper_idempotent(monkeypatch: pytest.MonkeyPatch) -> Non
 
     import rugmunchbot._vendor.rag_pkg.ingestion as rag_ing
 
-    monkeypatch.setattr(rag_ing, "BatchIngestor", FakeIngestor, raising=False)
-    monkeypatch.setattr(rag_ing, "Document", FakeDocument, raising=False)
-    monkeypatch.setattr(
-        "rugmunchbot._vendor.redis_client.get_redis_async", lambda: None, raising=False
-    )
-    monkeypatch.setattr(_ingest, "_SEEN_CACHE", set())
+    _setattr(rag_ing, "BatchIngestor", FakeIngestor)
+    _setattr(rag_ing, "Document", FakeDocument)
+    _setattr("rugmunchbot._vendor.redis_client.get_redis_async", lambda: None)
+    _setattr(_ingest, "_SEEN_CACHE", set())
 
     first = await run_tg_scraper()
     assert first["rag"] == 1

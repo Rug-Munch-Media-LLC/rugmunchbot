@@ -16,9 +16,39 @@ import pytest
 
 from rugmunchbot.channels.scheduler._posts_rag import mirror_post_to_feed
 
+_UNSET = object()
+_PATCHES: list = []
 
-def test_mirror_post_to_feed_writes_json(tmp_path, monkeypatch):
-    monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.FEED_DATA", str(tmp_path))
+
+def _setattr(target, name, value=_UNSET) -> None:
+    """Set an attribute via DI (dotted path or live object), restored after test."""
+    import importlib
+
+    if value is _UNSET:
+        mod_path, _, attr = str(target).rpartition(".")
+        obj = importlib.import_module(mod_path)
+        new = name
+    else:
+        obj, attr, new = target, name, value
+    _PATCHES.append((obj, attr, getattr(obj, attr, None), hasattr(obj, attr)))
+    setattr(obj, attr, new)
+
+
+@pytest.fixture(autouse=True)
+def _restore():
+    """Restore every attribute ``_setattr`` touched, after each test."""
+    _PATCHES.clear()
+    yield
+    while _PATCHES:
+        obj, attr, old, had = _PATCHES.pop()
+        if had:
+            setattr(obj, attr, old)
+        else:
+            delattr(obj, attr)
+
+
+def test_mirror_post_to_feed_writes_json(tmp_path):
+    _setattr("rugmunchbot.channels.scheduler._posts_rag.FEED_DATA", str(tmp_path))
     slug = mirror_post_to_feed(
         {
             "text": "Hello world https://example.com/x",
@@ -34,26 +64,24 @@ def test_mirror_post_to_feed_writes_json(tmp_path, monkeypatch):
     assert posts[0]["kind"] == "story"
 
 
-def test_mirror_append_order_newest_first(tmp_path, monkeypatch):
-    monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.FEED_DATA", str(tmp_path))
+def test_mirror_append_order_newest_first(tmp_path):
+    _setattr("rugmunchbot.channels.scheduler._posts_rag.FEED_DATA", str(tmp_path))
     mirror_post_to_feed({"text": "first", "story_ref": "a", "kind": "story"})
     mirror_post_to_feed({"text": "second", "story_ref": "b", "kind": "story"})
     posts = json.loads((tmp_path / "posts.json").read_text())
     assert [p["text"] for p in posts] == ["second", "first"]
 
 
-def test_mirror_fail_open_returns_none_on_bad_path(tmp_path, monkeypatch):
+def test_mirror_fail_open_returns_none_on_bad_path(tmp_path):
     # FEED_DATA points UNDER a regular file → makedirs raises → None, no crash.
     blocker = tmp_path / "blocker"
     blocker.write_text("i am a file, not a dir")
-    monkeypatch.setattr(
-        "rugmunchbot.channels.scheduler._posts_rag.FEED_DATA", str(blocker / "data")
-    )
+    _setattr("rugmunchbot.channels.scheduler._posts_rag.FEED_DATA", str(blocker / "data"))
     assert mirror_post_to_feed({"text": "x", "story_ref": "a"}) is None
 
 
 @pytest.mark.asyncio
-async def test_daily_summary_mirrors_to_feed(monkeypatch, tmp_path):
+async def test_daily_summary_mirrors_to_feed(tmp_path):
     """The Morning/Midday Rug Market Report also mirrors to feed.rugmunch.io."""
     from rugmunchbot.channels.daily_market_summary._publish import send as _publish
 
@@ -90,13 +118,13 @@ async def test_daily_summary_mirrors_to_feed(monkeypatch, tmp_path):
 
     # post_daily_market_summary resolves these from the scheduler package at
     # call time; cleanup/mirror live on _publish itself.
-    monkeypatch.setattr("rugmunchbot.channels.scheduler._chat_id", lambda ch: "-100main")
-    monkeypatch.setattr("rugmunchbot.channels.scheduler._safe_send", _noop_send)
-    monkeypatch.setattr(_publish, "gather_summary_data", _noop_gather)
-    monkeypatch.setattr("rugmunchbot.llm_config.chat_with_fallback", _noop_llm, raising=False)
-    monkeypatch.setattr(_publish, "DAILY_MARKET_SUMMARY_FEED_ENABLED", False)
-    monkeypatch.setattr(_publish, "publish_to_feed", _noop_feed)
-    monkeypatch.setattr(
+    _setattr("rugmunchbot.channels.scheduler._chat_id", lambda ch: "-100main")
+    _setattr("rugmunchbot.channels.scheduler._safe_send", _noop_send)
+    _setattr(_publish, "gather_summary_data", _noop_gather)
+    _setattr("rugmunchbot.llm_config.chat_with_fallback", _noop_llm)
+    _setattr(_publish, "DAILY_MARKET_SUMMARY_FEED_ENABLED", False)
+    _setattr(_publish, "publish_to_feed", _noop_feed)
+    _setattr(
         "rugmunchbot.channels.scheduler._posts_rag.mirror_post_to_feed",
         _fake_mirror,
     )
@@ -132,15 +160,15 @@ def test_tg_news_main_path_imports_the_mirror():
 # ── Ghost CMS mirror (2026-08-31) ───────────────────────────────────────────
 
 
-def test_ghost_mirror_skips_without_admin_key(monkeypatch):
+def test_ghost_mirror_skips_without_admin_key():
     """No GHOST_ADMIN_API_KEY → skip silently (None), never touch network."""
     import rugmunchbot.channels.scheduler._posts_rag as rag
 
-    monkeypatch.setattr(rag, "GHOST_ADMIN_API_KEY", "")
+    _setattr(rag, "GHOST_ADMIN_API_KEY", "")
     assert rag.ghost_mirror_post({"text": "x"}, "post-1") is None
 
 
-def test_ghost_admin_jwt_shape(monkeypatch):
+def test_ghost_admin_jwt_shape():
     """JWT is header.payload.signature with kid + aud=/admin/."""
     import base64
     import json
@@ -166,28 +194,28 @@ def test_ghost_admin_jwt_rejects_malformed_key():
         rag._ghost_admin_jwt("no-colon-here")
 
 
-def test_mirror_uses_ghost_slug_when_published(tmp_path, monkeypatch):
+def test_mirror_uses_ghost_slug_when_published(tmp_path):
     """When Ghost accepts the post, mirror_post_to_feed returns the Ghost slug."""
     import rugmunchbot.channels.scheduler._posts_rag as rag
 
-    monkeypatch.setattr(rag, "FEED_DATA", str(tmp_path))
-    monkeypatch.setattr(rag, "GHOST_ADMIN_API_KEY", "id:secret")
-    monkeypatch.setattr(rag, "ghost_mirror_post", lambda item, slug: "ghost-slug-1")
+    _setattr(rag, "FEED_DATA", str(tmp_path))
+    _setattr(rag, "GHOST_ADMIN_API_KEY", "id:secret")
+    _setattr(rag, "ghost_mirror_post", lambda item, slug: "ghost-slug-1")
     slug = mirror_post_to_feed({"text": "ghosted", "story_ref": "g1", "kind": "story"})
     assert slug == "ghost-slug-1"
 
 
-def test_mirror_falls_back_to_local_slug_on_ghost_failure(tmp_path, monkeypatch):
+def test_mirror_falls_back_to_local_slug_on_ghost_failure(tmp_path):
     """Ghost outage → posts.json still written, local slug returned (fail-open)."""
     import rugmunchbot.channels.scheduler._posts_rag as rag
 
-    monkeypatch.setattr(rag, "FEED_DATA", str(tmp_path))
-    monkeypatch.setattr(rag, "GHOST_ADMIN_API_KEY", "id:secret")
+    _setattr(rag, "FEED_DATA", str(tmp_path))
+    _setattr(rag, "GHOST_ADMIN_API_KEY", "id:secret")
 
     def _boom(item, slug):
         raise RuntimeError("ghost down")
 
-    monkeypatch.setattr(rag, "ghost_mirror_post", _boom)
+    _setattr(rag, "ghost_mirror_post", _boom)
     slug = mirror_post_to_feed({"text": "still posts", "story_ref": "g2"})
     assert slug is not None
     posts = json.loads((tmp_path / "posts.json").read_text())
