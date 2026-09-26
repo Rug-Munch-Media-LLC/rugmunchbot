@@ -252,7 +252,7 @@ jobs:
           source .venv/bin/activate
           diff-cover coverage.xml --compare-branch=origin/main --fail-under=46
       - name: Upload coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v5.0.0
         if: always()
         with:
           name: coverage-report
@@ -379,7 +379,7 @@ jobs:
             --exclude='src/rugmunchbot/_vendor/' \
             --sarif --output=semgrep.sarif \
             src/rugmunchbot/
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v5.0.0
         with:
           name: sast-reports
           path: |
@@ -480,7 +480,7 @@ jobs:
           k6 run tests/k6/smoke.js \
             -e BASE_URL=${{ vars.K6_TARGET_URL || 'http://localhost:9191' }} \
             --summary-export=tests/k6/results/smoke-summary.json
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v5.0.0
         if: always()
         with:
           name: k6-smoke-report
@@ -517,7 +517,7 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
           syft dir:. --output cyclonedx-json=sbom.cyclonedx.json
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v5.0.0
         with:
           name: sbom
           path: sbom.cyclonedx.json
@@ -640,13 +640,14 @@ jobs:
         run: |
           source .venv/bin/activate
           mutmut run --paths-to-mutate src/rugmunchbot/formatters/ --test-timeout 10 || echo "Mutation score noted (non-blocking)"
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v5.0.0
         if: always()
         with:
           name: mutation-report
           path: |
             .mutmut-cache/
             html/
+          include-hidden-files: true
 
   structure-gate:
     # Anti-god-module + anti-monkeypatch ratchet (baseline:
