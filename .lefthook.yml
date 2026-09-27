@@ -24,3 +24,35 @@ pre-commit:
       glob: "*.py"
       run: bash scripts/ruff-staged.sh {staged_files}
       stage_fixed: true
+
+
+# ── post-commit: Zoekt incremental reindex ──────────────────────────
+# Zoekt is the fastest retrieval layer (1-200ms) and every other layer is
+# live, so agents prefer it and silently get stale answers. Refresh was only
+# the timers (own: 4x/day, refresh: Mon/Wed/Fri 03:30) — a commit was
+# invisible for up to 6h. This makes the common case instant; the timers stay
+# as the reconciler.
+#
+# WHY IT LIVES HERE AND NOT IN .git/hooks/: `lefthook install` CLOBBERS
+# hand-written .git/hooks. A hook written straight into .git/hooks/ is
+# therefore destroyed by the fleet's own installer, and it is unversioned so
+# it cannot be reviewed. This config is versioned.
+#
+# The work is in standards/scripts/zoekt-incremental.sh so there is ONE copy
+# to keep correct instead of N. `../standards` is the sibling-relative path
+# for a repo directly under /srv/work/repos.
+#
+# NEVER BLOCKS the commit: the script detaches, flocks against the timer,
+# caps itself with a timeout, and returns 0 on every failure. A search index
+# must not be able to block the commit that fixes the code.
+post-commit:
+  commands:
+    zoekt-incremental:
+      # Advisory in one sense only: the script owns the exit status. Non-own
+      # repos (the 255 vendored corpus clones) are skipped inside the script.
+      run: |
+        if [ -x standards/scripts/zoekt-incremental.sh ]; then
+          standards/scripts/zoekt-incremental.sh || true
+        elif [ -x ../standards/scripts/zoekt-incremental.sh ]; then
+          ../standards/scripts/zoekt-incremental.sh || true
+        fi
