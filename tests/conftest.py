@@ -1,5 +1,6 @@
 """Pytest configuration for rugmunchbot tests."""
 
+import os
 import sys
 
 import pytest
@@ -13,6 +14,24 @@ sys.path.insert(0, "/srv/work/repos/rugmunch-scanner")
 from dotenv import load_dotenv
 
 load_dotenv("/srv/secrets/rugmunchbot.env")
+
+# Tests must never publish. This file loads the REAL production env, which
+# carries a live GHOST_ADMIN_API_KEY, and the autouse fixture below disables
+# the dedupe layer — so a test that reaches ghost_mirror_post() writes a real
+# post to the production Ghost database. That is how 429 fixture rows
+# ("first", "second", "Hello world", "Whale wallet 0xabc") got into a live
+# content store, and the count is still growing: the same slug appeared as
+# post-1790711756, post-1790711756-2 and post-1790711756-3 in one run.
+#
+# Strip the publishing credentials from the test process. A test that needs
+# to exercise the Ghost client should inject its own key via a fixture
+# pointing at a test database — never at production.
+for _var in (
+    "GHOST_ADMIN_API_KEY",
+    "GHOST_ADMIN_KEY",
+    "GHOST_CONTENT_API_KEY",
+):
+    os.environ.pop(_var, None)
 
 
 @pytest.fixture(autouse=True)
