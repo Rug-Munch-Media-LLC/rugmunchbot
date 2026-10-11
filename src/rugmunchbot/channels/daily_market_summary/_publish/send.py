@@ -243,6 +243,32 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         context.get("sources"),
     )
 
+    # Publication ledger + content-hash near-dup guard (2026-09): the flagship
+    # report must be NEW — block a byte-identical re-run (same content hash in
+    # the last N morning editions) and never ship a blank/degenerate body.
+    # Fail-open: a Redis outage degrades to "ok" and posts.
+    from rugmunchbot.channels.telegram_news._ledger import (
+        evaluate_report,
+        record_publication,
+        select_edition_image,
+    )
+
+    ledger_eval = evaluate_report(
+        report, namespace="morning_rug", min_words=100, log=logger
+    )
+    if not ledger_eval.allowed:
+        logger.warning(
+            "daily_market_summary:publication_skipped reason=%s", ledger_eval.reason
+        )
+        return 0
+    record_publication("morning_rug", ledger_eval.content_hash, log=logger)
+    # Explicit image default: resolved story image (og:image) or the RugMunch
+    # Intelligence logo (app favicon) — NEVER the @cryptorugmuncher X/Telegram
+    # profile pic, which is_valid_image rejects.
+    report_image = select_edition_image(
+        candidate=gate.image_url or _pick_report_image(context)
+    )
+
     # Market-report delivery doctrine (2026-08-26): Telegram readers get the
     # FULL report — split at line boundaries into ≤3900-char parts (Telegram's
     # 4096 limit minus formatting headroom). No trimming: free-for-all long
@@ -254,7 +280,7 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         feed_result = await publish_to_feed(
             raw,
             edition=edition,
-            feature_image=gate.image_url or _pick_report_image(context),
+            feature_image=report_image,
         )
         feed_url = str(feed_result.get("url") or "") if isinstance(feed_result, dict) else ""
         if feed_url:
@@ -281,7 +307,7 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # first part goes through the shared photo-aware path — a caption-too-long
     # or bad-URL failure falls back to plain text inside send_news_photo, so
     # delivery is never blocked by the image.
-    image_url = gate.image_url or _pick_report_image(context)
+    image_url = report_image
 
     sent = 0
     for idx, part in enumerate(parts, 1):
@@ -331,7 +357,7 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 "kind": "briefing",
                 "title": f"{edition} — {datetime.now(UTC).strftime('%B %d, %Y')}",
                 "tags": ["briefing", "market-update", edition.lower().replace(" ", "-")],
-                "image_url": gate.image_url or _pick_report_image(context),
+                "image_url": report_image,
             }
         )
     except Exception as exc:

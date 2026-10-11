@@ -682,7 +682,30 @@ async def post_daily_rug_update(ctx: Any) -> int:
         )
         return 0
     report = gate.text
-    image_url = gate.image_url
+    if gate.regenerated:
+        report = cleanup_html(report) or report
+
+    # Publication ledger + content-hash near-dup guard (2026-09): block a
+    # byte-identical re-run of the midday briefing and never ship a blank body.
+    # Fail-open: a Redis outage degrades to "ok" and posts.
+    from rugmunchbot.channels.telegram_news._ledger import (
+        evaluate_report,
+        record_publication,
+        select_edition_image,
+    )
+
+    ledger_eval = evaluate_report(
+        report, namespace="midday_update", min_words=100, log=logger
+    )
+    if not ledger_eval.allowed:
+        logger.warning(
+            "daily_rug_update:publication_skipped reason=%s", ledger_eval.reason
+        )
+        return 0
+    record_publication("midday_update", ledger_eval.content_hash, log=logger)
+    # Explicit image default: resolved image or the RugMunch Intelligence logo
+    # (app favicon) — NEVER the @cryptorugmuncher X/Telegram profile pic.
+    image_url = select_edition_image(candidate=gate.image_url)
 
     # Feed mirror FIRST so the Telegram closer can deep-link the exact post
     # (rugmunch.io/blog/{slug}). Ghost publish (website feed) is additive.
