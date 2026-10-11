@@ -106,9 +106,17 @@ def _patch_env(
         table = dict.fromkeys(("main", "news", "alerts", "scans"), drafts)
     else:
         table = {ch: drafts.get(ch, []) for ch in ("main", "news", "alerts", "scans")}
+    async def _no_rag_news(limit=5):
+        return []
+
     monkeypatch.setattr(_posts_rag, "fetch_rag_drafts", _fake_fetch(table))
     monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: chat_id)
     monkeypatch.setattr(_posts_rag, "_safe_send", sender)
+    # RugBrain news_v2 rail is the first fallback tier (fail-open → []).
+    # Stub it so tests never hit the network when the RAG lane is empty.
+    monkeypatch.setattr(
+        "rugmunchbot.channels.content.fetch_rag_news_items", _no_rag_news
+    )
 
 
 def _fake_fetch(table: dict[str, list[dict[str, Any]]]):

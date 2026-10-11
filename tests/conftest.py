@@ -5,10 +5,15 @@ import sys
 
 import pytest
 
-# Ensure src is on path for all tests
-sys.path.insert(0, "/srv/work/repos/rugmunchbot/src")
-sys.path.insert(0, "/srv/work/repos/rugmunchbot")
-sys.path.insert(0, "/srv/work/repos/rugmunch-scanner")
+# Ensure src is on path for all tests. Paths are relative to this conftest
+# file so the test suite runs against whichever checkout (canonical repo or
+# a worktree lane) it is invoked from — never a hardcoded absolute path.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
+sys.path.insert(0, _REPO_ROOT)
+_scanner = "/srv/work/repos/rugmunch-scanner"
+if os.path.isdir(_scanner):
+    sys.path.insert(0, _scanner)
 
 # Load env for tests
 from dotenv import load_dotenv

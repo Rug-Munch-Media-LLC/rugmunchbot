@@ -19,6 +19,7 @@ monkeypatch attributes on this package) keep working unchanged.
 
 from __future__ import annotations
 
+from rugmunchbot.channels.content._rag_news import fetch_rag_news_items
 from rugmunchbot.channels.content.formatters import (
     ALERT_RISK_THRESHOLD,
     _alert_condition,
@@ -108,6 +109,7 @@ __all__ = [
     "_webhook_item",
     "fetch_alpha_content",
     "fetch_rag_drafts",
+    "fetch_rag_news_items",
     "fetch_risk_alerts",
     "fetch_scan_notes",
     "fetch_suspect_scan_notes",

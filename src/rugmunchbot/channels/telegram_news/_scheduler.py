@@ -45,22 +45,67 @@ else:
 logger = get_logger("rmi_bot.channels.tg_news")
 
 
+async def _publish_allowed(dest: str, article: Any) -> bool:
+    """Durable no-duplication gate — checked BEFORE any publish.
+
+    Two layers, both must pass:
+
+    1. **Published-id ledger** (``_ledger``): keyed on the source item
+       identity (canonical URL hash), Redis-backed with an in-process
+       fallback. Survives restarts, so a redeploy never re-posts a story.
+    2. ``_remember`` — the existing per-process freshness check (namespaced
+       ``tgnews`` / ``tgmain`` / ``tgalpha`` / ``tgscam``), unchanged.
+
+    The ledger entry is *recorded* by :func:`_note_published` only after a
+    successful send, so a blocked or failed post never poisons the ledger.
+
+    Fail-open like the rest of this pipeline: a ledger outage returns True
+    (allow), never blocks the channel.
+    """
+    from rugmunchbot.channels.scheduler import _dedupe_key, _remember
+    from rugmunchbot.channels.telegram_news._ledger import is_published, item_key
+
+    key = item_key(article)
+    if await is_published(dest, key):
+        logger.info(
+            "tg_news:ledger_blocked dest=%s title=%s",
+            dest,
+            str(getattr(article, "title", "") or "")[:80],
+        )
+        return False
+    return _remember(dest, _dedupe_key(dest, _article_to_post_dict(article)))
+
+
+async def _note_published(dest: str, article: Any) -> None:
+    """Record a successful publish in the ledger. Never raises."""
+    from rugmunchbot.channels.telegram_news._ledger import item_key, mark_published
+
+    try:
+        await mark_published(dest, item_key(article))
+    except Exception as exc:  # fail-open — a ledger write failure posts nothing twice
+        logger.debug("tg_news:ledger_mark_failed dest=%s err=%s", dest, str(exc)[:80])
+
+
 async def _post_backend_trending_fallback(
     ctx: ContextTypes.DEFAULT_TYPE,
     news_chat_id: str | None,
     main_chat_id: str | None,
     safe_send: Any,
 ) -> int:
-    """News fallback rail: post backend trending headlines when the sweep is quiet.
+    """News fallback rail: post RugBrain news → backend trending when sweep is quiet.
 
-    Pulls ``fetch_trending_news`` (our own ``/api/v1/news/trending`` — real
-    headlines with source links, never synthesized) and posts the top stories
-    to the news channel (and the top one to main when its importance clears
-    the main gate). Dedupes through the same ``tgnews`` namespace so a story
-    can never post twice across the sweep + fallback rails. Returns the
-    number of messages posted (0..2). Fail-open: empty backend → 0.
+    Fallback chain (each tier fail-open, graceful downgrade):
+    ``fetch_rag_news_items`` (RugBrain ``news_v2``, rerank=True so the reranker
+    IS the ranking) → ``fetch_trending_news`` (our own ``/api/v1/news/trending``
+    — real headlines with source links, never synthesized) → no-post.
+
+    The top rugbrain-reranked story goes to the news channel (and the top one
+    to main when its importance clears the main gate). Dedupes through the
+    ``tgnews`` namespace so a story can never post twice across the sweep +
+    fallback rails. Returns the number of messages posted (0..2). Fail-open:
+    both rails empty → 0.
     """
-    from rugmunchbot.channels.content import fetch_trending_news
+    from rugmunchbot.channels.content import fetch_rag_news_items, fetch_trending_news
     from rugmunchbot.channels.formatters import format_breaking_post
     from rugmunchbot.channels.importance import (
         score_importance as _score_importance,
@@ -69,15 +114,20 @@ async def _post_backend_trending_fallback(
         ROUTE_MAIN_MIN_IMPORTANCE,
         ROUTE_NEWS_MIN_IMPORTANCE,
     )
-    from rugmunchbot.channels.scheduler import (
-        _dedupe_key,
-        _remember,
-    )
+    from rugmunchbot.channels.scheduler import _article_to_post_dict
 
     if not news_chat_id and not main_chat_id:
         return 0
 
-    items = await fetch_trending_news(limit=TG_NEWS_POST_LIMIT)
+    # RugBrain news_v2 rail FIRST (rerank=True — the reranker IS the ranking),
+    # then the backend trending rail, then no-post. Graceful downgrade:
+    # each tier is fail-open (returns [] on outage), so a RugBrain blip
+    # silently falls through to fetch_trending_news, and a total outage
+    # posts nothing and waits for the next tick.
+    items = await fetch_rag_news_items(limit=TG_NEWS_POST_LIMIT)
+    if not items:
+        logger.debug("tg_news:rag_news_empty_falling_back_to_trending")
+        items = await fetch_trending_news(limit=TG_NEWS_POST_LIMIT)
     if not items:
         logger.debug("tg_news:backend_fallback_empty")
         return 0
@@ -110,11 +160,10 @@ async def _post_backend_trending_fallback(
             reverse=True,
         )
         keep = [pair for pair in keep if pair[1].importance >= ROUTE_NEWS_MIN_IMPORTANCE]
-        fresh = [
-            a
-            for a, _s in keep[:TG_NEWS_POST_LIMIT]
-            if _remember("tgnews", _dedupe_key("tgnews", _article_to_post_dict(a)))
-        ]
+        fresh: list[Any] = []
+        for a in keep[:TG_NEWS_POST_LIMIT]:
+            if await _publish_allowed("tgnews", a):
+                fresh.append(a)
         if fresh:
             post_items = [_article_to_post_dict(a) for a in fresh[:TG_NEWS_POST_LIMIT]]
             commentaries = await _tg.attach_commentaries(post_items)
@@ -126,6 +175,8 @@ async def _post_backend_trending_fallback(
                 content_type="news",
             )
             if ok:
+                for a in fresh[:TG_NEWS_POST_LIMIT]:
+                    await _note_published("tgnews", a)
                 posted += 1
                 logger.info(
                     "tg_news:posted_backend_fallback count=%s",
@@ -137,7 +188,7 @@ async def _post_backend_trending_fallback(
         if top.importance >= ROUTE_MAIN_MIN_IMPORTANCE:
             top_article = articles[scored.index(top)]
             post = _article_to_post_dict(top_article)
-            if _remember("tgmain", _dedupe_key("tgmain", post)):
+            if await _publish_allowed("tgmain", top_article):
                 formatted = (
                     format_breaking_post(post)
                     if _tg.is_breaking_article(top_article)
@@ -153,6 +204,7 @@ async def _post_backend_trending_fallback(
                         ctx.bot, main_chat_id, formatted, safe_send, content_type="news"
                     )
                     if ok:
+                        await _note_published("tgmain", top_article)
                         posted += 1
                         logger.info("tg_news:posted_backend_main title=%s", top_article.title[:80])
     logger.info("tg_news:backend_fallback_posted count=%s", posted)
@@ -274,11 +326,8 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     from rugmunchbot.channels.router import ROUTE_ALPHA_CATEGORY, ROUTE_SCAM_CATEGORY, route_news
     from rugmunchbot.channels.scheduler import (
         _chat_id,
-        _dedupe_key,
-        _remember,
         _safe_send,
     )
-
     news_chat_id = _chat_id("news")
     alpha_chat_id = _chat_id("alpha")
     main_chat_id = _chat_id("main")
@@ -354,7 +403,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         if selected and _tg.is_breaking_article(selected[0].article):
             top = selected[0].article
             post = _article_to_post_dict(top)
-            if _remember("tgnews", _dedupe_key("tgnews", post)):
+            if await _publish_allowed("tgnews", top):
                 # AI "why it matters" one-liner (bounded, fail-open) — the post
                 # ships with just the headline when the LLM call fails/empties.
                 _apply_commentaries([post], await _tg.attach_commentaries([post]))
@@ -366,16 +415,14 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                     content_type="news",
                 )
                 if ok:
+                    await _note_published("tgnews", top)
                     logger.info("tg_news:posted_breaking title=%s", top.title[:80])
                     posted += 1
         else:
-            fresh = [
-                scored_article.article
-                for scored_article in selected
-                if _remember(
-                    "tgnews", _dedupe_key("tgnews", _article_to_post_dict(scored_article.article))
-                )
-            ]
+            fresh: list[Any] = []
+            for scored_article in selected:
+                if await _publish_allowed("tgnews", scored_article.article):
+                    fresh.append(scored_article.article)
             if fresh:
                 fresh_articles = fresh[:TG_NEWS_POST_LIMIT]
                 post_items = [_article_to_post_dict(a) for a in fresh_articles]
@@ -390,6 +437,8 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                     content_type="news",
                 )
                 if ok:
+                    for a in fresh_articles:
+                        await _note_published("tgnews", a)
                     logger.info("tg_news:posted_news count=%s", min(len(fresh), TG_NEWS_POST_LIMIT))
                     posted += 1
 
@@ -404,7 +453,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         if selected_main:
             top = selected_main[0].article
             post = _article_to_post_dict(top)
-            if _remember("tgmain", _dedupe_key("tgmain", post)):
+            if await _publish_allowed("tgmain", top):
                 # WO-2 hard cap: ≤9/day on main. Overflow demotes to the
                 # news lane — the story already posts there natively, so a
                 # capped main copy is skipped without losing the story.
@@ -440,46 +489,50 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                         from rugmunchbot.channels.scheduler import _record_main_post
 
                         await _record_main_post()
+                        await _note_published("tgmain", top)
                         logger.info("tg_news:posted_main title=%s", top.title[:80])
                         posted += 1
                         # rugmunch.io (Ghost) feed publish — best-effort + fail-open:
                         # the Telegram posts already went out; a missing Ghost API
                         # key / session cookie never blocks them (requirement: ≥0.7
                         # stories auto-post to news + main + ghost feed).
-                        await _tg.publish_story_to_feed(
-                            str(formatted), title=top.post_title or top.title
-                        )
+                        # NO-DUPLICATION: the ledger is checked BEFORE the publish
+                        # so a re-posted story never lands on the feed page twice.
+                        if await _publish_allowed("feed", top):
+                            await _tg.publish_story_to_feed(
+                                str(formatted), title=top.post_title or top.title
+                            )
+                            await _note_published("feed", top)
                         # W30 top-of-food-chain mirror: feed.rugmunch.io static
                         # store too (same atomic writer as the RAG/exploit lanes).
-                        try:
-                            from rugmunchbot.channels.scheduler._posts_rag import (
-                                mirror_post_to_feed,
-                            )
+                        if await _publish_allowed("mirror", top):
+                            try:
+                                from rugmunchbot.channels.scheduler._posts_rag import (
+                                    mirror_post_to_feed,
+                                )
 
-                            mirror_post_to_feed(
-                                {
-                                    "text": str(formatted),
-                                    "story_ref": str(
-                                        post.get("canonical_url") or post.get("url") or ""
-                                    )
-                                    or (top.post_title or top.title),
-                                    "source": str(post.get("source") or "tg_news"),
-                                    "kind": "story",
-                                }
-                            )
-                        except Exception as exc:
-                            logger.warning("tg_news:feed_mirror_failed err=%s", str(exc)[:120])
+                                mirror_post_to_feed(
+                                    {
+                                        "text": str(formatted),
+                                        "story_ref": str(
+                                            post.get("canonical_url") or post.get("url") or ""
+                                        )
+                                        or (top.post_title or top.title),
+                                        "source": str(post.get("source") or "tg_news"),
+                                        "kind": "story",
+                                    }
+                                )
+                                await _note_published("mirror", top)
+                            except Exception as exc:
+                                logger.warning("tg_news:feed_mirror_failed err=%s", str(exc)[:120])
 
     # Route: alpha → alpha channel (additive; no alpha chat id → skip)
     if alpha_chat_id and alpha_scored:
         selected_alpha = select_important(alpha_scored, top_n=TG_NEWS_POST_LIMIT)
-        fresh_alpha = [
-            scored_article.article
-            for scored_article in selected_alpha
-            if _remember(
-                "tgalpha", _dedupe_key("tgalpha", _article_to_post_dict(scored_article.article))
-            )
-        ]
+        fresh_alpha: list[Any] = []
+        for scored_article in selected_alpha:
+            if await _publish_allowed("tgalpha", scored_article.article):
+                fresh_alpha.append(scored_article.article)
         if fresh_alpha:
             ok = await _post_formatted(
                 ctx.bot,
@@ -491,6 +544,8 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 content_type="alpha",
             )
             if ok:
+                for a in fresh_alpha[:TG_NEWS_POST_LIMIT]:
+                    await _note_published("tgalpha", a)
                 logger.info(
                     "tg_news:posted_alpha count=%s", min(len(fresh_alpha), TG_NEWS_POST_LIMIT)
                 )
@@ -503,13 +558,10 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # (prefix ``tgscam``), exactly like the news/alpha lanes.
     if alerts_chat_id and alerts_scored:
         selected_alerts = select_important(alerts_scored, top_n=TG_NEWS_POST_LIMIT)
-        fresh_alerts = [
-            scored_article.article
-            for scored_article in selected_alerts
-            if _remember(
-                "tgscam", _dedupe_key("tgscam", _article_to_post_dict(scored_article.article))
-            )
-        ]
+        fresh_alerts: list[Any] = []
+        for scored_article in selected_alerts:
+            if await _publish_allowed("tgscam", scored_article.article):
+                fresh_alerts.append(scored_article.article)
         if fresh_alerts:
             ok = await _post_formatted(
                 ctx.bot,
@@ -521,6 +573,8 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 content_type="alert",
             )
             if ok:
+                for a in fresh_alerts[:TG_NEWS_POST_LIMIT]:
+                    await _note_published("tgscam", a)
                 logger.info(
                     "tg_news:posted_scam_alerts count=%s",
                     min(len(fresh_alerts), TG_NEWS_POST_LIMIT),

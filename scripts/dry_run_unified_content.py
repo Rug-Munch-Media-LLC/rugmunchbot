@@ -91,6 +91,15 @@ async def _run() -> int:
 
     # Patch the SAME module-level bindings the live path uses.
     _posts_rag.fetch_rag_drafts = _rag_empty  # type: ignore[assignment]
+
+    async def _rag_news_empty(limit=5):
+        # The unified fallback chain (2026-10-11) goes rugbrain-news_v2 ->
+        # trending -> no-post; stub the rugbrain rail so this demo reproduces
+        # the intended "RAG-news empty -> trending fallback" shape instead of
+        # hitting the live RugBrain API during a dry run.
+        return []
+
+    content_mod.fetch_rag_news_items = _rag_news_empty  # type: ignore[assignment]
     content_mod.fetch_trending_news = _trending  # type: ignore[assignment]
     _posts_rag.rerank_quality = _rerank  # type: ignore[assignment]
 

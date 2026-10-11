@@ -206,6 +206,14 @@ async def test_fresh_drafts_falls_back_to_bot_sources_when_rag_empty(monkeypatch
     monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.fetch_rag_drafts", _rag)
     monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
     monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
+    # The unified fallback chain now goes rugbrain-news_v2 -> trending -> no-post.
+    # Stub the rugbrain rail to [] so this test isolates the trending fallback
+    # (mirrors tests/test_channel_rag_posting.py::_no_rag_news) instead of
+    # leaking live RugBrain data into the rerank expectations.
+    async def _no_rag_news(limit=5):
+        return []
+
+    monkeypatch.setattr("rugmunchbot.channels.content.fetch_rag_news_items", _no_rag_news)
 
     drafts = await pd._fresh_main_drafts()
 

@@ -163,3 +163,87 @@ def select_edition_image(*, candidate: str = "", fallback: str = RMI_LOGO_URL) -
     if candidate and is_valid_image(candidate):
         return str(candidate)
     return fallback
+
+
+def item_key(article: Any) -> str:
+    """Canonical identity of a news item — the ledger key.
+
+    Prefers the canonical source URL (the original article link, which is the
+    strongest "same story" signal already used by ``article_dedup_keys``),
+    then the article's own ``source_url`` / ``t.me`` URL, then the news id
+    used by the ``news_items`` table. The result is ``nid:<sha256>[:16]`` —
+    stable across ticks, restarts and reworded headlines, so the same story
+    always resolves to one key no matter which lane holds it.
+
+    Falls back to a hash of the title when nothing else is available, so a
+    source that exposes no URL still dedups.
+    """
+    url = ""
+    for attr in ("canonical_url", "resolved_url", "source_url", "url"):
+        value = getattr(article, attr, None)
+        if isinstance(value, str) and value.strip():
+            url = value.strip()
+            break
+    if url:
+        return f"nid:{hashlib.sha256(url.encode('utf-8', errors='ignore')).hexdigest()[:16]}"
+    title = getattr(article, "title", None) or ""
+    if isinstance(title, str) and title.strip():
+        return f"tid:{hashlib.sha256(title.strip().lower().encode('utf-8', errors='ignore')).hexdigest()[:16]}"
+    news_id = getattr(article, "news_id", None) or ""
+    return f"nid:{hashlib.sha256(str(news_id).encode('utf-8', errors='ignore')).hexdigest()[:16]}"
+
+
+def _redis_key(dest: str) -> str:
+    return f"{_LEDGER_PREFIX}{dest}"
+
+
+def _client() -> Any:
+    """Async Redis client, or ``None`` (never raises)."""
+    try:
+        from rugmunchbot._vendor.redis_client import get_redis_async
+
+        return get_redis_async()
+    except Exception:
+        return None
+
+
+async def is_published(dest: str, key: str) -> bool:
+    """True when *key* was already published to *dest*.
+
+    Checked BEFORE a Telegram post AND before a feed-page post. Fail-open:
+    Redis unavailable → False (allow the publish, so an outage never silences
+    the channel permanently).
+    """
+    if not key:
+        return False
+    rkey = _redis_key(dest)
+    client = _client()
+    if client is not None:
+        try:
+            return bool(await client.sismember(rkey, key))
+        except Exception as exc:  # fail-open by contract
+            logger.debug("ledger:check_failed dest=%s err=%s", dest, str(exc)[:80])
+    return key in _in_memory.get(dest, set())
+
+
+async def mark_published(dest: str, key: str) -> None:
+    """Record *key* as published to *dest*. Never raises.
+
+    Called only AFTER a successful publish. Fail-open: Redis unavailable →
+    the in-process set still stops an immediate re-post inside this process.
+    """
+    if not key:
+        return
+    rkey = _redis_key(dest)
+    client = _client()
+    if client is not None:
+        try:
+            await client.sadd(rkey, key)
+            await client.expire(rkey, LEDGER_TTL_SECONDS)
+            return
+        except Exception as exc:  # fail-open — record in memory instead
+            logger.debug("ledger:mark_failed dest=%s err=%s", dest, str(exc)[:80])
+    _in_memory.setdefault(dest, set()).add(key)
+
+
+__all__ = ["content_hash", "evaluate_report", "is_duplicate_recent", "is_published", "item_key", "mark_published", "record_publication", "select_edition_image"]

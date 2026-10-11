@@ -212,7 +212,7 @@ def filter_seen_articles(
 
     Returns ``(fresh, skipped)``; ``fresh`` preserves input order.
     """
-    from app.utils.dedup import is_duplicate_content
+    from rugmunchbot._vendor.dedup import is_duplicate_content
 
     fresh: list[NewsArticle] = []
     skipped = 0
@@ -256,7 +256,7 @@ def mark_articles_ingested(
     later rephrase of the same story is caught by the cross-run check.
     Returns the number of articles marked.
     """
-    from app.utils.dedup import mark_content_ingested
+    from rugmunchbot._vendor.dedup import mark_content_ingested
 
     marked = 0
     for article in articles or []:

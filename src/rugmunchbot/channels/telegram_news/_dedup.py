@@ -13,8 +13,8 @@ Two new layers, applied AFTER the vendor's exact-key ``dedupe_articles``:
     the same story. Catches reworded headlines that share most content words.
  2. **Embedding cosine** (async, one embed per candidate) — title + first
     300 chars of body embedded via the DeepInfra-first embed lane
-    (``_embed_candidate``:     DeepInfra ``Qwen3-Embedding-4B`` → local
-    llama.cpp ``:8004`` → vendored ``get_embedding``); cosine ≥
+    (``_embed_candidate``:     DeepInfra ``Qwen3-Embedding-8B`` → local
+    llama.cpp ``:8012`` → vendored ``get_embedding``); cosine ≥
     ``RMI_NEWS_SEMANTIC_DEDUP_THRESHOLD`` (default 0.82) collapses
     paraphrased copies. Fail-open: embedder down → layer skipped, exact-key
     dedup still ran.
@@ -45,7 +45,7 @@ _TITLE_OVERLAP_DEFAULT = 0.60
 #: Embedding cosine at/above which two articles are the same story.
 #: 2026-08-30 recalibrated 0.90 → 0.82: the module's own "Trump Digital Gold"
 #: regression case (beincrypto vs cryptobriefing — reworded headline + body,
-#: different URL) measures ~0.85-0.89 on the DeepInfra Qwen3-Embedding-4B
+#: different URL) measures ~0.85-0.89 on the DeepInfra Qwen3-Embedding-8B
 #: lane, so the 0.90 default MISSED the exact duplicate it was built to catch.
 #: Related-but-distinct stories (e.g. ETH-ETF vs BTC-ETF approval) measure
 #: ~0.75, so 0.82 keeps them separate while collapsing true duplicates.
@@ -116,26 +116,33 @@ def _dedup_text(article: NewsArticle) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Embed lane (2026-08-30) — DeepInfra API primary, local llama.cpp fallback.
+# Embed lane (2026-10-11) — DeepInfra Qwen3-Embedding-8B (4096d) primary.
 # ══════════════════════════════════════════════════════════════════════════
-# The vendored ``_vendor.rag_pkg.embeddings.get_embedding`` resolves its
-# endpoint from ``RAG_API_URL`` (default ``http://rugbrain-api:8012/api/v1`` —
-# a Docker service name that is UNREACHABLE from this host, so it silently
-# returned ``[]`` and the embed-cosine dedup layer no-op'd). The task
-# directive is "Embed via DeepInfra API (qwen3-4b 2560), local llama.cpp =
-# fallback", so this lane:
-#   1. DeepInfra ``Qwen/Qwen3-Embedding-4B`` (2560d, ``/v1/inference``)
-#   2. local llama.cpp ``qwen3-embedding-4b`` ``/v1/embeddings`` (:8004)
+# 2026-10-11 fix: the previous default pointed at the RETIRED 2560-dim 4B
+# lane. Port 8004 has nothing listening on it any more (only leftover socat
+# proxies on container bridge addresses), so every cosine comparison no-op'd
+# and the semantic layer silently degraded to title-overlap only. The live
+# fleet lane is DeepInfra ``Qwen/Qwen3-Embedding-8B`` at 4096 dims — the same
+# model the systemd drop-in (systemd/60-rag-8b.conf) pins for every other
+# embedder. Never 4B / 2560.
+#   1. DeepInfra ``Qwen/Qwen3-Embedding-8B`` (4096d, ``/v1/inference``)
+#   2. RugBrain rerank/embed lane is 8B-only hosted (deepinfra →
+#      siliconflow → openrouter) — the local :8012 API accepts BASE collection
+#      names (``news_v2``) and resolves the ``_8b`` suffix server-side, so
+#      nothing here points at 4B.
 #   3. vendored ``get_embedding`` (last resort; may be unreachable at runtime)
 # The chain is fail-open — any unreachable tier returns ``[]`` and the caller
 # keeps the article (never drops content on an embedder outage).
 _DEEPINFRA_EMBED_URL = os.getenv(
     "DEEPINFRA_EMBED_URL", "https://api.deepinfra.com/v1/inference"
 ).rstrip("/")
-_DEEPINFRA_EMBED_MODEL = os.getenv("DEEPINFRA_EMBED_MODEL", "Qwen/Qwen3-Embedding-4B")
+_DEEPINFRA_EMBED_MODEL = os.getenv("DEEPINFRA_EMBED_MODEL", "Qwen/Qwen3-Embedding-8B")
 #: Local llama.cpp OpenAI-compatible embed endpoint (self-hosted fallback).
-_LOCAL_EMBED_URL = os.getenv("DEEP_EMBED_URL", "http://127.0.0.1:8004/v1").rstrip("/")
-_LOCAL_EMBED_MODEL = os.getenv("DEEP_EMBED_LOCAL_MODEL", "qwen3-embedding-4b")
+_LOCAL_EMBED_URL = os.getenv("DEEP_EMBED_URL", "http://127.0.0.1:8012/v1").rstrip("/")
+_LOCAL_EMBED_MODEL = os.getenv("DEEP_EMBED_LOCAL_MODEL", "qwen3-embedding-8b")
+#: Embedding dims of the live lane (4096 for Qwen3-Embedding-8B). Used by the
+#: tests to assert the retired 4B/2560 lane never returns here.
+_EMBED_DIMS = 4096
 #: Embed timeout per tier (a slow embedder must never stall the whole sweep).
 _EMBED_CALL_TIMEOUT = float(os.getenv("DEEPINFRA_EMBED_TIMEOUT", "35"))
 #: Key resolved once (env → key file → fleet secret store), cached.
@@ -162,7 +169,7 @@ def _deepinfra_key() -> str | None:
 
 
 async def _embed_deepinfra(text: str) -> list[float]:
-    """Embed via DeepInfra-hosted Qwen3-Embedding-4B (2560d). ``[]`` fail-open."""
+    """Embed via DeepInfra-hosted Qwen3-Embedding-8B (4096d). ``[]`` fail-open."""
     key = _deepinfra_key()
     if not key:
         return []
@@ -185,7 +192,7 @@ async def _embed_deepinfra(text: str) -> list[float]:
 
 
 async def _embed_local(text: str) -> list[float]:
-    """Embed via local llama.cpp qwen3-embedding-4b (``/v1/embeddings``)."""
+    """Embed via local llama.cpp qwen3-embedding-8b (``/v1/embeddings``)."""
     try:
         async with httpx.AsyncClient(timeout=_EMBED_CALL_TIMEOUT) as client:
             resp = await client.post(
@@ -205,7 +212,7 @@ async def _embed_local(text: str) -> list[float]:
 
 
 async def _embed_candidate(text: str) -> list[float]:
-    """Chain the three embed tiers (DeepInfra → local :8004 → vendored default).
+    """Chain the embed tiers (DeepInfra 8B → local :8012 → vendored default).
 
     The first tier returning a non-empty vector wins. Every tier is fail-open;
     total failure returns ``[]`` so the caller keeps the article and the

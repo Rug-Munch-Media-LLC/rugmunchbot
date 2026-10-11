@@ -236,6 +236,11 @@ from rugmunchbot.channels.telegram_news._digest import (
     publish_market_awareness,
     publish_story_to_feed,
 )
+from rugmunchbot.channels.telegram_news._ledger import (
+    is_published,
+    item_key,
+    mark_published,
+)
 from rugmunchbot.channels.telegram_news._persist import (
     _CHAIN_KEYWORDS,  # noqa: F401
     _article_to_news_item,  # noqa: F401
@@ -307,8 +312,11 @@ __all__ = [
     "ingest_into_rag",
     "inject_into_news_cache",
     "is_breaking_article",
+    "is_published",
+    "item_key",
     "lightweight_importance",
     "mark_articles_ingested",
+    "mark_published",
     "normalize_title",
     "persist_articles",
     "post_tg_news_update",

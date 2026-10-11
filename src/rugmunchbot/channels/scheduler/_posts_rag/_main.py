@@ -21,21 +21,30 @@ if TYPE_CHECKING:
 async def _fallback_main_drafts(limit: int = 6) -> list[dict[str, Any]]:
     """Bot-owned content candidates for the main lane (fail-open → []).
 
-    Uses our own ``fetch_trending_news`` (real backend headlines with writer
-    + source URL) so the main lane posts even when rugbrain's
-    content-distribution lane is down, disabled, or silent. Each item is shaped
-    into a draft the lane gates accept (a ``ts`` so the recency gate passes,
-    an http(s) link in the text so the source gate passes), and carries a
-    stable ``story_ref`` so the global dedupe can never double-post it.
+    Uses the RugBrain news_v2 rail FIRST (``fetch_rag_news_items``, rerank=True
+    so the reranker IS the ranking), then falls through to real backend
+    headlines (``fetch_trending_news`` — writer + source URL) so the main lane
+    posts even when rugbrain's content-distribution lane is down, disabled, or
+    silent. Each item is shaped into a draft the lane gates accept (a ``ts`` so
+    the recency gate passes, an http(s) link in the text so the source gate
+    passes), and carries a stable ``story_ref`` so the global dedupe can never
+    double-post it.
 
     2026-08-30 unify: moved here from ``_posts_daily`` so it is a SINGLE
     source of truth for the folded-in daily-quality fallback shared by BOTH
     the channel_rag lane and the daily_quality job.
     """
     try:
-        from rugmunchbot.channels.content import fetch_trending_news
+        from rugmunchbot.channels.content import fetch_rag_news_items, fetch_trending_news
 
-        items = await fetch_trending_news(limit=limit)
+        # RugBrain news_v2 rail FIRST (rerank=True), then backend trending,
+        # then no-post — same graceful-downgrade chain as the tg_news
+        # scheduler fallback. Each tier is fail-open; a RugBrain blip
+        # silently falls through to fetch_trending_news, and a total outage
+        # posts nothing and waits for the next tick.
+        items = await fetch_rag_news_items(limit=limit)
+        if not items:
+            items = await fetch_trending_news(limit=limit)
     except Exception as exc:  # fail-open by contract
         _pkg.logger.debug("main_gather:fallback_fetch_failed err=%s", str(exc)[:120])
         return []
