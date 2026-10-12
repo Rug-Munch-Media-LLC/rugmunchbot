@@ -320,11 +320,25 @@ class QdrantStore:
         try:
             if not await self.ensure_collection():
                 return False
-            point_vector: Any = {
-                DENSE_VECTOR_NAME: [float(v) for v in vector],
-            }
-            if sparse is not None:
-                point_vector[SPARSE_VECTOR_NAME] = sparse
+            # The collection shape decides the wire format: a bare/unnamed
+            # collection (e.g. rag_documents after the 8B migration) REJECTS a
+            # named vector with 400 "Not existing vector name", so probe first
+            # exactly like search() does. Sparse only exists on named configs.
+            await self._probe_config()
+            dense_values = [float(v) for v in vector]
+            point_vector: Any
+            if self._has_named_dense:
+                point_vector = {DENSE_VECTOR_NAME: dense_values}
+                if sparse is not None:
+                    point_vector[SPARSE_VECTOR_NAME] = sparse
+            else:
+                point_vector = dense_values
+                if sparse is not None:
+                    log.debug(
+                        "qdrant_store_sparse_dropped collection=%s "
+                        "(unnamed vector collection has no sparse space)",
+                        self.collection_name,
+                    )
             await self.client.upsert(
                 collection_name=self.collection_name,
                 points=[models.PointStruct(id=pid, vector=point_vector, payload=payload or {})],

@@ -105,6 +105,12 @@ def _read_updates_channel_enabled() -> bool:
     return _env_bool("RMI_UPDATES_CHANNEL_ENABLED", True)
 
 
+def _read_scam_alerts_publisher_enabled() -> bool:
+    return _env_bool("RMI_SCAM_ALERTS_PUBLISHER_ENABLED", True)
+
+def _read_scam_alerts_publisher_interval_minutes() -> int:
+    return _env_int("RMI_SCAM_ALERTS_PUBLISHER_INTERVAL_MINUTES", 30)
+
 def _read_updates_post_hour_utc() -> int:
     """Hour (0-23 UTC) the daily @rmiupdates changelog fires."""
     raw = os.getenv("RMI_UPDATES_HOUR_UTC")

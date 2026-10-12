@@ -14,6 +14,7 @@ from rugmunchbot.channels.personal_channel import (
     post_personal_channel,
     resolve_personal_chat_id,
 )
+from rugmunchbot.channels.scam_alerts import run_scam_alerts_publisher
 from rugmunchbot.channels.scam_watch import (
     SCAM_WATCH_ENABLED,
     SCAM_WATCH_INTERVAL_MINUTES,
@@ -43,6 +44,8 @@ from rugmunchbot.config import (
     ALPHA_CHANNEL_ENABLED,
     ALPHA_CHANNEL_INTERVAL_HOURS,
     CHANNEL_JOBS_ENABLED,
+    SCAM_ALERTS_PUBLISHER_ENABLED,
+    SCAM_ALERTS_PUBLISHER_INTERVAL_MINUTES,
     SCAN_CHANNEL_ENABLED,
     SCAN_CHANNEL_INTERVAL_MINUTES,
     UPDATES_CHANNEL_ENABLED,
@@ -518,6 +521,17 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             interval=SCAM_WATCH_INTERVAL_MINUTES * 60,
             first=_FIRST_RUN_SECONDS["scam_watch"],
             name="channel_scam_watch",
+        )
+
+    if SCAM_ALERTS_PUBLISHER_ENABLED:
+        # Shill/scam alerts from the RugBrain watchlist stream. Every finding
+        # reaches the alerts page; risk >= RMI_SCAM_ALERTS_MAIN_RISK also
+        # reaches the MAIN channel. Wrapped so it can never break the news path.
+        job_queue.run_repeating(
+            _tick_wrapper("channel_scam_alerts_publisher", run_scam_alerts_publisher, envelope=True),
+            interval=SCAM_ALERTS_PUBLISHER_INTERVAL_MINUTES * 60,
+            first=_FIRST_RUN_SECONDS["scam_alerts_publisher"],
+            name="channel_scam_alerts_publisher",
         )
     if SECURITY_SEARCH_ENABLED:
         # Security keyword search (2026-09-02): ONE GetXAPI advanced_search

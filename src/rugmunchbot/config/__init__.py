@@ -96,12 +96,14 @@ from ._scheduling import (
     _read_news_channel_enabled as _read_news_channel_enabled,
     _read_news_channel_interval_hours as _read_news_channel_interval_hours,
     _read_news_channel_limit as _read_news_channel_limit,
+    _read_scam_alerts_publisher_enabled,
+    _read_scam_alerts_publisher_interval_minutes as _read_scam_alerts_publisher_interval_minutes,
     _read_scan_channel_enabled as _read_scan_channel_enabled,
     _read_scan_channel_interval_minutes as _read_scan_channel_interval_minutes,
     _read_scan_channel_limit as _read_scan_channel_limit,
     _read_scan_channel_tick_limit as _read_scan_channel_tick_limit,
     _read_updates_channel_enabled as _read_updates_channel_enabled,
-    _read_updates_post_hour_utc as _read_updates_post_hour_utc,
+    _read_updates_post_hour_utc,
 )
 from ._secrets import (
     _RMI_AUTH_SECRET_FILES as _RMI_AUTH_SECRET_FILES,
@@ -255,6 +257,15 @@ def _resolve_scan_channel_tick_limit() -> int:
 
 
 @lru_cache
+def _resolve_scam_alerts_publisher_enabled() -> bool:
+    """Shill/scam alert publisher — on by default; no-ops without destinations."""
+    return _read_scam_alerts_publisher_enabled()
+
+
+def _resolve_scam_alerts_publisher_interval_minutes() -> int:
+    return _read_scam_alerts_publisher_interval_minutes()
+
+
 def _resolve_updates_channel_enabled() -> bool:
     return _read_updates_channel_enabled()
 
@@ -306,6 +317,8 @@ SCAN_CHANNEL_LIMIT: int
 SCAN_CHANNEL_TICK_LIMIT: int
 UPDATES_CHANNEL_ENABLED: bool
 UPDATES_POST_HOUR_UTC: int
+SCAM_ALERTS_PUBLISHER_ENABLED: bool
+SCAM_ALERTS_PUBLISHER_INTERVAL_MINUTES: int
 
 _LAZY_RESOLVERS: dict[str, Callable[[], Any]] = {
     "BOT_TOKEN": _resolve_bot_token,
@@ -333,6 +346,8 @@ _LAZY_RESOLVERS: dict[str, Callable[[], Any]] = {
     "SCAN_CHANNEL_TICK_LIMIT": _resolve_scan_channel_tick_limit,
     "UPDATES_CHANNEL_ENABLED": _resolve_updates_channel_enabled,
     "UPDATES_POST_HOUR_UTC": _resolve_updates_post_hour_utc,
+    "SCAM_ALERTS_PUBLISHER_ENABLED": _resolve_scam_alerts_publisher_enabled,
+    "SCAM_ALERTS_PUBLISHER_INTERVAL_MINUTES": _resolve_scam_alerts_publisher_interval_minutes,
 }
 
 

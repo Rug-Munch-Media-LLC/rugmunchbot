@@ -46,6 +46,7 @@ _FIRST_RUN_SECONDS = {
     "scans": 225,
     "security_search": 285,
     "social_monitor": 315,
+    "scam_alerts_publisher": 345,
 }
 
 
@@ -87,7 +88,7 @@ def _title_hash(title: str | None) -> str | None:
     words = [w for w in text.split() if w and w not in _TITLE_STOPWORDS]
     if not words:
         return None
-    return hashlib.md5(" ".join(words)[:60].encode(), usedforsecurity=False).hexdigest()  # noqa: S324 — non-crypto dedup hash
+    return hashlib.md5(" ".join(words)[:60].encode(), usedforsecurity=False).hexdigest()
 
 
 def _env_retry_count(name: str, default: int) -> int:
