@@ -1,9 +1,11 @@
-"""Photo -> local vision lane (Qwythos-9B; llama.cpp :8014, the mmproj lane).
+"""Photo -> hosted vision lane (Groq Qwen3.8-27b, Gemini flash fallback).
 
-Sends the photo (data URI) to the local multimodal chat lane and replies with
-the model's read — charts, contract screenshots, token images, wallet/tx views.
-Zero API cost. Groups require the bot to be addressed (same etiquette as text);
-owner is exempt. Fail-open: never raises.
+Sends the photo (data URI) through the SAME hosted ladder as text chat
+(llm_config.chat_with_fallback, tier="snappy") and replies with the model's
+read — charts, contract screenshots, token images, wallet/tx views. One lane,
+no second setup: the photo path rides the same Groq -> Gemini -> ... chain.
+Groups require the bot to be addressed (same etiquette as text); owner is
+exempt. Fail-open: never raises.
 """
 
 from __future__ import annotations
@@ -13,7 +15,6 @@ import time
 from html import escape
 from typing import TYPE_CHECKING
 
-import httpx
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
@@ -30,14 +31,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# 2026-10-15: the vision lane is :8014, NOT the chat router on :8009.
-# :8009 runs the chat/long presets with NO mmproj, so an image request there
-# returned HTTP 500; :8014 (llama-heavy) loads the Qwythos mmproj and serves the
-# image (verified HTTP 200). The old URL meant the photo handler had NEVER
-# worked against the consolidated router.
-VISION_URL = "http://127.0.0.1:8014/v1/chat/completions"
-VISION_MODEL = "qwythos-9b"
-VISION_TIMEOUT = 180.0
+# 2026-10-15 (later): vision rides the hosted lane via chat_with_fallback —
+# Groq Qwen3.8-27b (vision verified on a real image, HTTP 200) with the Gemini
+# flash fallback. The local :8014 mmproj lane is retired from the product path.
 MAX_REPLY_CHARS = 3900
 
 _VISION_PROMPT = (
@@ -81,30 +77,22 @@ async def photo_chat_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
     t0 = time.monotonic()
     answer = ""
     try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=5.0, read=VISION_TIMEOUT, write=30.0, pool=5.0)
-        ) as client:
-            resp = await client.post(
-                VISION_URL,
-                json={
-                    "model": VISION_MODEL,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {"type": "image_url", "image_url": {"url": data_uri}},
-                            ],
-                        }
+        from rugmunchbot.llm_config import chat_with_fallback
+
+        answer = await chat_with_fallback(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": data_uri}},
                     ],
-                    "max_tokens": 900,
-                    "temperature": 0.6,
-                },
-            )
-        resp.raise_for_status()
-        data = resp.json()
-        msg = (data.get("choices") or [{}])[0].get("message") or {}
-        answer = (msg.get("content") or "").strip()
+                }
+            ],
+            "snappy",
+            900,
+        )
+        answer = (answer or "").strip()
     except Exception:
         logger.exception("vision: lane call failed (user=%s)", user.id)
 

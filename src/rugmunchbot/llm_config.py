@@ -3,7 +3,7 @@
 Phase 2a extraction of the bits the bot uses from rmi-backend's
 ``app.llm_config`` (frozen copy of the same logic; env-driven, reads the
 bot's own environment — ``OPENROUTER_BACKUP_API_KEY`` and
-``KILOCODE_API_KEY`` come from ``/srv/secrets/rugmunchbot.env``).
+``KILOCODE_API_KEY`` come from the bot's secrets env file).
 
 Chain (canonical — rewritten 2026-09-18 after a 17-candidate free benchmark):
   rung 0 = local ``qwythos-9b`` on Talos :8009 (our model, free, private)
@@ -139,7 +139,9 @@ DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-30B-
 # rate limit, ~8-10 tok/s on CPU (2026-09-18 Qwythos swap). Quality-critical tasks
 # stay on the hosted writer. RMI_LOCAL_LLM_ENABLED=false kills the lane
 # (everything falls through to the free-API chain).
-LOCAL_LLM_ENABLED = os.getenv("RMI_LOCAL_LLM_ENABLED", "false")  # 2026-10-15: OFF by default — Qwythos retired.lower() in ("1", "true", "yes")
+LOCAL_LLM_ENABLED = os.getenv(
+    "RMI_LOCAL_LLM_ENABLED", "false"
+)  # 2026-10-15: OFF by default — Qwythos retired.lower() in ("1", "true", "yes")
 LOCAL_LLM_URL = os.getenv("RMI_LOCAL_LLM_URL", "http://127.0.0.1:8009/v1/chat/completions")
 LOCAL_LLM_MODEL = os.getenv("RMI_LOCAL_LLM_MODEL", "qwythos-9b")
 #: Hard token cap for the local-first consumer-chat rung. A CPU-only 9B at
@@ -275,6 +277,7 @@ def get_paid_final_config(tier: str) -> dict[str, Any]:
         "api_key": DEEPINFRA_API_KEY,
         "max_tokens": 2000 if tier == "snappy" else 3000,
         "temperature": 0.3 if tier == "snappy" else 0.7,
+        "reasoning_toggle": True,  # DeepInfra supports the CoT-suppression field
         "timeout": 60.0,
     }
 
@@ -375,8 +378,8 @@ async def _chat_once(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-                "User-Agent": "rugmunchbot/1.0 (+https://rugmunch.io)",
-"HTTP-Referer": "https://rugmunch.io",
+        "User-Agent": "rugmunchbot/1.0 (+https://rugmunch.io)",
+        "HTTP-Referer": "https://rugmunch.io",
         "X-Title": "RMI Chat Fallback",
     }
     payload: dict[str, Any] = {
@@ -386,9 +389,12 @@ async def _chat_once(
         if max_tokens is not None
         else int(config.get("max_tokens") or 512),
         "temperature": float(config.get("temperature") or 0.5),
-        # Never emit chain-of-thought (StepFlash/DeepSeek-style reasoning).
-        "reasoning": {"enabled": False},
     }
+    # Chain-of-thought suppression is a DeepInfra/llama.cpp extension. Groq and
+    # Gemini reject the field outright (HTTP 400 "property 'reasoning' is
+    # unsupported"), so it is OPT-IN per config — never sent by default.
+    if config.get("reasoning_toggle", False):
+        payload["reasoning"] = {"enabled": False}
 
     # Retry once on transient failures (429, 5xx, timeout)
     for attempt in range(2):
@@ -530,7 +536,7 @@ async def chat_with_fallback(
     # reply; if it is slow/empty/unavailable the free chain below takes over.
     # Consumer chat uses a SHORT timeout: measured ~78s for a deep answer, which
     # must fail fast into the hosted chain rather than block the reply.
-    if tier == "snappy" or is_local_first_task(task_class):
+    if (tier == "snappy" and LOCAL_LLM_ENABLED) or is_local_first_task(task_class):
         local_budget = min(max_tokens or LOCAL_CHAT_MAX_TOKENS, LOCAL_CHAT_MAX_TOKENS)
         local_cfg = get_local_config(local_budget, timeout=LOCAL_CHAT_TIMEOUT_S)
         answer = await _chat_once(local_cfg, messages, local_budget)
@@ -626,8 +632,8 @@ async def vision_chat(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-                "User-Agent": "rugmunchbot/1.0 (+https://rugmunch.io)",
-"HTTP-Referer": "https://rugmunch.io",
+        "User-Agent": "rugmunchbot/1.0 (+https://rugmunch.io)",
+        "HTTP-Referer": "https://rugmunch.io",
         "X-Title": "RMI Vision",
     }
     payload: dict[str, Any] = {
