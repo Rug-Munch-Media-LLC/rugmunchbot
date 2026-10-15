@@ -307,7 +307,8 @@ async def _call_remote_fast(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://rugmunch.io",
+                "User-Agent": "rugmunchbot/1.0 (+https://rugmunch.io)",
+"HTTP-Referer": "https://rugmunch.io",
         "X-Title": "RMI Telegram Bot",
     }
     t0 = time.monotonic()

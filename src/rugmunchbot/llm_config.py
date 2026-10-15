@@ -359,7 +359,8 @@ async def _chat_once(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://rugmunch.io",
+                "User-Agent": "rugmunchbot/1.0 (+https://rugmunch.io)",
+"HTTP-Referer": "https://rugmunch.io",
         "X-Title": "RMI Chat Fallback",
     }
     payload: dict[str, Any] = {
@@ -609,7 +610,8 @@ async def vision_chat(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://rugmunch.io",
+                "User-Agent": "rugmunchbot/1.0 (+https://rugmunch.io)",
+"HTTP-Referer": "https://rugmunch.io",
         "X-Title": "RMI Vision",
     }
     payload: dict[str, Any] = {
