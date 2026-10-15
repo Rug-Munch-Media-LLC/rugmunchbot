@@ -1,21 +1,21 @@
-"""Photo -> local vision lane (Qwythos-9B; llama.cpp :8009).
+"""Photo -> local vision lane (Qwythos-9B; llama.cpp :8014, the mmproj lane).
 
 Sends the photo (data URI) to the local multimodal chat lane and replies with
 the model's read — charts, contract screenshots, token images, wallet/tx views.
 Zero API cost. Groups require the bot to be addressed (same etiquette as text);
 owner is exempt. Fail-open: never raises.
 """
+
 from __future__ import annotations
 
 import base64
-from html import escape
 import time
+from html import escape
+from typing import TYPE_CHECKING
 
 import httpx
-from telegram import Update
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
-from telegram.ext import ContextTypes
 
 from rugmunchbot import db
 from rugmunchbot.db._base import run_db
@@ -23,9 +23,19 @@ from rugmunchbot.formatters import is_owner
 from rugmunchbot.handlers.chat_ai._markup import _markdown_to_html
 from rugmunchbot.support.logging import get_logger
 
+if TYPE_CHECKING:
+    from telegram import Update
+    from telegram.ext import ContextTypes
+
+
 logger = get_logger(__name__)
 
-VISION_URL = "http://127.0.0.1:8009/v1/chat/completions"
+# 2026-10-15: the vision lane is :8014, NOT the chat router on :8009.
+# :8009 runs the chat/long presets with NO mmproj, so an image request there
+# returned HTTP 500; :8014 (llama-heavy) loads the Qwythos mmproj and serves the
+# image (verified HTTP 200). The old URL meant the photo handler had NEVER
+# worked against the consolidated router.
+VISION_URL = "http://127.0.0.1:8014/v1/chat/completions"
 VISION_MODEL = "qwythos-9b"
 VISION_TIMEOUT = 180.0
 MAX_REPLY_CHARS = 3900
@@ -99,7 +109,7 @@ async def photo_chat_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
         logger.exception("vision: lane call failed (user=%s)", user.id)
 
     if not answer:
-        answer = "👁️ I couldn’t read that image right now — try again in a moment."
+        answer = "👁️ I couldn't read that image right now — try again in a moment."
 
     html = _markdown_to_html(answer)
     if len(html) > MAX_REPLY_CHARS:
@@ -118,5 +128,8 @@ async def photo_chat_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
         logger.debug("vision: usage increment failed", exc_info=True)
     logger.info(
         "vision trace: user=%s ok=%s latency_ms=%s chars=%s",
-        user.id, bool(answer), int((time.monotonic() - t0) * 1000), len(answer),
+        user.id,
+        bool(answer),
+        int((time.monotonic() - t0) * 1000),
+        len(answer),
     )
