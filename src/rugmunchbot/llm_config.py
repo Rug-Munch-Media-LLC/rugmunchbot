@@ -101,6 +101,17 @@ def _clean_answer(answer: str) -> str:
 OPENROUTER_BASE = os.getenv("OPENROUTER_BASE", "https://openrouter.ai/api/v1")
 OPENROUTER_BACKUP_API_KEY = os.getenv("OPENROUTER_BACKUP_API_KEY", "")
 KILOCODE_BASE = os.getenv("KILOCODE_BASE", "http://127.0.0.1:18091/api/gateway")
+# 2026-10-15: hosted FREE primary lane (owner decision) — one model for chat AND
+# content writing, vision-capable, ~320 tok/s. Replaces the local Qwythos lane
+# entirely (see RMI_LOCAL_LLM_ENABLED, which now defaults off) and the local
+# KiloCode gateway as the snappy primary.
+GROQ_BASE = os.getenv("GROQ_BASE", "https://api.groq.com/openai/v1")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+# Free fallback #1/#2: Gemini (openai-compatible shim), then the OpenRouter free ids.
+GEMINI_BASE = os.getenv("GEMINI_BASE", "https://generativelanguage.googleapis.com/v1beta/openai")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 KILOCODE_API_KEY = os.getenv("KILOCODE_API_KEY", "")
 # 2026-09-18: OpenCode Zen lane RETIRED. Its free tier is session-locked to the
 # opencode app — calling it from the bot (a non-opencode client) returns
@@ -128,7 +139,7 @@ DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-30B-
 # rate limit, ~8-10 tok/s on CPU (2026-09-18 Qwythos swap). Quality-critical tasks
 # stay on the hosted writer. RMI_LOCAL_LLM_ENABLED=false kills the lane
 # (everything falls through to the free-API chain).
-LOCAL_LLM_ENABLED = os.getenv("RMI_LOCAL_LLM_ENABLED", "true").lower() in ("1", "true", "yes")
+LOCAL_LLM_ENABLED = os.getenv("RMI_LOCAL_LLM_ENABLED", "false")  # 2026-10-15: OFF by default — Qwythos retired.lower() in ("1", "true", "yes")
 LOCAL_LLM_URL = os.getenv("RMI_LOCAL_LLM_URL", "http://127.0.0.1:8009/v1/chat/completions")
 LOCAL_LLM_MODEL = os.getenv("RMI_LOCAL_LLM_MODEL", "qwythos-9b")
 #: Hard token cap for the local-first consumer-chat rung. A CPU-only 9B at
@@ -206,13 +217,16 @@ def get_snappy_config() -> dict[str, Any]:
     max_tokens 3000 — headroom so a reasoning-capable fallback still emits content.
     """
     return {
-        "model": "poolside/laguna-s-2.1:free",
-        "base_url": f"{KILOCODE_BASE}/chat/completions",
-        "api_key": KILOCODE_API_KEY,
-        "fallback_model": "nvidia/nemotron-3-super-120b-a12b:free",
-        "fallback_base_url": f"{OPENROUTER_BASE}/chat/completions",
-        "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
-        "max_tokens": 3000,
+        "model": GROQ_MODEL,
+        "base_url": f"{GROQ_BASE}/chat/completions",
+        "api_key": GROQ_API_KEY,
+        "fallback_model": GEMINI_MODEL,
+        "fallback_base_url": f"{GEMINI_BASE}/chat/completions",
+        "fallback_api_key": GEMINI_API_KEY,
+        # 2026-10-15: 6000 (was 3000). The local 9B managed ~9 tok/s, so a long
+        # answer meant a long wait; hosted Qwen does ~320 tok/s, so output length
+        # is no longer the thing that makes a reply feel slow.
+        "max_tokens": 6000,
         "temperature": 0.3,
         "timeout": 40.0,
     }
@@ -233,13 +247,15 @@ def get_long_config() -> dict[str, Any]:
     caveat -> close) inside budget. 120s timeout: ultra can be slow under load.
     """
     return {
-        "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "base_url": f"{KILOCODE_BASE}/chat/completions",
-        "api_key": KILOCODE_API_KEY,
-        "fallback_model": "nvidia/nemotron-3-super-120b-a12b:free",
-        "fallback_base_url": f"{OPENROUTER_BASE}/chat/completions",
-        "fallback_api_key": OPENROUTER_BACKUP_API_KEY,
-        "max_tokens": 3000,
+        "model": GROQ_MODEL,
+        "base_url": f"{GROQ_BASE}/chat/completions",
+        "api_key": GROQ_API_KEY,
+        "fallback_model": GEMINI_MODEL,
+        "fallback_base_url": f"{GEMINI_BASE}/chat/completions",
+        "fallback_api_key": GEMINI_API_KEY,
+        # Same model as snappy on purpose: ONE lane for chat and content writing
+        # (no second setup). 8000 tokens of headroom for long/analysis answers.
+        "max_tokens": 8000,
         "temperature": 0.7,
         "timeout": 120.0,
     }
