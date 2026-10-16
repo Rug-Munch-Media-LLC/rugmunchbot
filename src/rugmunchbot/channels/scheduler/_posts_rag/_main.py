@@ -442,10 +442,26 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             posted_total += 1
 
             if channel == "main" and item.get("mirror"):
-                slug = _pkg._mirror_to_feed(item)
-                if slug:
+                # Dual-surface contract (2026-10-16): route through
+                # ``dual_publish`` so a site outage queues the item (drained
+                # next publish) and the outcome is a status line.
+                from rugmunchbot.support.dual_publish import (
+                    PublishStatus,
+                    publish_to_site,
+                )
+
+                st = publish_to_site(item, status=PublishStatus(telegram=True))
+                if st.site:
                     _pkg._note_mirror_success()
-                    _pkg.logger.info("rag_post_mirrored_to_feed slug=%s", slug)
+                    _pkg.logger.info(
+                        "rag_post_mirrored_to_feed slug=%s status=%s", st.slug, st.line()
+                    )
+                elif st.queued:
+                    _pkg.logger.warning(
+                        "rag_post_feed_queued ref=%s status=%s",
+                        str(item.get("story_ref") or "")[:60],
+                        st.line(),
+                    )
                 else:
                     # W30: mandatory mirror failed — operator must know.
                     await _pkg._alert_mirror_failure(

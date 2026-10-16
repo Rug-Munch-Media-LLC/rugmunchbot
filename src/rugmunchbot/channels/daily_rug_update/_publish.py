@@ -694,13 +694,9 @@ async def post_daily_rug_update(ctx: Any) -> int:
         select_edition_image,
     )
 
-    ledger_eval = evaluate_report(
-        report, namespace="midday_update", min_words=100, log=logger
-    )
+    ledger_eval = evaluate_report(report, namespace="midday_update", min_words=100, log=logger)
     if not ledger_eval.allowed:
-        logger.warning(
-            "daily_rug_update:publication_skipped reason=%s", ledger_eval.reason
-        )
+        logger.warning("daily_rug_update:publication_skipped reason=%s", ledger_eval.reason)
         return 0
     record_publication("midday_update", ledger_eval.content_hash, log=logger)
     # Explicit image default: resolved image or the RugMunch Intelligence logo
@@ -709,30 +705,34 @@ async def post_daily_rug_update(ctx: Any) -> int:
 
     # Feed mirror FIRST so the Telegram closer can deep-link the exact post
     # (rugmunch.io/blog/{slug}). Ghost publish (website feed) is additive.
+    # Dual-surface contract (2026-10-16): the site half rides ``dual_publish``
+    # so a site outage QUEUES the item (drained on the next run) instead of
+    # silently dropping it, and the run emits a "what posted where" status.
+    from rugmunchbot.support.dual_publish import (
+        PublishStatus,
+        drain_retry_queue,
+        publish_to_site,
+    )
+
+    drain_retry_queue()  # self-heal any backlog from a prior site outage
     feed_url = ""
     slug = ""
+    site_status = PublishStatus()
     if DAILY_RUG_UPDATE_FEED_ENABLED:
-        try:
-            from rugmunchbot.channels.scheduler._posts_rag import mirror_post_to_feed
-
-            slug = (
-                mirror_post_to_feed(
-                    {
-                        "text": report[:3900],
-                        "story_ref": f"daily-rug-update-{datetime.now(UTC).strftime('%Y%m%d')}",
-                        "source": "rugmunch.io",
-                        # 2026-09-05: updates are FEED briefings, not blog
-                        # posts — kind drives the Ghost tag + feed store.
-                        "kind": "briefing",
-                        "title": f"{EDITION} — {datetime.now(UTC).strftime('%B %d, %Y')}",
-                        "tags": ["briefing", "market-update", EDITION.lower().replace(" ", "-")],
-                        "image_url": image_url,
-                    }
-                )
-                or ""
-            )
-        except Exception as exc:
-            logger.warning("daily_rug_update:feed_mirror_failed err=%s", str(exc)[:120])
+        site_status = publish_to_site(
+            {
+                "text": report[:3900],
+                "story_ref": f"daily-rug-update-{datetime.now(UTC).strftime('%Y%m%d')}",
+                "source": "rugmunch.io",
+                # 2026-09-05: updates are FEED briefings, not blog
+                # posts — kind drives the Ghost tag + feed store.
+                "kind": "briefing",
+                "title": f"{EDITION} — {datetime.now(UTC).strftime('%B %d, %Y')}",
+                "tags": ["briefing", "market-update", EDITION.lower().replace(" ", "-")],
+                "image_url": image_url,
+            }
+        )
+        slug = site_status.slug
         if slug:
             feed_url = f"https://rugmunch.io/blog/{slug}"
         ghost = await publish_to_feed(raw, feature_image=image_url)
@@ -772,5 +772,15 @@ async def post_daily_rug_update(ctx: Any) -> int:
             break
     if sent == 0:
         return 0
-    logger.info("daily_rug_update:posted parts=%d/%d slug=%s", sent, len(parts), slug)
+    # Dual-surface status line (2026-10-16): what posted where. Telegram is
+    # confirmed by ``sent``; the site half is ✅ (mirrored) or ⏳ (queued for
+    # retry when the feed was down). One line, greppable in the journal.
+    site_status.telegram = True
+    logger.info(
+        "daily_rug_update:posted parts=%d/%d slug=%s status=%s",
+        sent,
+        len(parts),
+        slug,
+        site_status.line(),
+    )
     return 1

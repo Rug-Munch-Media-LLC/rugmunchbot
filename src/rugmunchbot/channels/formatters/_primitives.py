@@ -102,6 +102,23 @@ def _pick_image_url(value: object) -> str:
         return url
 
 
+def _graphic_for(post_type: str) -> str:
+    """Brand graphic URL for a post type (lazy import — avoids a cycle).
+
+    Delegates to ``support.post_graphics.graphic_for`` so every formatter
+    can attach its per-type brand graphic without importing the support
+    package at module load (which would cycle through ``channels``).
+    Fail-open: any error returns "" so a formatter never crashes on a
+    graphics lookup.
+    """
+    try:
+        from rugmunchbot.support.post_graphics import graphic_for
+
+        return graphic_for(post_type)
+    except Exception:
+        return ""
+
+
 def _esc(value: object) -> str:
     """HTML-escape text for Telegram parse_mode=HTML (quotes left intact)."""
     return html.escape(str(value), quote=False)

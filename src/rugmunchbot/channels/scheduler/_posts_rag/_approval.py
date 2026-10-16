@@ -116,13 +116,26 @@ def _post_main_draft(
 
 
 async def _mirror_if_needed(ctx: ContextTypes.DEFAULT_TYPE, item: dict[str, Any]) -> None:
-    """Mirror a posted main draft to feed.rugmunch.io (W30 contract)."""
+    """Mirror a posted main draft to feed.rugmunch.io (W30 contract).
+
+    Dual-surface contract (2026-10-16): routes through ``dual_publish`` so a
+    site outage QUEUES the item (drained on the next publish) instead of
+    dropping it, and the outcome is logged as a status line.
+    """
     if not item.get("mirror"):
         return
-    slug = _pkg._mirror_to_feed(item)
-    if slug:
+    from rugmunchbot.support.dual_publish import PublishStatus, publish_to_site
+
+    st = publish_to_site(item, status=PublishStatus(telegram=True))
+    if st.site:
         _pkg._note_mirror_success()
-        _pkg.logger.info("rag_post_mirrored_to_feed slug=%s", slug)
+        _pkg.logger.info("rag_post_mirrored_to_feed slug=%s status=%s", st.slug, st.line())
+    elif st.queued:
+        _pkg.logger.warning(
+            "rag_post_feed_queued ref=%s status=%s",
+            str(item.get("story_ref") or "")[:60],
+            st.line(),
+        )
     else:
         await _pkg._alert_mirror_failure(ctx.bot, str(item.get("story_ref") or "")[:120])
 

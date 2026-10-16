@@ -3,6 +3,7 @@
 Consumes /var/lib/rugbrain/shill_alerts.jsonl and publishes new alerts to
 Telegram main channel and Ghost feed page using existing publishing helpers.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,16 +29,14 @@ logger = get_logger("rmi_bot.channels.scam_alerts")
 
 # Configuration
 SHILL_ALERTS_FILE = "/var/lib/rugbrain/shill_alerts.jsonl"
-CURSOR_FILE = os.getenv(
-    "RMI_SCAM_ALERTS_CURSOR", "/var/lib/rugmunchbot/scam_alerts.cursor"
-)
+CURSOR_FILE = os.getenv("RMI_SCAM_ALERTS_CURSOR", "/var/lib/rugmunchbot/scam_alerts.cursor")
 MIN_WORDS = 50  # Minimum words for a valid alert post
 POST_TO_TELEGRAM = os.getenv("RMI_SCAM_ALERTS_POST_TELEGRAM", "true").lower() in (
-    "1", "true", "yes"
+    "1",
+    "true",
+    "yes",
 )
-POST_TO_FEED = os.getenv("RMI_SCAM_ALERTS_POST_FEED", "true").lower() in (
-    "1", "true", "yes"
-)
+POST_TO_FEED = os.getenv("RMI_SCAM_ALERTS_POST_FEED", "true").lower() in ("1", "true", "yes")
 
 
 def _read_cursor() -> int:
@@ -165,69 +164,58 @@ async def rank_alerts(alerts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return ordered
 
 
+def _severity_from_risk(risk: int) -> str:
+    """Map a RugBrain 0-5 risk to the scam-alert severity vocabulary."""
+    if risk >= 5:
+        return "critical"
+    if risk >= 4:
+        return "high"
+    if risk >= 3:
+        return "medium"
+    return "low"
+
+
 def _render_alert_post(alert: dict[str, Any]) -> str:
-    """Render a shill alert into a Telegram post."""
-    metadata = alert.get("metadata", {})
+    """Render a shill alert into the DEDICATED scam-alert card.
 
-    # Extract relevant fields
-    text = alert.get("text", "").strip()
-    channel = metadata.get("channel", "unknown")
-    risk = metadata.get("risk", 0)
-    categories = metadata.get("categories", [])
-    addresses = metadata.get("addresses", [])
-    tickers = metadata.get("tickers", [])
-    date = metadata.get("date", "")
+    Operator directive (2026-10-17): scam alerts are their own post type —
+    severity framing + concrete intel + verify link — not a generic
+    "Shill Alert: <headline>" dump. Delegates to
+    ``formatters.format_scam_alert`` so the copy + graphic are owned in one
+    place. Falls back to a minimal honest card when the formatter is
+    unavailable (fail-open — an alert must never be lost to a format bug).
+    """
+    metadata = alert.get("metadata") or {}
+    risk = severity(alert)
+    addresses = [str(a) for a in (metadata.get("addresses") or []) if str(a).strip()]
+    tickers = [str(t) for t in (metadata.get("tickers") or []) if str(t).strip()]
+    text = str(alert.get("text") or "").strip()
+    item: dict[str, Any] = {
+        "severity": _severity_from_risk(risk),
+        "address": addresses[0] if addresses else "",
+        "symbol": tickers[0] if tickers else "",
+        "chain": str(metadata.get("chain") or ""),
+        "scam_intel": text[:400],
+        "source": str(metadata.get("channel") or ""),
+        "risk_flags": [str(c) for c in (metadata.get("categories") or []) if str(c).strip()],
+    }
+    try:
+        from rugmunchbot.channels.formatters import format_scam_alert
 
-    # Build the post
-    lines = []
-
-    # Headline - use the shill claim or first part of text
-    if text:
-        # Take first line or first 200 chars as headline
-        headline = text.split('\n')[0][:200]
-        if len(headline) >= 200:
-            headline += "..."
-        lines.append(f"<b>Shill Alert: {headline}</b>")
-    else:
-        lines.append("<b>Shill Alert: RugBrain Detection</b>")
-
-    # Channel and risk
-    lines.append(f"<b>Channel:</b> {channel}")
-    lines.append(f"<b>Risk Level:</b> {risk}/5")
-
-    # Categories
-    if categories:
-        lines.append(f"<b>Categories:</b> {', '.join(categories)}")
-
-    # Addresses
-    if addresses:
-        addr_list = []
-        for addr in addresses[:5]:  # Limit to 5 addresses
-            if len(addr) > 10:
-                addr_list.append(f"<code>{addr}</code>")
-            else:
-                addr_list.append(f"<code>{addr}</code>")
-        lines.append(f"<b>Addresses:</b> {' '.join(addr_list)}")
-        if len(addresses) > 5:
-            lines.append(f"and {len(addresses) - 5} more...")
-
-    # Tickers
-    if tickers:
-        lines.append(f"<b>Tickers:</b> {', '.join(tickers)}")
-
-    # Date
-    if date:
-        lines.append(f"<b>Detected:</b> {date}")
-
-    # Call to action
-    lines.append("")
-    lines.append("🔍 <a href='https://rugmunch.io/scan'>Scan this token on RugMunch</a>")
-    lines.append("📊 <a href='https://rugmunch.io/feed'>View all alerts on rugmunch.io/feed</a>")
-
-    return "\n".join(lines)
+        return str(format_scam_alert(item))
+    except Exception as exc:  # fail-open — never lose an alert to a format bug
+        logger.warning("scam_alerts:format_fallback err=%s", str(exc)[:120])
+        head = text.split("\n")[0][:200] if text else "RugBrain detection"
+        return (
+            f"🚨 <b>SCAM ALERT</b>\n\n{head}\n\n"
+            f"<b>Risk:</b> {risk}/5 · <b>Channel:</b> {metadata.get('channel', 'unknown')}\n"
+            "🔍 <a href='https://rugmunch.io/scanner'>Verify on RugMunch scanner</a>"
+        )
 
 
-async def _publish_alert_to_telegram(bot, chat_id: str, alert_post: str, alert_id: str = "") -> bool:
+async def _publish_alert_to_telegram(
+    bot, chat_id: str, alert_post: str, alert_id: str = ""
+) -> bool:
     """Publish an alert to Telegram channel."""
     if not POST_TO_TELEGRAM or not chat_id:
         return False
@@ -251,14 +239,23 @@ async def _publish_alert_to_telegram(bot, chat_id: str, alert_post: str, alert_i
             logger.info("scam_alert_skipped reason=quality_gate_failed id=%s", alert_id)
             return False
 
-        # Send the message
-        sent = await _safe_send(
-            bot,
-            chat_id,
-            gate.text,
-            parse_mode=ParseMode.HTML,
-            content_type="scam_alert",
-        )
+        # Photo-aware send (2026-10-17): the scam-alert card carries its
+        # dedicated brand graphic. Attach it via the shared photo primitive
+        # (fail-open to text when the image send fails).
+        from rugmunchbot.channels._media import send_news_photo
+        from rugmunchbot.support.post_graphics import graphic_for
+
+        graphic = graphic_for("scam_alert")
+        if graphic:
+            sent = await send_news_photo(bot, chat_id, caption=gate.text, photo_url=graphic)
+        else:
+            sent = await _safe_send(
+                bot,
+                chat_id,
+                gate.text,
+                parse_mode=ParseMode.HTML,
+                content_type="scam_alert",
+            )
 
         if sent:
             logger.info("scam_alert_posted_telegram id=%s", alert_id)
@@ -272,19 +269,14 @@ async def _publish_alert_to_telegram(bot, chat_id: str, alert_post: str, alert_i
         return False
 
 
-async def _publish_alert_to_feed(
-    alert_post: str, alert_title: str, alert_id: str = ""
-) -> bool:
+async def _publish_alert_to_feed(alert_post: str, alert_title: str, alert_id: str = "") -> bool:
     """Publish an alert to the Ghost feed page."""
     if not POST_TO_FEED:
         return False
 
     try:
         # Use the existing publish_story_to_feed helper
-        result = await publish_story_to_feed(
-            alert_post,
-            title=alert_title or "Shill Alert"
-        )
+        result = await publish_story_to_feed(alert_post, title=alert_title or "Shill Alert")
 
         if result:
             logger.info("scam_alert_posted_feed id=%s", alert_id or "unknown")
@@ -349,9 +341,7 @@ async def run_scam_alerts_publisher(ctx: Any) -> int:
             continue
 
         rendered = _render_alert_post(alert)
-        evaluation = evaluate_report(
-            rendered, namespace="scam_alerts", min_words=MIN_WORDS
-        )
+        evaluation = evaluate_report(rendered, namespace="scam_alerts", min_words=MIN_WORDS)
         if not evaluation.allowed:
             logger.info("scam_alert_skipped reason=%s id=%s", evaluation.reason, alert_id)
             continue
@@ -376,11 +366,12 @@ async def run_scam_alerts_publisher(ctx: Any) -> int:
                 published_count += 1
                 logger.info(
                     "scam_alert_published id=%s dest=%s risk=%d",
-                    alert_id, dest, severity(alert),
+                    alert_id,
+                    dest,
+                    severity(alert),
                 )
             else:
                 logger.warning("scam_alert_publish_failed id=%s dest=%s", alert_id, dest)
-
 
     logger.info("scam_alerts:publishing_complete published=%d", published_count)
     return published_count

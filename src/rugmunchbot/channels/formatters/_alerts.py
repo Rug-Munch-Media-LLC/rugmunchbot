@@ -8,6 +8,7 @@ from rugmunchbot.channels.formatters._primitives import (
     NewsPost,
     _clip,
     _esc,
+    _graphic_for,
     _now_stamp,
     _pick_image_url,
     _risk_emoji,
@@ -251,6 +252,8 @@ def format_alerts_post(alerts: list[dict[str, Any]]) -> NewsPost:
         if candidate:
             post.image_url = candidate
             break
+    if not post.image_url:
+        post.image_url = _graphic_for("alert")
     return post
 
 
@@ -301,5 +304,5 @@ def format_main_escalation(item: dict[str, Any]) -> NewsPost:
     lines.append(site_news_line())
     lines.append(footer_links())
     post = NewsPost(_clip("\n".join(lines)))
-    post.image_url = _pick_image_url(item.get("image_url"))
+    post.image_url = _pick_image_url(item.get("image_url")) or _graphic_for("alert")
     return post

@@ -15,6 +15,7 @@ from rugmunchbot.channels.formatters._primitives import (
     NewsPost,
     _clip,
     _esc,
+    _graphic_for,
     _is_placeholder,
     _now_stamp,
     _pick_image_url,
@@ -185,7 +186,7 @@ def format_scan_card(item: dict[str, Any]) -> NewsPost:
     lines.append(sep())
     lines.append(_scan_channel_shill())
     post = NewsPost(_clip("\n".join(lines)))
-    post.image_url = _pick_image_url(item.get("image_url"))
+    post.image_url = _pick_image_url(item.get("image_url")) or _graphic_for("scan")
     return post
 
 
@@ -438,4 +439,6 @@ def format_alpha_post(
         if candidate:
             post.image_url = candidate
             break
+    if not post.image_url:
+        post.image_url = _graphic_for("alpha")
     return post

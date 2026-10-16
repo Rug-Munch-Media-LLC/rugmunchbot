@@ -10,6 +10,7 @@ from rugmunchbot.channels.formatters._primitives import (
     _clip,
     _esc,
     _first_sentence,
+    _graphic_for,
     _lede_after_hook,
     _now_stamp,
     _pick_image_url,
@@ -80,7 +81,7 @@ def format_news_post(items: list[dict[str, Any]]) -> NewsPost:
             image_url = candidate
             break
     post = NewsPost(_clip("\n".join(lines)))
-    post.image_url = image_url
+    post.image_url = image_url or _graphic_for("news")
     return post
 
 
@@ -120,7 +121,7 @@ def format_breaking_post(item: dict[str, Any]) -> NewsPost:
     lines.append(feed_site_line())
     lines.append(footer_links())
     post = NewsPost(_clip("\n".join(lines)))
-    post.image_url = _pick_image_url(item.get("image_url"))
+    post.image_url = _pick_image_url(item.get("image_url")) or _graphic_for("breaking")
     return post
 
 
@@ -163,7 +164,7 @@ def format_feature_post(item: dict[str, Any]) -> NewsPost:
     lines.append(feed_site_line())
     lines.append(footer_links())
     post = NewsPost(_clip("\n".join(lines)))
-    post.image_url = _pick_image_url(item.get("image_url"))
+    post.image_url = _pick_image_url(item.get("image_url")) or _graphic_for("feature")
     return post
 
 
@@ -220,7 +221,7 @@ def format_hybrid_post(items: list[dict[str, Any]]) -> NewsPost:
         if not image_url:
             image_url = _pick_image_url(item.get("image_url"))
     post = NewsPost(_clip("\n".join(lines)))
-    post.image_url = image_url
+    post.image_url = image_url or _graphic_for("hybrid")
     return post
 
 
@@ -251,7 +252,7 @@ def format_themed_post(items: list[dict[str, Any]], theme: str = "") -> NewsPost
             image_url = candidate
             break
     post = NewsPost(_clip("\n".join(lines)))
-    post.image_url = image_url
+    post.image_url = image_url or _graphic_for("themed")
     return post
 
 
@@ -293,5 +294,5 @@ def format_scam_digest(items: list[dict[str, Any]]) -> NewsPost:
             image_url = candidate
             break
     post = NewsPost(_clip("\n".join(lines)))
-    post.image_url = image_url
+    post.image_url = image_url or _graphic_for("scam_alert")
     return post

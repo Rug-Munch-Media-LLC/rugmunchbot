@@ -161,3 +161,33 @@ def test_reasoning_leak_empty_text_passes() -> None:
     from rugmunchbot.support.content_lint import looks_like_reasoning_leak
 
     assert looks_like_reasoning_leak("") == (False, "")
+
+
+# ── 2026-10-17: scam-alert copy passes the deterministic lint ──────────────
+
+
+def test_scam_alert_copy_is_lint_clean() -> None:
+    """The dedicated scam-alert card carries no banned phrase / double link
+    and enough original commentary to clear the bland-commentary floor."""
+    from rugmunchbot.channels.formatters import format_scam_alert
+
+    post = format_scam_alert(
+        {
+            "severity": "critical",
+            "name": "RugCoin",
+            "symbol": "RUG",
+            "address": "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+            "chain": "ethereum",
+            "scam_intel": (
+                "Honeypot: sells are blocked after buying. The deployer pulled "
+                "liquidity four minutes after launch and the mint authority is "
+                "still live, so supply can be inflated at will."
+            ),
+            "source": "https://x.com/example/status/1",
+        }
+    )
+    violations = lint_text(str(post))
+    rules = {v.rule for v in violations}
+    assert "banned-phrase" not in rules
+    assert "double-link" not in rules
+    assert "template-signature" not in rules
