@@ -32,6 +32,7 @@ import httpx
 
 from rugmunchbot.channels.scheduler._core import (
     _chat_id,
+    _post_photo_aware,
     _release,
     _remember,
     _safe_send,
@@ -239,9 +240,20 @@ def compose_updates_digest(health_lines: list[str] | None = None) -> str:
     """Build the daily changelog text. ``health_lines`` are pre-probed service
     statuses (the async poster awaits them); ``None`` degrades that section
     to a note (pure/test path). Individual section failures degrade to a
-    note — a broken section never kills the digest."""
+    note — a broken section never kills the digest.
+
+    Copy doctrine (re-authored 2026-10-17): the old "🧠 RugMunch system
+    progress — {date}" header read as a generic status line. The new copy
+    leads with what actually shipped (the reason to read), keeps the health
+    + volume sections as receipts, and closes with a specific line — no
+    "stay tuned", no boilerplate.
+    """
     today = datetime.now(UTC).strftime("%Y-%m-%d")
-    sections: list[str] = [f"🧠 RugMunch system progress — {today}", ""]
+    sections: list[str] = [
+        "🛠 <b>WHAT WE SHIPPED</b>",
+        f"<i>RugMunch build log — {today}</i>",
+        "",
+    ]
 
     subjects: list[str] = []
     for repo in REPO_DIRS:
@@ -259,6 +271,8 @@ def compose_updates_digest(health_lines: list[str] | None = None) -> str:
     sections.append("")
     sections.append("<b>Posting volume (today, UTC)</b>")
     sections.extend(_posting_volume_lines())
+    sections.append("")
+    sections.append("Receipts above — the bot is up, the feed is mirroring, the lanes are live.")
 
     return "\n".join(sections)
 
@@ -306,7 +320,15 @@ async def post_updates_digest(ctx: Any) -> int:
     except Exception:
         health_lines = ["❌ probe failure"]
     text = compose_updates_digest(health_lines)
-    ok = await _safe_send(ctx.bot, chat_id, text, content_type="update")
+    # Image doctrine (2026-10-17): the changelog ships photo + caption like
+    # every other channel post. The graphic comes from POST_TYPE_GRAPHICS
+    # (operator's originals) — the "update" row.
+    from rugmunchbot.channels.formatters._primitives import NewsPost
+    from rugmunchbot.support.post_graphics import graphic_for
+
+    post = NewsPost(text)
+    post.image_url = graphic_for("update")
+    ok = await _post_photo_aware(ctx.bot, chat_id, post, _safe_send, content_type="update")
     if not ok:
         _release("updates", dedupe_key)
         return 0

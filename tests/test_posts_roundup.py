@@ -74,7 +74,7 @@ class TestComposeRoundup:
             {"slug": "post-3", "label": "Mixer-funded deployer", "source": ""},
         ]
         text = compose_roundup(items, now=datetime(2026, 8, 31, tzinfo=UTC))
-        assert "THE RUG MUNCH ROUNDUP" in text
+        assert "THE WEEK IN RUGS" in text
         assert text.count("• ") == 3
         assert 'href="https://rugmunch.io/blog/post-1"' in text
         # No URL appears twice in the post.
@@ -96,3 +96,16 @@ class TestComposeRoundup:
         text = compose_roundup(items).lower()
         for banned in ("nfa", "dyor", "wagmi", "delve into", "ever-evolving", "stay tuned"):
             assert banned not in text
+
+    def test_copy_is_distinct_not_generic_banner(self) -> None:
+        """The re-authored copy must not carry the retired generic banner."""
+        items = [
+            {"slug": "post-1", "label": "Whale churned 12M tokens", "source": ""},
+            {"slug": "post-2", "label": "Vault drained overnight", "source": ""},
+            {"slug": "post-3", "label": "Mixer-funded deployer", "source": ""},
+        ]
+        text = compose_roundup(items)
+        assert "THE RUG MUNCH ROUNDUP" not in text
+        assert "Everything above is live on the feed" not in text
+        # The new masthead names the window + desk.
+        assert "Rug Munch Intelligence" in text

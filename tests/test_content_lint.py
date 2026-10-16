@@ -191,3 +191,49 @@ def test_scam_alert_copy_is_lint_clean() -> None:
     assert "banned-phrase" not in rules
     assert "double-link" not in rules
     assert "template-signature" not in rules
+
+
+def test_reauthored_post_types_are_lint_clean() -> None:
+    """The re-authored copy for roundup / dislocation / LP-expiry /
+    social-spike / updates-digest carries no banned phrase and no
+    double-link. Each type's masthead is distinct (no shared generic
+    banner) — the whole point of the 2026-10-17 overhaul."""
+    from rugmunchbot.channels.scheduler._posts_dislocation import _DISLO_HEADER, _DISLO_SUB
+    from rugmunchbot.channels.scheduler._posts_lp_expiry import _LP_HEADER, _LP_SUB
+    from rugmunchbot.channels.scheduler._posts_roundup import compose_roundup
+    from rugmunchbot.channels.scheduler._posts_social_spikes import _SPIKE_HEADER, _SPIKE_SUB
+    from rugmunchbot.channels.scheduler._posts_updates import compose_updates_digest
+
+    roundup = compose_roundup(
+        [
+            {"slug": "post-1", "label": "Whale churned 12M tokens", "source": ""},
+            {"slug": "post-2", "label": "Vault drained overnight", "source": ""},
+            {"slug": "post-3", "label": "Mixer-funded deployer", "source": ""},
+        ]
+    )
+    updates = compose_updates_digest(["✅ rag-api", "✅ model-gateway"])
+
+    samples = {
+        "roundup": roundup,
+        "dislocation": f"{_DISLO_HEADER}\n{_DISLO_SUB}\n\n"
+        "🚨 <b>SOL</b> — long binance +0.0100%/h, short bybit -0.0200%/h "
+        "(<b>+0.0300%/h spread</b>)\n   Perp basis is inverted across venues.",
+        "lp_expiry": f"{_LP_HEADER}\n{_LP_SUB}\n\n"
+        "🚨 <b>RUG</b> — lock ends in <b>3 days</b>, 82% of LP still locked. "
+        "After that, the floor is whatever the deployer leaves.",
+        "social_spike": f"{_SPIKE_HEADER}\n{_SPIKE_SUB}\n\n"
+        "📈 <b>SOL</b> — 412 mentions/24h, sentiment +38 (bullish). "
+        "Chatter is running hot; watch the tape for confirmation.",
+        "updates": updates,
+    }
+    for name, text in samples.items():
+        rules = {v.rule for v in lint_text(text)}
+        assert "banned-phrase" not in rules, f"{name}: banned phrase"
+        assert "double-link" not in rules, f"{name}: double link"
+        assert "template-signature" not in rules, f"{name}: template signature"
+
+    # Distinct mastheads — no two types share the retired generic banner.
+    headers = {_DISLO_HEADER, _LP_HEADER, _SPIKE_HEADER}
+    assert len(headers) == 3
+    assert "THE RUG MUNCH ROUNDUP" not in roundup
+    assert "RugMunch system progress" not in updates

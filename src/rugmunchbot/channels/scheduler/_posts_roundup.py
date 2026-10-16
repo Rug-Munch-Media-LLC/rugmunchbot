@@ -1,13 +1,25 @@
-"""Channel roundup — periodic SUMMARY post linking recent individual posts.
+"""Channel roundup — the WEEKLY recap (folded into the Daily Rug).
 
-Owner content doctrine (2026-08-31): the main channel mixes standalone
-one-off posts for breaking items with periodic SUMMARY posts that link
-several recent individual posts. This module is the SUMMARY poster:
+DECISION (2026-10-17, operator doctrine): the standalone 3x-daily roundup
+is RETIRED. It duplicated the flagship "The Daily Rug — Morning Market
+Brief" (``channels/daily_rug``), which already carries "the day's best
+stories, ranked" every morning. Two link-list posts a day read as filler.
+
+What survives: this module is kept as the WEEKLY recap generator — a
+distinct, once-a-week "what you missed" post that the Daily Rug does NOT
+cover (a 7-day arc, not a 24-hour one). It is NOT registered on the
+scheduler by default (see ``_register.py``); re-enable with
+``RMI_ROUNDUP_ENABLED=true`` if the operator wants the weekly recap back.
+
+Copy doctrine (re-authored 2026-10-17): the old "━━━ THE RUG MUNCH
+ROUNDUP ━━━" banner + "Everything above is live on the feed" closer was
+generic template filler. The new copy leads with the week's through-line
+and closes with a specific, on-brand call — no "here is a token", no
+"stay tuned", no banner-for-banner's-sake.
 
 * Reads the recent mirrored posts from the feed.rugmunch.io static store
-  (``scheduler._posts_rag.FEED_DATA/posts.json`` — the same store every
-  main-channel post mirrors into).
-* Composes a deterministic roundup: title + 3-6 bullet deep links
+  (``scheduler._posts_rag.FEED_DATA/posts.json``).
+* Composes a deterministic recap: a dated masthead + 3-6 bullet deep links
   (``rugmunch.io/blog/{slug}``) in the style-guide voice.
 * ONE LINK PER SOURCE: each bullet links its own feed deep link; a source
   that already appeared is skipped, so no URL ever appears twice in the
@@ -37,6 +49,7 @@ from rugmunchbot.channels.scheduler._core import (
 )
 from rugmunchbot.support.content_lint import BANNED_PHRASES
 from rugmunchbot.support.image_policy import ensure_post_image
+from rugmunchbot.support.post_graphics import graphic_for
 
 if TYPE_CHECKING:
     from telegram.ext import ContextTypes
@@ -133,24 +146,33 @@ def mark_roundup_stories_shown(items: list[dict[str, Any]]) -> None:
 
 
 def compose_roundup(items: list[dict[str, Any]], *, now: datetime | None = None) -> str:
-    """Render the roundup post text (Telegram HTML).
+    """Render the weekly recap post text (Telegram HTML).
 
-    Shape: ruled title banner + one bullet per recent post (deep link) +
-    a single closing feed link. Returns "" when fewer than
-    ``ROUNDUP_MIN_ITEMS`` items survive — a thin roundup is silence, not
-    filler. Pure + deterministic.
+    Shape: a dated masthead (the week's through-line, not a generic banner)
+    + one bullet per recent post (deep link) + a specific closing call.
+    Returns "" when fewer than ``ROUNDUP_MIN_ITEMS`` items survive — a thin
+    recap is silence, not filler. Pure + deterministic.
+
+    Copy doctrine (2026-10-17): the masthead names the window and the desk;
+    the closer points at the live feed as the archive, not as a vague
+    "everything above". No "here is a token", no "stay tuned".
     """
     if len(items) < ROUNDUP_MIN_ITEMS:
         return ""
-    lines = ["<b>━━━ THE RUG MUNCH ROUNDUP ━━━</b>", ""]
+    stamp = (now or datetime.now(UTC)).strftime("%b %d")
+    lines = [
+        "<b>━━━ THE WEEK IN RUGS ━━━</b>",
+        f"<i>Rug Munch Intelligence — what moved, what rugged, {stamp}</i>",
+        "",
+    ]
     for item in items:
         url = SITE_FEED_POST_URL.format(slug=item["slug"])
         lines.append(f'• <a href="{url}">{item["label"]}</a>')
     lines += [
         "",
-        "Everything above is live on the feed — one link per story, no repeats.",
-        '📖 <a href="https://feed.rugmunch.io">feed.rugmunch.io</a> — full archive',
-        "🤖 Live token intel, scans &amp; alerts: @rugmunchbot",
+        "Each link is the full story — one source apiece, no repeats.",
+        '📖 <a href="https://feed.rugmunch.io">feed.rugmunch.io</a> — the running archive',
+        "🤖 Scan any token before you ape: @rugmunchbot",
     ]
     return "\n".join(lines)
 
@@ -173,11 +195,16 @@ def _load_feed_posts() -> list[dict[str, Any]]:
 
 
 async def post_roundup(ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    """Post the periodic roundup to the main channel. Returns 1 when posted.
+    """Post the weekly recap to the main channel. Returns 1 when posted.
 
-    Dedupe key is the UTC 8-hour window so the 3x-daily schedule cannot
-    double-fire within a window; a failed send releases the mark.
+    RETIRED by default (2026-10-17): the standalone roundup duplicated the
+    Daily Rug. Re-enable with ``RMI_ROUNDUP_ENABLED=true``. Dedupe key is
+    the UTC 8-hour window so the schedule cannot double-fire within a
+    window; a failed send releases the mark.
     """
+    if os.getenv("RMI_ROUNDUP_ENABLED", "false").strip().lower() not in ("1", "true", "yes"):
+        logger.info("roundup:disabled_skipped")
+        return 0
     chat_id = _chat_id("main")
     if not chat_id:
         logger.info("roundup:no_main_chat_id_skipped")
@@ -198,11 +225,11 @@ async def post_roundup(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     if not gate.ok:
         return 0
     text = gate.text
-    # Image doctrine (2026-08-31): the roundup ships photo + caption like
-    # every other main-channel post — never a naked text message. The gate
-    # resolved the placeholder; _post_photo_aware attaches it.
+    # Image doctrine (2026-08-31): the recap ships photo + caption like every
+    # other main-channel post. The graphic comes from POST_TYPE_GRAPHICS
+    # (operator's originals) — the gate's resolved image wins when it has one.
     post = ensure_post_image(text)
-    post.image_url = gate.image_url or post.image_url
+    post.image_url = gate.image_url or graphic_for("roundup")
     if not await _post_photo_aware(ctx.bot, chat_id, post, _safe_send, content_type="roundup"):
         _release("roundup", dedupe_key)
         return 0

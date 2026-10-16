@@ -209,34 +209,15 @@ def style_guide(channel: str) -> str:
 # escalations from alerts/scans/alpha/news can reach the broader audience
 # (its ≤10/day budget is enforced separately by ``channels.main_cap``).
 
-#: Channel role → the set of content types it is chartered to post.
-CHANNEL_CONTENT_TYPES: Final[dict[str, frozenset[str]]] = {
-    "main": frozenset({"market", "roundup", "news", "alert", "scan", "whale", "alpha", "shill"}),
-    "news": frozenset({"news"}),
-    "alerts": frozenset({"alert"}),
-    "alpha": frozenset({"whale", "alpha"}),
-    "scans": frozenset({"scan"}),
-    "updates": frozenset({"update"}),
-    "shills": frozenset({"shill"}),
-}
-
-
-def channel_accepts_content(channel: str, content_type: str) -> bool:
-    """True when *channel* is chartered to post *content_type*.
-
-    Fail-soft by design: an unknown channel or an unknown/empty content type
-    returns True so a mislabeled caller can never silently drop a post — the
-    gate only blocks a KNOWN channel posting a KNOWN content type it is not
-    chartered for. Callers pass the channel ROLE (``"alerts"``, ``"scans"``,
-    ``"alpha"``, …), not the public handle.
-    """
-    if not channel or not content_type:
-        return True
-    accepted = CHANNEL_CONTENT_TYPES.get(str(channel).strip().lower())
-    if accepted is None:
-        return True
-    return str(content_type).strip().lower() in accepted
-
+# The content-type contract now lives in ONE place — ``content_charter``.
+# This module re-exports it so existing importers keep working, but the
+# vocabulary and the gate are defined there and nowhere else. Do NOT
+# re-declare ``CHANNEL_CONTENT_TYPES`` or ``channel_accepts_content`` here:
+# a second definition is the exact double-config defect this fixed.
+from rugmunchbot.channels.content_charter import (  # noqa: E402
+    CHANNEL_CONTENT_TYPES,
+    channel_accepts_content,
+)
 
 __all__ = [
     "CHANNEL_CONTENT_TYPES",

@@ -55,7 +55,7 @@ def test_compose_renders_all_sections(monkeypatch):
         raising=False,
     )
     text = up.compose_updates_digest(health_lines=["✅ rag-api", "❌ embed-deep-4b"])
-    assert "system progress" in text
+    assert "WHAT WE SHIPPED" in text
     assert "Shipped (3 commits/24h)" in text
     # Human-readable changelog (2026-08-29 quality overhaul): conventional
     # subjects render as "type — scope — message", never raw git output.
@@ -182,14 +182,24 @@ async def test_post_once_per_day_and_release_on_failure(monkeypatch):
 
     monkeypatch.setattr(up, "_probe_services", _no_probes)
     failing = _Recorder(succeed=False)
-    monkeypatch.setattr(up, "_safe_send", failing)
+
+    # The digest now ships photo + caption via _post_photo_aware; route it
+    # through the recorder so the send outcome is observable in the test.
+    async def _photo_aware(bot, chat_id, post, safe_send, **kw):
+        return await failing(bot, chat_id, str(post), **kw)
+
+    monkeypatch.setattr(up, "_post_photo_aware", _photo_aware)
 
     assert await up.post_updates_digest(_Ctx()) == 0
     assert len(failing.calls) == 1
 
     # Same day, send now works → must deliver (mark was released).
     ok_sender = _Recorder(succeed=True)
-    monkeypatch.setattr(up, "_safe_send", ok_sender)
+
+    async def _photo_aware_ok(bot, chat_id, post, safe_send, **kw):
+        return await ok_sender(bot, chat_id, str(post), **kw)
+
+    monkeypatch.setattr(up, "_post_photo_aware", _photo_aware_ok)
     assert await up.post_updates_digest(_Ctx()) == 1
     assert len(ok_sender.calls) == 1
 

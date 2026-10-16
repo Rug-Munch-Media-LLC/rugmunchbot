@@ -148,9 +148,14 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             try:
                 text = await build_dislocation_post()
                 if text and _chat_id("alpha"):
-                    from rugmunchbot.channels.scheduler._core import _safe_send
+                    from rugmunchbot.channels.scheduler._core import (
+                        _post_photo_aware,
+                        _safe_send,
+                    )
 
-                    await _safe_send(ctx.bot, _chat_id("alpha"), text, content_type="alpha")
+                    await _post_photo_aware(
+                        ctx.bot, _chat_id("alpha"), text, _safe_send, content_type="alpha"
+                    )
             except Exception as exc:
                 logger.warning("dislocation_tick failed: %s", str(exc)[:120])
 
@@ -442,9 +447,14 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             try:
                 text = await build_social_spike_post()
                 if text and _chat_id("alpha"):
-                    from rugmunchbot.channels.scheduler._core import _safe_send
+                    from rugmunchbot.channels.scheduler._core import (
+                        _post_photo_aware,
+                        _safe_send,
+                    )
 
-                    await _safe_send(ctx.bot, _chat_id("alpha"), text, content_type="alpha")
+                    await _post_photo_aware(
+                        ctx.bot, _chat_id("alpha"), text, _safe_send, content_type="alpha"
+                    )
             except Exception as exc:
                 logger.warning("social_spike_tick failed: %s", str(exc)[:120])
 
@@ -462,9 +472,14 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             try:
                 text = await build_lp_expiry_post()
                 if text and _chat_id("alerts"):
-                    from rugmunchbot.channels.scheduler._core import _safe_send
+                    from rugmunchbot.channels.scheduler._core import (
+                        _post_photo_aware,
+                        _safe_send,
+                    )
 
-                    await _safe_send(ctx.bot, _chat_id("alerts"), text, content_type="alert")
+                    await _post_photo_aware(
+                        ctx.bot, _chat_id("alerts"), text, _safe_send, content_type="alert"
+                    )
             except Exception as exc:
                 logger.warning("lp_expiry_tick failed: %s", str(exc)[:120])
 
@@ -528,7 +543,9 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
         # reaches the alerts page; risk >= RMI_SCAM_ALERTS_MAIN_RISK also
         # reaches the MAIN channel. Wrapped so it can never break the news path.
         job_queue.run_repeating(
-            _tick_wrapper("channel_scam_alerts_publisher", run_scam_alerts_publisher, envelope=True),
+            _tick_wrapper(
+                "channel_scam_alerts_publisher", run_scam_alerts_publisher, envelope=True
+            ),
             interval=SCAM_ALERTS_PUBLISHER_INTERVAL_MINUTES * 60,
             first=_FIRST_RUN_SECONDS["scam_alerts_publisher"],
             name="channel_scam_alerts_publisher",
@@ -624,12 +641,32 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             days=tuple(range(7)),
             name="channel_morning_rug_midday",
         )
-    # Midday Market Update (branded 2026-08-31, formerly "Daily Rug Update"): midday rug/scam intelligence brief on
-    # the main channel (@cryptorugmuncher). RAG-served (rugbrain news_v2 +
-    # threat_intel_v2 + scanner memory + shill campaigns + scanner alerts),
-    # quality-gated via support/content_lint, mirrored to feed.rugmunch.io
-    # with a deep link to the exact post (rugmunch.io/blog/{slug}).
-    # Env knobs: ``RMI_DAILY_RUG_UPDATE_ENABLED`` / ``_TIME`` / ``_TZ``.
+    # The Daily Rug — Morning Market Brief (2026-10-16, operator doctrine):
+    # the flagship ONCE-DAILY longform morning edition on the main channel
+    # (@cryptorugmuncher). Best stories from the previous day + a
+    # "Things to look out for" section. A date guard makes the job
+    # idempotent — exactly one post per calendar day, no matter how many
+    # times the scheduler ticks or the process restarts. Mirrored to
+    # feed.rugmunch.io with a deep link to the exact post.
+    # Env knobs: ``RMI_DAILY_RUG_ENABLED`` / ``_TIME`` / ``_TZ``.
+    from rugmunchbot.channels.daily_rug import (
+        DAILY_RUG_ENABLED,
+        daily_rug_run_time,
+        post_daily_rug,
+    )
+
+    if DAILY_RUG_ENABLED and _chat_id("main"):
+        job_queue.run_daily(
+            _tick_wrapper("channel_daily_rug", post_daily_rug, envelope=True),
+            time=daily_rug_run_time(),
+            days=tuple(range(7)),
+            name="channel_daily_rug",
+        )
+    # Midday Market Update (branded 2026-08-31, formerly "Daily Rug Update"):
+    # midday rug/scam intelligence brief on the main channel. DISABLED by
+    # default (2026-10-16) — the operator doctrine is ONE flagship daily
+    # post; the Midday Update duplicated the Morning Rug's stories and read
+    # as filler. Re-enable with ``RMI_DAILY_RUG_UPDATE_ENABLED=true``.
     from rugmunchbot.channels.daily_rug_update import (
         DAILY_RUG_UPDATE_ENABLED,
         post_daily_rug_update,
@@ -657,14 +694,17 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             days=tuple(range(7)),
             name="channel_updates",
         )
-    # Channel roundup (2026-08-31, owner content doctrine): periodic SUMMARY
-    # post on the main channel linking 3-6 recent individual posts (feed
-    # deep links, one link per source). Runs 3x daily alongside the
-    # standalone one-off posters. Env knob: RMI_ROUNDUP_INTERVAL_MIN (0
-    # disables). See ``scheduler/_posts_roundup.py``.
+    # Channel roundup — RETIRED by default (2026-10-17, operator doctrine).
+    # The standalone 3x-daily roundup duplicated the flagship "The Daily Rug
+    # — Morning Market Brief" (channels/daily_rug), which already carries
+    # "the day's best stories, ranked" every morning. Two link-list posts a
+    # day read as filler. The module survives as the WEEKLY recap generator
+    # (a 7-day arc the Daily Rug does not cover); re-enable with
+    # RMI_ROUNDUP_INTERVAL_MIN > 0 (e.g. 10080 = weekly). See
+    # ``scheduler/_posts_roundup.py`` for the fold decision.
     from rugmunchbot.channels.scheduler._posts_roundup import post_roundup
 
-    roundup_min = int(os.getenv("RMI_ROUNDUP_INTERVAL_MIN", "480"))
+    roundup_min = int(os.getenv("RMI_ROUNDUP_INTERVAL_MIN", "0"))
     if roundup_min > 0 and _chat_id("main"):
         job_queue.run_repeating(
             _tick_wrapper("channel_roundup", post_roundup, envelope=True),
