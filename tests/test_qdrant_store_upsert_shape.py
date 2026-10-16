@@ -71,3 +71,35 @@ async def test_named_collection_still_gets_the_dense_name():
     vec = store._client.upserts[0]["points"][0].vector
     assert isinstance(vec, dict)
     assert qs.DENSE_VECTOR_NAME in vec
+
+
+@pytest.mark.asyncio
+async def test_empty_embedding_is_skipped_not_upserted(monkeypatch):
+    """An empty dense vector must be skipped, never sent to Qdrant.
+
+    Regression: the embedder can return [] on a transient upstream fault;
+    upserting it produced HTTP 422 "dense vector must not be empty" on every
+    doc and spammed the log. The guard must fail-open (return False) without
+    calling store.upsert.
+    """
+    store = qs.QdrantStore.__new__(qs.QdrantStore)
+    store.collection_name = "rag_documents"
+    store._client = _FakeClient(named=False)
+    store._config_probed = False
+    store._has_named_dense = False
+    store._has_sparse = False
+
+    async def _ok() -> bool:
+        return True
+
+    store.ensure_collection = _ok
+    store.point_id = lambda d: "pid"
+
+    async def _empty(_text: str) -> list[float]:
+        return []
+
+    monkeypatch.setattr(qs, "get_embedding", _empty)
+    monkeypatch.setattr(qs, "get_qdrant_store", lambda _c=None: store)
+
+    assert await qs.upsert_rag_document("doc", "some text") is False
+    assert store._client.upserts == [], "empty vector must never reach Qdrant"

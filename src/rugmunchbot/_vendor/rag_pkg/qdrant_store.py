@@ -530,6 +530,18 @@ async def upsert_rag_document(
     try:
         if vector is None:
             vector = await get_embedding(text)
+        # Guard: an empty dense vector is rejected by Qdrant with HTTP 422
+        # ("dense vector must not be empty"). The embedder can return [] on a
+        # transient upstream fault; upserting it would spam the log and never
+        # land the doc. Skip the write (fail-open) so the caller's legacy
+        # fallback path still runs.
+        if not vector:
+            log.warning(
+                "rag_upsert_skipped_empty_vector collection=%s doc_id=%s",
+                store.collection_name,
+                doc_id,
+            )
+            return False
         sparse = build_sparse_vector(text)
         return await store.upsert(doc_id, vector, sparse_vector=sparse, payload=payload)
     except Exception as exc:
