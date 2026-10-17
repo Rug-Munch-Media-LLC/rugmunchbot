@@ -79,7 +79,7 @@ POST_TYPE_GRAPHICS: Final[dict[str, str]] = {
     "shill": "rmi-scam-alert.jpeg",
     "shill_watch": "rmi-scam-alert.jpeg",
     "whale": "rmi-whale-alert.jpeg",
-    "alpha": "rmi-midday-market-report.jpeg",
+    "alpha": "rmi-whale-alert.jpeg",
     "dislocation": "rmi-midday-market-report.jpeg",
     "lp_expiry": "rmi-scam-alert.jpeg",
     "social_spike": "rmi-whale-alert.jpeg",

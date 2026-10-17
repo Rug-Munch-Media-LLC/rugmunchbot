@@ -196,7 +196,7 @@ def test_alpha_post_empty_window_has_no_invented_sections() -> None:
     assert "No fresh alpha signals" in post
     assert "Whale Moves" not in post
     # An empty window still carries the alpha brand graphic (image doctrine).
-    assert post.image_url == "https://rugmunch.io/brand/current_cryptorugmuncher.png"
+    assert post.image_url == "https://rugmunch.io/brand/rmi-whale-alert.jpeg"
 
 
 def test_alpha_post_whale_section_renders_full_signal() -> None:
@@ -288,4 +288,4 @@ def test_alpha_post_image_skips_unusable_urls() -> None:
     # An unusable (non-http) story image is skipped; the post falls back to
     # its per-type brand graphic (alpha → current_cryptorugmuncher.png).
     post = format_alpha_post([{"title": "x", "image_url": "ftp://nope"}], [], [])
-    assert post.image_url == "https://rugmunch.io/brand/current_cryptorugmuncher.png"
+    assert post.image_url == "https://rugmunch.io/brand/rmi-whale-alert.jpeg"

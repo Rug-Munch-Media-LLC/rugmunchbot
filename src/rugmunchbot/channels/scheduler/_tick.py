@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import functools
+
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -31,6 +33,7 @@ def _tick_wrapper(
     (news/alerts/alpha) emit their own full-count tick lines instead.
     """
 
+    @functools.wraps(callback)
     async def wrapped(ctx: Any) -> Any:
         """Run one scheduled job tick: record start, invoke callback, persist state."""
         started = time.perf_counter()
