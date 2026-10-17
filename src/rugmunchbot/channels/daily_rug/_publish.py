@@ -23,6 +23,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from rugmunchbot.support.post_graphics import graphic_for_type
 from rugmunchbot.channels.daily_rug._config import (
     DAILY_RUG_FEED_ENABLED,
     DAILY_RUG_LOGO_URL,
@@ -300,7 +301,7 @@ async def post_daily_rug(ctx: Any) -> int:
         return 0
 
     # 7. Image — story og:image, else the branded Daily Rug logo.
-    image_url = pick_daily_rug_image(context) or DAILY_RUG_LOGO_URL
+    image_url = pick_daily_rug_image(context) or graphic_for_type("daily_rug")
 
     # 8. Feed mirror FIRST so the Telegram closer can deep-link the post.
     feed_url = await _mirror_to_feed(report, image_url)

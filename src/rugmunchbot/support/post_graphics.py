@@ -33,7 +33,7 @@ BRAND_BASE_URL: Final = os.getenv("RMI_BRAND_BASE_URL", "https://rugmunch.io/bra
 
 #: The brand default — the clean square app logo. Used when a post type has
 #: no explicit mapping (never leaves a post graphic-less).
-DEFAULT_GRAPHIC: Final = f"{BRAND_BASE_URL}/avatar.jpg"
+DEFAULT_GRAPHIC: Final = f"{BRAND_BASE_URL}/rug-munch-logo.jpg"
 
 #: post_type → brand asset filename. The filename is joined to
 #: :data:`BRAND_BASE_URL`; a full http(s) URL is used verbatim so an
@@ -55,7 +55,7 @@ POST_TYPE_GRAPHICS: Final[dict[str, str]] = {
     # (served at /brand/). The Midday report is a MARKET read → the evening
     # market-wrap graphic; the Evening Wrap is the day's scam/rug recap →
     # the scam-alert graphic. Both are operator originals that exist today.
-    "midday_report": "rmi-evening-market-wrap.jpeg",
+    "midday_report": "rmi-midday-market-report.jpeg",
     "evening_wrap": "rmi-scam-alert.jpeg",
     # ── news / editorial ───────────────────────────────────────────────
     "news": "rmi-breaking-news.jpeg",
