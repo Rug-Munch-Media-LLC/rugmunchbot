@@ -160,7 +160,7 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
                 logger.warning("dislocation_tick failed: %s", str(exc)[:120])
 
         job_queue.run_repeating(
-            _dislo_tick,
+            _tick_wrapper("channel_dislocation", _dislo_tick, envelope=True),
             interval=int(os.getenv("DISLOCATION_ALERT_INTERVAL_H", "2")) * 3600,
             first=600,
             name="channel_dislocation",
@@ -212,7 +212,7 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
                 logger.warning("whale_alerts_tick failed: %s", str(exc)[:120])
 
         job_queue.run_repeating(
-            _whale_tick,
+            _tick_wrapper("channel_whale_alerts", _whale_tick, envelope=True),
             interval=int(os.getenv("WHALE_ALERT_INTERVAL_MIN", "30")) * 60,
             first=180,
             name="channel_whale_alerts",
@@ -459,7 +459,7 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
                 logger.warning("social_spike_tick failed: %s", str(exc)[:120])
 
         job_queue.run_repeating(
-            _social_tick,
+            _tick_wrapper("channel_social_spikes", _social_tick, envelope=True),
             interval=int(os.getenv("SOCIAL_SPIKE_INTERVAL_MIN", "90")) * 60,
             first=900,
             name="channel_social_spikes",
@@ -484,7 +484,7 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
                 logger.warning("lp_expiry_tick failed: %s", str(exc)[:120])
 
         job_queue.run_repeating(
-            _lp_expiry_tick,
+            _tick_wrapper("channel_lp_expiry", _lp_expiry_tick, envelope=True),
             interval=int(os.getenv("LP_EXPIRY_INTERVAL_H", "6")) * 3600,
             first=1800,
             name="channel_lp_expiry",
@@ -604,12 +604,23 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             first=_FIRST_RUN_SECONDS["scam_watch"] + 30,
             name="channel_tg_scraper",
         )
+    # PERSONAL is a wired channel with a real source (personal_channel.py).
+    # It is gated by TWO conditions: the enable flag AND a resolvable chat id.
+    # When either is false the job is never registered, which previously left
+    # no trace at all and read as a dead channel in the cadence audit
+    # (2026-10-17). Record the intentional skip explicitly.
     if PERSONAL_CHANNEL_ENABLED and resolve_personal_chat_id():
         job_queue.run_repeating(
             _tick_wrapper("channel_personal", post_personal_channel, envelope=True),
             interval=PERSONAL_CHANNEL_INTERVAL_MINUTES * 60,
             first=_FIRST_RUN_SECONDS["personal"],
             name="channel_personal",
+        )
+    else:
+        logger.info(
+            "channels:disabled",
+            job="channel_personal",
+            reason=("flag_off" if not PERSONAL_CHANNEL_ENABLED else "chat_id_unresolved"),
         )
     # The Morning Rug (branded 2026-08-31, formerly "Daily Market Summary") — 7:00 AM America/New_York, 7 days/week, on the
     # main channel (@cryptorugmuncher). Writes an editorial market breakdown
@@ -728,6 +739,9 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
 
     from rugmunchbot.channels.scheduler._posts_updates import post_updates_digest
 
+    # UPDATES is wired (post_updates_digest) and wrapped, but only registered
+    # when the flag is on — record the skip so the channel is never silently
+    # absent from the scheduler telemetry (2026-10-17).
     if UPDATES_CHANNEL_ENABLED:
         job_queue.run_daily(
             _tick_wrapper("channel_updates", post_updates_digest, envelope=True),
@@ -735,6 +749,8 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             days=tuple(range(7)),
             name="channel_updates",
         )
+    else:
+        logger.info("channels:disabled", job="channel_updates", reason="flag_off")
     # Channel roundup — RETIRED by default (2026-10-17, operator doctrine).
     # The standalone 3x-daily roundup duplicated the flagship "The Daily Rug
     # — Morning Market Brief" (channels/daily_rug), which already carries
