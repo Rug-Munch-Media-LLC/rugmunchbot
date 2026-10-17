@@ -10,8 +10,6 @@ the RugMunch Intelligence logo.
 
 from __future__ import annotations
 
-import logging
-
 import pytest
 
 from rugmunchbot.channels.telegram_news import _ledger as ledger
@@ -45,7 +43,7 @@ class _FakeRedis:
             self.lists[key] = self.lists[key][start : end + 1]
         return True
 
-    def expire(self, key: str, ttl: int) -> bool:  # noqa: ARG002
+    def expire(self, key: str, ttl: int) -> bool:
         if self.down:
             raise ConnectionError("redis down")
         self.ttls[key] = ttl

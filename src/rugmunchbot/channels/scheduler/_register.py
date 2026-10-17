@@ -680,6 +680,39 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             days=tuple(range(7)),
             name="channel_midday_update",
         )
+    # ── The three daily reports (2026-10-17, operator doctrine) ──────────
+    # THREE distinct main-channel reports, each a DIFFERENT facet, no
+    # duplicated content (three-way dedup in channels/_edition_dedup.py):
+    #   07:30  The Daily Rug — Morning Market Brief  (crypto stories)
+    #   12:30  Midday Market Report                  (macro + broader markets)
+    #   20:00  Evening Wrap                          (scams, shills, rugs)
+    # Each is idempotent (date guard) and mirrors to Ghost longform.
+    from rugmunchbot.channels.midday_market_report import (
+        MIDDAY_REPORT_ENABLED,
+        midday_report_run_time,
+        post_midday_report,
+    )
+
+    if MIDDAY_REPORT_ENABLED and _chat_id("main"):
+        job_queue.run_daily(
+            _tick_wrapper("channel_midday_report", post_midday_report, envelope=True),
+            time=midday_report_run_time(),
+            days=tuple(range(7)),
+            name="channel_midday_report",
+        )
+    from rugmunchbot.channels.evening_wrap import (
+        EVENING_WRAP_ENABLED,
+        evening_wrap_run_time,
+        post_evening_wrap,
+    )
+
+    if EVENING_WRAP_ENABLED and _chat_id("main"):
+        job_queue.run_daily(
+            _tick_wrapper("channel_evening_wrap", post_evening_wrap, envelope=True),
+            time=evening_wrap_run_time(),
+            days=tuple(range(7)),
+            name="channel_evening_wrap",
+        )
     # @rmiupdates changelog — daily system-progress digest (strategy v2).
     # Fires once per day at UPDATES_POST_HOUR_UTC; the poster dedupes per
     # calendar date, so the job no-ops when the channel id is unresolved.

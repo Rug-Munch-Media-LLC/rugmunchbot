@@ -169,7 +169,12 @@ CAPABILITY_MAX_ATTEMPTS = int(os.getenv("RMI_CAPABILITY_MAX_ATTEMPTS", "4"))
 LOCAL_FIRST_TASKS = frozenset(
     os.getenv(
         "RMI_LOCAL_FIRST_TASKS",
-        "commentary,title_rewrite,classify,summary_short,social_caption",
+        # 2026-10-17: the three daily reports route their writing through the
+        # Qwythos lane by task class — editorial (Morning Brief), market_brief
+        # (Midday Market Report), recap (Evening Wrap). Each report assigns its
+        # own class so the lane can be enabled per report.
+        "commentary,title_rewrite,classify,summary_short,social_caption,"
+        "editorial,market_brief,recap",
     ).split(",")
 )
 

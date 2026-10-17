@@ -49,6 +49,12 @@ POST_TYPE_GRAPHICS: Final[dict[str, str]] = {
     "daily_rug_update": "daily-rug-logo.jpeg",
     "market_summary": "rmi-evening-market-wrap.jpeg",
     "market": "rmi-evening-market-wrap.jpeg",
+    # ── the three daily reports (2026-10-17) ───────────────────────────
+    # Morning Brief → daily_rug; Midday Market Report → midday_report;
+    # Evening Wrap → evening_wrap. Operator originals; the brand default
+    # applies until each asset lands in /srv/assets/brand/.
+    "midday_report": "rmi-midday-market-report.jpeg",
+    "evening_wrap": "rmi-evening-wrap.jpeg",
     # ── news / editorial ───────────────────────────────────────────────
     "news": "rmi-breaking-news.jpeg",
     "breaking": "rmi-breaking-news.jpeg",
