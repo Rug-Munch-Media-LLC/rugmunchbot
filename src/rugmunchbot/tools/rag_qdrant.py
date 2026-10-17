@@ -101,6 +101,31 @@ async def embed_query(query: str) -> list[float] | None:
     return [float(x) for x in vec] if vec else None
 
 
+def _first(payload: dict[str, Any], *keys: str) -> str:
+    """First non-empty trimmed value among *keys* (branch-flat helper)."""
+    for key in keys:
+        value = str(payload.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _hit(point: dict[str, Any], collection: str) -> dict[str, Any] | None:
+    """Map one Qdrant point to the fleet hit shape (None when empty)."""
+    pl = point.get("payload") or {}
+    content = _first(pl, "content", "text")
+    if not content:
+        return None
+    meta = pl.get("metadata")
+    return {
+        "content": content,
+        "score": float(point.get("score") or 0.0),
+        "collection": pl.get("collection") or collection,
+        "metadata": meta if isinstance(meta, dict) else {},
+        "id": _first(pl, "doc_id") or str(point.get("id") or ""),
+    }
+
+
 async def collection_search(
     collection: str, vector: list[float], limit: int
 ) -> list[dict[str, Any]]:
@@ -129,25 +154,7 @@ async def collection_search(
         return []
     result = raw.get("result") if isinstance(raw, dict) else None
     points = result if isinstance(result, list) else []
-    out: list[dict[str, Any]] = []
-    for p in points:
-        if not isinstance(p, dict):
-            continue
-        pl = p.get("payload") or {}
-        content = (pl.get("content") or pl.get("text") or "").strip()
-        if not content:
-            continue
-        meta = pl.get("metadata") or {}
-        out.append(
-            {
-                "content": content,
-                "score": float(p.get("score") or 0.0),
-                "collection": pl.get("collection") or collection,
-                "metadata": meta if isinstance(meta, dict) else {},
-                "id": pl.get("doc_id") or p.get("id") or "",
-            }
-        )
-    return out
+    return [h for h in (_hit(p, collection) for p in points if isinstance(p, dict)) if h]
 
 
 async def direct_qdrant(

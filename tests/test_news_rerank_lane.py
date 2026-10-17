@@ -16,7 +16,6 @@ import pytest
 
 from rugmunchbot.channels import _news_rerank as nr
 
-
 def _item(**over: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "title": "Whale moves 12,000 ETH",
@@ -30,51 +29,7 @@ def _item(**over: Any) -> dict[str, Any]:
     base.update(over)
     return base
 
-
 # ── window computation ──────────────────────────────────────────────
-
-
-class TestWindow:
-    def test_morning_window_uses_midday_last_run(self) -> None:
-        fake = MagicMock()
-        fake.last_run.side_effect = lambda job: (
-            datetime.now(UTC) - timedelta(hours=5, minutes=30)
-            if job == "channel_midday_update"
-            else None
-        )
-        with patch("rugmunchbot.channels.scheduler_state.get_state", return_value=fake):
-            assert 5.0 <= nr.morning_window_hours() <= 6.0
-
-    def test_midday_window_uses_morning_last_run(self) -> None:
-        fake = MagicMock()
-        fake.last_run.side_effect = lambda job: (
-            datetime.now(UTC) - timedelta(hours=2) if job == "channel_morning_rug" else None
-        )
-        with patch("rugmunchbot.channels.scheduler_state.get_state", return_value=fake):
-            assert 1.5 <= nr.midday_window_hours() <= 2.5
-
-    def test_fallback_12h_when_never_run(self) -> None:
-        fake = MagicMock()
-        fake.last_run.return_value = None
-        with patch("rugmunchbot.channels.scheduler_state.get_state", return_value=fake):
-            assert nr.morning_window_hours() == 12.0
-            assert nr.midday_window_hours() == 12.0
-
-    def test_window_clamped_to_max(self) -> None:
-        fake = MagicMock()
-        fake.last_run.return_value = datetime.now(UTC) - timedelta(days=10)
-        with patch("rugmunchbot.channels.scheduler_state.get_state", return_value=fake):
-            assert nr.window_hours_since(("channel_morning_rug",)) == nr.MAX_WINDOW_HOURS
-
-    def test_window_fail_open_on_state_error(self) -> None:
-        with patch(
-            "rugmunchbot.channels.scheduler_state.get_state", side_effect=RuntimeError("boom")
-        ):
-            assert nr.window_hours_since(("x",)) == 12.0
-
-
-# ── HTTP lane ───────────────────────────────────────────────────────
-
 
 class _Resp:
     def __init__(self, payload: dict[str, Any], status: int = 200) -> None:
@@ -83,7 +38,6 @@ class _Resp:
 
     def json(self) -> dict[str, Any]:
         return self._payload
-
 
 class _Client:
     def __init__(self, resp: _Resp) -> None:
@@ -100,7 +54,6 @@ class _Client:
     async def get(self, *a: Any, **k: Any) -> _Resp:
         return self._resp
 
-
 def _article(**over: Any) -> dict[str, Any]:
     """A raw ``/news/top`` article row (the backend's own shape)."""
     base: dict[str, Any] = {
@@ -114,7 +67,6 @@ def _article(**over: Any) -> dict[str, Any]:
     }
     base.update(over)
     return base
-
 
 class TestFetchTopRanked:
     @pytest.mark.asyncio
@@ -192,7 +144,6 @@ class TestFetchTopRanked:
         assert captured["url"] == "http://rag.test/api/v1/news/top"
         assert captured["headers"]["X-API-Key"] == "active"
 
-
 class TestPromptBlock:
     def test_serializes_items(self) -> None:
         block = nr.to_prompt_block([_item()], label="RANKED TOP STORIES")
@@ -203,9 +154,7 @@ class TestPromptBlock:
     def test_empty_items_empty_block(self) -> None:
         assert nr.to_prompt_block([], label="X") == ""
 
-
 # ── wiring into the flagship posts ──────────────────────────────────
-
 
 class TestPostWiring:
     @pytest.mark.asyncio
@@ -275,7 +224,6 @@ class TestPostWiring:
             new=AsyncMock(side_effect=RuntimeError("boom")),
         ):
             assert await _fetch._fetch_ranked_stories() == []
-
 
 class TestBranding:
     def test_edition_names(self) -> None:

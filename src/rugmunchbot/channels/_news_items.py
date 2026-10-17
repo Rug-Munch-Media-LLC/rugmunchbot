@@ -75,27 +75,31 @@ def normalise_article(a: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _field(it: dict[str, Any], key: str, limit: int | None = None) -> str:
+    """Trimmed string field (optionally truncated)."""
+    raw = str(it.get(key) or "").strip()
+    return raw[:limit] if limit is not None else raw
+
+
+def _item_line(it: dict[str, Any]) -> str:
+    """One cite-or-omit line: title/summary, category, source, url."""
+    title = _field(it, "title")
+    summary = _field(it, "summary", 220)
+    bits = [title or summary[:80]]
+    for label in ("category", "source"):
+        value = _field(it, label)
+        if value:
+            bits.append(f"{label} {value}")
+    if summary and title:
+        bits.append(summary)
+    line = " — ".join(b for b in bits if b)
+    url = _field(it, "url")
+    return f"{line} [url={url}]" if url.startswith(("http://", "https://")) else line
+
+
 def to_prompt_block(items: list[dict[str, Any]], *, label: str) -> str:
     """Serialize ranked items into the cite-or-omit prompt block format."""
-    lines: list[str] = []
-    for it in items[:TOP_K]:
-        title = str(it.get("title") or "").strip()
-        summary = str(it.get("summary") or "").strip()[:220]
-        src = str(it.get("source") or "").strip()
-        url = str(it.get("url") or "").strip()
-        cat = str(it.get("category") or "").strip()
-        bits = [title or summary[:80]]
-        if cat:
-            bits.append(f"category {cat}")
-        if src:
-            bits.append(f"source {src}")
-        if summary and title:
-            bits.append(summary)
-        line = " — ".join(b for b in bits if b)
-        if url.startswith(("http://", "https://")):
-            line += f" [url={url}]"
-        if line.strip():
-            lines.append(line)
+    lines = [ln for ln in (_item_line(it) for it in items[:TOP_K]) if ln.strip()]
     if not lines:
         return ""
     return f"{label}: " + " || ".join(lines)

@@ -216,9 +216,7 @@ def check_menu_coverage(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     mentioned in the /help and /menu texts is actually registered.
     """
     registered = collect_registered_commands(app)
-    from rugmunchbot.bot._menu_guard import ADMIN_MENU_COMMANDS
-
-    unadvertised = sorted(registered - _MENU_COMMANDS - ADMIN_MENU_COMMANDS)
+    unadvertised = sorted(registered - _MENU_COMMANDS)
     if unadvertised:
         logger.error(
             "MENU_DRIFT: %d registered commands are not in the menu: %s",

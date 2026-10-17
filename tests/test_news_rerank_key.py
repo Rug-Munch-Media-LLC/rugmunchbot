@@ -17,6 +17,10 @@ resolver returns.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
+import rugmunchbot.channels._news_rerank as nr
+
 from rugmunchbot.channels import _news_rerank
 from rugmunchbot.tools import rag_lookup
 
@@ -40,3 +44,44 @@ def test_rag_api_key_resolves_without_the_env_var():
     key = _news_rerank._rag_api_key()
     assert key
     assert key == rag_lookup._rag_api_key()
+
+
+class TestWindow:
+    def test_morning_window_uses_midday_last_run(self) -> None:
+        fake = MagicMock()
+        fake.last_run.side_effect = lambda job: (
+            datetime.now(UTC) - timedelta(hours=5, minutes=30)
+            if job == "channel_midday_update"
+            else None
+        )
+        with patch("rugmunchbot.channels.scheduler_state.get_state", return_value=fake):
+            assert 5.0 <= nr.morning_window_hours() <= 6.0
+
+    def test_midday_window_uses_morning_last_run(self) -> None:
+        fake = MagicMock()
+        fake.last_run.side_effect = lambda job: (
+            datetime.now(UTC) - timedelta(hours=2) if job == "channel_morning_rug" else None
+        )
+        with patch("rugmunchbot.channels.scheduler_state.get_state", return_value=fake):
+            assert 1.5 <= nr.midday_window_hours() <= 2.5
+
+    def test_fallback_12h_when_never_run(self) -> None:
+        fake = MagicMock()
+        fake.last_run.return_value = None
+        with patch("rugmunchbot.channels.scheduler_state.get_state", return_value=fake):
+            assert nr.morning_window_hours() == 12.0
+            assert nr.midday_window_hours() == 12.0
+
+    def test_window_clamped_to_max(self) -> None:
+        fake = MagicMock()
+        fake.last_run.return_value = datetime.now(UTC) - timedelta(days=10)
+        with patch("rugmunchbot.channels.scheduler_state.get_state", return_value=fake):
+            assert nr.window_hours_since(("channel_morning_rug",)) == nr.MAX_WINDOW_HOURS
+
+    def test_window_fail_open_on_state_error(self) -> None:
+        with patch(
+            "rugmunchbot.channels.scheduler_state.get_state", side_effect=RuntimeError("boom")
+        ):
+            assert nr.window_hours_since(("x",)) == 12.0
+
+# ── HTTP lane ───────────────────────────────────────────────────────
