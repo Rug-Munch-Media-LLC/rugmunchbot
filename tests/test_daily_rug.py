@@ -265,3 +265,39 @@ class TestRegistration:
         from rugmunchbot.channels.daily_rug_update import DAILY_RUG_UPDATE_ENABLED
 
         assert DAILY_RUG_UPDATE_ENABLED is False
+
+
+class TestGhostPayloadLongform:
+    """Ghost receives longform markdown, never Telegram HTML (2026-10-17)."""
+
+    @pytest.mark.asyncio
+    async def test_mirror_sends_markdown_not_telegram_html(self) -> None:
+        from rugmunchbot.channels.daily_rug import _publish
+
+        report = (
+            "<b>━━━ THE DAILY RUG ━━━</b>\n\n"
+            "## THE DAY'S BEST STORIES\n\n"
+            "<b>ETF options cleared</b>\n"
+            "• <a href=\"https://e.com/a\">Story one</a>\n"
+        )
+        captured: dict[str, Any] = {}
+
+        async def _create_post(**kwargs: Any) -> dict[str, Any]:
+            captured.update(kwargs)
+            return {"url": "https://blog.rugmunch.io/p/x"}
+
+        with patch(
+            "rugmunchbot.channels.scheduler._posts_rag.mirror_post_to_feed",
+            return_value="post-1",
+        ), patch(
+            "rugmunchbot._vendor.content_platform.create_post",
+            new=_create_post,
+        ):
+            url = await _publish._mirror_to_feed(report, "https://rugmunch.io/brand/x.png")
+
+        assert url.endswith("/blog/post-1")
+        content = captured["content"]
+        assert "<b>" not in content and "<a href" not in content
+        assert "━━━" not in content
+        assert content.startswith("# THE DAILY RUG")
+        assert "## THE DAY'S BEST STORIES" in content

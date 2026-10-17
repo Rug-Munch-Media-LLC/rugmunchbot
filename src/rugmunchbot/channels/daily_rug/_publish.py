@@ -23,10 +23,8 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from rugmunchbot.support.post_graphics import graphic_for_type
 from rugmunchbot.channels.daily_rug._config import (
     DAILY_RUG_FEED_ENABLED,
-    DAILY_RUG_LOGO_URL,
     DAILY_RUG_MAX_CHARS,
 )
 from rugmunchbot.channels.daily_rug._fetch import (
@@ -39,6 +37,7 @@ from rugmunchbot.channels.daily_rug._guard import (
     release_today,
 )
 from rugmunchbot.channels.daily_rug._prompt import EDITION, build_messages
+from rugmunchbot.support.post_graphics import graphic_for_type
 
 logger = logging.getLogger("rmi_bot.channels.daily_rug")
 
@@ -187,9 +186,15 @@ async def _mirror_to_feed(report: str, image_url: str) -> str:
             feed_url = FEED_POST_URL_FMT.format(slug=slug)
         try:
             from rugmunchbot._vendor.content_platform import create_post
+            from rugmunchbot.channels._longform import to_markdown
 
+            # Ghost must receive longform markdown (H1/H2/H3, real links,
+            # no Telegram <b>/<a>/━━━ markup). Passing the raw report shipped
+            # Telegram HTML into the lexical converter — the same contract
+            # violation ``_report_mirror`` fixes for the Midday/Evening
+            # editions (2026-10-17).
             ghost = await create_post(
-                content=report,
+                content=to_markdown(report),
                 post_type="briefing",
                 title=f"{EDITION} — {datetime.now(UTC).strftime('%B %d, %Y')}",
                 tags=["daily", "daily-rug"],

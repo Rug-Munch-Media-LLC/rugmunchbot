@@ -626,6 +626,11 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
         )
         # Midday edition (2026-08-26): same pipeline, fresher data — the
         # closing block auto-labels it "Midday edition" by post hour.
+        # DISABLED by default (2026-10-17): it fires at 13:00 ET, 30 minutes
+        # after the Midday Market Report (12:30 ET), repeating the same
+        # market stories outside the three-edition dedupe. Same rationale as
+        # the retired Midday Update. Re-enable with
+        # ``RMI_MORNING_RUG_MIDDAY_ENABLED=true``.
         # NOTE: _dtime alias — the function-local `from datetime import time
         # as _time` further down makes _time unbound here (scoping).
         from datetime import time as _dtime
@@ -635,12 +640,15 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             _mh, _mm = (int(x) for x in _midday.split(":", 1))
         except ValueError:
             _mh, _mm = 13, 0
-        job_queue.run_daily(
-            _tick_wrapper("channel_morning_rug_midday", post_daily_market_summary, envelope=True),
-            time=_dtime(hour=_mh, minute=_mm, tzinfo=summary_run_time().tzinfo),
-            days=tuple(range(7)),
-            name="channel_morning_rug_midday",
-        )
+        if os.getenv("RMI_MORNING_RUG_MIDDAY_ENABLED", "false").lower() in ("1", "true", "yes"):
+            job_queue.run_daily(
+                _tick_wrapper(
+                    "channel_morning_rug_midday", post_daily_market_summary, envelope=True
+                ),
+                time=_dtime(hour=_mh, minute=_mm, tzinfo=summary_run_time().tzinfo),
+                days=tuple(range(7)),
+                name="channel_morning_rug_midday",
+            )
     # The Daily Rug — Morning Market Brief (2026-10-16, operator doctrine):
     # the flagship ONCE-DAILY longform morning edition on the main channel
     # (@cryptorugmuncher). Best stories from the previous day + a

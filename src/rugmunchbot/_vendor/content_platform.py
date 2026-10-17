@@ -33,9 +33,14 @@ import hashlib
 import hmac
 import html
 import json
+import logging
 import os
 import re
+import time
+from datetime import UTC, datetime
+from typing import Any
 
+import httpx
 import redis
 
 # Redis for quality gate counters
@@ -93,7 +98,7 @@ def _log_quality_rejection(reason: str):
     _REDIS_CLIENT.incr("feed_quality_gate_rejections")
 
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 GHOST_API = "https://blog.rugmunch.io"
 GHOST_CONTENT_KEY = os.getenv("GHOST_CONTENT_API_KEY", "")

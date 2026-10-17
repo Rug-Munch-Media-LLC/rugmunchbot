@@ -65,6 +65,48 @@ def is_valid_image(url: object) -> bool:
     return bool(_valid_image(url))
 
 
+#: Identity chrome that must never ship as POST CONTENT even when an operator
+#: mapping points at it. These are profile photos / headers — the same defect
+#: class as the retired ``avatar.jpg`` fallback. Matched on the filename.
+_IDENTITY_CHROME = (
+    "avatar.jpg",
+    "feed-avatar.jpg",
+    "feed-banner.jpg",
+    "banner.jpg",
+    "1500x500.jpeg",
+    "current_cryptorugmuncher.png",
+)
+
+
+def _configured_brand_assets() -> set[str]:
+    """Filenames the operator has explicitly mapped as post graphics.
+
+    ``POST_TYPE_GRAPHICS`` is the single source of truth for which first-party
+    brand assets are legitimate post imagery. Reading it here (lazily, to
+    avoid an import cycle) means a new mapping is usable without a second
+    allowlist edit.
+    """
+    from rugmunchbot.support.post_graphics import DEFAULT_GRAPHIC, POST_TYPE_GRAPHICS
+
+    assets = set(POST_TYPE_GRAPHICS.values()) | {DEFAULT_GRAPHIC}
+    return {str(a).rsplit("/", 1)[-1].lower() for a in assets if a}
+
+
+def _is_configured_brand_asset(lowered_url: str) -> bool:
+    """True when *lowered_url* is a mapped, non-identity first-party graphic.
+
+    ``/brand/`` is banned as a broad pattern because scraped source pages
+    carry brand chrome (avatars, banners) that must never become post
+    content. The operator's own per-type graphics live under ``/brand/`` too,
+    so they are allowed BY FILENAME — and only when mapped — while identity
+    chrome stays banned wherever it is configured.
+    """
+    filename = lowered_url.rsplit("/", 1)[-1].split("?", 1)[0]
+    if not filename or filename in _IDENTITY_CHROME:
+        return False
+    return filename in _configured_brand_assets()
+
+
 def _valid_image(url: object) -> str:
     value = str(url or "").strip()
     if not value.startswith(("http://", "https://")):
@@ -74,6 +116,11 @@ def _valid_image(url: object) -> str:
         # The branded placeholder is a first-party asset, not scraped chrome —
         # it is the sanctioned fallback image and always allowed.
         if lowered.startswith(PLACEHOLDER_IMAGE_URL.lower()):
+            return value
+        # A mapped per-type brand graphic is the operator's own original, not
+        # scraped chrome (2026-10-17: without this every report/feed feature
+        # image was rejected and silently replaced by the generic badge).
+        if _is_configured_brand_asset(lowered):
             return value
         return ""
     return value

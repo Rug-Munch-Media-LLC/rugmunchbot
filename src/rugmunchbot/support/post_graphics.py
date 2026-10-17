@@ -39,10 +39,16 @@ DEFAULT_GRAPHIC: Final = f"{BRAND_BASE_URL}/rmi_badge_v4.png"
 #: :data:`BRAND_BASE_URL`; a full http(s) URL is used verbatim so an
 #: operator can point a post type at an off-site asset.
 #:
-#: Assets present in /srv/assets/brand/ (2026-10-17):
+#: Assets present in /var/www/rmi/brand/ (served at /brand/, 2026-10-17):
 #:   daily-rug-logo.jpeg · rug-munch-logo.jpg · rug-munch-media-llc.png
-#:   current_cryptorugmuncher.png · 1500x500.jpeg
-#: The operator will author more; add a row here (or via env) to wire one.
+#:   rmi-breaking-news.jpeg · rmi-midday-market-report.jpeg
+#:   rmi-evening-market-wrap.jpeg · rmi-scam-alert.jpeg · rmi-whale-alert.jpeg
+#:   rmi_badge_v4.png · rmi_badge_v5.png
+#:
+#: IDENTITY CHROME IS NEVER A POST GRAPHIC: ``avatar.jpg``,
+#: ``current_cryptorugmuncher.png``, the banners and ``1500x500.jpeg`` are
+#: profile imagery. They were the retired fallback defect; the risk/alpha
+#: family now uses the dedicated alert/market originals instead.
 POST_TYPE_GRAPHICS: Final[dict[str, str]] = {
     # ── flagship longform ──────────────────────────────────────────────
     "daily_rug": "daily-rug-logo.jpeg",
@@ -52,9 +58,7 @@ POST_TYPE_GRAPHICS: Final[dict[str, str]] = {
     # ── the three daily reports (2026-10-17) ───────────────────────────
     # Morning Brief → daily_rug; Midday Market Report → midday_report;
     # Evening Wrap → evening_wrap. Operator originals in /var/www/rmi/brand/
-    # (served at /brand/). The Midday report is a MARKET read → the evening
-    # market-wrap graphic; the Evening Wrap is the day's scam/rug recap →
-    # the scam-alert graphic. Both are operator originals that exist today.
+    # (served at /brand/).
     "midday_report": "rmi-midday-market-report.jpeg",
     "evening_wrap": "rmi-evening-market-wrap.jpeg",
     # ── news / editorial ───────────────────────────────────────────────
@@ -66,18 +70,19 @@ POST_TYPE_GRAPHICS: Final[dict[str, str]] = {
     "roundup": "rug-munch-logo.jpg",
     "digest": "rug-munch-logo.jpg",
     # ── risk / alerts ──────────────────────────────────────────────────
-    "scan": "current_cryptorugmuncher.png",
-    "scanner_alert": "current_cryptorugmuncher.png",
-    "alert": "current_cryptorugmuncher.png",
+    # Never a profile photo (see IDENTITY CHROME note above).
+    "scan": "rmi_badge_v5.png",
+    "scanner_alert": "rmi_badge_v5.png",
+    "alert": "rmi-breaking-news.jpeg",
     "scam_alert": "rmi-scam-alert.jpeg",
-    "exploit": "current_cryptorugmuncher.png",
-    "shill": "current_cryptorugmuncher.png",
-    "shill_watch": "current_cryptorugmuncher.png",
+    "exploit": "rmi-breaking-news.jpeg",
+    "shill": "rmi-scam-alert.jpeg",
+    "shill_watch": "rmi-scam-alert.jpeg",
     "whale": "rmi-whale-alert.jpeg",
-    "alpha": "current_cryptorugmuncher.png",
-    "dislocation": "current_cryptorugmuncher.png",
-    "lp_expiry": "current_cryptorugmuncher.png",
-    "social_spike": "current_cryptorugmuncher.png",
+    "alpha": "rmi-midday-market-report.jpeg",
+    "dislocation": "rmi-midday-market-report.jpeg",
+    "lp_expiry": "rmi-scam-alert.jpeg",
+    "social_spike": "rmi-whale-alert.jpeg",
     # ── product / system ───────────────────────────────────────────────
     "update": "rug-munch-media-llc.png",
     "system": "rug-munch-media-llc.png",

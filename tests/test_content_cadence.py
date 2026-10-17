@@ -171,9 +171,11 @@ _OPERATOR_IMAGE_MAP: dict[str, str] = {
     "evening_wrap": "rmi-evening-market-wrap.jpeg",
     "midday_report": "rmi-midday-market-report.jpeg",
     "daily_rug": "daily-rug-logo.jpeg",
-    "scan": "current_cryptorugmuncher.png",
-    "alpha": "current_cryptorugmuncher.png",
-    "shill": "current_cryptorugmuncher.png",
+    # 2026-10-17: risk/alpha no longer use the profile photo — a post graphic
+    # is content, never identity chrome (the retired avatar.jpg defect).
+    "scan": "rmi_badge_v5.png",
+    "alpha": "rmi-midday-market-report.jpeg",
+    "shill": "rmi-scam-alert.jpeg",
 }
 
 

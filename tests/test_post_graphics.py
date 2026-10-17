@@ -72,3 +72,21 @@ def test_register_graphic_ignores_empty_input() -> None:
     register_graphic("", "x.png")
     register_graphic("news", "")
     assert POST_TYPE_GRAPHICS == before
+
+
+def test_no_post_type_uses_identity_chrome() -> None:
+    """A post graphic is content, never a profile photo or channel header.
+
+    ``avatar.jpg`` / ``current_cryptorugmuncher.png`` are identity chrome —
+    the retired fallback defect. No mapping may point at one.
+    """
+    identity = {
+        "avatar.jpg",
+        "feed-avatar.jpg",
+        "feed-banner.jpg",
+        "banner.jpg",
+        "1500x500.jpeg",
+        "current_cryptorugmuncher.png",
+    }
+    for post_type, asset in POST_TYPE_GRAPHICS.items():
+        assert str(asset).rsplit("/", 1)[-1].lower() not in identity, post_type
