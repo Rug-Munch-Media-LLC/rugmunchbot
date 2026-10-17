@@ -72,6 +72,14 @@ def test_prompt_is_recap_framed() -> None:
     assert "THE DAY'S PATTERN" in system
 
 
+def test_prompt_injects_real_date_no_placeholder() -> None:
+    """The masthead date must be the real date, never the literal placeholder."""
+    msgs = build_messages({"generated_at": "2026-10-17T20:00:00+00:00", "alerts": []})
+    system = msgs[0]["content"]
+    assert "{Weekday, Month DD, YYYY}" not in system
+    assert "Saturday, October 17, 2026" in system
+
+
 def test_serialize_context_includes_recap_blocks() -> None:
     ctx = {
         "alerts": [_alert()],

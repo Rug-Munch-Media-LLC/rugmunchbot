@@ -32,6 +32,9 @@ _RULED_BANNER_RE = re.compile(r"^\s*<b>\s*([━─=•·]+)\s*(.*?)\s*\1\s*</b>\
 _BOX_DECOR_RE = re.compile(r"[━─=•·]+")
 #: Markdown ATX heading (``## SECTION``).
 _ATX_RE = re.compile(r"^(#{1,4})\s+(.+?)\s*$")
+#: A line that is ENTIRELY a bold span — the LLM's section-header shape
+#: (``<b>WHAT RUGGED TODAY</b>``). Rendered as an H2 when not the masthead.
+_BOLD_ONLY_RE = re.compile(r"^\s*<b>\s*(.+?)\s*</b>\s*$", re.DOTALL | re.IGNORECASE)
 #: Telegram inline tags.
 _BOLD_RE = re.compile(r"<b>(.*?)</b>", re.DOTALL | re.IGNORECASE)
 _ITALIC_RE = re.compile(r"<i>(.*?)</i>", re.DOTALL | re.IGNORECASE)
@@ -102,16 +105,20 @@ def to_markdown(report: str) -> str:
         if not lines:
             continue
 
-        if all(_BULLET_RE.match(ln) for ln in lines):
-            for ln in lines:
+        # Walk the remaining lines: a standalone bold line is a section
+        # header (H2); consecutive bullets form a markdown list; anything
+        # else is a paragraph line.
+        for ln in lines:
+            bold_only = _BOLD_ONLY_RE.match(ln)
+            if bold_only and masthead_done:
+                out.append(f"## {_strip_inline(bold_only.group(1))}")
+            elif _BULLET_RE.match(ln):
                 out.append(f"- {_strip_inline(_BULLET_RE.sub('', ln))}")
-        else:
-            for ln in lines:
+            else:
                 out.append(_strip_inline(ln))
         out.append("")  # blank line between blocks
 
     return _BLANK_RUN_RE.sub("\n\n", "\n".join(out)).strip()
-
 
 
 __all__ = ["to_markdown"]

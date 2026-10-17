@@ -95,8 +95,11 @@ def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
         "3000-4000 chars, every item linked with its real URL at most once. "
         "This is the RECAP — the day's rugs, shills and exit ramps, not a market brief."
     )
+    system = SYSTEM_PROMPT.replace("{EDITION}", EDITION).replace(
+        "{Weekday, Month DD, YYYY}", date_str
+    )
     return [
-        {"role": "system", "content": SYSTEM_PROMPT.replace("{EDITION}", EDITION)},
+        {"role": "system", "content": system},
         {"role": "user", "content": user_prompt},
     ]
 

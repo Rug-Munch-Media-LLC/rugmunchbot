@@ -130,17 +130,26 @@ def to_lexical(report: str) -> str:
         lines = [ln for ln in block.split("\n") if ln.strip()]
         if not lines:
             continue
-        atx = _ATX_RE.match(lines[0])
-        if atx:
-            children.append(_heading_node(f"h{len(atx.group(1))}", atx.group(2)))
-            lines = lines[1:]
-            if not lines:
-                continue
-        if all(_BULLET_RE.match(ln) for ln in lines):
-            children.append(_list_node([_BULLET_RE.sub("", ln) for ln in lines]))
-            continue
+        # Walk lines: ATX heading → heading node; a run of bullets → one
+        # list node; anything else → a paragraph. Headings and lists may
+        # share a block (the markdown transform emits them adjacent).
+        pending_bullets: list[str] = []
         for ln in lines:
-            children.append(_paragraph_node(ln))
+            atx = _ATX_RE.match(ln)
+            if atx:
+                if pending_bullets:
+                    children.append(_list_node(pending_bullets))
+                    pending_bullets = []
+                children.append(_heading_node(f"h{len(atx.group(1))}", atx.group(2)))
+            elif _BULLET_RE.match(ln):
+                pending_bullets.append(_BULLET_RE.sub("", ln))
+            else:
+                if pending_bullets:
+                    children.append(_list_node(pending_bullets))
+                    pending_bullets = []
+                children.append(_paragraph_node(ln))
+        if pending_bullets:
+            children.append(_list_node(pending_bullets))
     return json.dumps(
         {
             "root": {

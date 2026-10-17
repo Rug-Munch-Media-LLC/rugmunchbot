@@ -103,3 +103,40 @@ def test_lexical_is_valid_json_string() -> None:
     out = to_lexical(SAMPLE)
     assert isinstance(out, str)
     assert json.loads(out)["root"]["type"] == "root"
+
+
+#: The shape the LLM actually emits: a standalone ``<b>SECTION</b>`` line
+#: (not a ruled banner) immediately after a paragraph, with no blank line.
+BOLD_HEADER_SAMPLE = (
+    "<b>━━━ Evening Wrap ━━━</b>\n"
+    "<i>Saturday, October 17, 2026 · Crypto Rug Muncher desk</i>\n"
+    "\n"
+    "RugToken (RUG) on Solana carried a 92 risk score.\n"
+    "<b>WHAT RUGGED TODAY</b>\n"
+    '• RugToken (RUG) — risk 92 — <a href="https://ex.com/rug">source</a>\n'
+    '• ScamCoin (SCM) — risk 98 — <a href="https://ex.com/scm">source</a>\n'
+    "<b>THE SHILL DESK</b>\n"
+    '• SHILLX — 7 KOLs — <a href="https://ex.com/shill">source</a>\n'
+)
+
+
+def test_bold_only_line_becomes_h2() -> None:
+    md = to_markdown(BOLD_HEADER_SAMPLE)
+    assert "## WHAT RUGGED TODAY" in md
+    assert "## THE SHILL DESK" in md
+    assert "**WHAT RUGGED TODAY**" not in md
+
+
+def test_bold_header_bullets_become_list() -> None:
+    md = to_markdown(BOLD_HEADER_SAMPLE)
+    assert "- RugToken (RUG)" in md
+    assert "- ScamCoin (SCM)" in md
+
+
+def test_lexical_bold_header_yields_h2_and_list() -> None:
+    doc = json.loads(to_lexical(BOLD_HEADER_SAMPLE))
+    types = [(c["type"], c.get("tag", "")) for c in doc["root"]["children"]]
+    assert ("heading", "h2") in types
+    assert ("list", "ul") in types
+    # Two sections → two lists.
+    assert sum(1 for t in types if t == ("list", "ul")) == 2

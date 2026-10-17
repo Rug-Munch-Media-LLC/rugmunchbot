@@ -82,6 +82,14 @@ def test_prompt_is_macro_framed() -> None:
     assert "HOW IT'S LANDING ON CRYPTO" in system
 
 
+def test_prompt_injects_real_date_no_placeholder() -> None:
+    """The masthead date must be the real date, never the literal placeholder."""
+    msgs = build_messages({"generated_at": "2026-10-17T12:00:00+00:00", "macro_stories": []})
+    system = msgs[0]["content"]
+    assert "{Weekday, Month DD, YYYY}" not in system
+    assert "Saturday, October 17, 2026" in system
+
+
 def test_serialize_context_includes_macro_blocks() -> None:
     ctx = {
         "macro_stories": [_macro_story()],
