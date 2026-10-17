@@ -427,11 +427,13 @@ def test_valid_article_image_accepted() -> None:
 
 
 def test_placeholder_is_app_logo() -> None:
-    """The placeholder is the clean square app logo (avatar.jpg) — NOT the
-    1024x1024 badge and NOT the twitter header banner (2026-09-01/02
-    operator doctrine)."""
-    assert "avatar.jpg" in PLACEHOLDER_IMAGE_URL
-    assert "badge" not in PLACEHOLDER_IMAGE_URL
+    """The placeholder is the RMI badge (rmi_badge_v4.png).
+
+    2026-10-17 operator doctrine supersedes 2026-09-01/02: the real RMI
+    badge IS the app logo. The banned imagery remains the operator's X
+    avatar and the header banner — never those."""
+    assert "rmi_badge_v4.png" in PLACEHOLDER_IMAGE_URL
+    assert "avatar" not in PLACEHOLDER_IMAGE_URL
     assert "banner" not in PLACEHOLDER_IMAGE_URL
 
 

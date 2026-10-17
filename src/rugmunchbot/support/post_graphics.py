@@ -33,7 +33,7 @@ BRAND_BASE_URL: Final = os.getenv("RMI_BRAND_BASE_URL", "https://rugmunch.io/bra
 
 #: The brand default — the clean square app logo. Used when a post type has
 #: no explicit mapping (never leaves a post graphic-less).
-DEFAULT_GRAPHIC: Final = f"{BRAND_BASE_URL}/rug-munch-logo.jpg"
+DEFAULT_GRAPHIC: Final = f"{BRAND_BASE_URL}/rmi_badge_v4.png"
 
 #: post_type → brand asset filename. The filename is joined to
 #: :data:`BRAND_BASE_URL`; a full http(s) URL is used verbatim so an

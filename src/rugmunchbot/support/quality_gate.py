@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 #: App logo — the actual RugMunch favicon (400x400 square). NOT the
 #: 1024x1024 badge or the twitter header banner. This is the clean
 #: square app icon that Telegram displays properly as a post image.
-PLACEHOLDER_IMAGE_URL: Final = "https://rugmunch.io/brand/rug-munch-logo.jpg"
+PLACEHOLDER_IMAGE_URL: Final = "https://rugmunch.io/brand/rmi_badge_v4.png"
 
 _ANCHOR_RE: Final = re.compile(r'<a\s+href="([^"]+)"[^>]*>(.*?)</a>', re.DOTALL)
 _BARE_URL_RE: Final = re.compile(r"https?://[^\s)<>\"']+")

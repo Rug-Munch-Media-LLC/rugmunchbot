@@ -1,0 +1,101 @@
+"""Normalisation + presentation helpers for ranked news items.
+
+Ranked items cross two boundaries before they reach a prompt: the upstream
+rugbrain row shape and the ``cite-or-omit`` prompt block format. Both live
+here so the fetch lane stays a single transport function and neither boundary
+is reimplemented per post type.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any
+
+#: Ranked stories rendered per post (top-K of the ranker).
+TOP_K = 8
+
+
+def parse_published_at(raw: Any) -> datetime | None:
+    """Parse an ISO-8601 string, an epoch seconds/ms number, or ``None``.
+
+    Epoch values above 1e12 are treated as milliseconds. A naive datetime is
+    assumed UTC. Returns ``None`` for anything unparseable — callers treat
+    that as "undated", never as an error.
+    """
+    if not raw:
+        return None
+    try:
+        if isinstance(raw, (int, float)):
+            ts = float(raw)
+            if ts > 1e12:  # ms epoch
+                ts /= 1000.0
+            return datetime.fromtimestamp(ts, tz=UTC)
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+    except (ValueError, TypeError, OSError):
+        return None
+
+
+def article_score(article: dict[str, Any]) -> float:
+    """Importance score for a ``/news/top`` row (int-or-dict ``quality``).
+
+    ``quality`` is an int on heuristic-tier rows and a dict on others, so it
+    is probed rather than assumed: a bare ``.get("quality", {}).get(...)``
+    raises AttributeError on the int rows, which the caller's fail-open
+    except then swallowed into an empty list.
+    """
+    raw = article.get("score")
+    try:
+        if raw is not None:
+            return float(raw)
+    except (TypeError, ValueError):
+        pass
+    q = article.get("quality")
+    if isinstance(q, dict):
+        try:
+            return float(q.get("score") or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+    try:
+        return float(q or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def normalise_article(a: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream ``/news/top`` row to the internal ranked-item shape."""
+    return {
+        "title": a.get("headline") or a.get("title") or "",
+        "published_at": a.get("published_at") or "",
+        "url": a.get("url") or "",
+        "image_url": a.get("image_url") or "",
+        "score": article_score(a),
+        "source": a.get("source") or "",
+        "_ranked_by": a.get("ranked_by") or "",
+    }
+
+
+def to_prompt_block(items: list[dict[str, Any]], *, label: str) -> str:
+    """Serialize ranked items into the cite-or-omit prompt block format."""
+    lines: list[str] = []
+    for it in items[:TOP_K]:
+        title = str(it.get("title") or "").strip()
+        summary = str(it.get("summary") or "").strip()[:220]
+        src = str(it.get("source") or "").strip()
+        url = str(it.get("url") or "").strip()
+        cat = str(it.get("category") or "").strip()
+        bits = [title or summary[:80]]
+        if cat:
+            bits.append(f"category {cat}")
+        if src:
+            bits.append(f"source {src}")
+        if summary and title:
+            bits.append(summary)
+        line = " — ".join(b for b in bits if b)
+        if url.startswith(("http://", "https://")):
+            line += f" [url={url}]"
+        if line.strip():
+            lines.append(line)
+    if not lines:
+        return ""
+    return f"{label}: " + " || ".join(lines)

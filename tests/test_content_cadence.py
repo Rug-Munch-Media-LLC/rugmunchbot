@@ -168,8 +168,8 @@ _OPERATOR_IMAGE_MAP: dict[str, str] = {
     "news": "rmi-breaking-news.jpeg",
     "whale": "rmi-whale-alert.jpeg",
     "market": "rmi-evening-market-wrap.jpeg",
-    "evening_wrap": "rmi-scam-alert.jpeg",
-    "midday_report": "rmi-evening-market-wrap.jpeg",
+    "evening_wrap": "rmi-evening-market-wrap.jpeg",
+    "midday_report": "rmi-midday-market-report.jpeg",
     "daily_rug": "daily-rug-logo.jpeg",
     "scan": "current_cryptorugmuncher.png",
     "alpha": "current_cryptorugmuncher.png",
@@ -192,8 +192,8 @@ def test_operator_images_are_all_mapped() -> None:
 
 def test_graphic_for_type_uses_override_filename() -> None:
     """A per-report override filename resolves to the brand URL (not default)."""
-    url = graphic_for_type("midday_report", "rmi-evening-market-wrap.jpeg")
-    assert url == f"{BRAND_BASE_URL}/rmi-evening-market-wrap.jpeg"
+    url = graphic_for_type("midday_report", "rmi-midday-market-report.jpeg")
+    assert url == f"{BRAND_BASE_URL}/rmi-midday-market-report.jpeg"
 
 
 def test_graphic_for_type_uses_override_url_verbatim() -> None:

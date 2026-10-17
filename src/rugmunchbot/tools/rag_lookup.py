@@ -42,6 +42,12 @@ from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools._client import BackendApiError
 from rugmunchbot.tools.guardrails import extract_addresses, extract_symbols
 from rugmunchbot.tools.registry import ToolResult, backend_json_post
+# 2026-10-17: the direct-Qdrant lane was extracted to rag_qdrant.py to keep
+# this module under the size/CCN gate. Re-exported under the original name so
+# the five callers (daily_rug/_fetch, daily_rug_update/_fetch,
+# daily_market_summary/_assemble, evening_wrap/_fetch,
+# midday_market_report/_fetch) keep importing it from here.
+from rugmunchbot.tools.rag_qdrant import direct_qdrant as _rag_direct_qdrant
 
 logger = get_logger("rmi_bot.tools.rag_lookup")
 
@@ -361,153 +367,6 @@ async def _rag_direct_search_multi(
                 "id": r.get("id") or r.get("doc_id") or "",
             }
         )
-    return out
-
-
-# ── Direct Qdrant lane (bot = HOST -> 127.0.0.1:6334; embed via local qwen3) ──
-# The rag-api HTTP wrapper is slow (~9s, RRF + query-transform) and the backend
-# container cannot reach it. Direct Qdrant vector search is ~0.03s per
-# collection; the whole lane is bound by ONE query embedding (~1-3s). This is
-# the primary grounding lane. (2026-08-30)
-_DEFAULT_QDRANT_URL = "http://127.0.0.1:6334"
-# 2026-10-17: the corpus is Qwen3-Embedding-8B / 4096-dim (the 4B/2560 lane
-# is RETIRED) and the local llama.cpp embedder (:8004) is not running.
-# Embedding is delegated to RugBrain's /api/v1/embed, which owns the
-# intelligent DeepInfra -> SiliconFlow -> OpenRouter fallback chain.
-_DEFAULT_EMBED_URL = "http://127.0.0.1:8012/api/v1/embed"
-_EMBED_MODEL = os.getenv("RAG_EMBED_MODEL", "qwen3-embedding-8b")
-_EMBED_DIMS_EXPECTED = int(os.getenv("RAG_EMBED_DIMS", "4096"))
-
-
-def _qdrant_url() -> str:
-    return (os.getenv("QDRANT_URL") or _DEFAULT_QDRANT_URL).rstrip("/")
-
-
-def _rag_headers() -> dict[str, str]:
-    """Auth headers for RugBrain's own endpoints (the /api/v1/embed lane)."""
-    key = _rag_api_key()
-    return {"X-API-Key": key} if key else {}
-
-
-def _embed_url() -> str:
-    return (os.getenv("QWEN_EMBED_URL") or os.getenv("RMI_EMBED_URL") or _DEFAULT_EMBED_URL).rstrip(
-        "/"
-    )
-
-
-async def _embed_query(query: str) -> list[float] | None:
-    """Embed ``query`` via the local Qwen3-Embedding-4B server (2560-dim).
-
-    Returns the vector or ``None`` on any failure (never raises). One embedding
-    serves every collection in the lane (2560d cosine is collection-agnostic).
-    """
-    try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(8.0, connect=3.0, read=8.0, write=8.0)
-        ) as client:
-            resp = await asyncio.wait_for(
-                client.post(
-                    _embed_url(),
-                    headers={**_rag_headers(), "Content-Type": "application/json"},
-                    # /api/v1/embed takes {"text": ...}; a direct provider
-                    # endpoint takes the OpenAI {"input": ...} shape.
-                    json=(
-                        {"text": query}
-                        if _embed_url().rstrip("/").endswith("/api/v1/embed")
-                        else {"model": _EMBED_MODEL, "input": query}
-                    ),
-                ),
-                timeout=8.0,
-            )
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError, ValueError):
-        return None
-    if resp.status_code != 200:
-        return None
-    try:
-        raw = resp.json()
-        # /api/v1/embed -> {"embedding": [...]}; OpenAI -> {"data":[{"embedding":...}]}
-        vec = raw.get("embedding")
-        if vec is None:
-            vec = raw["data"][0]["embedding"]
-    except (ValueError, KeyError, IndexError, TypeError):
-        return None
-    if not isinstance(vec, list) or not vec:
-        return None
-    return [float(x) for x in vec]
-
-
-async def _qdrant_collection_search(
-    collection: str, vector: list[float], limit: int
-) -> list[dict[str, Any]]:
-    """Vector-search one Qdrant collection (``/collections/{c}/points/search``).
-
-    Maps each hit to the standard ``{content, score, collection, metadata}``
-    shape. Returns ``[]`` on any failure — never raises.
-    """
-    url = f"{_qdrant_url()}/collections/{collection}/points/search"
-    payload = {"vector": vector, "limit": limit, "with_payload": True}
-    try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(6.0, connect=3.0, read=6.0, write=6.0)
-        ) as client:
-            resp = await asyncio.wait_for(
-                client.post(url, headers={"Content-Type": "application/json"}, json=payload),
-                timeout=6.0,
-            )
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError, ValueError):
-        return []
-    if resp.status_code != 200:
-        return []
-    try:
-        raw = resp.json()
-    except ValueError:
-        return []
-    result = raw.get("result") if isinstance(raw, dict) else None
-    points = result if isinstance(result, list) else []
-    out: list[dict[str, Any]] = []
-    for p in points:
-        if not isinstance(p, dict):
-            continue
-        pl = p.get("payload") or {}
-        content = (pl.get("content") or pl.get("text") or "").strip()
-        if not content:
-            continue
-        meta = pl.get("metadata") or {}
-        out.append(
-            {
-                "content": content,
-                "score": float(p.get("score") or 0.0),
-                "collection": pl.get("collection") or collection,
-                "metadata": meta if isinstance(meta, dict) else {},
-                "id": pl.get("doc_id") or p.get("id") or "",
-            }
-        )
-    return out
-
-
-async def _rag_direct_qdrant(
-    search_query: str, collections: list[str], limit: int
-) -> list[dict[str, Any]]:
-    """Embed ONCE and vector-search every collection in the knowledge set.
-
-    Bound to ~8s total (embed ~1-3s + per-collection @0.03s). Runs the
-    collection searches concurrently. Returns collected hits (not yet deduped)
-    or ``[]`` on failure — never raises.
-    """
-    vector = await _embed_query(search_query)
-    if not vector:
-        return []
-    tasks = [_qdrant_collection_search(c, vector, limit) for c in collections]
-    try:
-        results = await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True), timeout=RAG_LOOKUP_TIMEOUT
-        )
-    except TimeoutError:
-        return []
-    out: list[dict[str, Any]] = []
-    for res in results:
-        if isinstance(res, list):
-            out.extend(res)
     return out
 
 

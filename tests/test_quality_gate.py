@@ -252,12 +252,12 @@ def test_placeholder_image_url_is_real_image_path() -> None:
     """The placeholder must NOT be the old /og/ SPA-fallback path that
     served text/html — Telegram rejected it and every placeholder post
     silently shipped text-only (2026-08-31 no-image incident).
-    2026-09-01/02: it must also NOT be the operator's personal X header
-    (/brand/banner.jpg) nor the 1024x1024 badge — the clean square app
-    logo (avatar.jpg) is the only sub image."""
-    assert PLACEHOLDER_IMAGE_URL == "https://rugmunch.io/brand/avatar.jpg"
+    2026-10-17 operator doctrine: the RMI badge (rmi_badge_v4.png) IS the
+    app logo and the correct placeholder. The banned imagery is the
+    operator's personal X avatar and the header banner."""
+    assert PLACEHOLDER_IMAGE_URL == "https://rugmunch.io/brand/rmi_badge_v4.png"
     assert "banner.jpg" not in PLACEHOLDER_IMAGE_URL
-    assert "badge" not in PLACEHOLDER_IMAGE_URL
+    assert "avatar" not in PLACEHOLDER_IMAGE_URL
     assert PLACEHOLDER_IMAGE_URL.startswith("https://")
 
 
@@ -369,10 +369,11 @@ def test_strip_duplicate_urls_calls_story_dedup() -> None:
 
 
 def test_placeholder_is_app_logo() -> None:
-    """The placeholder is the clean square app logo (avatar.jpg) — NOT the
-    badge and NOT the twitter header banner."""
-    assert "avatar.jpg" in PLACEHOLDER_IMAGE_URL
-    assert "badge" not in PLACEHOLDER_IMAGE_URL
+    """The placeholder is the BRAND logo (rug-munch-logo.jpg) — never the
+    operator's avatar, badge or header banner (2026-10-17: avatar.jpg was
+    rejected because the profile photo kept appearing as post art)."""
+    assert "rmi_badge_v4.png" in PLACEHOLDER_IMAGE_URL
+    assert "avatar" not in PLACEHOLDER_IMAGE_URL
     assert "banner" not in PLACEHOLDER_IMAGE_URL
 
 
