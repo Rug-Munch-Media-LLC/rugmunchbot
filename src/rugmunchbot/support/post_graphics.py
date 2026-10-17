@@ -56,7 +56,7 @@ POST_TYPE_GRAPHICS: Final[dict[str, str]] = {
     # market-wrap graphic; the Evening Wrap is the day's scam/rug recap →
     # the scam-alert graphic. Both are operator originals that exist today.
     "midday_report": "rmi-midday-market-report.jpeg",
-    "evening_wrap": "rmi-scam-alert.jpeg",
+    "evening_wrap": "rmi-evening-market-wrap.jpeg",
     # ── news / editorial ───────────────────────────────────────────────
     "news": "rmi-breaking-news.jpeg",
     "breaking": "rmi-breaking-news.jpeg",
