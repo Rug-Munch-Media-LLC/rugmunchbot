@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -101,8 +102,14 @@ async def _fetch_macro_intel() -> list[dict[str, Any]]:
 
 
 async def _fetch_macro_stories() -> list[dict[str, Any]]:
-    """Reranker stories filtered to the MACRO facet (fail-open)."""
+    """Reranker stories filtered to the MACRO facet (fail-open).
+
+    Undated stories are kept, and when nothing matches the macro facet the
+    unfiltered ranked list is returned: a macro-dry window must still leave
+    the writer something to cite instead of forcing a SKIP.
+    """
     from rugmunchbot.channels._news_rerank import fetch_top_ranked_stories
+    from rugmunchbot.channels.midday_market_report._freshness import is_fresh_or_undated
 
     try:
         stories = await fetch_top_ranked_stories(window_hours=_WINDOW_HOURS)
@@ -111,27 +118,11 @@ async def _fetch_macro_stories() -> list[dict[str, Any]]:
         return []
 
     cutoff = datetime.now(UTC) - timedelta(hours=_WINDOW_HOURS)
-    fresh: list[dict[str, Any]] = []
-    for item in stories:
-        if not _is_macro_story(item):
-            continue
-        raw = item.get("published_at")
-        dt: datetime | None = None
-        try:
-            if isinstance(raw, (int, float)):
-                ts = float(raw)
-                if ts > 1e12:
-                    ts /= 1000.0
-                dt = datetime.fromtimestamp(ts, tz=UTC)
-            elif raw:
-                dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=UTC)
-        except (ValueError, TypeError, OSError):
-            dt = None
-        if dt is not None and dt >= cutoff:
-            fresh.append(item)
-    return fresh
+    fresh = [item for item in stories if is_fresh_or_undated(item, cutoff)]
+    macro = [item for item in fresh if _is_macro_story(item)]
+    if not macro and fresh:
+        logger.info("midday_report:macro_facet_empty_fallback stories=%d", len(fresh))
+    return macro or fresh
 
 
 async def _fetch_crypto_tape() -> dict[str, Any]:
@@ -268,6 +259,11 @@ def _serialize_context(context: dict[str, Any]) -> str:
     return "\n\n".join(parts) if parts else "(no data)"
 
 
+def count_context_links(context: dict[str, Any]) -> int:
+    """Distinct real URLs the gathered context actually offers the writer."""
+    return len(set(re.findall(r"https?://[^\s)>\"']+", _serialize_context(context))))
+
+
 def pick_midday_image(context: dict[str, Any]) -> str:
     """Best available image for the report (story og:image, else "")."""
     for story in context.get("macro_stories") or []:
@@ -284,6 +280,7 @@ def pick_midday_image(context: dict[str, Any]) -> str:
 
 __all__ = [
     "_serialize_context",
+    "count_context_links",
     "gather_midday_report_data",
     "pick_midday_image",
 ]

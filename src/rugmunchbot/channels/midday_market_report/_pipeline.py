@@ -47,6 +47,11 @@ def strip_echo(raw: str) -> str:
     return raw
 
 
+def is_skip(raw: str) -> bool:
+    """True when the model returned the explicit SKIP sentinel."""
+    return raw.strip().strip(".\"'`*_ ").upper() == "SKIP"
+
+
 def has_min_stories(text: str, *, min_links: int = 3) -> bool:
     """True when the report carries at least ``min_links`` distinct http links."""
     links = set(re.findall(r"https?://[^\s)>\"']+", text))
@@ -103,6 +108,7 @@ __all__ = [
     "cleanup_html",
     "has_min_stories",
     "is_language_leak",
+    "is_skip",
     "split_for_telegram",
     "strip_echo",
 ]

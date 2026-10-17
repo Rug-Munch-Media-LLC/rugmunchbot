@@ -70,7 +70,7 @@ HARD RULES:
 - NO TRAILING DEBRIS: the report ENDS at THE RUG TOOLKIT. No duplicated story blocks, no stray source cards after the footer.
 - Each section: 1-5 tight items max. A story that fits two sections goes in the BEST one only.
 - You MUST write in English only.
-- The report MUST contain at least 3 stories with links. If you have fewer than 3, return 'SKIP' instead."""
+- Use at least 3 linked stories WHEN the data provides them. If it provides fewer, write from the numbers given and NEVER invent or repeat a URL. Returning 'SKIP' is not allowed."""
 
 
 def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
@@ -84,7 +84,10 @@ def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
             )
     except (TypeError, ValueError):
         date_str = "—"
-    from rugmunchbot.channels.midday_market_report._fetch import _serialize_context
+    from rugmunchbot.channels.midday_market_report._fetch import (
+        _serialize_context,
+        count_context_links,
+    )
 
     user_prompt = (
         f"Write today's {EDITION} for {date_str}.\n\n"
@@ -94,6 +97,13 @@ def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
         "3000-4000 chars, every item linked with its real URL at most once. "
         "This is the MACRO report — broader markets and their effect on crypto, not a crypto-story list."
     )
+    links = count_context_links(context)
+    if links < 3:
+        user_prompt += (
+            f"\n\nNOTE: this context carries {links} linkable source(s). Do NOT invent "
+            "URLs and do NOT return SKIP — write the macro report from the prices, "
+            "global metrics and intel supplied above."
+        )
     system = SYSTEM_PROMPT.replace("{EDITION}", EDITION).replace(
         "{Weekday, Month DD, YYYY}", date_str
     )

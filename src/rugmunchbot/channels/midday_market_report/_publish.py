@@ -26,6 +26,7 @@ from rugmunchbot.channels.midday_market_report._config import (
     MIDDAY_REPORT_GRAPHIC,
 )
 from rugmunchbot.channels.midday_market_report._fetch import (
+    count_context_links,
     gather_midday_report_data,
     pick_midday_image,
 )
@@ -35,7 +36,6 @@ from rugmunchbot.channels.midday_market_report._pipeline import (
     has_min_stories,
     is_language_leak,
     split_for_telegram,
-    strip_echo,
 )
 from rugmunchbot.channels.midday_market_report._prompt import EDITION, build_messages
 
@@ -49,30 +49,10 @@ TASK_CLASS = "market_brief"
 
 
 async def _write_report(context: dict[str, Any]) -> str:
-    """LLM-write the report, with one length-retry. Returns "" on failure."""
-    from rugmunchbot.llm_config import chat_with_fallback
+    """Delegate to the writer module (kept separate for the size cap)."""
+    from rugmunchbot.channels.midday_market_report._write import write_report
 
-    messages = build_messages(context)
-    try:
-        raw = await chat_with_fallback(messages, "long", task_class=TASK_CLASS)
-    except Exception as exc:
-        logger.warning("midday_report:llm_failed err=%s", str(exc)[:160])
-        return ""
-    raw = strip_echo(raw)
-    if len(raw.strip()) < 1200:
-        logger.warning("midday_report:llm_short retrying chars=%s", len(raw.strip()))
-        retry = build_messages(context)
-        retry[1]["content"] += (
-            "\n\nIMPORTANT: your previous attempt was too short. Write the FULL "
-            "3000-4000 character report now — every section, every item, with links."
-        )
-        try:
-            raw2 = await chat_with_fallback(retry, "long", task_class=TASK_CLASS)
-            if len(raw2.strip()) > len(raw.strip()):
-                raw = strip_echo(raw2)
-        except Exception as exc:
-            logger.warning("midday_report:llm_retry_failed err=%s", str(exc)[:120])
-    return raw
+    return await write_report(context)
 
 
 async def _mirror_to_feed(report: str, image_url: str) -> str:
@@ -192,10 +172,12 @@ async def post_midday_report(ctx: Any) -> int:
         logger.warning("midday_report:too_short_skipped words=%d min=200", word_count)
         release_today()
         return 0
-    if not has_min_stories(report):
+    min_links = min(3, count_context_links(context))
+    if not has_min_stories(report, min_links=min_links):
         logger.warning(
-            "midday_report:too_few_stories_skipped links=%d min=3",
+            "midday_report:too_few_stories_skipped links=%d min=%d",
             len(set(re.findall(r"https?://[^\s)>\"']+", report))),
+            min_links,
         )
         release_today()
         return 0
