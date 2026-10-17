@@ -54,3 +54,24 @@ def _disable_durable_dedupe(monkeypatch):
     from rugmunchbot.channels import scheduler_state
 
     monkeypatch.setattr(scheduler_state, "is_available", lambda: False)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_publication_ledger(monkeypatch):
+    """Isolate the content-hash publication ledger from the LIVE Redis.
+
+    ``telegram_news._ledger`` reads/writes ``ledger:<namespace>:hashes`` on the
+    production Redis (``REDIS_URL`` from ``/srv/secrets/rugmunchbot.env``). A
+    test that reaches a successful briefing send records its fixture's content
+    hash there, and every later run of the SAME fixture is then black-holed as
+    ``content_blank_or_dup:recent_duplicate`` — the fixture is byte-identical
+    by design. That is how ``test_daily_summary_mirrors_to_feed`` and
+    ``test_full_pipeline_posts_and_mirrors`` began failing on a clean checkout.
+
+    Force the ledger's Redis client to ``None`` so it degrades to its
+    documented fail-open path (never a duplicate, never recorded). Tests that
+    exercise the ledger itself inject their own client.
+    """
+    from rugmunchbot.channels.telegram_news import _ledger
+
+    monkeypatch.setattr(_ledger, "_get_client", lambda: None)

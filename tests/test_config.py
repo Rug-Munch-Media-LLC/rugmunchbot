@@ -42,9 +42,10 @@ def test_llm_model_defaults():
 
     snappy = get_snappy_config()
     long_cfg = get_long_config()
-    # Current chain (2026-09-18): FREE-FIRST — snappy = KiloCode laguna-s-2.1
-    # primary (stepfun/step-3.7-flash was dropped for empty content); paid
-    # DeepInfra Qwen3.5-9B is the FINAL rung.
-    assert snappy["model"] == "poolside/laguna-s-2.1:free"  # free-first primary
+    # Current chain (2026-10-15): hosted FREE primary lane — Groq
+    # ``qwen/qwen3.8-27b`` (vision-capable, ~320 tok/s) serves BOTH chat and
+    # content writing; Gemini is the free fallback; paid DeepInfra Qwen3.5-9B
+    # is the FINAL rung.
+    assert snappy["model"] == "qwen/qwen3.8-27b"  # hosted free primary
     assert "Qwen3.5" in llm_config.get_paid_final_config("snappy")["model"]  # paid final rung
-    assert "nemotron" in long_cfg["model"]  # long tier (nvidia/nemotron-3-ultra-550b-a55b:free)
+    assert long_cfg["model"] == "qwen/qwen3.8-27b"  # ONE lane for chat + writing

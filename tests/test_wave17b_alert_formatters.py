@@ -164,4 +164,6 @@ def test_format_main_escalation_card() -> None:
 def test_format_main_escalation_minimal_item() -> None:
     post = format_main_escalation({"title": "Weird Signal"})
     assert "Weird Signal" in post
-    assert post.image_url == ""
+    # A minimal item with no story image still carries the alert brand
+    # graphic (alert → current_cryptorugmuncher.png) — never "".
+    assert post.image_url == "https://rugmunch.io/brand/current_cryptorugmuncher.png"

@@ -34,29 +34,29 @@ def _hermetic_llm_lanes(respx_mock, monkeypatch):
     )
 
 
-def test_snappy_config_points_at_kilocode_laguna():
-    # 2026-09-18 doctrine: FREE-FIRST — KiloCode laguna-s-2.1 primary (replaced
-    # stepfun/step-3.7-flash, which returned empty content below ~2000
-    # max_tokens); the paid DeepInfra Qwen3.5-9B is the FINAL rung
+def test_snappy_config_points_at_groq_qwen():
+    # 2026-10-15 doctrine: hosted FREE primary lane — Groq ``qwen/qwen3.8-27b``
+    # (vision-capable, ~320 tok/s) serves chat AND content writing; Gemini is
+    # the free fallback; the paid DeepInfra Qwen3.5-9B is the FINAL rung
     # (get_paid_final_config).
     cfg = llm_config.get_snappy_config()
-    assert cfg["model"] == "poolside/laguna-s-2.1:free"
-    assert cfg["base_url"].startswith(llm_config.KILOCODE_BASE)
+    assert cfg["model"] == "qwen/qwen3.8-27b"
+    assert cfg["base_url"].startswith(llm_config.GROQ_BASE)
     assert "/chat/completions" in cfg["base_url"]
     paid = llm_config.get_paid_final_config("snappy")
     assert paid["model"] == "Qwen/Qwen3.5-9B"
     assert paid["base_url"].startswith(llm_config.DEEPINFRA_BASE)
-    # Fallback leg is the OpenRouter free nemotron, not another Kilo route.
-    assert cfg["fallback_model"] == "nvidia/nemotron-3-super-120b-a12b:free"
+    # Fallback leg is the Gemini free shim, not another Groq route.
+    assert cfg["fallback_model"] == llm_config.GEMINI_MODEL
 
 
-def test_long_config_points_at_nemotron_ultra():
-    # 2026-09-18: nemotron-3.5-lightning was dropped (leaked "thinking process");
-    # the deep tier is now nemotron-3-ultra-550b via KiloCode.
+def test_long_config_points_at_groq_qwen():
+    # 2026-10-15: ONE lane for chat and content writing — the long tier shares
+    # the Groq Qwen primary; Gemini is the free fallback.
     cfg = llm_config.get_long_config()
-    assert cfg["model"] == "nvidia/nemotron-3-ultra-550b-a55b:free"
-    assert cfg["base_url"].startswith(llm_config.KILOCODE_BASE)
-    assert cfg["fallback_model"] == "nvidia/nemotron-3-super-120b-a12b:free"
+    assert cfg["model"] == "qwen/qwen3.8-27b"
+    assert cfg["base_url"].startswith(llm_config.GROQ_BASE)
+    assert cfg["fallback_model"] == llm_config.GEMINI_MODEL
 
 
 def test_cheap_fallback_is_free_nemotron_super():

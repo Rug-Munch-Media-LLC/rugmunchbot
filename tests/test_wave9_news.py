@@ -48,14 +48,17 @@ def test_news_post_digest_shape_and_image() -> None:
 
 
 def test_news_post_rejects_non_http_image() -> None:
+    # A non-http story image is unusable, so the post falls back to its
+    # per-type brand graphic (news → rmi-breaking-news.jpeg) — never "".
     post = format_news_post([ITEM_B])
-    assert post.image_url == ""
+    assert post.image_url == "https://rugmunch.io/brand/rmi-breaking-news.jpeg"
 
 
 def test_news_post_empty_items_still_renders_shell() -> None:
     post = format_news_post([])
     assert "📰 <b>RugMunch News</b>" in post
-    assert post.image_url == ""
+    # An empty window still carries the news brand graphic (image doctrine).
+    assert post.image_url == "https://rugmunch.io/brand/rmi-breaking-news.jpeg"
 
 
 def test_breaking_post_links_and_carries_image() -> None:
@@ -100,7 +103,8 @@ def test_hybrid_lead_plus_numbered_rest() -> None:
 def test_hybrid_empty_items_renders_shell() -> None:
     post = format_hybrid_post([])
     assert "📰 <b>RugMunch News</b>" in post
-    assert post.image_url == ""
+    # An empty window still carries the hybrid brand graphic (image doctrine).
+    assert post.image_url == "https://rugmunch.io/brand/rug-munch-logo.jpg"
 
 
 def test_themed_post_label_and_default() -> None:

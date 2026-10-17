@@ -29,7 +29,11 @@ import os as _os  # noqa: E402
 
 os_getenv = _os.getenv
 
-DAILY_RUG_UPDATE_ENABLED: bool = _env_bool("RMI_DAILY_RUG_UPDATE_ENABLED", True)
+#: DISABLED by default (2026-10-16, operator doctrine): the flagship daily
+#: post is "The Daily Rug — Morning Market Brief" (``channels/daily_rug``).
+#: The Midday Update duplicated the Morning Rug's stories and read as filler.
+#: Re-enable with ``RMI_DAILY_RUG_UPDATE_ENABLED=true``.
+DAILY_RUG_UPDATE_ENABLED: bool = _env_bool("RMI_DAILY_RUG_UPDATE_ENABLED", False)
 
 DAILY_RUG_UPDATE_FEED_ENABLED: bool = _env_bool("RMI_DAILY_RUG_UPDATE_FEED_ENABLED", True)
 
