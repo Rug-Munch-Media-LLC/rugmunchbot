@@ -108,6 +108,7 @@ from ._scheduling import (
 from ._secrets import (
     _RMI_AUTH_SECRET_FILES as _RMI_AUTH_SECRET_FILES,
     _get_api_key as _get_api_key,
+    _get_rag_api_key as _get_rag_api_key,
     _get_token as _get_token,
     _read_owner_ids as _read_owner_ids,
     _resolve_bot_token as _resolve_bot_token,
@@ -154,6 +155,12 @@ def _resolve_owner_ids() -> set[int]:
 def _resolve_api_key() -> str:
     """Memoized backend X-API-Key — resolves lazily on first use."""
     return _get_api_key()
+
+
+@lru_cache
+def _resolve_rag_api_key() -> str:
+    """Memoized rugbrain X-API-Key — resolves lazily on first use."""
+    return _get_rag_api_key()
 
 
 @lru_cache
@@ -294,6 +301,7 @@ def _resolve_updates_post_hour_utc() -> int:
 # globals.
 BOT_TOKEN: str
 API_KEY: str
+RAG_API_KEY: str
 CHANNELS: dict[str, str]
 OWNER_IDS: set[int]
 _IN_DOCKER: bool
@@ -323,6 +331,7 @@ SCAM_ALERTS_PUBLISHER_INTERVAL_MINUTES: int
 _LAZY_RESOLVERS: dict[str, Callable[[], Any]] = {
     "BOT_TOKEN": _resolve_bot_token,
     "API_KEY": _resolve_api_key,
+    "RAG_API_KEY": _resolve_rag_api_key,
     "CHANNELS": _resolve_channels,
     "OWNER_IDS": _resolve_owner_ids,
     "_IN_DOCKER": _resolve_in_docker,

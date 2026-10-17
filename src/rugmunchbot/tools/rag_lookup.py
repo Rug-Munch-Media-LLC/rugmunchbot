@@ -290,8 +290,19 @@ def _rag_api_url() -> str:
 
 
 def _rag_api_key() -> str:
-    """RugBrain X-API-Key (env ``RMI_RAG_API_KEY``), rotation-split to active."""
-    return _split_key_rotation(os.getenv("RMI_RAG_API_KEY", ""))
+    """RugBrain X-API-Key, rotation-split to active.
+
+    Resolution chain: ``RMI_RAG_API_KEY`` env → the shared secret-file
+    resolver (``/srv/secrets/rugbrain.env`` → gopass). The file fallback keeps
+    the lane alive in a context that does not source the bot env file (a
+    dry-run harness, a cron one-shot) — without it the lane silently 401s.
+    """
+    key = os.getenv("RMI_RAG_API_KEY", "")
+    if not key:
+        from rugmunchbot.config import RAG_API_KEY
+
+        key = RAG_API_KEY
+    return _split_key_rotation(key)
 
 
 async def _rag_direct_search_multi(
@@ -313,7 +324,9 @@ async def _rag_direct_search_multi(
     payload = {"query": search_query, "collections": collections, "limit": limit, "rerank": False}
     try:
         async with httpx.AsyncClient(
-            timeout=httpx.Timeout(RAG_LOOKUP_TIMEOUT, connect=3.0, read=RAG_LOOKUP_TIMEOUT, write=8.0)
+            timeout=httpx.Timeout(
+                RAG_LOOKUP_TIMEOUT, connect=3.0, read=RAG_LOOKUP_TIMEOUT, write=8.0
+            )
         ) as client:
             resp = await asyncio.wait_for(
                 client.post(url, headers=headers, json=payload), timeout=RAG_LOOKUP_TIMEOUT
@@ -351,9 +364,6 @@ async def _rag_direct_search_multi(
     return out
 
 
-
-
-
 # ── Direct Qdrant lane (bot = HOST -> 127.0.0.1:6334; embed via local qwen3) ──
 # The rag-api HTTP wrapper is slow (~9s, RRF + query-transform) and the backend
 # container cannot reach it. Direct Qdrant vector search is ~0.03s per
@@ -370,7 +380,9 @@ def _qdrant_url() -> str:
 
 
 def _embed_url() -> str:
-    return (os.getenv("QWEN_EMBED_URL") or os.getenv("RMI_EMBED_URL") or _DEFAULT_EMBED_URL).rstrip("/")
+    return (os.getenv("QWEN_EMBED_URL") or os.getenv("RMI_EMBED_URL") or _DEFAULT_EMBED_URL).rstrip(
+        "/"
+    )
 
 
 async def _embed_query(query: str) -> list[float] | None:
@@ -557,12 +569,14 @@ async def rag_lookup(*, query: str = "") -> ToolResult:
     # Fastest + most reliable: ~0.03s/collection + one embed. The rag-api HTTP
     # wrapper is ~9s and the backend container can't reach it, so Qdrant direct
     # is the primary grounding lane.
-    qdrant_hits = await _rag_direct_qdrant(
-        search_query, collections, RAG_LOOKUP_TOP_K
-    )
+    qdrant_hits = await _rag_direct_qdrant(search_query, collections, RAG_LOOKUP_TOP_K)
     if qdrant_hits:
         qdrant_result = _finalize_rag_lookup(
-            query, qdrant_hits, symbols, addresses, source_label="rag:qdrant:/collections/points/search"
+            query,
+            qdrant_hits,
+            symbols,
+            addresses,
+            source_label="rag:qdrant:/collections/points/search",
         )
         if qdrant_result is not None:
             return qdrant_result

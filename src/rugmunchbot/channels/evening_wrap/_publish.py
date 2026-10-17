@@ -242,9 +242,11 @@ async def post_evening_wrap(ctx: Any) -> int:
         return 0
 
     # 7. Image — alert og:image, else the branded Evening graphic.
-    from rugmunchbot.support.post_graphics import graphic_for
+    from rugmunchbot.support.post_graphics import graphic_for_type
 
-    image_url = pick_evening_image(context) or graphic_for(EVENING_WRAP_GRAPHIC)
+    image_url = pick_evening_image(context) or graphic_for_type(
+        "evening_wrap", EVENING_WRAP_GRAPHIC
+    )
 
     # 8. Feed mirror FIRST so the Telegram closer can deep-link the post.
     feed_url = await _mirror_to_feed(wrap, image_url)

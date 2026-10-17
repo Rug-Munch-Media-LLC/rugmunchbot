@@ -41,9 +41,24 @@ SCANNER_ALERT_INTERVAL_MIN = int(os.getenv("RMI_SCANNER_ALERTS_INTERVAL_MIN", "1
 #: missed between polls; dedupe makes the overlap safe.
 SCANNER_SWEEP_MINUTES = max(SCANNER_ALERT_INTERVAL_MIN * 3, 30)
 #: RugBrain API base (bot runs on HOST; rugbrain-api binds 127.0.0.1:8012).
-RAG_API_URL = os.getenv("RMI_RAG_API_URL", "http://localhost:8012")
-#: RugBrain API key (same env var the vendored rugbrain_client uses).
-RAG_API_KEY = os.getenv("RMI_RAG_API_KEY", "")
+#: Canonical env var is ``RAG_API_URL`` (same chain as the vendored client and
+#: ``_news_rerank``); ``RMI_RAG_API_URL`` is accepted as a legacy override.
+RAG_API_URL = (
+    os.getenv("RAG_API_URL") or os.getenv("RMI_RAG_API_URL") or "http://127.0.0.1:8012/api/v1"
+).rstrip("/")
+
+
+def _rag_api_key() -> str:
+    """Resolve the rugbrain X-API-Key lazily (secret file → env → gopass).
+
+    Resolved per call, not at import: a dry-run harness or cron one-shot that
+    does not source the bot env file still authenticates via the secret-file
+    chain, so the sweep never silently 401s into an empty ``sources`` list.
+    """
+    from rugmunchbot.config import RAG_API_KEY
+
+    return RAG_API_KEY
+
 
 SEVERITY_EMOJI = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}
 
@@ -59,11 +74,12 @@ async def fetch_rag_alerts(minutes: int | None = None) -> list[dict[str, Any]]:
     Fail-open: an unreachable lane returns [] (the tick no-ops).
     """
     try:
+        key = _rag_api_key()
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(
-                f"{RAG_API_URL}/api/v1/alerts/recent",
+                f"{RAG_API_URL}/alerts/recent",
                 params={"minutes": minutes or SCANNER_SWEEP_MINUTES},
-                headers={"X-API-Key": RAG_API_KEY} if RAG_API_KEY else {},
+                headers={"X-API-Key": key} if key else {},
             )
             if r.status_code != 200:
                 logger.warning("rag_alerts_fetch_failed status=%d", r.status_code)
@@ -210,7 +226,6 @@ async def run_scanner_alert_watch(bot: Any) -> dict[str, Any]:
 
 
 __all__ = [
-    "RAG_API_KEY",
     "RAG_API_URL",
     "SCANNER_ALERTS_ENABLED",
     "SCANNER_ALERT_INTERVAL_MIN",

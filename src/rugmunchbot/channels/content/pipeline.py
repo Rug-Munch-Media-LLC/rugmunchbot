@@ -51,6 +51,11 @@ from rugmunchbot.channels.content.helpers import (
     _image_url,
     logger,
 )
+from rugmunchbot.channels.content.live_rails import (
+    fetch_alerts_feed_live,
+    fetch_launches_live,
+    fetch_whales_live,
+)
 from rugmunchbot.data_resolver import backend_get_json
 
 #: Webhook-trigger event types (from ``databus.alert_router`` classification)
@@ -126,10 +131,17 @@ async def _fetch_whale_moves(chain: str, limit: int) -> list[dict[str, Any]]:
     Real on-chain data (value_decimal USD), entity-labeled via the entity
     registry — replaces the helius WhaleWatcher path whose ``_alert_history``
     was never populated. Fail-open ``[]`` when ClickHouse is down or quiet.
+
+    Live fallback (2026-10-17, report 124): when the ClickHouse rail is empty
+    (``token_transfers`` was never populated), read the LIVE
+    ``/api/v1/market/whales`` rail so the alpha lane keeps flowing.
     """
     from rugmunchbot.channels import clickhouse_fetchers
 
-    return await clickhouse_fetchers.fetch_whale_moves(chain=chain, limit=limit)
+    moves = await clickhouse_fetchers.fetch_whale_moves(chain=chain, limit=limit)
+    if moves:
+        return moves
+    return await fetch_whales_live(chain, limit)
 
 
 async def _fetch_early_entries(chain: str, limit: int) -> list[dict[str, Any]]:
@@ -155,16 +167,21 @@ async def _fetch_smart_money(chain: str, limit: int) -> list[dict[str, Any]]:
 
 
 async def _fetch_launches(chain: str, limit: int) -> list[dict[str, Any]]:
-    """Recent token launches from the backend launch feed (real)."""
+    """Recent token launches from the backend launch feed (real).
+
+    Primary rail ``/api/v1/launches/feed``; when it is empty (observed
+    2026-10-17: ``{"launches": [], "count": 0}``) fall back to the LIVE
+    ``/api/v1/market/launches`` rail so the alpha lane keeps flowing.
+    """
     body = await backend_get_json(
         "/api/v1/launches/feed",
         params={"chain": chain, "limit": max(1, min(limit, 50))},
         timeout_secs=8.0,
     )
     if not body:
-        return []
+        return await fetch_launches_live(chain, limit)
     launches = _as_list(body.get("launches"))
-    return [
+    items = [
         {
             "address": str(item.get("address") or "").strip(),
             "name": str(item.get("name") or "Unknown").strip(),
@@ -180,6 +197,9 @@ async def _fetch_launches(chain: str, limit: int) -> list[dict[str, Any]]:
         for item in launches[:limit]
         if str(item.get("address") or "").strip()
     ]
+    if items:
+        return items
+    return await fetch_launches_live(chain, limit)
 
 
 async def _fetch_kol_trades(limit: int) -> list[dict[str, Any]]:
@@ -445,6 +465,15 @@ async def fetch_risk_alerts(limit: int = 5) -> list[dict[str, Any]]:
         scanner = [a for a in normalized if a["address"]]
 
     webhook = await _fetch_pushed_webhook_alerts(max_items)
+
+    # Live fallback (2026-10-17, report 124): the scanner rail
+    # (``/api/v1/launches/alerts``) and the rugbrain webhook rail
+    # (``/api/v1/alerts/recent``) were both empty/404 while
+    # ``/api/v1/market/alerts-feed`` carried live scam/pump-dump alerts.
+    # Merge it in so the alerts lane keeps flowing; the reranker gate
+    # downstream still decides what actually posts.
+    if not scanner and not webhook:
+        scanner = await fetch_alerts_feed_live(max_items)
 
     # Interleave scanner-first (preserves today's behavior when the webhook
     # rail is empty) so both sources are represented within the digest window.

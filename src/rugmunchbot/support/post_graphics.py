@@ -51,10 +51,12 @@ POST_TYPE_GRAPHICS: Final[dict[str, str]] = {
     "market": "rmi-evening-market-wrap.jpeg",
     # ── the three daily reports (2026-10-17) ───────────────────────────
     # Morning Brief → daily_rug; Midday Market Report → midday_report;
-    # Evening Wrap → evening_wrap. Operator originals; the brand default
-    # applies until each asset lands in /srv/assets/brand/.
-    "midday_report": "rmi-midday-market-report.jpeg",
-    "evening_wrap": "rmi-evening-wrap.jpeg",
+    # Evening Wrap → evening_wrap. Operator originals in /var/www/rmi/brand/
+    # (served at /brand/). The Midday report is a MARKET read → the evening
+    # market-wrap graphic; the Evening Wrap is the day's scam/rug recap →
+    # the scam-alert graphic. Both are operator originals that exist today.
+    "midday_report": "rmi-evening-market-wrap.jpeg",
+    "evening_wrap": "rmi-scam-alert.jpeg",
     # ── news / editorial ───────────────────────────────────────────────
     "news": "rmi-breaking-news.jpeg",
     "breaking": "rmi-breaking-news.jpeg",
@@ -126,6 +128,25 @@ def graphic_for(post_type: str) -> str:
     return _to_url(asset)
 
 
+def graphic_for_type(post_type: str, override: str = "") -> str:
+    """Resolve a post type to its graphic, honouring a per-report override.
+
+    The three daily reports each carry a configurable ``*_GRAPHIC`` env
+    value (a filename or full URL). Historically the publish modules passed
+    that value straight to :func:`graphic_for` as if it were a post type —
+    a filename is not a key in :data:`POST_TYPE_GRAPHICS`, so the lookup
+    always missed and every report fell back to the brand default.
+
+    This helper fixes the contract: when *override* is a full URL it is used
+    verbatim; when it is a bare filename it is joined to the brand base;
+    when it is empty the *post_type* mapping (or the brand default) applies.
+    """
+    value = str(override or "").strip()
+    if value:
+        return _to_url(value)
+    return graphic_for(post_type)
+
+
 def register_graphic(post_type: str, asset: str) -> None:
     """Add/override a post_type → asset mapping at runtime.
 
@@ -144,5 +165,6 @@ __all__ = [
     "DEFAULT_GRAPHIC",
     "POST_TYPE_GRAPHICS",
     "graphic_for",
+    "graphic_for_type",
     "register_graphic",
 ]

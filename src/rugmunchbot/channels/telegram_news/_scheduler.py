@@ -86,6 +86,19 @@ async def _note_published(dest: str, article: Any) -> None:
         logger.debug("tg_news:ledger_mark_failed dest=%s err=%s", dest, str(exc)[:80])
 
 
+def _filter_anchor_dupes(scored: list[Any]) -> list[Any]:
+    """Drop scored articles whose story the daily anchor already carried.
+
+    The three daily reports are the day's canonical coverage; a story they
+    covered must not re-post as breaking news on main. Delegates to
+    :func:`rugmunchbot.channels.report_anchor.filter_scored_articles`
+    (fail-open: any error keeps the full list).
+    """
+    from rugmunchbot.channels.report_anchor import filter_scored_articles
+
+    return filter_scored_articles(scored, _article_to_post_dict)
+
+
 async def _post_backend_trending_fallback(
     ctx: ContextTypes.DEFAULT_TYPE,
     news_chat_id: str | None,
@@ -328,6 +341,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         _chat_id,
         _safe_send,
     )
+
     news_chat_id = _chat_id("news")
     alpha_chat_id = _chat_id("alpha")
     main_chat_id = _chat_id("main")
@@ -448,6 +462,13 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # hook) — never a bare link; the story's image rides the NewsPost so
     # _post_formatted attaches it as a photo.
     if main_chat_id and main_scored:
+        # Report-anchor dedup (2026-10-17): the three daily reports are the
+        # day's canonical coverage. A story the anchor already carried must
+        # NOT re-post as breaking news on main — the anchor wins the story.
+        # Fail-open: a Redis outage leaves the list unchanged.
+        from rugmunchbot.channels.report_anchor import exclude_report_stories
+
+        main_scored = _filter_anchor_dupes(main_scored)
         selected_main = select_important(main_scored, top_n=TG_NEWS_POST_LIMIT)
         selected_main = sorted(selected_main, key=lambda s: s.importance, reverse=True)
         if selected_main:

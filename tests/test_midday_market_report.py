@@ -110,9 +110,24 @@ def test_serialize_context_empty() -> None:
 
 
 def test_graphic_registered() -> None:
-    from rugmunchbot.support.post_graphics import POST_TYPE_GRAPHICS
+    """The report resolves to a real operator image, never the brand default.
 
-    assert POST_TYPE_GRAPHICS.get("midday_report") == MIDDAY_REPORT_GRAPHIC
+    Regression (2026-10-17): the publish module passed the config FILENAME
+    to ``graphic_for`` as if it were a post type, so the report silently
+    shipped the generic brand default. The map now holds a real asset and
+    the config value is an override resolved via ``graphic_for_type``.
+    """
+    from rugmunchbot.support.post_graphics import (
+        DEFAULT_GRAPHIC,
+        graphic_for,
+        graphic_for_type,
+    )
+
+    resolved = graphic_for("midday_report")
+    assert resolved != DEFAULT_GRAPHIC
+    assert resolved.endswith((".png", ".jpg", ".jpeg"))
+    # The config override resolves to a full brand URL (not the default).
+    assert graphic_for_type("midday_report", MIDDAY_REPORT_GRAPHIC) != DEFAULT_GRAPHIC
 
 
 @pytest.mark.asyncio

@@ -93,7 +93,7 @@ def _get_api_key() -> str:
 
     UNCACHED primitive: process-wide memoization lives on the
     ``_resolve_api_key`` wrapper in the package ``__init__`` (``@lru_cache``),
-    so a package reload resets it exactly like the old single-module config.
+    so a package reload resets it exactly like the old single-module config did.
     """
     for secret_file in _RMI_AUTH_SECRET_FILES:
         try:
@@ -104,3 +104,47 @@ def _get_api_key() -> str:
         except (FileNotFoundError, OSError):
             continue
     return _get_token("rmi/backend/rmi_auth_token", ["RMI_AUTH_TOKEN"])
+
+
+# ══════════════════════════════════════════════
+# RUGBRAIN RAG AUTH (X-API-Key)
+# ══════════════════════════════════════════════
+# The rugbrain API (127.0.0.1:8012) enforces X-API-Key on every non-health
+# route (rugbrain.app.auth.RAGAuthMiddleware, fail-closed). The bot runs on
+# the HOST, so it reads the same key the rugbrain container loads from its
+# env file, falling back to the RMI_RAG_API_KEY env var and then gopass.
+# Without this chain a context that does not source the bot env file (a
+# dry-run harness, a cron one-shot) sends no header and gets a 401.
+_RAG_SECRET_FILES = (
+    "/srv/secrets/rugbrain.env",  # rugbrain container env — source of truth
+    "/srv/secrets/rugmunchbot.env",  # bot env (same key, host-side)
+)
+
+
+def _read_env_file_key(path: str, key: str) -> str:
+    """Return ``key``'s value from a dotenv-style file, or "" (never raises)."""
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                name, _, value = line.partition("=")
+                if name.strip() == key:
+                    return value.strip().strip('"').strip("'")
+    except (FileNotFoundError, OSError):
+        return ""
+    return ""
+
+
+def _get_rag_api_key() -> str:
+    """Resolve the rugbrain X-API-Key: secret file → env var → gopass.
+
+    UNCACHED primitive: process-wide memoization lives on the
+    ``_resolve_rag_api_key`` wrapper in the package ``__init__``.
+    """
+    for secret_file in _RAG_SECRET_FILES:
+        key = _read_env_file_key(secret_file, "RMI_RAG_API_KEY")
+        if key:
+            return key
+    return _get_token("rmi/rugbrain/rag_api_key", ["RMI_RAG_API_KEY"])

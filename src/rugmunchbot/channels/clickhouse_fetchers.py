@@ -105,8 +105,14 @@ async def _ch_query(sql: str, params: dict[str, Any] | None = None) -> list[tupl
     return await asyncio.to_thread(_run_ch_query, sql, params)
 
 
-def _chain_filter(chain: str) -> tuple[str, dict[str, Any]]:
-    """Build the allowlisted chain WHERE fragment + params ('' when none)."""
+def _chain_filter(chain: str, column: str = "chain_id") -> tuple[str, dict[str, Any]]:
+    """Build the allowlisted chain WHERE fragment + params ('' when none).
+
+    *column* names the chain column for the target table (``chain_id`` for
+    ``token_transfers``, ``chain`` for ``evm_transfers``). It is a code
+    literal at every call site — never user input — so the f-string use is
+    safe (values are still bound via ``%(chain)s``).
+    """
     try:
         from rugmunchbot._vendor.lite_chain_indexer import _normalize_chain
 
@@ -115,7 +121,7 @@ def _chain_filter(chain: str) -> tuple[str, dict[str, Any]]:
         normalized = ""
     if not normalized:
         return "", {}
-    return "AND chain_id = %(chain)s", {"chain": normalized}
+    return f"AND {column} = %(chain)s", {"chain": normalized}
 
 
 # ── Whale moves (token_transfers) ─────────────────────────────────────────
@@ -183,6 +189,12 @@ async def fetch_whale_moves(
 
     Rows are entity-labeled via ``entity_registry``. Returns ``[]`` when
     ClickHouse is unavailable or no transfers clear the threshold.
+
+    Fallback (2026-10-17, report 124): ``wallet_memory.token_transfers`` was
+    never populated (0 rows) while ``evm_transfers`` carries ~1.9M rows/24h.
+    When the primary table yields nothing, read the LIVE ``evm_transfers``
+    table (same columns, ``chain``/``tx_hash``/``value`` naming) so the whale
+    rail keeps flowing. Fail-open: an empty fallback still returns ``[]``.
     """
     since = (datetime.now(UTC) - timedelta(hours=lookback_hours)).strftime("%Y-%m-%d %H:%M:%S")
     chain_clause, params = _chain_filter(chain)
@@ -201,6 +213,47 @@ async def fetch_whale_moves(
         FROM wallet_memory.token_transfers
         WHERE block_timestamp >= %(since)s
           AND value_decimal > %(min_val)s
+          {chain_clause}
+        ORDER BY value_decimal DESC
+        LIMIT %(limit)s
+        """,  # noqa: S608 — chain_clause is code-literal; values bound via %(name)s
+        params,
+    )
+    if rows:
+        return _rows_to_whale_moves(rows, chain, limit)
+    return await _fetch_whale_moves_evm(chain, limit, min_value_usd, since)
+
+
+async def _fetch_whale_moves_evm(
+    chain: str,
+    limit: int,
+    min_value_usd: float,
+    since: str,
+) -> list[dict[str, Any]]:
+    """Fallback whale rail over the LIVE ``wallet_memory.evm_transfers`` table.
+
+    ``evm_transfers`` uses ``chain``/``tx_hash``/``value`` (String) instead of
+    ``chain_id``/``transaction_hash``/``value_decimal``; the SELECT aliases
+    them back to the primary shape so ``_rows_to_whale_moves`` is reused
+    unchanged. ``value`` is a raw string — cast to Float64 for the threshold.
+    Never raises (``_ch_query`` is fail-open).
+    """
+    chain_clause, params = _chain_filter(chain, column="chain")
+    params.update({"since": since, "min_val": min_value_usd, "limit": max(1, min(limit, 20))})
+    rows = await _ch_query(
+        f"""
+        SELECT
+            chain AS chain_id,
+            block_timestamp,
+            tx_hash AS transaction_hash,
+            from_address,
+            to_address,
+            token_address,
+            toFloat64OrZero(value) AS value_decimal,
+            'transfer' AS transfer_type
+        FROM wallet_memory.evm_transfers
+        WHERE block_timestamp >= %(since)s
+          AND toFloat64OrZero(value) > %(min_val)s
           {chain_clause}
         ORDER BY value_decimal DESC
         LIMIT %(limit)s

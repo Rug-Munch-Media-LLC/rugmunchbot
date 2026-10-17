@@ -242,9 +242,11 @@ async def post_midday_report(ctx: Any) -> int:
         return 0
 
     # 7. Image — story og:image, else the branded Midday graphic.
-    from rugmunchbot.support.post_graphics import graphic_for
+    from rugmunchbot.support.post_graphics import graphic_for_type
 
-    image_url = pick_midday_image(context) or graphic_for(MIDDAY_REPORT_GRAPHIC)
+    image_url = pick_midday_image(context) or graphic_for_type(
+        "midday_report", MIDDAY_REPORT_GRAPHIC
+    )
 
     # 8. Feed mirror FIRST so the Telegram closer can deep-link the post.
     feed_url = await _mirror_to_feed(report, image_url)
