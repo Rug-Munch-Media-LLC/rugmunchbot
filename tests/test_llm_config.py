@@ -74,8 +74,10 @@ async def test_chat_with_fallback_unknown_tier_fails_open():
 
 @pytest.mark.asyncio
 async def test_chat_with_fallback_missing_key_fails_open(monkeypatch):
-    # Blank EVERY leg — local, DeepInfra, KiloCode, OpenRouter — or a live lane
-    # answers instead of failing open. (OpenCode Zen was removed 2026-09-18.)
+    # Blank EVERY leg (Groq, Gemini, DeepInfra, KiloCode, OpenRouter) or a live
+    # lane answers instead of failing open. (OpenCode Zen removed 2026-09-18.)
+    monkeypatch.setattr(llm_config, "GROQ_API_KEY", "")
+    monkeypatch.setattr(llm_config, "GEMINI_API_KEY", "")
     monkeypatch.setattr(llm_config, "DEEPINFRA_API_KEY", "")
     monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "")
     monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "")
@@ -148,8 +150,10 @@ async def test_chat_completion_wrapper_ai_router_shape(respx_mock, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_chat_completion_wrapper_fail_open(monkeypatch):
-    # Blank EVERY leg (local, DeepInfra, Kilo, OpenRouter) or a live lane
-    # answers instead of failing open. (OpenCode Zen was removed 2026-09-18.)
+    # Blank EVERY leg (Groq, Gemini, DeepInfra, Kilo, OpenRouter) or a live lane
+    # answers instead of failing open. (OpenCode Zen removed 2026-09-18.)
+    monkeypatch.setattr(llm_config, "GROQ_API_KEY", "")
+    monkeypatch.setattr(llm_config, "GEMINI_API_KEY", "")
     monkeypatch.setattr(llm_config, "DEEPINFRA_API_KEY", "")
     monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "")
     monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "")
@@ -157,59 +161,55 @@ async def test_chat_completion_wrapper_fail_open(monkeypatch):
     assert result == {}
 
 
-@pytest.mark.asyncio
-async def test_kilo_nemotron_rung_serves_before_kilo_auto(respx_mock, monkeypatch):
-    """Kilo primary + OpenRouter fallback fail → the KiloCode sibling model
-    (laguna for long) serves BEFORE the kilo-auto/free gateway rung."""
-    monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "sk-or")
-    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-kilo")
+def _mock_groq_gemini_kilo(respx_mock, monkeypatch, kilo_router):
+    """Blank Groq+Gemini+Kilo keys; mock the Groq/Gemini/Kilo HTTP legs.
+
+    Chain (2026-10-15): Groq → Gemini → kilo-sibling → kilo-auto → DeepInfra.
+    """
     import httpx
 
+    monkeypatch.setattr(llm_config, "GROQ_API_KEY", "sk-groq")
+    monkeypatch.setattr(llm_config, "GEMINI_API_KEY", "sk-gemini")
+    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-kilo")
     long_cfg = llm_config.get_long_config()
-    kilo_base = long_cfg["base_url"]
-    or_base = f"{llm_config.OPENROUTER_BASE}/chat/completions"
+    respx_mock.post(long_cfg["base_url"]).mock(return_value=httpx.Response(500))
+    respx_mock.post(long_cfg["fallback_base_url"]).mock(return_value=httpx.Response(429))
+    respx_mock.post(f"{llm_config.KILOCODE_BASE}/chat/completions").mock(side_effect=kilo_router)
+
+
+@pytest.mark.asyncio
+async def test_kilo_nemotron_rung_serves_before_kilo_auto(respx_mock, monkeypatch):
+    """Groq + Gemini fail → the KiloCode sibling (laguna) serves before kilo-auto."""
+    import httpx
+
     sibling = llm_config.get_kilo_nemotron_fallback_config("long")
     gateway = llm_config.get_kilo_final_fallback_config("long")
-
-    # kilo primary, sibling and final gateway all share the KiloCode base URL —
-    # route by model and record what was actually requested. Primary fails,
-    # sibling (laguna) serves.
     seen_models: list[str] = []
 
     def _kilo_router(request):
         body = json.loads(request.content)
         seen_models.append(body["model"])
-        if body["model"] == long_cfg["model"]:
-            return httpx.Response(500)
-        return httpx.Response(200, json={"choices": [{"message": {"content": "kilo sibling"}}]})
+        if body["model"] == sibling["model"]:
+            return httpx.Response(200, json={"choices": [{"message": {"content": "kilo sibling"}}]})
+        return httpx.Response(500)
 
-    respx_mock.post(kilo_base).mock(side_effect=_kilo_router)
-    respx_mock.post(or_base).mock(return_value=httpx.Response(429))
-
+    _mock_groq_gemini_kilo(respx_mock, monkeypatch, _kilo_router)
     answer = await llm_config.chat_with_fallback(
         [{"role": "user", "content": "hi"}], tier="long", max_tokens=50
     )
     assert answer == "kilo sibling"
     # The sibling served, so the kilo-auto gateway rung must NOT have been tried.
-    assert seen_models == [long_cfg["model"], sibling["model"]]
+    assert seen_models == [sibling["model"]]
     assert gateway["model"] not in seen_models
 
 
 @pytest.mark.asyncio
 async def test_kilo_auto_last_resort_serves_when_all_else_fails(respx_mock, monkeypatch):
-    """Full outage of the Kilo primary + sibling and OpenRouter → the KiloCode
-    ``kilo-auto/free`` gateway rung keeps chat alive (replaces retired Zen)."""
-    monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "sk-or")
-    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-kilo")
+    """Full outage of Groq + Gemini + the Kilo sibling → kilo-auto/free serves."""
     import httpx
 
-    long_cfg = llm_config.get_long_config()
-    kilo_base = long_cfg["base_url"]
-    or_base = f"{llm_config.OPENROUTER_BASE}/chat/completions"
     gateway = llm_config.get_kilo_final_fallback_config("long")
 
-    # Kilo primary + sibling + gateway share the relay base URL; only the
-    # gateway model (kilo-auto/free) answers.
     def _kilo_router(request):
         body = json.loads(request.content)
         if body["model"] == gateway["model"]:
@@ -218,8 +218,7 @@ async def test_kilo_auto_last_resort_serves_when_all_else_fails(respx_mock, monk
             )
         return httpx.Response(500)
 
-    respx_mock.post(kilo_base).mock(side_effect=_kilo_router)
-    respx_mock.post(or_base).mock(return_value=httpx.Response(429))
+    _mock_groq_gemini_kilo(respx_mock, monkeypatch, _kilo_router)
     answer = await llm_config.chat_with_fallback(
         [{"role": "user", "content": "hi"}], tier="long", max_tokens=50
     )
