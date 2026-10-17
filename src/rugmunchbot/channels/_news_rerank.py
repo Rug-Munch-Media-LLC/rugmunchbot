@@ -28,9 +28,6 @@ import httpx
 
 logger = logging.getLogger("rmi_bot.channels.news_rerank")
 
-#: rugbrain rag-api base (same lane as ``rag_lookup._rag_api_url``).
-_DEFAULT_RAG_API_URL = "http://127.0.0.1:8012/api/v1"
-
 #: Fallback window (hours) when the counterpart job has never run.
 DEFAULT_WINDOW_HOURS = 12.0
 
@@ -63,18 +60,31 @@ MIDDAY_JOB_NAMES = (
 
 
 def _rag_api_url() -> str:
-    import os
+    """RugBrain rag-api base URL — delegates to ``tools.rag_lookup``.
 
-    return os.getenv("RAG_API_URL", _DEFAULT_RAG_API_URL).rstrip("/")
+    Single canonical resolver: the reranker lane must resolve credentials
+    exactly like every other RAG lane, so a context that does not source the
+    bot env file (a systemd unit with no ``RMI_RAG_API_KEY``, a cron one-shot)
+    degrades identically instead of silently skipping.
+    """
+    from rugmunchbot.tools.rag_lookup import _rag_api_url as _url
+
+    return _url()
 
 
 def _rag_api_key() -> str:
-    import os
+    """RugBrain X-API-Key — delegates to ``tools.rag_lookup._rag_api_key``.
 
-    raw = os.getenv("RMI_RAG_API_KEY", "")
-    # Rotation split (``new,old``) — send only the active key.
-    parts = [k.strip() for k in raw.split(",") if k.strip()]
-    return parts[0] if parts else ""
+    The local env-only read (``os.getenv("RMI_RAG_API_KEY", "")``) had no
+    secret-file fallback, so the running unit (``Environment=`` carries only
+    ``RAG_API_URL``) hit the ``no_api_config`` guard on every run and the
+    Daily Rug published with zero ranked stories. Import inside the function:
+    ``rag_lookup`` reaches back into ``channels`` — a module-level import here
+    closes the cycle.
+    """
+    from rugmunchbot.tools.rag_lookup import _rag_api_key as _key
+
+    return _key()
 
 
 def _parse_published_at(raw: Any) -> datetime | None:
@@ -90,6 +100,32 @@ def _parse_published_at(raw: Any) -> datetime | None:
         return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
     except (ValueError, TypeError, OSError):
         return None
+
+
+def _article_score(article: dict[str, Any]) -> float:
+    """Best-effort importance score for a /news/top article.
+
+    `quality` is an int on heuristic-tier rows and a dict on others, so it is
+    probed rather than assumed (a bare .get("quality", {}).get(...) raises
+    AttributeError on the int rows, which the caller's fail-open except then
+    swallowed into an empty list).
+    """
+    raw = article.get("score")
+    try:
+        if raw is not None:
+            return float(raw)
+    except (TypeError, ValueError):
+        pass
+    q = article.get("quality")
+    if isinstance(q, dict):
+        try:
+            return float(q.get("score") or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+    try:
+        return float(q or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def window_hours_since(
@@ -138,16 +174,37 @@ async def fetch_top_ranked_stories(
     if not api_url or not key:
         logger.debug("news_rerank:no_api_config skipped")
         return []
-    url = f"{api_url}/rag/news-rerank"
-    headers = {"Content-Type": "application/json", "X-API-Key": key}
-    payload = {"query": query or _MORNING_QUERY, "limit": min(50, max(limit * 3, 20))}
+    # 2026-10-17: `/rag/news-rerank` does not exist on the live RugBrain
+    # (404 — it was never implemented), so this lane returned [] on every run
+    # and the Daily Rug had no ranked stories. `/api/v1/news/top` is the real
+    # endpoint: GET, already ranked (ranked_by/quality/axes), and it returns
+    # {headline,title,published_at,url,...} which we normalise to the shape
+    # the rest of this function already expects.
+    url = f"{api_url}/news/top"
+    headers = {"X-API-Key": key}
+    params = {"limit": min(50, max(limit * 3, 20))}
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as client:
-            resp = await client.post(url, headers=headers, json=payload)
+            resp = await client.get(url, headers=headers, params=params)
         if resp.status_code != 200:
             logger.warning("news_rerank:http_error status=%s", resp.status_code)
             return []
-        items = resp.json().get("items") or []
+        raw_items = resp.json().get("articles") or []
+        items = [
+            {
+                "title": a.get("headline") or a.get("title") or "",
+                "published_at": a.get("published_at") or "",
+                "url": a.get("url") or "",
+                "image_url": a.get("image_url") or "",
+                # `quality` may be an int OR a dict depending on the tier
+                # ("heuristic" rows carry an int); handle both.
+                "score": _article_score(a),
+                "source": a.get("source") or "",
+                "_ranked_by": a.get("ranked_by") or "",
+            }
+            for a in raw_items
+            if isinstance(a, dict)
+        ]
     except Exception as exc:
         logger.warning("news_rerank:failed fail_open err=%s", str(exc)[:140])
         return []

@@ -26,7 +26,11 @@ from typing import Any
 logger = logging.getLogger("rmi_bot.channels.daily_rug")
 
 #: RAG collections queried for the brief's intel context.
-_RAG_COLLECTIONS = ["news_v2", "social_intel", "threat_intel_v2"]
+# 2026-10-17: the live 4096-dim twins. The bare `news_v2` name still
+# exists but carries a NAMED vector ({"dense": {...}}) so an unnamed
+# {"vector": [...]} search 400s, and `threat_intel_v2` does not exist
+# at all (404). These are the collections the 8B embedding matches.
+_RAG_COLLECTIONS = ["news_v2_8b", "social_intel_8b", "threat_intel_v2_8b"]
 _RAG_QUERY = (
     "most important crypto stories of the last 24 hours: regulation, ETF flows, "
     "hacks, exploits, depegs, protocol launches, whale moves, scam coins, "

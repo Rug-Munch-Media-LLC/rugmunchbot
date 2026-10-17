@@ -370,13 +370,23 @@ async def _rag_direct_search_multi(
 # collection; the whole lane is bound by ONE query embedding (~1-3s). This is
 # the primary grounding lane. (2026-08-30)
 _DEFAULT_QDRANT_URL = "http://127.0.0.1:6334"
-_DEFAULT_EMBED_URL = "http://127.0.0.1:8004/v1/embeddings"
-_EMBED_MODEL = os.getenv("DEEPINFRA_EMBED_MODEL", "Qwen/Qwen3-Embedding-4B")
-_EMBED_DIMS_EXPECTED = 2560  # Qwen3-Embedding-4B native dim (matches all collections)
+# 2026-10-17: the corpus is Qwen3-Embedding-8B / 4096-dim (the 4B/2560 lane
+# is RETIRED) and the local llama.cpp embedder (:8004) is not running.
+# Embedding is delegated to RugBrain's /api/v1/embed, which owns the
+# intelligent DeepInfra -> SiliconFlow -> OpenRouter fallback chain.
+_DEFAULT_EMBED_URL = "http://127.0.0.1:8012/api/v1/embed"
+_EMBED_MODEL = os.getenv("RAG_EMBED_MODEL", "qwen3-embedding-8b")
+_EMBED_DIMS_EXPECTED = int(os.getenv("RAG_EMBED_DIMS", "4096"))
 
 
 def _qdrant_url() -> str:
     return (os.getenv("QDRANT_URL") or _DEFAULT_QDRANT_URL).rstrip("/")
+
+
+def _rag_headers() -> dict[str, str]:
+    """Auth headers for RugBrain's own endpoints (the /api/v1/embed lane)."""
+    key = _rag_api_key()
+    return {"X-API-Key": key} if key else {}
 
 
 def _embed_url() -> str:
@@ -398,8 +408,14 @@ async def _embed_query(query: str) -> list[float] | None:
             resp = await asyncio.wait_for(
                 client.post(
                     _embed_url(),
-                    headers={"Content-Type": "application/json"},
-                    json={"model": _EMBED_MODEL, "input": query},
+                    headers={**_rag_headers(), "Content-Type": "application/json"},
+                    # /api/v1/embed takes {"text": ...}; a direct provider
+                    # endpoint takes the OpenAI {"input": ...} shape.
+                    json=(
+                        {"text": query}
+                        if _embed_url().rstrip("/").endswith("/api/v1/embed")
+                        else {"model": _EMBED_MODEL, "input": query}
+                    ),
                 ),
                 timeout=8.0,
             )
@@ -409,7 +425,10 @@ async def _embed_query(query: str) -> list[float] | None:
         return None
     try:
         raw = resp.json()
-        vec = raw["data"][0]["embedding"]
+        # /api/v1/embed -> {"embedding": [...]}; OpenAI -> {"data":[{"embedding":...}]}
+        vec = raw.get("embedding")
+        if vec is None:
+            vec = raw["data"][0]["embedding"]
     except (ValueError, KeyError, IndexError, TypeError):
         return None
     if not isinstance(vec, list) or not vec:
