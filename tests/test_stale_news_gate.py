@@ -188,18 +188,25 @@ def test_story_age_hours_parses_and_measures(frozen_now):
 
 
 def test_recent_stories_drops_threat_intel_collection():
-    """threat_intel_v2 (undated historical KB) must not be probed at all."""
+    """threat_intel_v2 (undated historical KB) must not be probed at all.
+
+    ``_recent_stories`` was extracted from ``content_engine`` into
+    ``content_candidates.recent_stories`` (rugbrain 5175b3d, 2026-09-28); the
+    selection loop now iterates the ``CANDIDATE_COLLECTIONS`` constant.
+    """
     import inspect
 
-    from rugbrain import content_engine
+    from rugbrain import content_candidates
 
-    src = inspect.getsource(content_engine._recent_stories)
+    src = inspect.getsource(content_candidates.recent_stories)
     # the selection LOOP must reference only news_v2 (comments may explain
     # WHY threat_intel_v2 was dropped — that's fine, code is not)
     loop_lines = [ln for ln in src.split("\n") if "for collection in" in ln]
     assert len(loop_lines) == 1
-    assert '"news_v2"' in loop_lines[0]
+    assert "CANDIDATE_COLLECTIONS" in loop_lines[0]
     assert "threat_intel_v2" not in loop_lines[0]
+    # and the constant itself must not carry the undated KB
+    assert content_candidates.CANDIDATE_COLLECTIONS == ("news_v2",)
 
 
 def test_draft_payload_carries_ts():

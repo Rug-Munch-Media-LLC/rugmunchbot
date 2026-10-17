@@ -139,11 +139,13 @@ DEEPINFRA_VISION_MODEL = os.getenv("DEEPINFRA_VISION_MODEL", "Qwen/Qwen3-VL-30B-
 # rate limit, ~8-10 tok/s on CPU (2026-09-18 Qwythos swap). Quality-critical tasks
 # stay on the hosted writer. RMI_LOCAL_LLM_ENABLED=false kills the lane
 # (everything falls through to the free-API chain).
-LOCAL_LLM_ENABLED = os.getenv(
-    "RMI_LOCAL_LLM_ENABLED", "false"
-)  # 2026-10-15: OFF by default — Qwythos retired.lower() in ("1", "true", "yes")
+LOCAL_LLM_ENABLED = os.getenv("RMI_LOCAL_LLM_ENABLED", "true").lower() in ("1", "true", "yes")
 LOCAL_LLM_URL = os.getenv("RMI_LOCAL_LLM_URL", "http://127.0.0.1:8009/v1/chat/completions")
-LOCAL_LLM_MODEL = os.getenv("RMI_LOCAL_LLM_MODEL", "qwythos-9b")
+#: llama.cpp router preset id (see /etc/llama/presets.ini). The server exposes
+#: the presets ``chat`` and ``long`` — NOT the gguf name. A request with
+#: ``model="qwythos-9b"`` is rejected 400 "model not found"; the lane must send
+#: the preset id. ``chat`` is the short-context profile the light-task rung uses.
+LOCAL_LLM_MODEL = os.getenv("RMI_LOCAL_LLM_MODEL", "chat")
 #: Hard token cap for the local-first consumer-chat rung. A CPU-only 9B at
 #: ~8-10 tok/s must stay short to keep chat responsive; anything longer falls
 #: through to the free hosted chain instead of stalling the reply.

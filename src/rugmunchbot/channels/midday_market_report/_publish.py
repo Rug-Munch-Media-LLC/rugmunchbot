@@ -76,47 +76,21 @@ async def _write_report(context: dict[str, Any]) -> str:
 
 
 async def _mirror_to_feed(report: str, image_url: str) -> str:
-    """Mirror the report to the feed site + Ghost longform. Returns deep-link."""
-    feed_url = ""
-    slug = ""
-    if MIDDAY_REPORT_FEED_ENABLED:
-        try:
-            from rugmunchbot.channels.scheduler._posts_rag import mirror_post_to_feed
+    """Mirror the report to the feed site + Ghost longform. Returns deep-link.
 
-            slug = (
-                mirror_post_to_feed(
-                    {
-                        "text": report[:3900],
-                        "story_ref": f"midday-report-{datetime.now(UTC).strftime('%Y%m%d')}",
-                        "source": "rugmunch.io",
-                        "kind": "briefing",
-                        "title": f"{EDITION} — {datetime.now(UTC).strftime('%B %d, %Y')}",
-                        "tags": ["briefing", "midday-report", "macro"],
-                        "image_url": image_url,
-                    }
-                )
-                or ""
-            )
-        except Exception as exc:
-            logger.warning("midday_report:feed_mirror_failed err=%s", str(exc)[:120])
-        if slug:
-            feed_url = FEED_POST_URL_FMT.format(slug=slug)
-        try:
-            from rugmunchbot._vendor.content_platform import create_post
+    The Ghost step receives the report transformed to longform markdown
+    (H1/H2/H3, real links, no Telegram markup) via ``channels._report_mirror``.
+    """
+    from rugmunchbot.channels._report_mirror import mirror_report
 
-            ghost = await create_post(
-                content=report,
-                post_type="briefing",
-                title=f"{EDITION} — {datetime.now(UTC).strftime('%B %d, %Y')}",
-                tags=["daily", "midday-report", "macro"],
-                feature_image=image_url,
-            )
-            ghost_url = str(ghost.get("url") or "") if isinstance(ghost, dict) else ""
-            if ghost_url and not feed_url:
-                feed_url = ghost_url
-        except Exception as exc:
-            logger.warning("midday_report:ghost_publish_failed err=%s", str(exc)[:120])
-    return feed_url
+    return await mirror_report(
+        report,
+        image_url,
+        edition=EDITION,
+        story_ref=f"midday-report-{datetime.now(UTC).strftime('%Y%m%d')}",
+        tags=["briefing", "midday-report", "macro"],
+        enabled=MIDDAY_REPORT_FEED_ENABLED,
+    )
 
 
 def _regenerate_hook(context: dict[str, Any]) -> Any:
