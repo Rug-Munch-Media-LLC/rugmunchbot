@@ -25,11 +25,9 @@ from typing import Any
 
 logger = logging.getLogger("rmi_bot.channels.daily_rug")
 
-#: RAG collections queried for the brief's intel context.
-# 2026-10-17: the live 4096-dim twins. The bare `news_v2` name still
-# exists but carries a NAMED vector ({"dense": {...}}) so an unnamed
-# {"vector": [...]} search 400s, and `threat_intel_v2` does not exist
-# at all (404). These are the collections the 8B embedding matches.
+#: RAG collections queried for the brief's intel context — the live 4096-dim
+#: twins. `news_v2` carries a NAMED vector so an unnamed search 400s, and
+#: `threat_intel_v2` does not exist (404).
 _RAG_COLLECTIONS = ["news_v2_8b", "social_intel_8b", "threat_intel_v2_8b"]
 _RAG_QUERY = (
     "most important crypto stories of the last 24 hours: regulation, ETF flows, "
@@ -75,10 +73,15 @@ async def _fetch_ranked_stories() -> list[dict[str, Any]]:
     """Top reranker-ranked stories of the previous day (fail-open).
 
     The reranker is the fleet's curated importance lane — the brief leads
-    with these, not with raw feed items. A hard 24h recency filter drops
-    undated items (the exact vector by which months-old stories slip in).
+    with these, not with raw feed items. Dated items older than the window
+    are dropped; undated items are KEPT, because ``/news/top`` serves every
+    ranked row with an empty ``published_at`` and a hard "drop undated" filter
+    here empties the lane on every run.
     """
-    from rugmunchbot.channels._news_rerank import fetch_top_ranked_stories
+    from rugmunchbot.channels._news_rerank import (
+        _parse_published_at,
+        fetch_top_ranked_stories,
+    )
 
     try:
         stories = await fetch_top_ranked_stories(window_hours=_BRIEF_WINDOW_HOURS)
@@ -87,24 +90,12 @@ async def _fetch_ranked_stories() -> list[dict[str, Any]]:
         return []
 
     cutoff = datetime.now(UTC) - timedelta(hours=_BRIEF_WINDOW_HOURS)
-    fresh: list[dict[str, Any]] = []
-    for item in stories:
-        raw = item.get("published_at")
-        dt: datetime | None = None
-        try:
-            if isinstance(raw, (int, float)):
-                ts = float(raw)
-                if ts > 1e12:  # ms epoch
-                    ts /= 1000.0
-                dt = datetime.fromtimestamp(ts, tz=UTC)
-            elif raw:
-                dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=UTC)
-        except (ValueError, TypeError, OSError):
-            dt = None
-        if dt is not None and dt >= cutoff:
-            fresh.append(item)
+    fresh = [
+        item
+        # Undated → keep; only a provably stale DATE drops the story.
+        for item in stories
+        if (dt := _parse_published_at(item.get("published_at"))) is None or dt >= cutoff
+    ]
     if len(fresh) < len(stories):
         logger.info(
             "daily_rug:recency_filter kept=%d dropped=%d",

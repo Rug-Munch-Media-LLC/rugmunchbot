@@ -95,8 +95,25 @@ class _Client:
     async def __aexit__(self, *a: Any) -> None:
         return None
 
-    async def post(self, *a: Any, **k: Any) -> _Resp:
+    # The lane is GET ``/news/top`` (2026-10-17 — the POST ``/rag/news-rerank``
+    # endpoint was never implemented server-side and 404'd on every run).
+    async def get(self, *a: Any, **k: Any) -> _Resp:
         return self._resp
+
+
+def _article(**over: Any) -> dict[str, Any]:
+    """A raw ``/news/top`` article row (the backend's own shape)."""
+    base: dict[str, Any] = {
+        "headline": "Whale moves 12,000 ETH",
+        "title": "Whale moves 12,000 ETH",
+        "published_at": datetime.now(UTC).isoformat(),
+        "url": "https://example.com/whale",
+        "source": "The Block",
+        "quality": 0.91,
+        "ranked_by": "rerank",
+    }
+    base.update(over)
+    return base
 
 
 class TestFetchTopRanked:
@@ -104,14 +121,17 @@ class TestFetchTopRanked:
     async def test_filters_stale_keeps_undated(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("RAG_API_URL", "http://rag.test/api/v1")
         monkeypatch.setenv("RMI_RAG_API_KEY", "k1,k0")
-        fresh = _item()
-        stale = _item(
+        fresh = _article()
+        stale = _article(
+            headline="Old",
             title="Old",
             url="https://example.com/old",
             published_at=(datetime.now(UTC) - timedelta(hours=30)).isoformat(),
         )
-        undated = _item(title="No date", url="https://example.com/nodate", published_at="")
-        resp = _Client(_Resp({"items": [fresh, stale, undated]}))
+        undated = _article(
+            headline="No date", title="No date", url="https://example.com/nodate", published_at=""
+        )
+        resp = _Client(_Resp({"articles": [fresh, stale, undated]}))
         with patch("rugmunchbot.channels._news_rerank.httpx.AsyncClient", return_value=resp):
             out = await nr.fetch_top_ranked_stories(window_hours=12.0)
         titles = [i["title"] for i in out]
@@ -144,9 +164,13 @@ class TestFetchTopRanked:
             assert await nr.fetch_top_ranked_stories() == []
 
     @pytest.mark.asyncio
-    async def test_no_config_returns_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("RMI_RAG_API_KEY", raising=False)
-        assert await nr.fetch_top_ranked_stories() == []
+    async def test_no_config_returns_empty(self) -> None:
+        # The resolver chain is env → secret file → gopass, so "no config"
+        # means the WHOLE chain is empty — patch the canonical resolver rather
+        # than the env var (a machine with the on-disk secret file must not
+        # make this test depend on that file being absent).
+        with patch("rugmunchbot.tools.rag_lookup._rag_api_key", return_value=""):
+            assert await nr.fetch_top_ranked_stories() == []
 
     @pytest.mark.asyncio
     async def test_rotation_key_sends_active_only(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -155,14 +179,17 @@ class TestFetchTopRanked:
         captured: dict[str, Any] = {}
 
         class _Cap(_Client):
-            async def post(self, url: str, headers: dict[str, str], json: dict[str, Any]) -> _Resp:
+            async def get(self, url: str, headers: dict[str, str], **k: Any) -> _Resp:
                 captured["url"] = url
                 captured["headers"] = headers
-                return _Resp({"items": []})
+                return _Resp({"articles": []})
 
-        with patch("rugmunchbot.channels._news_rerank.httpx.AsyncClient", return_value=_Cap(None)):
+        with patch(
+            "rugmunchbot.channels._news_rerank.httpx.AsyncClient",
+            return_value=_Cap(_Resp({"articles": []})),
+        ):
             await nr.fetch_top_ranked_stories()
-        assert captured["url"] == "http://rag.test/api/v1/rag/news-rerank"
+        assert captured["url"] == "http://rag.test/api/v1/news/top"
         assert captured["headers"]["X-API-Key"] == "active"
 
 
