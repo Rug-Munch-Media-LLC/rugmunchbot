@@ -65,19 +65,58 @@ DEFAULTS: dict[str, Any] = {
     "velocity_window_s": 10,
     "user_velocity_action": "mute",
     "chat_velocity_action": "alert",
+    "mute_minutes": 10,
+    "ban_minutes": 0,
+    "propagate_ban": False,
+    "propagate_chats": [],
     "address_action": "warn",
+    "address_avoid_action": "delete",
     "address_score": 40,
     "address_delete": False,
     "new_member_captcha": True,
+    "captcha_type": "button",
+    "captcha_timeout_s": 90,
     "captcha_mute_minutes": 10,
     "captcha_kick": False,
     "media_burst": 2,
     "nsfw_action": "delete",
+    "nsfw_hashes": [],
+    "ocr_scan": False,
+    "impersonation_action": "warn",
+    "impersonation_strict": False,
+    "impersonation_roles": [
+        "admin",
+        "administrator",
+        "owner",
+        "dev",
+        "developer",
+        "moderator",
+        "mod",
+        "support",
+        "official",
+        "staff",
+        "team",
+    ],
     "welcome": "",
     "appeal_note": "Think this is wrong? DM the bot /appeal with this message id.",
 }
 
-_TUPLE = ("exempt_user_ids", "links_allow", "scam_domains", "scam_substrings", "promo_patterns")
+_INT_TUPLES = ("exempt_user_ids", "propagate_chats")
+_STR_TUPLES = (
+    "links_allow",
+    "scam_domains",
+    "scam_substrings",
+    "promo_patterns",
+    "nsfw_hashes",
+    "impersonation_roles",
+)
+
+
+def _clamp(value: Any, low: int, high: int, fallback: int) -> int:
+    try:
+        return min(high, max(low, int(value)))
+    except (TypeError, ValueError):
+        return fallback
 
 
 @dataclass(slots=True)
@@ -104,14 +143,26 @@ class ChatPolicy:
     velocity_window_s: int = 10
     user_velocity_action: str = "mute"
     chat_velocity_action: str = "alert"
+    mute_minutes: int = 10
+    ban_minutes: int = 0
+    propagate_ban: bool = False
+    propagate_chats: tuple[int, ...] = ()
     address_action: str = "warn"
+    address_avoid_action: str = "delete"
     address_score: int = 40
     address_delete: bool = False
     new_member_captcha: bool = True
+    captcha_type: str = "button"
+    captcha_timeout_s: int = 90
     captcha_mute_minutes: int = 10
     captcha_kick: bool = False
     media_burst: int = 2
     nsfw_action: str = "delete"
+    nsfw_hashes: tuple[str, ...] = ()
+    ocr_scan: bool = False
+    impersonation_action: str = "warn"
+    impersonation_strict: bool = False
+    impersonation_roles: tuple[str, ...] = ()
     welcome: str = ""
     appeal_note: str = ""
 
@@ -119,14 +170,17 @@ class ChatPolicy:
     def from_dict(cls, chat_id: int, raw: dict[str, Any]) -> ChatPolicy:
         merged: dict[str, Any] = dict(DEFAULTS)
         merged.update({k: v for k, v in raw.items() if k in DEFAULTS})
-        for key in _TUPLE:
-            value = merged.get(key) or ()
-            merged[key] = (
-                tuple(int(v) for v in value)
-                if key == "exempt_user_ids"
-                else tuple(str(v).lower() for v in value)
-            )
+        for key in _INT_TUPLES:
+            merged[key] = tuple(int(v) for v in (merged.get(key) or ()))
+        for key in _STR_TUPLES:
+            merged[key] = tuple(str(v).lower() for v in (merged.get(key) or ()))
         merged["welcome"] = merged.get("welcome") or ""
+        merged["captcha_timeout_s"] = _clamp(merged.get("captcha_timeout_s"), 30, 600, 90)
+        merged["captcha_mute_minutes"] = _clamp(merged.get("captcha_mute_minutes"), 1, 1440, 10)
+        merged["mute_minutes"] = _clamp(merged.get("mute_minutes"), 1, 1440, 10)
+        merged["ban_minutes"] = _clamp(merged.get("ban_minutes"), 0, 10080, 0)
+        if merged["captcha_type"] not in {"button", "math"}:
+            merged["captcha_type"] = "button"
         return cls(chat_id=chat_id, **merged)
 
     def is_exempt(self, ctx: Any) -> bool:

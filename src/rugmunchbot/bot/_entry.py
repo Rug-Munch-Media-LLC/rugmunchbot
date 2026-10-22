@@ -147,13 +147,16 @@ from rugmunchbot.handlers.scanning import (
 from rugmunchbot.handlers.sentiment import cmd_sentiment
 from rugmunchbot.handlers.status import register_status
 from rugmunchbot.handlers.trace import cmd_trace, register_trace_commands
+from rugmunchbot.handlers.premium_watch import (
+    cmd_export,
+    cmd_unwatch,
+    cmd_watch,
+    cmd_watchlist,
+)
 from rugmunchbot.handlers.watchlist import (
     cmd_monitor,
     cmd_monitors,
     cmd_unmonitor,
-    cmd_unwatch,
-    cmd_watch,
-    cmd_watchlist,
 )
 from rugmunchbot.handlers.webhook import cmd_webhook
 from rugmunchbot.moderation import register_moderation
@@ -237,6 +240,7 @@ def _register_all_handlers(app: Application[Any, Any, Any, Any, Any, Any]) -> No
     _reg(app, "watchlist", cmd_watchlist)
     _reg(app, "watch", cmd_watch)
     _reg(app, "unwatch", cmd_unwatch)
+    _reg(app, "export", cmd_export)
 
     # Monitor (Stars-paid premium)
     _reg(app, "monitor", cmd_monitor)

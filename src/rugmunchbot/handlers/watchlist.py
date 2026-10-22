@@ -22,7 +22,7 @@ from rugmunchbot.formatters import (
     sep,
 )
 from rugmunchbot.handlers.alerts import _unsubscribe_backend_monitor
-from rugmunchbot.keyboards import back_kb, pricing_kb
+from rugmunchbot.keyboards import back_kb
 from rugmunchbot.services.pricing import resolve
 from rugmunchbot.support import backend_user
 from rugmunchbot.support.logging import get_logger
@@ -62,20 +62,6 @@ def _alert_badge(entry: dict) -> str:
     return ""
 
 
-async def cmd_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Backend-backed watchlist: list / add / remove / alert subcommands."""
-    if update.message is None:
-        return
-    args = ctx.args or []
-    sub = args[0].lower() if args else ""
-    if sub == "add":
-        await _wl_add(update, args[1:])
-    elif sub == "remove":
-        await _wl_remove(update, args[1:])
-    elif sub == "alert":
-        await _wl_alert(update, args[1:])
-    else:
-        await _wl_show(update)
 
 
 async def _wl_show(update: Update) -> None:
@@ -227,68 +213,8 @@ async def _wl_alert(update: Update, args: list[str]) -> None:
     )
 
 
-async def cmd_watch(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Add a token to the watchlist (or show usage when unset / tier-blocked)."""
-    user = update.effective_user
-    if user is None:
-        return
-    if not ctx.args:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "\U0001f440 Usage: /watch <code>address</code> [chain]\n\n"
-            "Example: /watch <code>EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v</code> solana",
-            parse_mode=ParseMode.HTML,
-        )
-        return
-    addr = ctx.args[0]
-    chain = ctx.args[1] if len(ctx.args) > 1 else detect_chain(addr)
-    symbol = ctx.args[2] if len(ctx.args) > 2 else None
-    ok = db.add_watchlist(user.id, addr, chain, symbol)
-    if ok:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            f"\u2705 Added <code>{addr}</code> to watchlist.\n/watchlist to view all.",
-            parse_mode=ParseMode.HTML,
-        )
-    else:
-        tier = db.get_user_tier(user.id)
-        if tier == "free":
-            await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                "\u274c Watchlists require <b>Scout tier</b> or higher.\n\n"
-                "\U0001f6f0\ufe0f <b>Monitor (250\u2605/30d)</b> \u2014 live LP/whale + "
-                "tax/ownership/mint change alerts on any token\n"
-                "\U0001f52c <b>Deep Scan (250\u2605)</b> \u2014 full forensics on demand\n"
-                "\U0001f4b0 <b>Core /scan + chat stay free.</b>\n\n"
-                "Run /monitor <code>address</code> to start a monitor.",
-                parse_mode=ParseMode.HTML,
-                reply_markup=pricing_kb(),
-            )
-        else:
-            await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-                "\u274c Could not add. Limit reached or already added.", parse_mode=ParseMode.HTML
-            )
 
 
-async def cmd_unwatch(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Remove a token from the watchlist."""
-    user = update.effective_user
-    if user is None:
-        return
-    if not ctx.args:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            "Usage: /unwatch <code>address</code>\n\n"
-            "Example: /unwatch <code>EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v</code>",
-            parse_mode=ParseMode.HTML,
-        )
-        return
-    addr = ctx.args[0]
-    ok = db.remove_watchlist(user.id, addr)
-    if ok:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            f"\u2705 Removed <code>{addr}</code> from watchlist.", parse_mode=ParseMode.HTML
-        )
-    else:
-        await update.message.reply_text(
-            "\u274c Token not found in your watchlist.", parse_mode=ParseMode.HTML
-        )  # type: ignore[union-attr]  # PTB None-able fields
 
 
 # ── Monitor (Stars-paid premium feature) ─────────────────────────────────
