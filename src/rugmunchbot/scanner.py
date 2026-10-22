@@ -17,6 +17,7 @@ Keep this module as a pure re-export shim — do not add scan logic here.
 from rugmunchbot.tools.scanner import (
     analyze_wallet,
     analyze_wallet_v2,
+    apply_parity,
     fetch_deployer_fingerprint,
     fetch_hype_score,
     scan_token,
@@ -29,6 +30,7 @@ from rugmunchbot.tools.scanner import (
 __all__ = [
     "analyze_wallet",
     "analyze_wallet_v2",
+    "apply_parity",
     "fetch_deployer_fingerprint",
     "fetch_hype_score",
     "scan_token",

@@ -63,6 +63,7 @@ from rugmunchbot.keyboards import (
 )
 from rugmunchbot.observability import record_scan
 from rugmunchbot.scanner import (
+    apply_parity,
     scan_token,
     scan_token_v2,
     sentinel_scan as fetch_sentinel_scan,
@@ -209,7 +210,9 @@ async def cmd_deepscan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         except Exception:
             logger.debug("deepscan phase-2 progress edit failed", exc_info=True)
         if result_v2 is not None:
-            result = v2_token_to_legacy(result_v2)
+            result = await apply_parity(
+                v2_token_to_legacy(result_v2), target, chain or detect_chain(target)
+            )
             # Fill deployer + socials (and backfill liquidity) from
             # DexScreener when the v2 payload left them unresolved.
             result = await _supplement_deployer_socials(

@@ -78,6 +78,7 @@ from rugmunchbot.tools.scanner._market import (
     _ds_timeframe_map as _ds_timeframe_map,
     _merge_market_snapshot as _merge_market_snapshot,
 )
+from rugmunchbot.tools.scanner._parity_apply import apply_parity as apply_parity
 from rugmunchbot.tools.scanner._providers import (
     _detect_chain as _detect_chain,
     _safe_float as _safe_float,

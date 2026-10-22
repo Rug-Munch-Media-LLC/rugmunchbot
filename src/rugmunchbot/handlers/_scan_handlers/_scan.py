@@ -48,6 +48,7 @@ from rugmunchbot.keyboards import (
 )
 from rugmunchbot.observability import record_scan
 from rugmunchbot.scanner import (
+    apply_parity,
     scan_token,
     scan_token_v2,
     v2_token_to_legacy,
@@ -171,7 +172,7 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                     )
                     if completed:
                         _merge_completed_scan(result_v2, completed)
-                result = v2_token_to_legacy(result_v2)
+                result = await apply_parity(v2_token_to_legacy(result_v2), target, chain_key)
             else:
                 # v2 unavailable → fall back to legacy multi-source scanner
                 from rugmunchbot.tools.scanner._section_log import log_section_fallback

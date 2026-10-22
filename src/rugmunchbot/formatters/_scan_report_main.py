@@ -4,19 +4,16 @@ Split out of ``formatters/_scan_report.py`` during the Batch 14
 de-godding pass: ``format_scan_report`` renders every section using the
 per-section helpers in the sibling ``_scan_report_*`` modules.
 
-Canonical layout (Batch 2026-08-16): ``_format_scan_report`` renders the
-same 4-part skeleton for regular ``/scan`` (``deep=False``) and the
-scanner-based ``/scandeep`` (``deep=True`` + extra sections):
+Canonical layout: ``_format_scan_report`` renders the same 4-part skeleton
+for ``/scan`` and ``/scandeep`` (``deep=True`` + extra sections):
 
   1. one-line verdict up top (brand header + risk headline + sentence)
   2. key metrics as a tight bold table (``_key_metrics_rows``)
   3. evidence bullets (Security Assessment checks, Risk Signals, AEGIS)
   4. a short "what to watch" line (``_what_to_watch_line``)
 
-``format_deep_scan_report`` is the single advanced entrypoint — the
-``/scandeep`` handler passes its enrichment sections (RugMap cluster, market
-snapshot, wallet composition) which render INSIDE the report, before the
-footer, instead of being appended after it."""
+``format_deep_scan_report`` is the single advanced entrypoint — ``/scandeep``
+passes enrichment sections that render INSIDE the report, not after its footer."""
 
 from __future__ import annotations
 
@@ -42,6 +39,7 @@ from rugmunchbot.formatters._scan_report_common._fields import (
     _lp_lock_pct,
     _mint_auth,
 )
+from rugmunchbot.formatters._scan_report_parity import format_parity_section
 from rugmunchbot.formatters._scan_report_risk import _format_risk_signals_section, _verdict_text
 from rugmunchbot.formatters._scan_report_riskreport import format_risk_report_block
 from rugmunchbot.formatters._scan_report_sentinel import _format_sentinel_pro
@@ -273,6 +271,8 @@ def _format_scan_report(
     risk_report_lines = format_risk_report_block(r, deep=deep)
     if risk_report_lines:
         lines.extend(risk_report_lines)
+
+    lines.extend(format_parity_section(r))  # 2e. cohorts / KOL / impact
 
     # ── 3. Market Data ──
     # Real live market figures from the scan's best-pair DexScreener snapshot

@@ -305,9 +305,7 @@ async def _apply_scan_enrichment(
     """Shared fail-open enrichment chain applied to any v2 scan payload.
 
     Every leg is best-effort + non-blocking with its own hard internal budget
-    (see scan_token for the budget/fail-open contract); a broken enricher
-    never fails the scan. GMGN → risk-signal → Solana ground truth →
-    token-scoped smart money, then scan-to-RAG memory (background, fail-open).
+    (see scan_token); a broken enricher never fails the scan.
     """
     # GMGN holder/smart-money enrichment — best-effort + non-blocking.
     data = await _scanner.enrich_scan_with_gmgn(data, address, chain_norm)
@@ -744,9 +742,7 @@ async def lookup_prior_scan_intel(address: str, chain: str | None = None) -> str
         vector = await _embed_query(f"Token {address} scan risk history")
         if not vector:
             return None
-        hits = await _qdrant_collection_search(
-            _SCAN_MEMORY_COLLECTION, vector, _PRIOR_INTEL_TOP_K
-        )
+        hits = await _qdrant_collection_search(_SCAN_MEMORY_COLLECTION, vector, _PRIOR_INTEL_TOP_K)
     except Exception:
         logger.debug("prior_intel_lookup_failed", exc_info=True)
         return None
