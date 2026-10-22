@@ -22,13 +22,8 @@ from rugmunchbot.config import (
     BACKEND_URL,
     backend_headers,
 )
-from rugmunchbot.formatters import (
-    detect_chain,
-    format_scan_report,
-    is_owner,
-    paywall_text,
-)
-from rugmunchbot.handlers._image import _maybe_send_token_image
+from rugmunchbot.formatters import detect_chain, is_owner, paywall_text
+from rugmunchbot.formatters._vcard import format_verdict_card
 from rugmunchbot.handlers._messages import (
     ACTION_CHECK_ADDRESS,
     failure_card,
@@ -40,12 +35,7 @@ from rugmunchbot.handlers._scan_handlers._progress import (
 )
 from rugmunchbot.handlers._scanning_helpers import _merge_completed_scan
 from rugmunchbot.handlers.chat_ai._delivery import _keep_typing
-from rugmunchbot.keyboards import (
-    back_kb,
-    deep_scan_result_kb,
-    scan_result_kb,
-    upgrade_nudge_kb,
-)
+from rugmunchbot.keyboards import back_kb, upgrade_nudge_kb, vcard_kb
 from rugmunchbot.observability import record_scan
 from rugmunchbot.scanner import (
     apply_parity,
@@ -60,7 +50,6 @@ from rugmunchbot.tools.scanner import (
     _scan_cache_get,
     _scan_cache_set,
     _supplement_deployer_socials,
-    render_ai_verdict,
 )
 
 if TYPE_CHECKING:
@@ -113,8 +102,13 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
     started = time.monotonic()
+    # One message per scan: the skeleton lands immediately (paste-to-scan must
+    # feel instant), then the SAME message is edited with the verdict card.
+    # Deliberately no hash / no full address in the skeleton — it is replaced
+    # seconds later and the card carries the identity.
+    short = f"{target[:4]}\u2026{target[-4:]}" if len(target) > 10 else target
     msg = await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        f"\U0001f504 <b>Scanning token...</b>\n<code>{target}</code>\n\n\u23f3 Running multi-source security checks...",
+        f"\U0001f504 Scanning <code>{short}</code>\u2026",
         parse_mode=ParseMode.HTML,
     )
     # Human-analyst feel: keep the typing bubble alive while the providers
@@ -212,49 +206,19 @@ async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             started=started,
             min_elapsed=3.0,
         )
-        report = format_scan_report(result)
-        # Prior-intel recall: if we've scanned this token before, surface the
-        # scan-memory hit as one line (fail-open, bounded ~6s).
-        try:
-            from rugmunchbot.tools.scanner._scans import lookup_prior_scan_intel
-
-            prior = await asyncio.wait_for(lookup_prior_scan_intel(target, chain), timeout=6.0)
-            if prior:
-                report += f"\n\U0001f9f0 {prior}"
-        except Exception:
-            logger.debug("prior_intel_append_failed", exc_info=True)
-        # AI verdict summary on top: the snappy LLM reads the structured scan
-        # facts into a 2-4 sentence plain-English verdict + "what to watch".
-        # Fail-open — when the LLM is unavailable the report's existing
-        # template verdict (format_verdict_header) stays as-is.
-        ai_verdict = await render_ai_verdict(result)
-        if ai_verdict:
-            report = f"{ai_verdict}\n\n{report}"
-        # Stage 3 (gated >6s): the verdict is composed — show it only once the
-        # whole flow has genuinely taken time (LLM verdict + providers).
-        await _edit_stage_if_slow(
-            msg,
-            f"\U0001f9e0 <b>Writing verdict...</b>\n<code>{target}</code>",
-            started=started,
-            min_elapsed=6.0,
-        )
+        # Verdict-first card (PirbView wins): verdict word + score + symbol on
+        # line 1, one safety row, per-cohort clusters, provenance on every
+        # number, market last. Rendered deterministically (no LLM round-trip,
+        # no second message) so the card lands as fast as the data does. The
+        # full legacy report stays one tap away on the card's keyboard.
         db.increment_usage(user.id, scan=True)
         db.log_scan(user.id, target, result["chain"], "basic", result["risk_score"])
-        # Use richer keyboard for premium users — reference/trade links now
-        # live in the report footer, so the keyboard is actions only.
-        user_tier = db.get_user_tier(user.id)
-        if user_tier in ("hunter", "pro"):
-            result_kb = deep_scan_result_kb(target, result["chain"])
-        else:
-            result_kb = scan_result_kb(target, result["chain"])
         await msg.edit_text(
-            report,
+            format_verdict_card(result),
             parse_mode=ParseMode.HTML,
-            reply_markup=result_kb,
+            reply_markup=vcard_kb(target, result["chain"]),
             disable_web_page_preview=True,
         )
-        # Token image "pops up" as a photo reply (fail-open, text stays).
-        await _maybe_send_token_image(msg, result)
     except (httpx.HTTPError, ConnectionError, TimeoutError, ValueError, KeyError, TypeError) as e:
         logger.debug("unknown_error", exc_info=True)
         logger.error(f"Scan error: {e}")

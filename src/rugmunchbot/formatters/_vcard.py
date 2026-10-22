@@ -63,7 +63,9 @@ def _head(r: dict[str, Any], word: str) -> str:
     if symbol in ("", "???", "Unknown"):
         symbol = _short(str(r.get("address", "")))
     ticker = html.escape(symbol if symbol.startswith("$") else f"${symbol}")
-    return f"{WORD_EMOJI.get(word, chr(0x2753))} <b>{word} \u00b7 {score:.0f}/100 \u00b7 {ticker}</b>"
+    return (
+        f"{WORD_EMOJI.get(word, chr(0x2753))} <b>{word} \u00b7 {score:.0f}/100 \u00b7 {ticker}</b>"
+    )
 
 
 def _optional(r: dict[str, Any], ts: str) -> list[list[str]]:

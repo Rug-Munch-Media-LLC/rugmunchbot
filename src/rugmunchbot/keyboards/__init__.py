@@ -69,3 +69,4 @@ from ._utility import (
     social_kb as social_kb,
     upgrade_nudge_kb as upgrade_nudge_kb,
 )
+from ._vcard import vcard_kb as vcard_kb

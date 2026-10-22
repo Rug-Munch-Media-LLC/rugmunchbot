@@ -22,6 +22,7 @@ from rugmunchbot.formatters._vcard_fields import DASH, source_for
 #: Sell tax at or above this fraction is treated as an exit trap.
 SELL_TAX_HARD_FAIL = 0.5
 
+
 def _authority(value: bool | None, on: str, off: str) -> str:
     """Authority word, ``—`` when the scan never read it."""
     return on if value is True else off if value is False else DASH

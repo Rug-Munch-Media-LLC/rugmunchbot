@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import rugmunchbot.handlers.chat_ai as chat_ai
 from rugmunchbot import anti_abuse
 from rugmunchbot.handlers.chat_ai._classify import _extract_addresses
 from rugmunchbot.handlers.chat_ai._guards import _scam_address_warning
@@ -66,9 +65,16 @@ async def _route_structural(
             await _scam_address_warning(update, addr)
             return True
 
-    # 2. Bare contract address (the whole message is the address) → full /scan.
-    if chat_ai.is_evm(text) or chat_ai.is_sol(text):
-        ctx.args = [text]
+    # 2. Bare contract address — the whole message is the address, or the
+    #    address plus ONE short label (ticker / chain hint), with or without
+    #    the leading 0x. Strict by design: several leftover words ("is this
+    #    0x… a rug?") never hijack a chat turn into a scan. Group etiquette
+    #    is enforced upstream by _is_bot_addressed.
+    from rugmunchbot.handlers.chat_ai._routing._address import address_only
+
+    address = address_only(text)
+    if address:
+        ctx.args = [address]
         from rugmunchbot.handlers.scanning import cmd_scan
 
         await cmd_scan(update, ctx)

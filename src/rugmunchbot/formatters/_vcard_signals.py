@@ -35,6 +35,7 @@ class Signals:
     top10: str | None = None
     has_evidence: bool = False
 
+
 def _dev(r: dict[str, Any], ts: str) -> str:
     """Rule 4: rug-rate + funder, never a launch count."""
     profile = r.get("deployer_profile") if isinstance(r.get("deployer_profile"), dict) else {}
