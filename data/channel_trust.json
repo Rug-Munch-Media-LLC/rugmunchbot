@@ -1,0 +1,95 @@
+{
+	"version": 1,
+	"updated": "2026-10-23",
+	"note": "Channel trust registry. Verified by hand from public t.me/s/<handle> previews. Public previews only; no posting, no scraping of private chats.",
+	"schema": {
+		"handle": "telegram handle without @",
+		"title": "channel display title",
+		"subscribers": "subscriber count from the public preview (int)",
+		"class": "token-shiller | macro-clickbait | aggregator | primary | unknown",
+		"trust": "0..1 source reliability weight",
+		"evidence": "[{text, date, link}] quoted post text with permalink",
+		"monitored_only": "true = watch for scam/shill intel, never cite as a news source"
+	},
+	"channels": [
+		{
+			"handle": "darkycalls",
+			"title": "Darky Calls",
+			"subscribers": 8333,
+			"class": "token-shiller",
+			"trust": 0.05,
+			"monitored_only": true,
+			"evidence": [
+				{
+					"text": "Another entry here for those looking for entry IMO. Don’t give your position to jeets. nfa0x7aE9b371f65B01277Ffaa2290a189a788A76170d",
+					"date": "2026-10-01",
+					"link": "https://t.me/darkycalls/3307"
+				},
+				{
+					"text": "Macca the Gator is the face of GTA VI’s Vice City merch collection ... Perfect narrative.CA:0xb815559286e633A902621C4a5dbf08976092855B ... Interesting play on RH $MACCA . Nfa, dyor",
+					"date": "2026-10-22",
+					"link": "https://t.me/darkycalls/3331"
+				},
+				{
+					"text": "It’s easy for you to make money on my calls. I always call them super early. Most tokens I call bond, team pay dex and pumps hard.Just ape if you like the ticker, shill the ticker everywhere, take your initials and ride the bag left for a 10-20x.",
+					"date": null,
+					"link": "https://t.me/s/darkycalls"
+				},
+				{
+					"text": "It was a nice run. Will try to find another meme runner. Hope next one is better. Remember always to take your initials and ride the bag left",
+					"date": null,
+					"link": "https://t.me/s/darkycalls"
+				}
+			],
+			"notes": "Pump-and-exit call channel on Robinhood-chain memes ($HIHI, $MACCA, $HMM). Owns and cross-promotes @darkygambles. Exit language follows its own calls."
+		},
+		{
+			"handle": "danny_crypton",
+			"title": "Danny Crypton",
+			"subscribers": 40100,
+			"class": "macro-clickbait",
+			"trust": 0.15,
+			"monitored_only": true,
+			"evidence": [
+				{
+					"text": "🚨 BREAKING🇺🇸 THE FED WILL INJECT $3,653,000,000.00 INTO THE MARKETS TOMORROW AT 9:20 AM ET, MINUTES BEFORE THE U.S. MARKET OPENS!",
+					"date": "2026-10-21",
+					"link": "https://t.me/danny_crypton/3761"
+				},
+				{
+					"text": "🚨 BREAKING: BITCOIN IS NEXT TO GET CRUSHED!🇺🇸 BLACKROCK HAS REPORTEDLY DUMPED $570,000,000.00 IN BITCOIN AMID THE U.S. STOCK MARKET SELLOFF!",
+					"date": "2026-10-17",
+					"link": "https://t.me/danny_crypton/3753"
+				}
+			],
+			"notes": "All-caps BREAKING macro posts with round, enormous, unsourced figures; every post links back to the author’s own X account. No primary source, no on-chain or filing reference. Not a token-contract shill."
+		},
+		{
+			"handle": "news_crypto",
+			"title": "RugMunch Crypto News (@rmicryptonews)",
+			"subscribers": null,
+			"class": "aggregator",
+			"trust": 0.6,
+			"monitored_only": false,
+			"upstreams": [
+				"coindesk",
+				"cointelegraph",
+				"theblock",
+				"decrypt",
+				"rektblog",
+				"peckshield",
+				"slowmist",
+				"zachxbt",
+				"defillama"
+			],
+			"evidence": [
+				{
+					"text": "Aggregator: republishes upstream RSS + security-alert feeds listed in upstreams; carries no original on-chain claim.",
+					"date": null,
+					"link": "https://t.me/rmicryptonews"
+				}
+			],
+			"notes": "Own aggregator. Inherits upstream reliability; must not be cited for a claim whose upstream is a token-shiller or macro-clickbait channel."
+		}
+	]
+}
