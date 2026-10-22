@@ -10,11 +10,11 @@ from rugmunchbot.channels.formatters import (
     format_alerts_post,
     format_main_escalation,
 )
+from rugmunchbot.channels.routing import is_live
+from rugmunchbot.channels.routing.items import filter_for_channel
 from rugmunchbot.config import (
     ALERTS_CHANNEL_LIMIT,
 )
-from rugmunchbot.channels.routing import is_live
-from rugmunchbot.channels.routing.items import filter_for_channel
 from rugmunchbot.support.image_policy import ensure_post_image
 
 if TYPE_CHECKING:
