@@ -39,6 +39,10 @@ logger = get_logger("rmi_bot")
 #: the guard treats them as known-hidden, not drift.
 ADMIN_MENU_COMMANDS: frozenset[str] = frozenset(
     {
+        "appeal",
+        "modpardon",
+        "modactions",
+        "modstatus",
         "accuracy",
         "admin",
         "admin_ban",
