@@ -311,6 +311,22 @@ async def post_updates_digest(ctx: Any) -> int:
     if not channel_accepts_content("updates", "update"):
         logger.warning("channels:updates_contract_blocked")
         return 0
+    # Doctrine (@rmiupdates): real releases only. "Shipped (0 commits/24h)"
+    # daily trained readers to ignore the channel, so nothing is posted
+    # when there is nothing to report.
+    from rugmunchbot.channels.routing import decide as _decide
+
+    gate = _decide("rmiupdates", "release", "low")
+    if not gate.allowed or not any(_git_commits_since(r, "24 hours ago") for r in REPO_DIRS):
+        logger.info(
+            "channels:updates_skipped",
+            job="channel_updates",
+            reason=(gate.reason if not gate.allowed else "no_commits"),
+        )
+        return 0
+    if not gate.live:
+        logger.info("channels:dryrun", job="channel_updates", chan="rmiupdates")
+        return 0
     today = datetime.now(UTC).strftime("%Y%m%d")
     dedupe_key = f"updates:{today}"
     if not _remember("updates", dedupe_key):

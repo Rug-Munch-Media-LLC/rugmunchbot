@@ -13,6 +13,8 @@ from rugmunchbot.channels.formatters import (
 from rugmunchbot.config import (
     ALERTS_CHANNEL_LIMIT,
 )
+from rugmunchbot.channels.routing import is_live
+from rugmunchbot.channels.routing.items import filter_for_channel
 from rugmunchbot.support.image_policy import ensure_post_image
 
 if TYPE_CHECKING:
@@ -93,13 +95,9 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             reason="no_chat_id",
         )
         return 0
-    # Channel doctrine (2026-09-03): @rmialerts is security-content ONLY —
-    # scanner risk alerts, never whale moves, scans, or system notifications.
-    # This file is the ALERTS poster (despite the ``_posts_news`` name); the
-    # @rmicryptonews breaking-news lane lives in ``telegram_news``. Defense-
-    # in-depth on top of the ``_safe_send`` chokepoint: if the alerts channel
-    # is ever misconfigured to accept a non-alert content type, refuse to
-    # post rather than leak scanner/whale/system noise into it.
+    # Doctrine (@rmialerts): critical/high SECURITY alerts only, <=5/hour,
+    # event-driven. The routing table (channels/routing) owns that rule and
+    # is enforced below; nothing else may reach this channel.
     from rugmunchbot.channels.style_guides import channel_accepts_content
 
     if not channel_accepts_content("alerts", "alert"):
@@ -127,6 +125,16 @@ async def post_alert_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         fresh, category="news", source="scanner"
     )
     _index_alerts_to_rag(fresh)
+    channel_items = filter_for_channel("rmialerts", channel_items)
+    if not is_live("rmialerts"):
+        logger.info(
+            "channels:dryrun",
+            job="channel_alerts",
+            chan="rmialerts",
+            items=len(channel_items),
+            sample=(channel_items[0].get("title") if channel_items else None),
+        )
+        return 0
     posted = 0
     if channel_items:
         ok = await _post_photo_aware(
