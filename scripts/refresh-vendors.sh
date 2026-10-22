@@ -19,17 +19,17 @@ TARGET="$HERE/src/rugmunchbot"
 
 if [ "${1:-}" = "--check" ]; then
   FAIL=0
-  if grep -rl 'app\.domains\.telegram\.rugmunchbot' "$TARGET" --include='*.py' 2>/dev/null | grep -q .; then
+  if rg -l --no-heading --color never -e 'app\.domains\.telegram\.rugmunchbot' -g '*.py' "$TARGET" 2>/dev/null | grep -q .; then
     echo "FAIL: stale app.domains.telegram.rugmunchbot refs remain" >&2
     FAIL=1
   fi
   for imp in 'app.core.ai_guardrails' 'app.core.shared_utils' 'app.core.channels_registry' 'app.core.redis' 'app.osint_tools' 'app.domains.news_ingest' 'app.domains.telegram.access_guard' 'app.domains.telegram.headless' 'app.llm_config' 'app.rag.' 'app.catalog.service' 'app.domains.scanner.service'; do
-    if grep -rl "from $imp\|import $imp" "$TARGET" --include='*.py' 2>/dev/null | grep -v '_vendor/' | grep -q .; then
+    if rg -l --no-heading --color never -e "from $imp|import $imp" -g '*.py' "$TARGET" 2>/dev/null | grep -v '_vendor/' | grep -q .; then
       echo "FAIL: unreplaced import $imp" >&2
       FAIL=1
     fi
   done
-  if grep -rn '^from app\.\|^import app\.' "$TARGET/_vendor" --include='*.py' 2>/dev/null | grep -vE '_vendor/(osint|chain_registry|rag_pkg|scanner_engines|unified_scanner|news_ingest|crypto_embeddings)/' | grep -q .; then
+  if rg -n --no-heading --color never -e '^from app\.|^import app\.' -g '*.py' "$TARGET/_vendor" 2>/dev/null | grep -vE '_vendor/(osint|chain_registry|rag_pkg|scanner_engines|unified_scanner|news_ingest|crypto_embeddings)/' | grep -q .; then
     echo "FAIL: module-level app.* imports remain in vendored files" >&2
     FAIL=1
   fi
