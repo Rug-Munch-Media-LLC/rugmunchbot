@@ -12,6 +12,7 @@ from rugmunchbot.bot._commands import (
     _BOT_COMMANDS,
     _COMMAND_SECTIONS,
     check_menu_coverage,
+    register_surface_commands,
 )
 from rugmunchbot.bot._menu_guard import assert_menu_coverage
 from rugmunchbot.config import (
@@ -34,9 +35,14 @@ if TYPE_CHECKING:
 
 async def setup_bot_profile(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     """Set bot description, about text, and command list via BotFather API."""
-    # Menu-drift check FIRST: the menu is the source of truth. The log-only
-    # check reports; the HARD guard (2026-09-20) raises MenuDriftError so a
-    # drift can never ship a stale BotFather menu silently.
+    # Product surface FIRST (2026-10-23): /desk, /plans and /more are owned
+    # by the menu, so they are registered here — before either guard can
+    # judge the menu against the registry. Idempotent, so a wiring that
+    # already registers them is left untouched.
+    register_surface_commands(app)
+    # Menu-drift check: the menu is the source of truth. The log-only check
+    # reports; the HARD guard (2026-09-20) raises MenuDriftError so a drift
+    # can never ship a stale BotFather menu silently.
     check_menu_coverage(app)
     assert_menu_coverage(app)
     bot = app.bot

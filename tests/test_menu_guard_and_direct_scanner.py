@@ -89,16 +89,21 @@ def test_admin_menu_commands_are_registered():
 
 
 def test_assert_menu_coverage_passes_on_real_wiring():
-    """The real app wiring has zero drift (the batch-1 fix)."""
+    """The real app wiring has zero drift (advertised ⊆ registered, ≤ 20)."""
     app = _build_real_app()
     assert_menu_coverage(app)  # must not raise
 
 
-def test_assert_menu_coverage_raises_on_unadvertised():
-    """A registered command outside the menu and admin set is drift."""
-    app = _FakeApp({"scan", "totally_new_command"})
-    with pytest.raises(MenuDriftError, match="totally_new_command"):
-        assert_menu_coverage(app)
+def test_assert_menu_coverage_allows_hidden_registered():
+    """Registered-but-unadvertised is the DESIGN (progressive disclosure).
+
+    ``totally_new_command`` is reachable — it is simply not in the BotFather
+    menu — so the guard must not fail the boot over it.
+    """
+    from rugmunchbot.command_menu import advertised_set
+
+    app = _FakeApp(set(advertised_set()) | {"totally_new_command"})
+    assert_menu_coverage(app)  # must not raise
 
 
 def test_assert_menu_coverage_raises_on_phantom():
@@ -117,10 +122,14 @@ def _build_real_app():
     """
     from telegram.ext import Application
 
+    from rugmunchbot.bot._commands import register_surface_commands
     from rugmunchbot.bot._entry import _register_all_handlers
 
     app = Application.builder().token("123456:TEST-TOKEN").build()
     _register_all_handlers(app)
+    # Startup parity: setup_bot_profile registers the menu-owned surface
+    # (/desk, /plans, /more) before either guard runs.
+    register_surface_commands(app)
     return app
 
 

@@ -38,6 +38,20 @@ def captcha_prompt(minutes: int) -> str:
     )
 
 
+def captcha_math(question: str, minutes: int) -> str:
+    return (
+        "👋 <b>Welcome!</b>\n"
+        f"Solve to prove you are human: <b>{escape(question)}</b>\n"
+        f"You have {minutes} min. A wrong answer removes you."
+    )
+
+
+def captcha_failed(kicked: bool) -> str:
+    return "🚪 <b>Gate closed</b> — captcha not solved.\n" + (
+        "You were removed; you may rejoin and try again." if kicked else "You stay muted for now."
+    )
+
+
 def welcome(name: str) -> str:
     who = f"<b>{escape(name)}</b>" if name else "friend"
     return (
@@ -62,4 +76,13 @@ def appeal_receipt(action_id: str) -> str:
     )
 
 
-__all__ = ["address_warning", "appeal_receipt", "captcha_prompt", "raid_alert", "warn", "welcome"]
+__all__ = [
+    "address_warning",
+    "appeal_receipt",
+    "captcha_failed",
+    "captcha_math",
+    "captcha_prompt",
+    "raid_alert",
+    "warn",
+    "welcome",
+]

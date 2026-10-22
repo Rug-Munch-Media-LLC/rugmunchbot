@@ -30,6 +30,7 @@ __all__ = [
     "CHANNEL_LABELS",
     "HELP_TEXT",
     "MENU_TEXT",
+    "OPEN_SOURCE_REPOS",
     # re-exported from _scanning_helpers (tests)
     "_DEPLOYER_BUCKET_EMOJI",
     # re-exported from _help_text (callers/tests)
@@ -52,6 +53,8 @@ __all__ = [
     "_ta_arrow",
     "_ta_rsi_emoji",
     "_ta_vol_arrow",
+    # help surfaces
+    "build_in_public_section",
     # internal helpers
     "cmd_compare",
     "cmd_deepscan",
@@ -69,6 +72,7 @@ __all__ = [
     "cmd_ta",
     "cmd_wallet",
     "format_ta_card",
+    "project_links_section",
     "sentinel_scan",
 ]
 
@@ -90,10 +94,13 @@ from rugmunchbot.handlers._help_text import (  # re-exported for callers/tests
     CHANNEL_LABELS,
     HELP_TEXT,
     MENU_TEXT,
+    OPEN_SOURCE_REPOS,
     _build_help_text,
     _build_menu_text,
     _channel_url,
     _channels_section,
+    build_in_public_section,
+    project_links_section,
 )
 from rugmunchbot.handlers._image import _maybe_send_token_image  # re-exported
 from rugmunchbot.handlers._scan_handlers import (  # re-exported

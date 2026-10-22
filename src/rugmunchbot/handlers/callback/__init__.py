@@ -20,7 +20,13 @@ from telegram.constants import ParseMode
 
 from rugmunchbot import db
 from rugmunchbot.formatters import footer_links
-from rugmunchbot.handlers.callback import _actions, _invoices, _menus, _refresh
+from rugmunchbot.handlers.callback import (
+    _actions,
+    _invoices,
+    _menus,
+    _refresh,
+    _vcard,
+)
 from rugmunchbot.handlers.callback._admin import _dispatch_admin_cb
 from rugmunchbot.handlers.callback._inline import (
     _inline_market_data,
@@ -65,6 +71,10 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     #   - _menus dispatches first: all its branches are exact matches with
     #     no prefix overlap against the later modules.
     if await _menus.handle(update, ctx, query, user, data):
+        return
+    # Verdict-card buttons (Refresh / Full report): handled in place so a
+    # refresh edits the SAME message instead of sending a second one.
+    if await _vcard.handle(update, ctx, query, data):
         return
     if data.startswith("run_"):
         await _dispatch_run_cmd(update, ctx, data[4:])
@@ -117,6 +127,17 @@ async def _dispatch_run_cmd(update: Update, ctx, cmd_arg: str | None = None) -> 
         return
     if cmd in ("market", "movers", "launches", "whales"):
         await _inline_market_data(update, ctx, cmd)
+        return
+    if cmd == "desk":
+        # Onboarding "Live desk" button: same renderer as /desk, edited into
+        # the message the button lives on (no second card).
+        from rugmunchbot.handlers._desk import load_latest_posts, render_desk
+
+        await query.edit_message_text(
+            render_desk(load_latest_posts()),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
         return
     if cmd in ("scan", "price", "chart"):
         await _exec_live_command(update, ctx, cmd)

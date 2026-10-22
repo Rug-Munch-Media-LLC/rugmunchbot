@@ -24,6 +24,7 @@ class MsgContext:
     text: str = ""
     urls: tuple[str, ...] = ()
     media: str | None = None  # "photo" | "video" | "animation" | "document" | None
+    media_id: str = ""  # Telegram file_unique_id (no download needed)
     is_new_member: bool = False
     is_admin: bool = False
     message_id: int | None = None
@@ -39,10 +40,6 @@ class AddressVerdict:
     safety_score: int | None = None
     verdict: str = "unknown"  # ok | caution | avoid | unknown
     reason: str = ""
-
-    @property
-    def hazardous(self) -> bool:
-        return self.verdict in {"avoid", "caution"}
 
 
 @dataclass(slots=True)

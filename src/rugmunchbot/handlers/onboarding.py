@@ -1,35 +1,32 @@
-"""RugMunchBot — first-run onboarding + engagement hooks (additive).
+"""RugMunchBot — first-run onboarding (one screen, three buttons).
 
-New-user flow: when a brand-new user sends /start, ``cmd_start`` detects the
-first run and shows a polished welcome — a 3-line "what the bot is" pitch,
-the 3 core actions with examples (``/scan <address>``, ``$SOL``,
-``/chat <question>``), and a quick-action keyboard whose last row is a
-"More" button that opens the full /menu capability atlas (``menu_full``).
+Product rule (2026-10-23): a first-time user should understand the product in
+one screen and act in one tap. No 43-command wall, no feature list. Three
+buttons cover the three jobs people actually arrive with:
 
-Every quick-start button reuses an EXISTING wired surface (``run_scan`` /
-``run_price`` / ``run_chat``) plus the single new ``menu_full`` callback
-branch (renders the existing ``MENU_TEXT`` atlas) — no new command handlers
-and no new scheduler.
+    Scan a token      → "is this safe to buy?"      (``run_scan``)
+    Live desk         → "what is happening?"        (``run_desk`` → /desk)
+    Talk to the desk  → "explain this to me"        (``run_chat``)
 
-Returning users get the standard welcome card plus the daily hook
-(``daily_hook_kb`` — "what's hot right now" + market pulse) merged into the
-menu keyboard. Both buttons also reuse existing ``run_*`` callbacks.
+Below the buttons sits a five-command quickstart — the same five advertised
+in the menu — so a returning user can type instead of tap. Everything else
+lives under ``/more`` (progressive disclosure, see ``bot/_commands.py``).
 
-First-run detection is a heuristic that needs NO schema migration: a brand-new
-``/start`` creates the ``users`` row in the same request (``db.get_or_create_user``),
-so ``created_at`` is within a few seconds of "now" and all usage counters are
-zero. Returning users have an old ``created_at`` and/or usage on record.
+First-run detection needs NO schema migration: a brand-new ``/start`` creates
+the ``users`` row in the same request, so ``created_at`` is within a few
+seconds of "now" and all usage counters are zero.
 """
 
 from __future__ import annotations
 
+import html
 import time
 from typing import TYPE_CHECKING
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
 from rugmunchbot.handlers._help_text import project_links_section
-from rugmunchbot.keyboards import quick_start_kb
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -40,19 +37,24 @@ if TYPE_CHECKING:
 #: A row is "first run" when created within this many seconds AND unused.
 FIRST_RUN_WINDOW_SECONDS: int = 60
 
-#: Quick-start actions shown to a brand-new user. ``run_scan`` / ``run_price`` /
-#: ``run_chat`` are existing surfaces handled by ``handlers/callback``;
-#: ``menu_full`` is the "More" button that renders the existing ``/menu`` atlas
-#: (one additive callback branch in ``handlers/callback``).
-ONBOARDING_QUICK_START: tuple[tuple[str, str], ...] = (
-    ("\U0001f50d Scan", "run_scan"),
-    ("\U0001f4b0 Price", "run_price"),
-    ("\U0001f4ac Ask AI", "run_chat"),
-    ("\U0001f4d6 More", "menu_full"),
+#: The three jobs a new user arrives with — one tap each. Every callback is an
+#: existing, wired branch (``run_scan`` / ``run_desk`` / ``run_chat``).
+ONBOARDING_ACTIONS: tuple[tuple[str, str], ...] = (
+    ("\U0001f50d Scan a token", "run_scan"),
+    ("\U0001f4f0 Live desk", "run_desk"),
+    ("\U0001f4ac Talk to the desk", "run_chat"),
 )
 
-#: Daily hook actions merged into the returning-user menu. Existing callbacks:
-#: ``run_trending`` (live trending feed) and ``run_market`` (live market data).
+#: Five commands, one line each — the quickstart shown under the buttons.
+QUICKSTART: tuple[tuple[str, str], ...] = (
+    ("/scan <address>", "rug, honeypot and bundle risk in one card"),
+    ("/desk", "the latest write-ups, with source and timestamp"),
+    ("$SOL", "instant price for any ticker"),
+    ("/alerts", "set a price or risk alert and walk away"),
+    ("/more", "every command, grouped — when you want depth"),
+)
+
+#: Daily hook actions merged into the returning-user menu.
 DAILY_HOOK_ACTIONS: tuple[tuple[str, str], ...] = (
     ("\U0001f525 What's hot right now", "run_trending"),
     ("\U0001f4ca Market pulse", "run_market"),
@@ -86,39 +88,46 @@ def is_first_run(user_row: Mapping[str, object]) -> bool:
     return not _usage_count(user_row, "total_ai_msgs") > 0
 
 
-def welcome_message(name: str = "") -> str:
-    """Polished first-run welcome: 3-line "what the bot is" + 3 core actions.
+def onboarding_kb() -> InlineKeyboardMarkup:
+    """Three primary actions (one row each) + a single "all commands" row."""
+    rows = [[InlineKeyboardButton(label, callback_data=data)] for label, data in ONBOARDING_ACTIONS]
+    rows.append([InlineKeyboardButton("\U0001f4cb All commands \u25be", callback_data="menu_full")])
+    return InlineKeyboardMarkup(rows)
 
-    Line 1-3 explain what the bot IS (Rug Munch Intelligence Analyst — scan
-    any token for rug/honeypot/bundle risk, AI-written verdicts, prices,
-    charts, news, wallet intel). Then the three core actions with concrete
-    examples. HTML-safe for Telegram: only balanced ``<b>`` / ``<code>``
-    tags, no raw markdown, no ALL-CAPS, no emoji spam. The quick-action
-    keyboard (``quick_start_kb``) carries the tappable actions + the
-    "More" button that opens /menu.
+
+def welcome_message(name: str = "") -> str:
+    """One-screen value prop + five-command quickstart (HTML, Telegram-safe).
+
+    Copy discipline: one sentence on what this is, three concrete promises,
+    then the quickstart. No hype adjectives, no ALL-CAPS, no emoji spam —
+    the product has to sound like the desk that writes the research.
     """
     greeting = f"Hey {name} \U0001f44b" if name else "Hey \U0001f44b"
+    steps = "\n".join(
+        f"\u2022 <code>{html.escape(cmd)}</code> \u2014 {html.escape(desc)}"
+        for cmd, desc in QUICKSTART
+    )
     return (
-        f"{greeting} \u2014 I'm the <b>Rug Munch Intelligence Analyst</b>, "
-        f'crypto intelligence at <a href="https://rugmunch.io">rugmunch.io</a>.\n\n'
-        f"Scan any token for rug, honeypot &amp; bundle risk.\n"
-        f"Get AI-written verdicts, prices, charts, news and wallet intel.\n\n"
-        f"<b>Try these</b>\n"
-        f"\U0001f50d <code>/scan &lt;address&gt;</code> \u2014 audit any token before you buy\n"
-        f"\U0001f4b0 <code>$SOL</code> \u2014 instant price check\n"
-        f"\U0001f4ac <code>/chat &lt;question&gt;</code> \u2014 ask me anything\n\n"
+        f"{greeting} \u2014 I'm the <b>Rug Munch Intelligence Analyst</b>.\n\n"
+        "Paste any token address and I tell you whether it is a rug before you "
+        "buy: contract risk, honeypots, bundle wallets, holder concentration, "
+        "deployer history \u2014 then an AI verdict in plain English.\n\n"
+        f"<b>Three things you can do right now</b>\n"
+        "\U0001f50d Scan a token \u2014 <code>/scan &lt;address&gt;</code>\n"
+        "\U0001f4f0 Read the desk \u2014 <code>/desk</code> (source + timestamp on every story)\n"
+        "\U0001f4ac Ask anything \u2014 <code>/chat why is $SOL dumping?</code>\n\n"
+        f"<b>Quickstart</b>\n{steps}\n\n"
         f"{project_links_section()}\n\n"
-        f"Tap an action below \U0001f447"
+        "Tap an action below \U0001f447"
     )
 
 
 async def send_onboarding_welcome(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send the first-run welcome with the quick-start keyboard.
+    """Send the first-run welcome with the three-action keyboard.
 
-    Pure additive helper — caller (``cmd_start``) decides when a user is new
-    via :func:`is_first_run`. ``ctx`` is accepted for PTB handler symmetry.
+    ``ctx`` is accepted for PTB handler symmetry (unused).
     """
-    del ctx  # unused — kept for the standard PTB handler signature
+    del ctx
     user = update.effective_user
     message = update.message
     if user is None or message is None:
@@ -126,7 +135,7 @@ async def send_onboarding_welcome(update: Update, ctx: ContextTypes.DEFAULT_TYPE
     await message.reply_text(
         welcome_message(user.first_name or ""),
         parse_mode=ParseMode.HTML,
-        reply_markup=quick_start_kb(),
+        reply_markup=onboarding_kb(),
         disable_web_page_preview=True,
     )
 
@@ -134,8 +143,10 @@ async def send_onboarding_welcome(update: Update, ctx: ContextTypes.DEFAULT_TYPE
 __all__ = [
     "DAILY_HOOK_ACTIONS",
     "FIRST_RUN_WINDOW_SECONDS",
-    "ONBOARDING_QUICK_START",
+    "ONBOARDING_ACTIONS",
+    "QUICKSTART",
     "is_first_run",
+    "onboarding_kb",
     "send_onboarding_welcome",
     "welcome_message",
 ]

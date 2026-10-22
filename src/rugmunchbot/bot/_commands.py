@@ -1,9 +1,29 @@
-"""Bot command registration — /help sections and BotFather sync."""
+"""Bot command registration — advertised menu, /more catalog, BotFather sync.
+
+Progressive disclosure (2026-10-23): the BotFather menu advertises the **20**
+highest-value commands, not all 95 public commands. A 43-command wall in the
+Telegram menu is a product failure — nobody reads it, and it buries /scan.
+Everything else stays registered and discoverable through ``/more`` (the full
+catalog in ``bot/_catalog.py``) and ``/help``.
+
+Three rules this module enforces:
+
+* ``_COMMAND_SECTIONS`` — the advertised 20. The BotFather menu is pushed
+  from exactly this list (``_BOT_COMMANDS``), so menu and code cannot drift.
+* ``_MENU_COMMANDS`` — the advertised set, used by the startup guard.
+* Everything registered but not advertised is *intentional* progressive
+  disclosure, not drift — ``bot/_menu_guard.py`` checks the direction that
+  matters (advertised ⇒ registered, ≤ 20, no duplicates).
+
+The ``/desk``, ``/plans`` and ``/more`` handlers are registered by
+:func:`register_surface_commands` (called from ``setup_bot_profile``) so the
+menu owner is also the surface owner.
+"""
 
 from __future__ import annotations
 
 import os
-from datetime import time as dtime  # noqa: F401 — used by daily_scam_tip if re-enabled
+import re
 from functools import wraps
 from typing import Any
 
@@ -22,6 +42,10 @@ from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
 
+#: Hard ceiling for the advertised BotFather menu. Progressive disclosure:
+#: 20 is the most a human scans in one screen; the rest live under /more.
+MAX_ADVERTISED = 20
+
 #: Per-command flood gate (2026-09-01). The free-text AI surface was already
 #: flood-limited (3/s, 30/min); command handlers were not, so a user could
 #: spam /scan 100x/second. This gate reuses the SAME FloodController (same
@@ -36,150 +60,54 @@ _COMMAND_FLOOD_ENABLED = os.getenv("RMI_COMMAND_FLOOD_ENABLED", "true").lower() 
 )
 
 
+#: The advertised surface: 20 commands, five intent groups. Anything not
+#: listed here is still registered and reachable — it is simply not shouting
+#: at a first-time user from the menu. Add to this list only by removing
+#: something else (the guard enforces the ceiling).
 _COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     (
-        "Our Channels",
+        "Start here",
         [
-            ("channels", "All RugMunch channels & what they serve"),
-            ("feed", "feed.rugmunch.io — the written digest"),
-            ("site", "rugmunch.io — full scanner platform"),
+            ("start", "Welcome & 5-command quickstart"),
+            ("scan", "Scan a token for scams & risks"),
+            ("desk", "Latest write-ups from the desk"),
+            ("plans", "Free vs Pro — stated honestly"),
+            ("help", "How the bot works"),
         ],
     ),
     (
-        "Core",
+        "Scan & safety",
         [
-            ("scan", "Scan a token for scams & risks"),
-            ("deepscan", "Deep token scan — full forensic audit"),
+            ("deepscan", "Deep scan — full forensic audit"),
             ("wallet", "Wallet forensics & analysis"),
+            ("holders", "Holder distribution analysis"),
+            ("trace", "Cross-chain fund trace"),
+        ],
+    ),
+    (
+        "Markets",
+        [
             ("price", "Token price by address"),
             ("chart", "Chart & technical analysis"),
-            ("trace", "Cross-chain fund trace"),
-            ("market", "Market overview & trends"),
-            ("news", "Latest crypto news"),
-            ("tweet", "Read an X post by URL, id, or @handle (via ApiPass)"),
-            ("tweets", "Recent X posts from an account"),
-            ("alerts", "Manage price alerts"),
-            ("chat", "Freestyle AI chat"),
-            ("help", "Full command guide"),
-            ("menu", "Full command atlas, grouped by category"),
-            ("start", "Welcome & quick start"),
-        ],
-    ),
-    (
-        "Security Forensics",
-        [
-            ("volume", "Wash-trading / fake-volume check on a token"),
-            ("exchangeaudit", "Rank exchanges by wash-trading risk"),
-            ("liqmap", "Cross-exchange liquidation pressure map (7 venues)"),
-            ("hlwhales", "Hyperliquid whale flow + squeeze watch"),
-            ("dislocation", "Cross-venue funding dislocation monitor"),
-            ("dune", "On-chain analytics from Dune"),
-            ("status", "Live data-source tier health"),
-        ],
-    ),
-    (
-        # 2026-08-25 capability-sync: these were registered but menu-invisible
-        # (B10 audit) — users could not discover them via the BotFather menu.
-        "Markets & Discovery",
-        [
             ("trending", "Hot tokens right now"),
-            ("alpha", "Premium alpha signals — early detection, smart money, curated feeds"),
-            ("movers", "Biggest 24h gainers & losers"),
-            ("launches", "New token launch feed"),
-            ("whales", "Recent whale moves feed"),
-            ("yield", "DeFi yield opportunities"),
-            ("defi", "DeFi protocol analytics"),
-            ("polymarket", "Prediction market odds"),
-            ("election", "Election odds markets"),
-            ("odds", "Sports & event odds"),
-            ("tokeninfo", "Token DNA fingerprint"),
-            ("cascadewatch", "Liquidation cascade risk for a token"),
-            ("portfolio", "Your portfolio: value, P&L, 24h change"),
-            ("lpcheck", "LP health & lock check"),
+            ("market", "Market overview & trends"),
         ],
     ),
     (
-        # 2026-08-25 capability audit: 67 registered commands were
-        # menu-invisible. These are the high-value user-facing ones (admin/
-        # owner-gated and auxiliary aliases stay unadvertised deliberately).
-        "Power Tools",
+        "Intel",
         [
-            ("rugcheck", "Quick rug-pull risk check"),
-            ("honeypot", "Honeypot simulation — can you sell?"),
-            ("deployer", "Deployer fingerprint & history"),
-            ("holders", "Holder distribution analysis"),
-            ("smartmoney", "Smart-money wallet tracking"),
-            ("sentinelscan", "SENTINEL deep forensic scan"),
-            ("investigate", "Full token investigation dossier"),
-            ("whale", "Single whale wallet deep-dive"),
-            ("mev", "MEV & sandwich exposure check"),
-            ("compare", "Compare two tokens side-by-side"),
-            ("simulate", "Simulate a buy/sell before you trade"),
+            ("news", "Latest crypto news"),
             ("research", "Deep research report on a token"),
-            ("sentiment", "Social sentiment breakdown"),
-            ("dex", "DEX pair & liquidity lookup"),
+            ("alerts", "Manage price alerts"),
+            ("portfolio", "Your portfolio: value, P&L, 24h"),
         ],
     ),
     (
-        "Pro Intel",
-        [
-            ("impersonation", "Impersonation & fake-account check"),
-            ("deathclock", "Token death-clock survival estimate"),
-            ("cluster", "Wallet cluster / link analysis"),
-            ("laundry", "Mixer & laundering exposure check"),
-            ("lphealth", "Liquidity-pool health & lock status"),
-            ("dumps", "Historical dump events for a token"),
-            ("flow", "Token flow visualization"),
-            ("ta", "Technical analysis snapshot"),
-            ("rugmap", "Token bubble map — holder network"),
-        ],
-    ),
-    (
-        "OSINT & Forensics",
-        [
-            ("osint", "OSINT lookup — address, domain, identity"),
-            ("osintall", "Full OSINT sweep across all sources"),
-            ("track", "Track a wallet or entity across chains"),
-            ("email", "Email breach & exposure check"),
-            ("phone", "Phone number intelligence"),
-            ("face", "Face-match search (PimEyes-style)"),
-        ],
-    ),
-    (
-        "Watch & Alerts",
-        [
-            ("watchlist", "Watchlist: list/add/remove/alert"),
-            ("whalewatch", "Whale-wallet deep-dive: holdings, trades, PnL"),
-            ("watch", "Watch a token for changes"),
-            ("unwatch", "Stop watching a token"),
-            ("monitor", "List your active monitors"),
-            ("monitors", "Monitor management"),
-            ("unmonitor", "Remove a monitor"),
-            ("alert", "Set an instant price/risk alert"),
-            ("events", "Recent on-chain events feed"),
-        ],
-    ),
-    (
-        "Account & More",
+        "Account",
         [
             ("account", "Your account, tier & usage"),
-            ("pricing", "Plans & pricing"),
-            ("topup", "Top up credits"),
-            ("buystars", "Buy Telegram Stars"),
-            ("refer", "Referral program — earn credits"),
-            ("scamschool", "Scam School — learn the tricks"),
             ("report", "Report a scam / rug"),
-            ("ask", "Ask the intel desk anything"),
-            ("quick", "Quick scan — one-liner verdict"),
-            ("hype", "Hype vs. substance check"),
-            ("faq", "Frequently asked questions"),
-            ("api", "API access & keys"),
-            ("webhook", "Webhook delivery setup"),
-            ("rpcstats", "RPC endpoint health stats"),
-            ("groupinfo", "Group protection status"),
-            ("mygroup", "Your protected group settings"),
-            ("banuser", "Ban a user from a protected group (admins)"),
-            ("voicechat", "Voice-chat scam radar"),
+            ("more", "All commands, grouped by category"),
         ],
     ),
 ]
@@ -189,7 +117,7 @@ _BOT_COMMANDS: list[BotCommand] = [
     BotCommand(cmd, desc) for _section, cmds in _COMMAND_SECTIONS for cmd, desc in cmds
 ]
 
-#: Advertised command names (menu = source of truth for user-facing surface).
+#: Advertised command names (menu = source of truth for the user surface).
 _MENU_COMMANDS: frozenset[str] = frozenset(bc.command for bc in _BOT_COMMANDS)
 
 
@@ -208,41 +136,56 @@ def collect_registered_commands(app: Application[Any, Any, Any, Any, Any, Any]) 
 
 
 def check_menu_coverage(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
-    """Startup drift check: registry vs menu (log loudly, never crash).
+    """Startup drift check: advertised menu vs registry (log loudly, never crash).
 
-    The menu (``_COMMAND_SECTIONS``) is the source of truth for what users
-    see. Anything registered but unadvertised is drift; anything advertised
-    but not registered is a broken menu entry. Also verifies every ``/cmd``
-    mentioned in the /help and /menu texts is actually registered.
+    Only the direction that hurts users is an error: an advertised command
+    with no handler (a dead menu tap) or a menu that exceeds
+    ``MAX_ADVERTISED``. Registered-but-unadvertised commands are the design
+    (they live under /more), so they are logged as info, not drift.
     """
     registered = collect_registered_commands(app)
-    unadvertised = sorted(registered - _MENU_COMMANDS)
-    if unadvertised:
-        logger.error(
-            "MENU_DRIFT: %d registered commands are not in the menu: %s",
-            len(unadvertised),
-            ", ".join(unadvertised),
-        )
     phantom = sorted(_MENU_COMMANDS - registered)
+    duplicates = sorted(_duplicates())
     if phantom:
         logger.error(
             "MENU_DRIFT: %d menu commands are NOT registered (broken menu): %s",
             len(phantom),
             ", ".join(phantom),
         )
-    if not unadvertised and not phantom:
+    if duplicates:
+        logger.error("MENU_DRIFT: duplicate menu entries: %s", ", ".join(duplicates))
+    if len(_MENU_COMMANDS) > MAX_ADVERTISED:
+        logger.error(
+            "MENU_DRIFT: %d advertised commands exceeds the %d ceiling",
+            len(_MENU_COMMANDS),
+            MAX_ADVERTISED,
+        )
+    if not phantom and not duplicates and len(_MENU_COMMANDS) <= MAX_ADVERTISED:
         logger.info(
-            "Menu coverage OK: %d registered, %d advertised",
+            "Menu coverage OK: %d registered, %d advertised, %d behind /more",
             len(registered),
             len(_MENU_COMMANDS),
+            len(registered - _MENU_COMMANDS),
         )
     _check_help_text_coverage(registered)
 
 
-def _check_help_text_coverage(registered: set[str]) -> None:
-    """Every ``/cmd`` mentioned in /help or /menu text must be registered."""
-    import re
+def _duplicates() -> set[str]:
+    """Menu entry names that appear more than once (a duplicated menu row)."""
+    seen: set[str] = set()
+    dupes: set[str] = set()
+    for bc in _BOT_COMMANDS:
+        (dupes if bc.command in seen else seen).add(bc.command)
+    return dupes
 
+
+def _check_help_text_coverage(registered: set[str]) -> None:
+    """Every ``/cmd`` mentioned in /help or /more text must be registered.
+
+    Both texts are GENERATED from the registry (``bot/_catalog.py`` +
+    ``_COMMAND_SECTIONS``), so this is a belt-and-suspenders check that a
+    hand-written line never sneaks back in.
+    """
     from rugmunchbot.handlers._help_text import HELP_TEXT, MENU_TEXT
 
     # Negative lookbehind skips URL paths (t.me/x, rugmunch.io/pricing) —
@@ -251,7 +194,7 @@ def _check_help_text_coverage(registered: set[str]) -> None:
     unknown = sorted(mentioned - registered)
     if unknown:
         logger.error(
-            "HELP_DRIFT: /help or /menu reference unregistered commands: %s",
+            "HELP_DRIFT: /help or /more reference unregistered commands: %s",
             ", ".join(unknown),
         )
 
@@ -296,6 +239,24 @@ def _reg(app: Application[Any, Any, Any, Any, Any, Any], name: str, handler) -> 
         await handler(update, ctx)
 
     app.add_handler(CommandHandler(name, tracked))
+
+
+def register_surface_commands(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
+    """Register the product-surface commands that are not in ``_entry``.
+
+    ``/desk`` (content), ``/plans`` (pricing truth) and ``/more`` (catalog)
+    are owned by the menu surface, so ``setup_bot_profile`` registers them
+    right before the drift guard runs. Idempotent: a command already
+    registered by an older wiring is left untouched (no duplicate handlers).
+    """
+    from rugmunchbot.handlers._desk import cmd_desk
+    from rugmunchbot.handlers._more import cmd_more
+    from rugmunchbot.handlers._plans import cmd_plans
+
+    existing = collect_registered_commands(app)
+    for name, handler in (("desk", cmd_desk), ("plans", cmd_plans), ("more", cmd_more)):
+        if name not in existing:
+            _reg(app, name, handler)
 
 
 # ── Channel-shill commands (menu "Our Channels") ────────────────────────

@@ -1,25 +1,21 @@
-"""Menu-drift guard — the menu is the source of truth for the user surface.
+"""Menu-drift guard — the advertised menu must be real, small, and honest.
 
-The drift this module prevents (2026-09-20 audit): 24 registered commands
-were missing from ``_COMMAND_SECTIONS`` because they were registered through
-paths that bypassed the menu (``register_admin_commands``, ``register_*``
-helpers) and nobody noticed — the BotFather menu silently under-advertised
-the bot.
+History. The 2026-09-20 audit found 24 registered commands missing from
+``_COMMAND_SECTIONS``; the guard then failed the boot on ANY registered-but-
+unadvertised command. That rule was right for its time (the menu was meant to
+be the whole surface) and wrong as a product: it blocked progressive
+disclosure and pushed the menu to 95 rows nobody reads.
 
-Two mechanisms, both at the source:
+2026-10-23 — the guard now enforces what actually hurts users:
 
-1. :func:`assert_menu_coverage` — a HARD startup check. Unlike the
-   log-only ``check_menu_coverage`` it raises ``MenuDriftError`` when the
-   registry and the menu disagree, so a drift can never ship silently.
-   ``_profile.setup_bot_profile`` calls it before the menu is pushed.
+1. **phantom** — an advertised command with no handler (a dead menu tap).
+2. **ceiling** — more than ``MAX_ADVERTISED`` (20) rows in the BotFather menu.
+3. **duplicates** — the same command advertised twice.
 
-2. :data:`ADMIN_MENU_COMMANDS` — the owner/admin commands that are
-   deliberately hidden from the public BotFather menu but MUST still be
-   registered. They are declared here (one place) so the guard can tell
-   "intentionally hidden" apart from "forgotten".
-
-The guard is pure (no Telegram API, no network) so it is unit-testable
-without an ``Application``.
+Registered-but-unadvertised is the DESIGN now: those commands live under
+``/more`` (``bot/_catalog.py``) and still work. They are counted, not failed.
+``ADMIN_MENU_COMMANDS`` is kept as the declared owner/admin set so the
+catalog never has to advertise server-management commands.
 """
 
 from __future__ import annotations
@@ -34,9 +30,8 @@ if TYPE_CHECKING:
 logger = get_logger("rmi_bot")
 
 #: Owner/admin commands registered by ``handlers.admin.register_admin_commands``
-#: and the owner panel. Deliberately NOT advertised in the public BotFather
-#: menu (they are server-management / owner-only), but they ARE registered —
-#: the guard treats them as known-hidden, not drift.
+#: and the owner panel. Deliberately NOT advertised anywhere public — they are
+#: server-management / owner-only. The guard keeps them out of the catalog.
 ADMIN_MENU_COMMANDS: frozenset[str] = frozenset(
     {
         "appeal",
@@ -72,42 +67,51 @@ ADMIN_MENU_COMMANDS: frozenset[str] = frozenset(
 
 
 class MenuDriftError(RuntimeError):
-    """Raised when the registered command set and the menu disagree."""
+    """Raised when the advertised menu and the registry disagree."""
 
 
 def assert_menu_coverage(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
-    """Hard startup check: registry vs menu must agree.
+    """Hard startup check: advertised menu is real, ≤ 20, unique.
 
-    Raises :class:`MenuDriftError` listing every unadvertised command (a
-    registered command missing from the menu) and every phantom command (a
-    menu entry with no handler). ``ADMIN_MENU_COMMANDS`` are exempt from the
-    unadvertised check — they are intentionally hidden.
+    Raises :class:`MenuDriftError` listing every phantom command (advertised
+    with no handler), every duplicate row, and the overflow count when the
+    menu exceeds ``MAX_ADVERTISED``. Hidden-but-registered commands are
+    intentional and never raise — they are reachable via ``/more``.
 
     Called from ``setup_bot_profile`` BEFORE ``set_my_commands`` so a drift
     fails the boot loudly instead of shipping a stale menu.
     """
     from rugmunchbot.bot._commands import (
+        _BOT_COMMANDS,
         _MENU_COMMANDS,
+        MAX_ADVERTISED,
         collect_registered_commands,
     )
 
     registered = collect_registered_commands(app)
-    unadvertised = sorted(registered - _MENU_COMMANDS - ADMIN_MENU_COMMANDS)
     phantom = sorted(_MENU_COMMANDS - registered)
-    if unadvertised or phantom:
-        parts: list[str] = []
-        if unadvertised:
-            parts.append(
-                f"{len(unadvertised)} registered but unadvertised: {', '.join(unadvertised)}"
-            )
-        if phantom:
-            parts.append(f"{len(phantom)} advertised but unregistered: {', '.join(phantom)}")
+    names = [bc.command for bc in _BOT_COMMANDS]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    overflow = len(_MENU_COMMANDS) - MAX_ADVERTISED
+
+    parts: list[str] = []
+    if phantom:
+        parts.append(f"{len(phantom)} advertised but unregistered: {', '.join(phantom)}")
+    if duplicates:
+        parts.append(f"duplicate menu rows: {', '.join(duplicates)}")
+    if overflow > 0:
+        parts.append(f"menu has {len(_MENU_COMMANDS)} rows (ceiling {MAX_ADVERTISED})")
+    if parts:
         raise MenuDriftError("MENU_DRIFT — " + "; ".join(parts))
+
+    hidden = registered - _MENU_COMMANDS
     logger.info(
-        "Menu coverage OK: %d registered, %d advertised, %d admin-hidden",
+        "Menu coverage OK: %d registered, %d advertised, %d behind /more "
+        "(%d owner/admin hidden)",
         len(registered),
         len(_MENU_COMMANDS),
-        len(ADMIN_MENU_COMMANDS),
+        len(hidden - ADMIN_MENU_COMMANDS),
+        len(hidden & ADMIN_MENU_COMMANDS),
     )
 
 

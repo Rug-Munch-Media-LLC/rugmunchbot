@@ -48,6 +48,7 @@ def build_entry(
     matched: str,
     dry_run: bool,
     applied: bool,
+    actor: str = "auto",
     error: str | None = None,
     text: str = "",
     extra: dict[str, Any] | None = None,
@@ -64,6 +65,7 @@ def build_entry(
         "rule": rule,
         "action": action,
         "reason": reason,
+        "actor": actor[:80],
         "matched": matched[:200],
         "text_preview": (text or "").replace("\n", " ")[:MAX_PREVIEW],
         "dry_run": dry_run,
@@ -71,6 +73,12 @@ def build_entry(
         "error": error,
         **(extra or {}),
     }
+
+
+def use_audit_path(path: str | Path) -> None:
+    """Point the JSONL writer at another file (harness, tests)."""
+    global AUDIT_PATH
+    AUDIT_PATH = Path(path)
 
 
 def record(entry: dict[str, Any]) -> None:
@@ -106,4 +114,11 @@ def tail(chat_id: int | None = None, limit: int = 10) -> list[dict[str, Any]]:
     return list(reversed(rows))[:limit]
 
 
-__all__ = ["AUDIT_PATH", "build_entry", "new_action_id", "record", "tail"]
+__all__ = [
+    "AUDIT_PATH",
+    "build_entry",
+    "new_action_id",
+    "record",
+    "tail",
+    "use_audit_path",
+]

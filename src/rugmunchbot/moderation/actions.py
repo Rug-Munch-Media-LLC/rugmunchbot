@@ -2,8 +2,8 @@
 
 ``policy.dry_run`` short-circuits EVERY API call: the decision is written to
 the audit log with ``applied: false`` and the bot performs no delete, mute,
-ban or reply. That is the default for every chat until an operator flips the
-one flag (see ``configs/moderation.example.json``).
+ban, kick or reply. That is the default for every chat until an operator flips
+the one flag (see ``configs/moderation.example.json``).
 
 Telegram errors are swallowed per-operation (recorded in the audit row) so a
 missing admin right or a deleted message never raises into the dispatcher.
@@ -15,7 +15,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from rugmunchbot.moderation import audit
+from rugmunchbot.moderation import audit, propagate
 from rugmunchbot.moderation.models import (  # noqa: TC001 — Action is built at runtime
     Action,
     MsgContext,
@@ -45,7 +45,9 @@ async def _try(label: str, coro_factory, errors: list[str]) -> None:
         logger.info("moderation op failed", extra={"op": label, "error": str(exc)[:200]})
 
 
-async def execute(bot: Any, ctx: MsgContext, policy: Any, decision: Action) -> dict[str, Any]:
+async def execute(
+    bot: Any, ctx: MsgContext, policy: Any, decision: Action, *, actor: str = "auto"
+) -> dict[str, Any]:
     """Apply *decision* (or simulate it) and return the audit record."""
     action_id = audit.new_action_id()
     errors: list[str] = []
@@ -58,8 +60,9 @@ async def execute(bot: Any, ctx: MsgContext, policy: Any, decision: Action) -> d
                 lambda: bot.delete_message(chat_id=ctx.chat_id, message_id=ctx.message_id),
                 errors,
             )
-        if decision.action == "mute" and decision.mute_minutes:
-            until = datetime.now(UTC) + timedelta(minutes=decision.mute_minutes)
+        if decision.action == "mute":
+            minutes = decision.mute_minutes or policy.mute_minutes
+            until = datetime.now(UTC) + timedelta(minutes=minutes)
             from telegram import ChatPermissions
 
             await _try(
@@ -74,11 +77,19 @@ async def execute(bot: Any, ctx: MsgContext, policy: Any, decision: Action) -> d
                 errors,
             )
         if decision.action == "ban":
+            until = (
+                datetime.now(UTC) + timedelta(minutes=policy.ban_minutes)
+                if policy.ban_minutes
+                else None
+            )
             await _try(
                 "ban",
-                lambda: bot.ban_chat_member(chat_id=ctx.chat_id, user_id=ctx.user_id),
+                lambda: bot.ban_chat_member(
+                    chat_id=ctx.chat_id, user_id=ctx.user_id, until_date=until
+                ),
                 errors,
             )
+            await propagate.ban_everywhere(bot, ctx, policy, decision.reason, errors)
         if decision.reply and not _throttled(f"reply:{ctx.chat_id}:{decision.rule}"):
             await _try(
                 "reply",
@@ -105,8 +116,10 @@ async def execute(bot: Any, ctx: MsgContext, policy: Any, decision: Action) -> d
         matched=decision.matched,
         dry_run=policy.dry_run,
         applied=applied,
+        actor=actor,
         error="; ".join(errors) or None,
         text=ctx.text,
+        extra={"evidence": decision.meta} if decision.meta else None,
     )
     audit.record(entry)
     return entry

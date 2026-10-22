@@ -1,5 +1,5 @@
 {
-  "version": 1,
-  "_readme": "Channel guard. Empty chats map = NOTHING is guarded. Add one block per chat (see moderation.example.json). dry_run defaults to true; live moderation requires that chat's own block to say \"dry_run\": false. The bot must be an admin with delete_messages + restrict_members in that chat.",
-  "chats": {}
+	"version": 2,
+	"_readme": "Channel guard. Empty chats map = NOTHING is guarded. Add one block per chat (copy from moderation.example.json). dry_run defaults to true; single-chat enable: jq '.chats[\"-1001234567890\"].dry_run=false' configs/moderation.json > /tmp/m.json && mv /tmp/m.json configs/moderation.json -- no restart, the config hot-reloads on mtime. The bot must be an admin with delete_messages + restrict_members (+ ban when captcha_kick/propagation is on).",
+	"chats": {}
 }

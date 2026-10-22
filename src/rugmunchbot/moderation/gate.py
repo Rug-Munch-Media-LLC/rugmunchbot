@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from rugmunchbot.moderation import addresses, captcha
+from rugmunchbot.moderation import addresses, captcha, captcha_verify, ocr
 from rugmunchbot.moderation.actions import execute
 from rugmunchbot.moderation.config import load_chat_policy
 from rugmunchbot.moderation.decide import decide as decide_message
@@ -31,6 +31,17 @@ def _is_media(message: Any) -> str | None:
         if getattr(message, kind, None):
             return kind
     return None
+
+
+def _media_id(message: Any) -> str:
+    """Stable Telegram id for the media, without downloading it."""
+    for kind in _MEDIA:
+        payload = getattr(message, kind, None)
+        if not payload:
+            continue
+        item = payload[-1] if isinstance(payload, (list, tuple)) else payload
+        return str(getattr(item, "file_unique_id", "") or "")
+    return ""
 
 
 def _urls(message: Any, text: str) -> tuple[str, ...]:
@@ -91,6 +102,7 @@ async def build_context(update: Any, bot: Any) -> MsgContext | None:
         text=text,
         urls=_urls(message, text),
         media=_is_media(message),
+        media_id=_media_id(message),
         is_admin=await _is_admin(bot, chat.id, user.id),
         message_id=message.message_id,
     )
@@ -110,6 +122,8 @@ async def handle_message(update: Any, context: Any) -> bool:
     ctx = await build_context(update, context.bot)
     if ctx is None:
         return False
+    if policy.ocr_scan and ctx.media_id and ocr.available():
+        ctx.text = f"{ctx.text} {await ocr.text_of(ctx.media_id)}".strip()
 
     verdicts = {}
     if ctx.text and _scan_allowed(chat.id):
@@ -139,7 +153,7 @@ async def moderation_gate(update: Any, context: Any) -> None:
     if update.message is not None and update.message.new_chat_members:
         consumed = await captcha.handle_new_members(update, context)
     elif update.callback_query is not None:
-        consumed = await captcha.handle_captcha_callback(update, context)
+        consumed = await captcha_verify.handle_captcha_callback(update, context)
     elif update.edited_message is not None:
         consumed = False  # edits are audited only when a rule re-fires; keep cheap
     else:

@@ -13,11 +13,20 @@ def evaluate_address(
     verdicts: dict[str, AddressVerdict], policy, snippet: str = ""
 ) -> Action | None:
     """Escalate the worst address verdict into a warning (or delete) action."""
-    bad = [v for v in verdicts.values() if v.hazardous]
+    bad = [
+        v
+        for v in verdicts.values()
+        if v.verdict == "avoid"
+        or (
+            v.verdict == "caution"
+            and (v.safety_score is None or v.safety_score < policy.address_score)
+        )
+    ]
     if not bad:
         return None
     worst = min(bad, key=lambda v: (v.verdict != "avoid", v.safety_score or 99))
-    delete = bool(policy.address_delete or worst.verdict == "avoid")
+    action = policy.address_avoid_action if worst.verdict == "avoid" else policy.address_action
+    delete = bool(policy.address_delete or action == "delete")
     card = messages.address_warning(
         worst.address,
         worst.chain,
@@ -27,7 +36,7 @@ def evaluate_address(
     )
     return Action(
         rule="address_risk",
-        action="delete" if delete else "warn",
+        action=action,
         reason=f"{worst.verdict} address ({worst.reason})",
         matched=worst.address or snippet,
         reply=card,

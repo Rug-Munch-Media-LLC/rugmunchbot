@@ -45,12 +45,15 @@ def test_defaults_are_dry_run_and_never_ban():
     }
 
 
-def test_unconfigured_chat_is_unguarded(tmp_path, monkeypatch):
+def test_unconfigured_chat_is_unguarded(tmp_path):
+    original = config.CONFIG_PATH
     cfg = tmp_path / "m.json"
     cfg.write_text('{"chats": {}}')
-    monkeypatch.setattr(config, "CONFIG_PATH", cfg)
-    config._cache.clear()
-    assert config.load_chat_policy(-1001) is None
+    config.use_config_path(cfg)
+    try:
+        assert config.load_chat_policy(-1001) is None
+    finally:
+        config.use_config_path(original)
 
 
 def test_scam_link_wins_over_promo_and_allowlist():

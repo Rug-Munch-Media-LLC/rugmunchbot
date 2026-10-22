@@ -136,12 +136,11 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """/menu (v13) — capability atlas grouped by intent.
+    """/menu — legacy alias of /more (one surface, one source of truth).
 
-    Full grouped list of every registered command (Scan & Safety / Prices &
-    Charts / Portfolio & Wallets / News & Intel / Education / Account &
-    Community), each with a one-line description + example usage, plus a
-    quick-action inline keyboard built from existing wired callbacks.
+    /menu predates the catalogue split; keeping it as an alias means an old
+    muscle-memory tap still lands on the generated index instead of a second,
+    hand-maintained atlas that could drift.
     """
     user = update.effective_user
     if user is None:

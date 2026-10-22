@@ -22,6 +22,9 @@ _by_chat: dict[int, deque[float]] = {}
 _hashes: dict[tuple[int, int, str], deque[float]] = {}
 _first_seen: dict[tuple[int, int], float] = {}
 _media: dict[tuple[int, int], deque[float]] = {}
+_verified: dict[tuple[int, int], float] = {}
+
+VERIFIED_TTL_S = 86_400
 
 
 @dataclass(slots=True)
@@ -95,17 +98,39 @@ def mark_member(chat_id: int, user_id: int, now: float | None = None) -> None:
     _first_seen[(chat_id, user_id)] = time.time() if now is None else now
 
 
+def mark_verified(chat_id: int, user_id: int, now: float | None = None) -> None:
+    """Remember that a member passed the entrance gate."""
+    _verified[(chat_id, user_id)] = time.time() if now is None else now
+
+
+def is_verified(chat_id: int, user_id: int, now: float | None = None) -> bool:
+    """True when the member passed the gate within ``VERIFIED_TTL_S``."""
+    ts = _verified.get((chat_id, user_id))
+    if ts is None:
+        return False
+    return (time.time() if now is None else now) - ts < VERIFIED_TTL_S
+
+
 def forget_member(chat_id: int, user_id: int) -> None:
     _first_seen.pop((chat_id, user_id), None)
+    _verified.pop((chat_id, user_id), None)
     _by_user.pop((chat_id, user_id), None)
     _media.pop((chat_id, user_id), None)
 
 
 def reset() -> None:
     """Wipe all state (tests and /modpardon flows)."""
-    for store in (_by_user, _hashes, _first_seen, _media):
+    for store in (_by_user, _hashes, _first_seen, _media, _verified):
         store.clear()
     _by_chat.clear()
 
 
-__all__ = ["MessageStats", "forget_member", "mark_member", "note_message", "reset"]
+__all__ = [
+    "MessageStats",
+    "forget_member",
+    "is_verified",
+    "mark_member",
+    "mark_verified",
+    "note_message",
+    "reset",
+]

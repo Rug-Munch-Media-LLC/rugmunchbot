@@ -119,6 +119,7 @@ async def cmd_modpardon(update: Any, context: Any) -> None:
             matched="",
             dry_run=policy.dry_run,
             applied=ok,
+            actor=f"admin:{update.effective_user.id}",
             error=None if ok else "telegram refused or dry-run",
         )
     )
@@ -157,6 +158,7 @@ async def cmd_appeal(update: Any, context: Any) -> None:
             matched=str(action_id),
             dry_run=False,
             applied=True,
+            actor=f"user:{user.id}",
         )
     )
     await update.effective_message.reply_text(

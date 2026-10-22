@@ -45,6 +45,13 @@ def _raw_config() -> dict[str, Any]:
     return data
 
 
+def use_config_path(path: str | Path) -> None:
+    """Point the loader at another file (harness, tests). Clears the cache."""
+    global CONFIG_PATH
+    CONFIG_PATH = Path(path)
+    _cache.clear()
+
+
 def load_chat_policy(chat_id: int) -> ChatPolicy | None:
     """Return the effective policy for *chat_id*, or None when unguarded.
 
@@ -70,4 +77,5 @@ __all__ = [
     "ChatPolicy",
     "guarded_chat_ids",
     "load_chat_policy",
+    "use_config_path",
 ]
