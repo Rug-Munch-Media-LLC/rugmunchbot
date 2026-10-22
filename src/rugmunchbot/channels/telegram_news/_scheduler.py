@@ -227,11 +227,14 @@ async def _post_backend_trending_fallback(
 async def _post_formatted(
     bot: Any, chat_id: str, post: NewsPost, safe_send: Any, *, content_type: str | None = None
 ) -> bool:
-    # CONTENT-TYPE GATE (2026-09-03): enforce the channel contract before
-    # either the photo or text path — a post whose content type the target
-    # channel is not chartered for is blocked (logged at DEBUG) and returns
-    # False without sending. Covers the photo path, which bypasses
-    # ``_safe_send``.
+    # LIVE GATE (2026-10-23): per-channel dry-run, before the photo path.
+    from rugmunchbot._vendor.channel_gate import is_live
+    from rugmunchbot.channels.scheduler import _channel_role
+
+    role = _channel_role.role_for_chat_id(chat_id)
+    if role is not None and not is_live(role):
+        logger.warning("channels:suppressed role=%s reason=dry", role)
+        return False
     from rugmunchbot.channels.scheduler._core import _enforce_content_contract
 
     if not _enforce_content_contract(chat_id, content_type):
@@ -253,11 +256,7 @@ async def _post_formatted(
     post = NewsPost(gate.text)
     post.image_url = gate.image_url
     image_url = getattr(post, "image_url", "") or ""
-    # 2026-09-02 FINAL image-leak guard: the last line of defense before a
-    # photo hits a channel. Even if an upstream layer (og:image extractor,
-    # quality gate) let a banned image through (social profile avatar /
-    # header, brand chrome), it is dropped here and the post ships
-    # text-only instead.
+    # FINAL image-leak guard (support.image_policy) — text-only on reject.
     from rugmunchbot.support.image_policy import is_valid_image
 
     if image_url and not is_valid_image(image_url):
@@ -466,7 +465,6 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         # day's canonical coverage. A story the anchor already carried must
         # NOT re-post as breaking news on main — the anchor wins the story.
         # Fail-open: a Redis outage leaves the list unchanged.
-        from rugmunchbot.channels.report_anchor import exclude_report_stories
 
         main_scored = _filter_anchor_dupes(main_scored)
         selected_main = select_important(main_scored, top_n=TG_NEWS_POST_LIMIT)
