@@ -99,8 +99,9 @@ def test_v1_payload_without_parity_keys_renders_nothing():
 def test_long_report_drops_parity_block_before_overflow():
     from rugmunchbot.formatters._scan_report_parity import HEADING, TELEGRAM_LIMIT, fit_report
 
-    body = "\n".join(["x" * 200] * 21)
-    text = body + "\n\n" + HEADING + "\n  • Snipers: 1\n\nTAIL"
+    body = "\n".join(["x" * 195] * 20)
+    parity = HEADING + "\n" + "\n".join("  • " + "y" * 80 for _ in range(8))
+    text = body + "\n\n" + parity + "\n\nTAIL"
     assert len(text) > TELEGRAM_LIMIT
     out = fit_report(text)
     assert HEADING not in out
