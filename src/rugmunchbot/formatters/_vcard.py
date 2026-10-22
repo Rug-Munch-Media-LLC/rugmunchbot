@@ -55,17 +55,19 @@ def _short(address: str) -> str:
 
 def _head(r: dict[str, Any], word: str) -> str:
     """Line 1: verdict word, score, symbol — the only thing that must be read."""
+    raw = r.get("risk_score")
     try:
-        score = float(r.get("risk_score", 0) or 0)
+        score = None if raw in (None, "") else float(raw)
     except (TypeError, ValueError):
-        score = 0.0
+        score = None
     symbol = str(r.get("symbol") or "")
     if symbol in ("", "???", "Unknown"):
         symbol = _short(str(r.get("address", "")))
     ticker = html.escape(symbol if symbol.startswith("$") else f"${symbol}")
-    return (
-        f"{WORD_EMOJI.get(word, chr(0x2753))} <b>{word} \u00b7 {score:.0f}/100 \u00b7 {ticker}</b>"
-    )
+    # An unpublished score is rendered as an em dash, never as 0: a withheld
+    # score means "not established", and "0/100" reads as "verified clean".
+    shown = "\u2014" if score is None else f"{score:.0f}"
+    return f"{WORD_EMOJI.get(word, chr(0x2753))} <b>{word} \u00b7 {shown}/100 \u00b7 {ticker}</b>"
 
 
 def _optional(r: dict[str, Any], ts: str) -> list[list[str]]:

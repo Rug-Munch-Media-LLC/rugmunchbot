@@ -31,6 +31,32 @@ CHECKS: dict[str, tuple[str, str]] = {
 #: ``key=value`` pairs inside a check's human-readable detail string.
 PAIR_RE = re.compile(r"([A-Za-z_ ]+?)=([^\s,;]+)")
 
+#: Facts the scanner publishes under ``forensics`` and the card reads flat.
+FORENSIC_KEYS = (
+    "first_buyers",
+    "fresh_wallets",
+    "cex_funded_fresh",
+    "funding_mix",
+    "holder_quality",
+    "scam_signals",
+)
+
+
+def _lift_forensics(out: dict[str, Any]) -> None:
+    """Copy ``forensics.*`` onto the flat keys, in place, never overwriting.
+
+    The scanner attaches first-buyer / CEX-funded facts under
+    ``body["forensics"]``; the card read only top-level keys, so those lines
+    silently never rendered. An existing flat value always wins.
+    """
+    block = out.get("forensics")
+    if not isinstance(block, dict):
+        return
+    for key in FORENSIC_KEYS:
+        if out.get(key) is None and key in block:
+            out[key] = block[key]
+
+
 TRUTHY = frozenset({"yes", "true", "1", "y"})
 FALSEY = frozenset({"no", "false", "0", "n"})
 
@@ -80,6 +106,7 @@ def normalize(r: dict[str, Any]) -> dict[str, Any]:
     fabricated zero is the exact bug the card must not repeat.
     """
     out = dict(copy.deepcopy(r))
+    _lift_forensics(out)
     evidence = out.get("evidence")
     if not isinstance(evidence, dict):
         return out

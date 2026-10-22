@@ -38,13 +38,27 @@ WORD_EMOJI = {
 __all__ = ["UNSUPPORTED", "WORD_EMOJI", "verdict"]
 
 
-def _score_rank(r: dict[str, Any]) -> int:
-    """Risk score -> rank (HIGH 2 / MEDIUM 1 / LOW 0)."""
+#: The scanner publishes this vocabulary (``scoring.verdict.BANDS``); the card
+#: must read it rather than re-derive a budget from the raw number, otherwise a
+#: capped heuristic and a hard fail both arrive as "whatever 75 means here".
+DERIVED_RANK = {"safe": 0, "caution": 1, "elevated": 2, "critical": 3}
+
+
+def _score_rank(r: dict[str, Any]) -> int | None:
+    """Risk score -> rank (HIGH 2 / MEDIUM 1 / LOW 0); ``None`` when unpublished."""
+    raw = r.get("risk_score")
+    if raw in (None, ""):
+        return None
     try:
-        score = float(r.get("risk_score", 0) or 0)
+        score = float(raw)
     except (TypeError, ValueError):
-        score = 0.0
+        return None
     return {"HIGH": 2, "MEDIUM": 1, "LOW": 0}.get(_risk_level_word(score), 1)
+
+
+def _derived_rank(r: dict[str, Any]) -> int | None:
+    """The scanner's own band, when it published one."""
+    return DERIVED_RANK.get(str(r.get("verdict") or "").lower())
 
 
 def _dev_rank(r: dict[str, Any]) -> int | None:
@@ -90,8 +104,12 @@ def verdict(r: dict[str, Any], signals: Any, ts: str) -> tuple[str, str]:
     if fails:
         return RANK_WORD[3], "Why AVOID: " + ", ".join(fails)
 
+    if str(r.get("verdict") or "").lower() == "inconclusive":
+        reason = str(r.get("inconclusive_reason") or "coverage was incomplete")
+        return UNSUPPORTED, f"Why unknown: {reason}."
+
     bundle = r.get("bundle_analysis") if isinstance(r.get("bundle_analysis"), dict) else {}
-    ranks = [rank for rank in (_score_rank(r), _dev_rank(r)) if rank is not None]
+    ranks = [rank for rank in (_derived_rank(r), _score_rank(r), _dev_rank(r)) if rank is not None]
     if bundle.get("is_bundled") is True:
         ranks.append(2)
     rank = max(ranks) if ranks else 1
