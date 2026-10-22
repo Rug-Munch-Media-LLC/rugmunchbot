@@ -94,3 +94,16 @@ def test_v1_payload_without_parity_keys_renders_nothing():
     v1 = {"address": "So111", "score": 42, "risk_signals": ["mint authority"]}
     assert format_parity_section(v1) == []
     assert format_parity_section({"cohorts": {}, "kol": {}, "impact": {}}) == []
+
+
+def test_long_report_drops_parity_block_before_overflow():
+    from rugmunchbot.formatters._scan_report_parity import HEADING, TELEGRAM_LIMIT, fit_report
+
+    body = "\n".join(["x" * 200] * 21)
+    text = body + "\n\n" + HEADING + "\n  • Snipers: 1\n\nTAIL"
+    assert len(text) > TELEGRAM_LIMIT
+    out = fit_report(text)
+    assert HEADING not in out
+    assert "Snipers" not in out
+    assert "TAIL" in out
+    assert len(out) <= TELEGRAM_LIMIT

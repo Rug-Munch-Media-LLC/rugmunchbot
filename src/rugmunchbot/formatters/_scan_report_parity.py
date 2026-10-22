@@ -140,3 +140,31 @@ def format_parity_section(r: dict[str, Any]) -> list[str]:
     if not body:
         return []
     return ["", HEADING, thin_sep(), *body]
+
+
+TELEGRAM_LIMIT = 4096
+
+
+def fit_report(text: str, limit: int = TELEGRAM_LIMIT) -> str:
+    """Keep a rendered report inside Telegram's limit without breaking HTML.
+
+    The parity block is the only optional section added late, so drop it first.
+    If the report is still over, return the original: truncating an HTML string
+    mid-tag would make Telegram reject the whole message.
+    """
+    if len(text) <= limit:
+        return text
+    out: list[str] = []
+    skipping = False
+    for line in text.split("\n"):
+        if line.strip() == HEADING:
+            skipping = True
+            continue
+        if skipping and not line.strip():
+            skipping = False
+            continue
+        if skipping:
+            continue
+        out.append(line)
+    trimmed = "\n".join(out)
+    return trimmed if len(trimmed) <= limit else text

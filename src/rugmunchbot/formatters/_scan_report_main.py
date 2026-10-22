@@ -39,7 +39,7 @@ from rugmunchbot.formatters._scan_report_common._fields import (
     _lp_lock_pct,
     _mint_auth,
 )
-from rugmunchbot.formatters._scan_report_parity import format_parity_section
+from rugmunchbot.formatters._scan_report_parity import fit_report, format_parity_section
 from rugmunchbot.formatters._scan_report_risk import _format_risk_signals_section, _verdict_text
 from rugmunchbot.formatters._scan_report_riskreport import format_risk_report_block
 from rugmunchbot.formatters._scan_report_sentinel import _format_sentinel_pro
@@ -505,4 +505,4 @@ def _format_scan_report(
     # Shill block drives adoption: bot handle, rugmunch.io + every RugMunch
     # Telegram channel (see _base._links.scan_shill_footer).
     lines.append(scan_shill_footer())
-    return _collapse_blank_lines("\n".join(lines))
+    return fit_report(_collapse_blank_lines("\n".join(lines)))
