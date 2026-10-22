@@ -156,6 +156,7 @@ from rugmunchbot.handlers.watchlist import (
     cmd_watchlist,
 )
 from rugmunchbot.handlers.webhook import cmd_webhook
+from rugmunchbot.moderation import register_moderation
 from rugmunchbot.observability import (
     set_scheduler_running,
     start_server,
@@ -305,6 +306,11 @@ def _register_all_handlers(app: Application[Any, Any, Any, Any, Any, Any]) -> No
     _reg(app, "groupinfo", cmd_groupinfo)
     _reg(app, "voicechat", cmd_voicechat)
     _reg(app, "banuser", cmd_banuser)
+
+    # Channel guard / moderation — handler group -1, so a deleted spam
+    # message never reaches the AI chat pipeline. Inert for every chat
+    # missing from configs/moderation.json; dry-run by default.
+    register_moderation(app)
 
     # Inline, callbacks, messages
     app.add_handler(InlineQueryHandler(handle_inline))
