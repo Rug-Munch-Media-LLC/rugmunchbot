@@ -22,9 +22,11 @@ from __future__ import annotations
 from typing import Any
 
 from rugmunchbot.formatters._base import thin_sep
+from rugmunchbot.formatters._vcard_funding import funding_detail_lines
 
 DASH = "\u2014"
 HEADING = "\U0001f4ca <b>Launch Cohorts</b>"
+FUND_HEADING = "\U0001f3e6\u27a1\ufe0f\U0001f464 <b>CEX-Funded Fresh Wallets</b>"
 COHORTS = ("team", "insiders", "snipers")
 LABELS = {"team": "Team", "insiders": "Insiders", "snipers": "Snipers"}
 
@@ -85,7 +87,9 @@ def _kol_line(kol: Any) -> str | None:
     matched = kol.get("kol") if isinstance(kol, dict) else None
     if not matched:
         return None
-    handles = [str(w.get("handle") or w.get("wallet", "")[:6]) for w in matched if isinstance(w, dict)]
+    handles = [
+        str(w.get("handle") or w.get("wallet", "")[:6]) for w in matched if isinstance(w, dict)
+    ]
     shown = ", ".join(h for h in handles[:3] if h)
     more = f" +{len(handles) - 3}" if len(handles) > 3 else ""
     sold = sum(float(w.get("sold_sol") or 0.0) for w in matched if isinstance(w, dict))
@@ -137,9 +141,11 @@ def format_parity_section(r: dict[str, Any]) -> list[str]:
     impact_line = _impact_line(r.get("impact"))
     if impact_line:
         body.append(impact_line)
+    funding = funding_detail_lines(r)
+    head_block = ["", FUND_HEADING, *funding] if funding else []
     if not body:
-        return []
-    return ["", HEADING, thin_sep(), *body]
+        return head_block
+    return [*head_block, "", HEADING, thin_sep(), *body]
 
 
 TELEGRAM_LIMIT = 4096

@@ -48,7 +48,9 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         ref_code = ctx.args[0][4:]
         if ref_code != u.get("referral_code") and not u.get("referred_by"):
             conn = db.get_db()
-            referrer = conn.execute("SELECT user_id FROM users WHERE referral_code = ?", (ref_code,)).fetchone()
+            referrer = conn.execute(
+                "SELECT user_id FROM users WHERE referral_code = ?", (ref_code,)
+            ).fetchone()
             if referrer:
                 conn.execute(
                     "UPDATE users SET referred_by = ?, bonus_scans = bonus_scans + 5 WHERE user_id = ?",
@@ -95,7 +97,9 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # Daily hook: one-tap "what's hot right now" + market pulse for
         # returning users — instant value, zero new callback handlers.
         kb = merge_menu_kb(kb, daily_hook_kb())
-        await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)  # type: ignore[union-attr]  # PTB None-able fields
+        await update.message.reply_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True
+        )  # type: ignore[union-attr]  # PTB None-able fields
 
     # v7: attach the persistent admin reply keyboard for the owner in DMs so
     # admin commands stay one tap away on every message.

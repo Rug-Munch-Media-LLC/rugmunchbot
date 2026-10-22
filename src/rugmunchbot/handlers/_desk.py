@@ -124,7 +124,7 @@ def render_desk(posts: list[dict[str, Any]], limit: int = DESK_LIMIT) -> str:
         # otherwise print the same sentence twice).
         headline = _plain(_headline(post))
         if body.startswith(headline):
-            body = body[len(headline):].lstrip(" \u2014-\u00b7:")
+            body = body[len(headline) :].lstrip(" \u2014-\u00b7:")
         if body:
             excerpt = body[:180] + ("\u2026" if len(body) > 180 else "")
             lines.append(html.escape(excerpt))

@@ -106,8 +106,7 @@ def assert_menu_coverage(app: Application[Any, Any, Any, Any, Any, Any]) -> None
 
     hidden = registered - _MENU_COMMANDS
     logger.info(
-        "Menu coverage OK: %d registered, %d advertised, %d behind /more "
-        "(%d owner/admin hidden)",
+        "Menu coverage OK: %d registered, %d advertised, %d behind /more (%d owner/admin hidden)",
         len(registered),
         len(_MENU_COMMANDS),
         len(hidden - ADMIN_MENU_COMMANDS),
