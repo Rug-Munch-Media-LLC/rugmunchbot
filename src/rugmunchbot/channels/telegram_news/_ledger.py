@@ -34,6 +34,10 @@ RMI_LOGO_URL: Final[str] = PLACEHOLDER_IMAGE_URL
 
 #: Redis key holding the last N content hashes for an edition.
 _LEDGER_KEY_FMT = "ledger:{namespace}:hashes"
+#: Prefix for the per-destination published-id set (``_redis_key``).
+#: Was referenced but never defined -> NameError on every publish
+#: attempt since 2026-10-12 (root cause of the stalled @rmicryptonews).
+_LEDGER_PREFIX: Final[str] = "ledger:dest:"
 #: Block a re-run only if byte-identical content was published within
 #: the last N editions (10 ≈ days of daily briefings).
 DEFAULT_HISTORY: Final[int] = 10

@@ -73,7 +73,15 @@ def _tail_shill_alerts() -> list[dict[str, Any]]:
     try:
         with open(SHILL_ALERTS_FILE, encoding="utf-8") as f:
             f.seek(cursor)
-            for line in f:
+            # ``for line in f`` + ``f.tell()`` raises "telling position disabled
+            # by next() call" (CPython kills tell() once the text iterator
+            # buffers ahead), which stalled this lane on ``file_read_error``.
+            # ``readline()`` keeps tell() valid; a line without its trailing
+            # newline is a partial append, so break and re-read it next tick.
+            while True:
+                line = f.readline()
+                if not line or not line.endswith("\n"):
+                    break
                 new_cursor = f.tell()
                 line = line.strip()
                 if not line:

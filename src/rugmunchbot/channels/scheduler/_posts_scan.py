@@ -424,8 +424,29 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         kol_fresh, category=ROUTE_ALPHA_CATEGORY, source="kol_trades"
     )
     reranker_down = whale_down or smart_down or launch_down or kol_down
+    # Doctrine (@rmialpha): whale flows ONLY. Launches belong to @rmiscans
+    # (fresh-launch listings, not alpha) and smart-money/KOL digests are
+    # routine volume, so they no longer ride the alpha digest.
+    from rugmunchbot.channels.routing import decide as _decide
+
+    gate = _decide("rmialpha", "whale", "high")
+    if launch_keep:
+        logger.info(
+            "channels:alpha_launch_redirected", dest="rmiscans", count=len(launch_keep)
+        )
+        launch_keep = []
+    smart_keep, kol_keep = [], []
+    if not gate.live:
+        logger.info(
+            "channels:dryrun",
+            job="channel_alpha",
+            channel="rmialpha",
+            items=len(whale_keep),
+            sample=(whale_keep[0].get("title") if whale_keep else None),
+        )
+        return 0
     posted = 0
-    if whale_keep or smart_keep or launch_keep or kol_keep:
+    if gate.allowed and whale_keep:
         ok = await _post_photo_aware(
             ctx.bot,
             chat_id,
