@@ -1,4 +1,4 @@
-[//]: # (SPDX-License-Identifier: MIT)
+[//]: # (SPDX-License-Identifier: LicenseRef-Source-Available-1.0)
 [//]: # (Copyright (c) 2026 Rug Munch Media LLC)
 # RugMunchBot
 
@@ -116,7 +116,7 @@ Conventional commits required; lint via `make lint`; types via
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Source Available 1.0 — see [LICENSE](LICENSE).
 
 ## FAQ
 

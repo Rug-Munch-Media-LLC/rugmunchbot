@@ -67,3 +67,6 @@ src/rugmunchbot/data/kol/ct_cursor.json
 
 # Serena MCP tooling artifacts (local, not project code)
 .serena/
+
+# verified CEX address intel — PRIVATE corpus, never commit (see src/rugmunchbot/tools/README.md)
+src/rugmunchbot/tools/cex_addresses_verified.json
