@@ -1,0 +1,283 @@
+{
+	"top_gainers": [
+		{
+			"symbol": "SOPH",
+			"price": 0.001804,
+			"change_24h": 17.22,
+			"volume_24h": 1102060.4931259993,
+			"open_interest": 260707902.0,
+			"funding_rate": -0.0013418794,
+			"funding_rate_pct": -0.1342
+		},
+		{
+			"symbol": "kPEPE",
+			"price": 0.005005,
+			"change_24h": 11.22,
+			"volume_24h": 24596662.37014102,
+			"open_interest": 8056862250.0,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "USELESS",
+			"price": 0.16429,
+			"change_24h": 6.95,
+			"volume_24h": 2307188.0387399984,
+			"open_interest": 49342748.0,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "DOT",
+			"price": 1.18875,
+			"change_24h": 6.35,
+			"volume_24h": 3633794.233510001,
+			"open_interest": 5177707.600000002,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "CHIP",
+			"price": 0.045335,
+			"change_24h": 4.48,
+			"volume_24h": 2557157.294844999,
+			"open_interest": 199564986.0,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "DASH",
+			"price": 53.2044,
+			"change_24h": 4.47,
+			"volume_24h": 1953424.8024000004,
+			"open_interest": 74158.62,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		}
+	],
+	"top_losers": [
+		{
+			"symbol": "ALT",
+			"price": 0.00762,
+			"change_24h": -14.77,
+			"volume_24h": 4682007.770102002,
+			"open_interest": 222539204.0,
+			"funding_rate": -0.001523678,
+			"funding_rate_pct": -0.1524
+		},
+		{
+			"symbol": "RUNE",
+			"price": 0.63919,
+			"change_24h": -8.97,
+			"volume_24h": 1305402.142182999,
+			"open_interest": 3240946.0000000005,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "LIT",
+			"price": 3.3901,
+			"change_24h": -8.04,
+			"volume_24h": 32683118.181900017,
+			"open_interest": 36585434.0,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "XMR",
+			"price": 611.9,
+			"change_24h": -5.94,
+			"volume_24h": 67439284.27292018,
+			"open_interest": 163827.8579999992,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "TIA",
+			"price": 0.55206,
+			"change_24h": -5.09,
+			"volume_24h": 2547556.3434250006,
+			"open_interest": 18150600.0,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "VVV",
+			"price": 26.37,
+			"change_24h": -4.83,
+			"volume_24h": 28652318.808449976,
+			"open_interest": 2981002.6799999997,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		}
+	],
+	"long_squeeze_highest_funding": [
+		{
+			"symbol": "BTC",
+			"price": 81799.1,
+			"change_24h": -0.3,
+			"volume_24h": 2543316727.64711,
+			"open_interest": 43802.76356,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "ZEC",
+			"price": 1220.1,
+			"change_24h": -2.66,
+			"volume_24h": 370849153.10700035,
+			"open_interest": 445762.3,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "HYPE",
+			"price": 78.107,
+			"change_24h": -0.42,
+			"volume_24h": 338922293.69159025,
+			"open_interest": 20771883.980000008,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "SOL",
+			"price": 104.405,
+			"change_24h": -0.09,
+			"volume_24h": 138670589.56440002,
+			"open_interest": 5480841.6400000015,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "NEAR",
+			"price": 4.9423,
+			"change_24h": -1.02,
+			"volume_24h": 128766679.41721998,
+			"open_interest": 66190128.19999996,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "WLD",
+			"price": 0.54183,
+			"change_24h": -0.95,
+			"volume_24h": 83678779.98976,
+			"open_interest": 173168485.19999993,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		}
+	],
+	"short_squeeze_lowest_funding": [
+		{
+			"symbol": "ALT",
+			"price": 0.00762,
+			"change_24h": -14.77,
+			"volume_24h": 4682007.770102002,
+			"open_interest": 222539204.0,
+			"funding_rate": -0.001523678,
+			"funding_rate_pct": -0.1524
+		},
+		{
+			"symbol": "SOPH",
+			"price": 0.001804,
+			"change_24h": 17.22,
+			"volume_24h": 1102060.4931259993,
+			"open_interest": 260707902.0,
+			"funding_rate": -0.0013418794,
+			"funding_rate_pct": -0.1342
+		},
+		{
+			"symbol": "WLFI",
+			"price": 0.053677,
+			"change_24h": -3.44,
+			"volume_24h": 1946508.0562500006,
+			"open_interest": 217545616.0,
+			"funding_rate": -5.76808e-5,
+			"funding_rate_pct": -0.0058
+		},
+		{
+			"symbol": "TRX",
+			"price": 0.32961,
+			"change_24h": -0.3,
+			"volume_24h": 2239513.5371600008,
+			"open_interest": 37371116.0,
+			"funding_rate": -4.83212e-5,
+			"funding_rate_pct": -0.0048
+		},
+		{
+			"symbol": "ADA",
+			"price": 0.21683,
+			"change_24h": 0.34,
+			"volume_24h": 8115050.361540002,
+			"open_interest": 143625920.0,
+			"funding_rate": -3.14265e-5,
+			"funding_rate_pct": -0.0031
+		},
+		{
+			"symbol": "NIL",
+			"price": 0.082152,
+			"change_24h": 1.42,
+			"volume_24h": 2060217.77841,
+			"open_interest": 53863934.0,
+			"funding_rate": -1.32097e-5,
+			"funding_rate_pct": -0.0013
+		}
+	],
+	"highest_volume": [
+		{
+			"symbol": "BTC",
+			"price": 81799.1,
+			"change_24h": -0.3,
+			"volume_24h": 2543316727.64711,
+			"open_interest": 43802.76356,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "ETH",
+			"price": 2401.4,
+			"change_24h": -0.33,
+			"volume_24h": 765956573.3716193,
+			"open_interest": 1091676.5448000007,
+			"funding_rate": 3.607e-7,
+			"funding_rate_pct": 0.0
+		},
+		{
+			"symbol": "ZEC",
+			"price": 1220.1,
+			"change_24h": -2.66,
+			"volume_24h": 370849153.10700035,
+			"open_interest": 445762.3,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "HYPE",
+			"price": 78.107,
+			"change_24h": -0.42,
+			"volume_24h": 338922293.69159025,
+			"open_interest": 20771883.980000008,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "SOL",
+			"price": 104.405,
+			"change_24h": -0.09,
+			"volume_24h": 138670589.56440002,
+			"open_interest": 5480841.6400000015,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		},
+		{
+			"symbol": "NEAR",
+			"price": 4.9423,
+			"change_24h": -1.02,
+			"volume_24h": 128766679.41721998,
+			"open_interest": 66190128.19999996,
+			"funding_rate": 1.25e-5,
+			"funding_rate_pct": 0.0013
+		}
+	],
+	"updated_at": "2026-10-23T10:14:08.985289+00:00"
+}

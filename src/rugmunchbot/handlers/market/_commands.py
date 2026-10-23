@@ -412,7 +412,6 @@ def register_market(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     app.add_handler(CommandHandler("trending", cmd_trending))
     app.add_handler(CommandHandler("movers", cmd_movers))
     app.add_handler(CommandHandler("launches", cmd_launches))
-    app.add_handler(CommandHandler("whales", cmd_whales))
 
 
 async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

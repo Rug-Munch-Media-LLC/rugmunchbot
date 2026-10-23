@@ -1,0 +1,86 @@
+{
+	"heatmap": [
+		{
+			"asset": "BTC",
+			"mark_price": 81807.1,
+			"open_interest_usd": 3583449623,
+			"funding_rate": 1.3e-5,
+			"change_24h_pct": -0.29,
+			"long_liq_price_10x": 73626.39,
+			"short_liq_price_10x": 89987.81,
+			"long_liq_price_25x": 78534.82,
+			"short_liq_price_25x": 85079.38,
+			"liquidation_pressure": 1254207368,
+			"oi_share_pct": 31.05
+		},
+		{
+			"asset": "ETH",
+			"mark_price": 2401.9,
+			"open_interest_usd": 2622090786,
+			"funding_rate": 0.0,
+			"change_24h_pct": -0.31,
+			"long_liq_price_10x": 2161.71,
+			"short_liq_price_10x": 2642.09,
+			"long_liq_price_25x": 2305.82,
+			"short_liq_price_25x": 2497.98,
+			"liquidation_pressure": 917731775,
+			"oi_share_pct": 22.72
+		},
+		{
+			"asset": "HYPE",
+			"mark_price": 78.1,
+			"open_interest_usd": 1622363663,
+			"funding_rate": 1.3e-5,
+			"change_24h_pct": -0.42,
+			"long_liq_price_10x": 70.29,
+			"short_liq_price_10x": 85.91,
+			"long_liq_price_25x": 74.98,
+			"short_liq_price_25x": 81.23,
+			"liquidation_pressure": 567827282,
+			"oi_share_pct": 14.06
+		},
+		{
+			"asset": "SOL",
+			"mark_price": 104.44,
+			"open_interest_usd": 573048319,
+			"funding_rate": 1.3e-5,
+			"change_24h_pct": -0.06,
+			"long_liq_price_10x": 93.99,
+			"short_liq_price_10x": 114.88,
+			"long_liq_price_25x": 100.26,
+			"short_liq_price_25x": 108.62,
+			"liquidation_pressure": 200566911,
+			"oi_share_pct": 4.97
+		},
+		{
+			"asset": "ZEC",
+			"mark_price": 1219.79,
+			"open_interest_usd": 543755519,
+			"funding_rate": 1.3e-5,
+			"change_24h_pct": -2.69,
+			"long_liq_price_10x": 1097.81,
+			"short_liq_price_10x": 1341.77,
+			"long_liq_price_25x": 1171.0,
+			"short_liq_price_25x": 1268.58,
+			"liquidation_pressure": 190314432,
+			"oi_share_pct": 4.71
+		},
+		{
+			"asset": "NEAR",
+			"mark_price": 4.94,
+			"open_interest_usd": 327133505,
+			"funding_rate": 1.3e-5,
+			"change_24h_pct": -1.02,
+			"long_liq_price_10x": 4.45,
+			"short_liq_price_10x": 5.44,
+			"long_liq_price_25x": 4.74,
+			"short_liq_price_25x": 5.14,
+			"liquidation_pressure": 114496727,
+			"oi_share_pct": 2.83
+		}
+	],
+	"total_open_interest_usd": 11539683129,
+	"assets_scanned": 178,
+	"methodology": "Liquidation reference levels at 10x/25x effective leverage from Hyperliquid mark prices; pressure = OI-weighted cascade proximity. Real exchange data, no estimates of positions.",
+	"updated_at": "2026-10-23T10:14:41.122177+00:00"
+}

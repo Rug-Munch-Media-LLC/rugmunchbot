@@ -1,0 +1,16 @@
+{
+	"_fixture": "synthetic-shape",
+	"_note": "Field shape only — numbers are placeholders for renderer tests. NEVER present as live data.",
+	"smart_money_wallets": [
+		{
+			"wallet": "7xKq9mN2pQrT4vWxYzA1bC3dE5fG6hJ8kL0mN2pQrT4",
+			"entity": "Wintermute-adjacent desk",
+			"token_symbol": "SOL",
+			"chain": "solana",
+			"amount_usd": 12400000,
+			"action": "buy",
+			"pnl_usd": 812000,
+			"tx_hash": "5VfH8kLmN2pQrT4vWxYzA1bC3dE5fG6hJ8kL0mN2pQrT4vWxY"
+		}
+	]
+}

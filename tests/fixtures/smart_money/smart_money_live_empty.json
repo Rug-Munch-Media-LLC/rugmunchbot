@@ -1,0 +1,9 @@
+{
+	"smart_money_wallets": [],
+	"total_tracked": 0,
+	"chain": "solana",
+	"scan_time": "2026-10-23T10:14:10.811993+00:00",
+	"source": "smart_money_feed",
+	"consumer": "public_web",
+	"packaging": "denied"
+}
