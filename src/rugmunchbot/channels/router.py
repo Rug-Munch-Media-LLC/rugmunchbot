@@ -29,9 +29,8 @@ from __future__ import annotations
 
 import os
 
-#: Default news-band floor — below this a story is skipped. Matches the news
-#: channel's ``channels/importance.py::IMPORTANCE_THRESHOLD`` default so the
-#: routed bands and the legacy gate agree.
+#: Default news-band floor — below this a story is skipped (matches
+#: ``channels/importance.py::IMPORTANCE_THRESHOLD``).
 ROUTE_NEWS_MIN_IMPORTANCE_DEFAULT: float = 0.4
 #: Default main-channel gate — at/above this a story is a "bigger story" for
 #: the operator's @cryptorugmuncher channel (mirrors
@@ -40,11 +39,9 @@ ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT: float = 0.7
 #: Swept category string that routes a story to the alpha channel (matches
 #: the ``classify_channel_category`` "alpha" bucket in ``telegram_news``).
 ROUTE_ALPHA_CATEGORY: str = "alpha"
-#: Swept category string for scam-call / shill-intel channels (matches the
-#: ``classify_channel_category`` "scam" bucket). Scam-call content that clears
-#: the news floor goes to the ALERTS channel (@rmialerts — its doctrine admits
-#: scam/rug detections), and above the main gate escalates to main. It never
-#: lands on the news channel: scam calls are danger intel, not headlines.
+#: Swept category string for scam-call / shill-intel channels ("scam" bucket):
+#: above the news floor it goes to ALERTS (@rmialerts), above the main gate to
+#: main — never the news channel (danger intel, not headlines).
 ROUTE_SCAM_CATEGORY: str = "scam"
 
 # W18 (2026-08-25): MAJOR-EVENT escalation categories. A story whose
@@ -80,9 +77,13 @@ ROUTE_NEWS_MIN_IMPORTANCE: float = _env_float(
 ROUTE_MAIN_MIN_IMPORTANCE: float = _env_float(
     "RMI_ROUTE_MAIN_MIN_IMPORTANCE", ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT
 )
+#: News floor in heuristic-fallback mode (env ``RMI_ROUTE_NEWS_MIN_IMPORTANCE_FALLBACK``).
+#: The 0.4 default is calibrated on the cross-encoder's sigmoid; heuristic scores
+#: sit far lower, so applying 0.4 there skipped every headline (2026-10-23 silence).
+ROUTE_NEWS_MIN_IMPORTANCE_FALLBACK: float = _env_float("RMI_ROUTE_NEWS_MIN_IMPORTANCE_FALLBACK", 0.0)
 
 
-def route_news(importance: float, category: str) -> str:
+def route_news(importance: float, category: str, *, fallback: bool = False) -> str:
     """Route one scored story to exactly one destination.
 
     Returns ``"skip"`` / ``"news"`` / ``"main"`` / ``"alpha"`` / ``"alerts"``.
@@ -101,6 +102,10 @@ def route_news(importance: float, category: str) -> str:
 
     ``"main"`` always beats ``"alpha"``/``"alerts"``: an alpha- or scam-
     category story that also clears the main gate is a main-channel story.
+
+    ``fallback=True``: heuristic scorer (reranker down) — the news floor becomes
+    ``ROUTE_NEWS_MIN_IMPORTANCE_FALLBACK`` (0.0), since heuristic scores are not
+    on the cross-encoder scale. Scam floor and main gate are unchanged.
     """
     # W18: major events escalate first — importance can't bury an active
     # exploit or confirmed rug.
@@ -111,17 +116,17 @@ def route_news(importance: float, category: str) -> str:
     if category == ROUTE_ALPHA_CATEGORY:
         return "alpha"
     if category == ROUTE_SCAM_CATEGORY:
+        # Danger intel keeps the calibrated floor in fallback mode too.
         return "alerts" if importance >= ROUTE_NEWS_MIN_IMPORTANCE else "skip"
-    if importance >= ROUTE_NEWS_MIN_IMPORTANCE:
+    news_floor = ROUTE_NEWS_MIN_IMPORTANCE_FALLBACK if fallback else ROUTE_NEWS_MIN_IMPORTANCE
+    if importance >= news_floor:
         return "news"
     return "skip"
 
 
 # ── WO-2 (2026-08-25): severity/type → channel matrix + demotion ─────────
 
-
-#: Severities that may hit @rmialerts (matrix: "Severity-gated CRITICAL/HIGH,
-#: no filler"). Everything else alert-ish is skipped, never softened.
+#: Severities that may hit @rmialerts ("Severity-gated CRITICAL/HIGH, no filler").
 ALERT_SEVERITIES: frozenset[str] = frozenset({"critical", "high"})
 
 #: Known item types and their native (non-main) destination. ``main`` is
@@ -186,6 +191,7 @@ __all__ = [
     "ROUTE_MAIN_MIN_IMPORTANCE_DEFAULT",
     "ROUTE_NEWS_MIN_IMPORTANCE",
     "ROUTE_NEWS_MIN_IMPORTANCE_DEFAULT",
+    "ROUTE_NEWS_MIN_IMPORTANCE_FALLBACK",
     "ROUTE_SCAM_CATEGORY",
     "demote_main",
     "route_item",

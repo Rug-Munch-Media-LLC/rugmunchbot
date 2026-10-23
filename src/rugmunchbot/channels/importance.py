@@ -22,21 +22,14 @@ sharply compressed for paraphrase-level matches).
 
 Fail-open
 ---------
-If qwen3 /rerank is unreachable (or returns no results at all), the
-scorer falls back to a deterministic keyword + ``rate_article`` sentiment
-heuristic (same rating card the website news ingest writes). In fallback
-mode ``select_important`` keeps the top-N by heuristic score **without** the
-threshold so the news channel keeps flowing during a reranker outage. The
-fallback never invents content — it only rearranges what the sweep already
-normalized.
+If qwen3 /rerank is unreachable, the scorer falls back to a deterministic
+keyword + ``rate_article`` sentiment heuristic; ``select_important`` then
+keeps the top-N by heuristic score **without** the threshold so the channel
+keeps flowing. The fallback never invents content.
 
-Env knobs (all optional):
-* ``RMI_NEWS_IMPORTANCE_THRESHOLD``  — gate for rerank mode (default 0.4)
-* ``RMI_NEWS_IMPORTANCE_QUERIES``    — pipe-separated override of the
-  importance queries (default ``DEFAULT_IMPORTANCE_QUERIES``)
-* ``RMI_NEWS_FOCUS_KEYWORDS``        — pipe/comma-separated extra queries
-  appended as ``news related to <kw>`` (no secrets)
-* ``RMI_NEWS_IMPORTANCE_MAX_BATCH``  — max articles scored per call (default 100)
+Env knobs: ``RMI_NEWS_IMPORTANCE_THRESHOLD`` (0.4) · ``RMI_NEWS_IMPORTANCE_QUERIES``
+(pipe-separated) · ``RMI_NEWS_FOCUS_KEYWORDS`` · ``RMI_NEWS_IMPORTANCE_MAX_BATCH``
+(batch size — every article is scored, batches are chunked).
 """
 
 from __future__ import annotations
@@ -58,12 +51,9 @@ logger = get_logger("rmi_bot.channels.importance")
 # ── Queries ────────────────────────────────────────────────────────────
 
 #: Default importance queries, phrased to lexically overlap real headlines.
-#: Calibrated live on BAAI/bge-reranker-v2-m3 (2026-08-14): the ETF query
-#: scores a real ETF-approval headline ~0.92-0.98, the exploit query scores
-#: a real bridge-exploit ~0.98, the whale query ~0.59; noise ~0.0001-0.05.
-#: Avoid "or"-heavy query phrasings — the model's sigmoid output is sharply
-#: compressed and dilutes those matches (e.g. "approves or rejects" dropped a
-#: real ETF headline from 0.92 to 0.35).
+#: Calibrated live on BAAI/bge-reranker-v2-m3 (2026-08-14): ETF approval
+#: ~0.92-0.98, bridge exploit ~0.98, whale move ~0.59, noise ~0.0001-0.05.
+#: Avoid "or"-heavy phrasings — the sigmoid is compressed and dilutes them.
 DEFAULT_IMPORTANCE_QUERIES: tuple[str, ...] = (
     "major market-moving event in crypto",
     "Bitcoin or Ethereum price reaches a new all-time high or record high",
@@ -227,10 +217,8 @@ def _heuristic_scored(articles: list[NewsArticle]) -> list[ScoredArticle]:
 
 # ── Reranker circuit breaker ────────────────────────────────────────────
 
-#: Consecutive all-failed ticks (empty score maps) that trip the breaker.
+#: Consecutive all-failed scoring calls that trip the breaker + cooldown while tripped.
 RERANKER_FAILURE_THRESHOLD: int = 3
-#: Cooldown seconds while tripped: rerank is skipped and the heuristic
-#: fallback is used directly (keeps the news tick fast during an outage).
 RERANKER_COOLDOWN_SECONDS: float = 600.0
 
 #: Process-local breaker state. Two scalar counters — nothing accumulates,
@@ -259,77 +247,88 @@ async def _rerank_query(query: str, texts: list[str]) -> dict[int, float]:
     return {int(item["index"]): float(item.get("relevance_score", 0.0)) for item in results}
 
 
-async def score_importance(
-    articles: list[NewsArticle],
-    focus_keywords: list[str] | tuple[str, ...] | None = None,
-) -> list[ScoredArticle]:
-    """Rerank *articles* against the importance queries.
-
-    Returns one ``ScoredArticle`` per input article. Composite importance is
-    the max relevance across queries (0.0 when no query scored it above 0).
-    When qwen3 is unreachable or no query returns anything, every article
-    is scored by the deterministic heuristic and ``fallback=True``.
-    """
-    global _consecutive_reranker_failures, _reranker_cooldown_until
-
-    if not articles:
-        return []
-
-    batch = articles[:MAX_ARTICLES_PER_BATCH]
-    if len(articles) > MAX_ARTICLES_PER_BATCH:
-        logger.warning("importance:batch_truncated articles=%s scored=%s", len(articles), MAX_ARTICLES_PER_BATCH)
-
+async def _score_batch(
+    batch: list[NewsArticle], queries: list[str]
+) -> tuple[list[ScoredArticle], bool]:
+    """Score one bounded batch; returns (scored, reranker_answered)."""
     texts = [_article_text(a) for a in batch]
-    queries = _build_queries(focus_keywords)
-
     # Breaker tripped: skip rerank entirely, go straight to the heuristic so
     # the tick never waits on a known-slow reranker.
     if _reranker_tripped():
         logger.debug("importance:reranker_breaker_skip fallback=heuristic")
-        return _heuristic_scored(batch)
-
+        return _heuristic_scored(batch), False
     per_query: list[dict[int, float]] = await asyncio.gather(*(_rerank_query(q, texts) for q in queries))
-
     if not any(per_query):
-        _consecutive_reranker_failures += 1
-        logger.warning(
-            "importance:reranker_unavailable fallback=heuristic queries=%s consecutive_failures=%s",
-            len(queries),
-            _consecutive_reranker_failures,
-        )
-        if _consecutive_reranker_failures >= RERANKER_FAILURE_THRESHOLD:
-            _reranker_cooldown_until = time.monotonic() + RERANKER_COOLDOWN_SECONDS
-            logger.warning(
-                "importance:reranker_breaker_tripped cooldown_seconds=%s fallback=heuristic",
-                RERANKER_COOLDOWN_SECONDS,
-            )
-        return _heuristic_scored(batch)
-
-    if _consecutive_reranker_failures:
-        _consecutive_reranker_failures = 0
-        _reranker_cooldown_until = 0.0
-        logger.warning("importance:reranker_breaker_reset")
-
+        return _heuristic_scored(batch), False
     scored: list[ScoredArticle] = []
     for idx, article in enumerate(batch):
-        best_score = 0.0
-        best_query = ""
+        best_score, best_query = 0.0, ""
         for query, scores in zip(queries, per_query, strict=True):
-            s = scores.get(idx, 0.0)
-            if s > best_score:
-                best_score = s
-                best_query = query
-        scored.append(ScoredArticle(article=article, importance=round(best_score, 4), best_query=best_query))
+            val = scores.get(idx, 0.0)
+            if val > best_score:
+                best_score, best_query = val, query
+        scored.append(
+            ScoredArticle(article=article, importance=round(best_score, 4), best_query=best_query)
+        )
+    return scored, True
+
+
+async def score_importance(
+    articles: list[NewsArticle],
+    focus_keywords: list[str] | tuple[str, ...] | None = None,
+) -> list[ScoredArticle]:
+    """Rerank *articles* against the importance queries — EVERY article.
+
+    Returns one ``ScoredArticle`` per input article, in input order; composite
+    importance is the max relevance across queries. When qwen3 is unreachable,
+    every article is scored by the heuristic and ``fallback=True``.
+
+    Batches are chunked by ``MAX_ARTICLES_PER_BATCH`` and ALL chunks are
+    scored: the old ``articles[:MAX_ARTICLES_PER_BATCH]`` slice silently
+    dropped every story past #100, so a wide sweep persisted and RAG-embedded
+    stories that could never be routed or posted. Breaker bookkeeping is per
+    call (not per chunk), so one big sweep cannot trip it repeatedly.
+    """
+    global _consecutive_reranker_failures, _reranker_cooldown_until
+    if not articles:
+        return []
+    queries = _build_queries(focus_keywords)
+    scored: list[ScoredArticle] = []
+    answered = False
+    for start in range(0, len(articles), MAX_ARTICLES_PER_BATCH):
+        part, batch_answered = await _score_batch(
+            articles[start : start + MAX_ARTICLES_PER_BATCH], queries
+        )
+        scored.extend(part)
+        answered = answered or batch_answered
+    if len(articles) > MAX_ARTICLES_PER_BATCH:
+        logger.info("importance:batched articles=%s", len(articles))
+    if answered:
+        if _consecutive_reranker_failures:
+            _consecutive_reranker_failures = 0
+            _reranker_cooldown_until = 0.0
+            logger.warning("importance:reranker_breaker_reset")
+        return scored
+    _consecutive_reranker_failures += 1
+    logger.warning(
+        "importance:reranker_unavailable fallback=heuristic consecutive_failures=%s",
+        _consecutive_reranker_failures,
+    )
+    if _consecutive_reranker_failures >= RERANKER_FAILURE_THRESHOLD:
+        _reranker_cooldown_until = time.monotonic() + RERANKER_COOLDOWN_SECONDS
+        logger.warning(
+            "importance:reranker_breaker_tripped cooldown_seconds=%s fallback=heuristic",
+            RERANKER_COOLDOWN_SECONDS,
+        )
     return scored
 
 
 def select_important(scored: list[ScoredArticle], top_n: int = 5) -> list[ScoredArticle]:
     """Return the articles worth posting, best first, capped at *top_n*.
 
-    Rerank mode: keep ``importance >= IMPORTANCE_THRESHOLD`` (env
-    ``RMI_NEWS_IMPORTANCE_THRESHOLD``), sorted by importance desc.
-    Fallback mode (reranker down): keep the top-N by heuristic score,
-    bypassing the threshold so news still flows. Never invents content.
+    Rerank mode: keep ``importance >= IMPORTANCE_THRESHOLD``, best first.
+    Fallback mode (reranker down): top-N by heuristic score, threshold
+    bypassed so news still flows. Never invents content.
     """
     if not scored:
         return []
