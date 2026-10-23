@@ -1,0 +1,61 @@
+{
+	"_note": "FICTIONAL fixture. FixtureRug is not a real project; every address is a placeholder. Used to prove the alert contract, never to accuse anyone.",
+	"project": {
+		"name": "FixtureRug",
+		"symbol": "FXRUG",
+		"chain": "ethereum",
+		"addresses": [
+			"0x000000000000000000000000000000000000F1C7",
+			"0x000000000000000000000000000000000000F1C7"
+		],
+		"first_seen": "2026-10-20T09:15:00+00:00"
+	},
+	"evidence": [
+		{
+			"kind": "honeypot",
+			"detail": "Simulated sells revert for every wallet except the deployer.",
+			"source": "https://rugmunch.io/scanner?token=0x000000000000000000000000000000000000f1c7"
+		},
+		{
+			"kind": "deployer_rug_history",
+			"detail": "Deployer wallet launched 3 prior tokens that lost >95% within 48h.",
+			"source": "onchain:0x00000000000000000000000000000000000000D3"
+		},
+		{
+			"kind": "concentration",
+			"detail": "62% of supply sits in 4 wallets funded from the deployer.",
+			"source": "onchain:0x00000000000000000000000000000000000000D3"
+		},
+		{
+			"kind": "guaranteed_returns",
+			"detail": "Promo copy claims 'guaranteed 40x, no risk'.",
+			"source": "@fixture_pump_channel"
+		}
+	],
+	"pushers": [
+		{
+			"kind": "channel",
+			"handle": "@fixture_pump_channel",
+			"role": "posts the 'guaranteed 40x' copy 3x/day",
+			"source": "https://t.me/fixture_pump_channel/1234"
+		},
+		{
+			"kind": "deployer",
+			"handle": "0x00000000000000000000000000000000000000D3",
+			"role": "deployed the token, funded the top 4 wallets",
+			"source": "onchain:deployer_trace"
+		},
+		{
+			"kind": "wallet",
+			"handle": "0x00000000000000000000000000000000000000B7",
+			"role": "first buyer, sold into every promo post",
+			"source": "onchain:first_buyer"
+		},
+		{
+			"kind": "channel",
+			"handle": "@fixture_pump_channel",
+			"role": "duplicate of the first row — must collapse",
+			"source": "https://t.me/fixture_pump_channel/9999"
+		}
+	]
+}
