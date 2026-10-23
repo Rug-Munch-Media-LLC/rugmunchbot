@@ -11,6 +11,7 @@ import subprocess
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 from rugmunchbot.handlers.admin import (
     _run,
@@ -71,8 +72,8 @@ def test_run_missing_binary() -> None:
     assert "not found" in out.lower()
 
 
-def test_run_generic_exception() -> None:
-    with patch("subprocess.run", side_effect=RuntimeError("boom")):
+def test_run_oserror() -> None:
+    with patch("subprocess.run", side_effect=OSError("boom")):
         rc, out = _run(["whatever"])
     assert rc == 1
     assert "failed" in out.lower()
@@ -99,7 +100,7 @@ def test_run_generic_exception() -> None:
 async def test_non_owner_denied(handler) -> None:
     update = _make_update(owner=False)
     ctx = _make_ctx()
-    with patch("rugmunchbot.handlers.admin.is_owner", return_value=False):
+    with patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=False):
         await handler(update, ctx)
     update.effective_message.reply_text.assert_awaited_once()
     text = update.effective_message.reply_text.await_args.args[0]
@@ -113,8 +114,8 @@ async def test_services_lists_rmi_services() -> None:
     update = _make_update(owner=True)
     ctx = _make_ctx()
     with (
-        patch("rugmunchbot.handlers.admin.is_owner", return_value=True),
-        patch("rugmunchbot.handlers.admin._run", return_value=(0, "running")),
+        patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=True),
+        patch("rugmunchbot.handlers.admin._exec._run", return_value=(0, "running")),
     ):
         await cmd_services(update, ctx)
     text = update.effective_message.reply_text.await_args.args[0]
@@ -128,7 +129,7 @@ async def test_services_lists_rmi_services() -> None:
 async def test_restart_requires_service_arg() -> None:
     update = _make_update(owner=True)
     ctx = _make_ctx([])
-    with patch("rugmunchbot.handlers.admin.is_owner", return_value=True):
+    with patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=True):
         await cmd_restart(update, ctx)
     text = update.effective_message.reply_text.await_args.args[0]
     assert "Usage" in text
@@ -137,7 +138,7 @@ async def test_restart_requires_service_arg() -> None:
 async def test_restart_unknown_service() -> None:
     update = _make_update(owner=True)
     ctx = _make_ctx(["not-a-service"])
-    with patch("rugmunchbot.handlers.admin.is_owner", return_value=True):
+    with patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=True):
         await cmd_restart(update, ctx)
     text = update.effective_message.reply_text.await_args.args[0]
     assert "Unknown service" in text
@@ -147,9 +148,9 @@ async def test_restart_docker_success() -> None:
     update = _make_update(owner=True)
     ctx = _make_ctx(["rmi-backend"])
     with (
-        patch("rugmunchbot.handlers.admin.is_owner", return_value=True),
+        patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=True),
         patch(
-            "rugmunchbot.handlers.admin._run",
+            "rugmunchbot.handlers.admin._exec._run",
             side_effect=[(0, "running"), (0, "")],
         ),
     ):
@@ -164,7 +165,7 @@ async def test_restart_docker_success() -> None:
 async def test_logs_requires_service_arg() -> None:
     update = _make_update(owner=True)
     ctx = _make_ctx([])
-    with patch("rugmunchbot.handlers.admin.is_owner", return_value=True):
+    with patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=True):
         await cmd_logs(update, ctx)
     text = update.effective_message.reply_text.await_args.args[0]
     assert "Usage" in text
@@ -174,8 +175,8 @@ async def test_logs_docker_success() -> None:
     update = _make_update(owner=True)
     ctx = _make_ctx(["rmi-backend"])
     with (
-        patch("rugmunchbot.handlers.admin.is_owner", return_value=True),
-        patch("rugmunchbot.handlers.admin._run", return_value=(0, "line1\nline2")),
+        patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=True),
+        patch("rugmunchbot.handlers.admin._exec._run", return_value=(0, "line1\nline2")),
     ):
         await cmd_logs(update, ctx)
     text = update.effective_message.reply_text.await_args.args[0]
@@ -189,7 +190,7 @@ async def test_logs_docker_success() -> None:
 async def test_budget_reports_x_intel_moved() -> None:
     update = _make_update(owner=True)
     ctx = _make_ctx()
-    with patch("rugmunchbot.handlers.admin.is_owner", return_value=True):
+    with patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=True):
         await cmd_budget(update, ctx)
     text = update.effective_message.reply_text.await_args.args[0]
     assert "rugbrain" in text.lower()
@@ -201,12 +202,12 @@ async def test_budget_reports_x_intel_moved() -> None:
 async def test_alerts_redis_failure_graceful() -> None:
     update = _make_update(owner=True)
     ctx = _make_ctx()
+    client = MagicMock()
+    client.lrange = AsyncMock(side_effect=RedisConnectionError("redis down"))
+    client.close = AsyncMock()
     with (
-        patch("rugmunchbot.handlers.admin.is_owner", return_value=True),
-        patch(
-            "redis.asyncio.Redis",
-            side_effect=RuntimeError("redis down"),
-        ),
+        patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=True),
+        patch("redis.asyncio.Redis", return_value=client),
     ):
         await cmd_alerts(update, ctx)
     text = update.effective_message.reply_text.await_args.args[0]
@@ -222,7 +223,7 @@ async def test_sources_renders_counts() -> None:
     conn = MagicMock()
     conn.execute.return_value.fetchone.return_value = {"c": 3}
     with (
-        patch("rugmunchbot.handlers.admin.is_owner", return_value=True),
+        patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=True),
         patch("rugmunchbot.db.get_db", return_value=conn),
     ):
         await cmd_sources(update, ctx)
@@ -237,7 +238,7 @@ async def test_sources_renders_counts() -> None:
 async def test_help_lists_all_commands() -> None:
     update = _make_update(owner=True)
     ctx = _make_ctx()
-    with patch("rugmunchbot.handlers.admin.is_owner", return_value=True):
+    with patch("rugmunchbot.handlers.admin._reply.is_owner", return_value=True):
         await cmd_help(update, ctx)
     text = update.effective_message.reply_text.await_args.args[0]
     for cmd in (
