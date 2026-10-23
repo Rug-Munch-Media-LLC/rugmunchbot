@@ -23,6 +23,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from rugmunchbot.channels._report_mirror import FEED_TEXT_MAX
 from rugmunchbot.channels.daily_rug._config import (
     DAILY_RUG_FEED_ENABLED,
     DAILY_RUG_MAX_CHARS,
@@ -169,7 +170,7 @@ async def _mirror_to_feed(report: str, image_url: str) -> str:
             slug = (
                 mirror_post_to_feed(
                     {
-                        "text": report[:3900],
+                        "text": report[:FEED_TEXT_MAX],
                         "story_ref": f"daily-rug-{datetime.now(UTC).strftime('%Y%m%d')}",
                         "source": "rugmunch.io",
                         "kind": "briefing",

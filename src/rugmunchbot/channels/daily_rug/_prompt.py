@@ -79,7 +79,7 @@ def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
         generated = context.get("generated_at")
         if generated:
             date_str = (
-                datetime.fromisoformat(str(generated)).astimezone(UTC).strftime("%A, %B %d, %Y")
+                datetime.fromisoformat(str(generated)).astimezone(UTC).strftime("%A, %B %d, %Y · data as of %H:%M UTC")
             )
     except (TypeError, ValueError):
         date_str = "—"
@@ -92,7 +92,10 @@ def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
         "Now write the brief. '## SECTION' headers, sections in the exact order above, "
         "3000-4000 chars, every item linked with its real URL at most once."
     )
+    system = SYSTEM_PROMPT.replace("{EDITION}", EDITION).replace(
+        "{Weekday, Month DD, YYYY}", date_str
+    )
     return [
-        {"role": "system", "content": SYSTEM_PROMPT.replace("{EDITION}", EDITION)},
+        {"role": "system", "content": system},
         {"role": "user", "content": user_prompt},
     ]

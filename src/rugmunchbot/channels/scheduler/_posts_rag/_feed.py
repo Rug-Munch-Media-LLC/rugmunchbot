@@ -14,8 +14,12 @@ from typing import Any
 import rugmunchbot.channels.scheduler._posts_rag as _pkg
 
 
-def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
+def mirror_post_to_feed(item: dict[str, Any], store_dir: str | None = None) -> str | None:
     """Append a post to the feed site's JSON store. Returns slug (None on fail).
+
+    ``store_dir`` is the DI seam used by the render proof so it can exercise
+    the EXACT writer against a throwaway store instead of the production
+    ``/var/www`` feed directory. Production callers pass nothing.
 
     Public entry point (2026-08-29): the exploit-alert poster
     (``channels.exploit_alerts``) reuses this exact writer so every
@@ -24,8 +28,9 @@ def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
     remains as a backward-compatible alias for ``_posts_rag`` callers.
     """
     try:
-        os.makedirs(_pkg.FEED_DATA, exist_ok=True)
-        path = os.path.join(_pkg.FEED_DATA, "posts.json")
+        feed_data = store_dir or _pkg.FEED_DATA
+        os.makedirs(feed_data, exist_ok=True)
+        path = os.path.join(feed_data, "posts.json")
         posts: list[dict[str, Any]] = []
         if os.path.exists(path):
             with open(path) as f:
@@ -73,6 +78,16 @@ def mirror_post_to_feed(item: dict[str, Any]) -> str | None:
         }
         if _image:
             _payload["image"] = _image
+            _payload["image_url"] = _image
+        # Headline + taxonomy carry the SAME commentary framing the Telegram
+        # post used (2026-10-24): the feed card must not fall back to a bare
+        # text blob with no title for the three daily reports.
+        _title = str(item.get("title") or "").strip()
+        if _title:
+            _payload["title"] = _title
+        _tags = item.get("tags")
+        if isinstance(_tags, (list, tuple)):
+            _payload["tags"] = [str(t) for t in _tags if str(t).strip()]
         posts.insert(0, _payload)
         tmp = path + ".tmp"
         with open(tmp, "w") as f:
