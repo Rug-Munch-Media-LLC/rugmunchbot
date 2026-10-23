@@ -47,7 +47,7 @@ EVENING_WRAP_TIME: str = _env_str("RMI_EVENING_WRAP_TIME", "20:00")
 #: Branded graphic for the wrap (operator original, wired via
 #: ``support.post_graphics``). The operator is producing
 #: ``rmi-evening-wrap``; until it lands the brand default applies.
-EVENING_WRAP_GRAPHIC: str = _env_str("RMI_EVENING_WRAP_GRAPHIC", "rmi-evening-wrap.jpeg")
+EVENING_WRAP_GRAPHIC: str = _env_str("RMI_EVENING_WRAP_GRAPHIC", "rmi-evening-market-wrap.jpeg")
 
 
 def evening_wrap_run_time() -> Any:

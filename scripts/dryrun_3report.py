@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Dry-run the three-report engine END-TO-END — no Telegram post, no Ghost publish.
+"""Dry-run the THREE daily reports END-TO-END — no Telegram post, no Ghost publish.
 
-Exercises, per report: gather (limited) → write (Qwythos) → quality gate →
-longform transform → Ghost-mirror PAYLOAD (built, never sent). Prints a
-markdown sample. Also proves three-way distinctness and the guardrails.
+Per edition (Morning / Midday / Evening) this exercises: gather → write →
+quality gate inputs → longform transform → GRAPHIC resolution → FEED payload
+(the exact ``mirror_post_to_feed`` writer, into a throwaway store).
+
+Proof printed per edition: dateline ("data as of … UTC"), commentary word
+count, resolved graphic URL + HTTP content-type, and the stored feed entry
+(title + image preserved).
 
 Usage:  python3 scripts/dryrun_3report.py [--no-llm]
 """
@@ -14,6 +18,8 @@ import argparse
 import asyncio
 import json
 import sys
+import tempfile
+import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -25,10 +31,71 @@ def _hr(title: str) -> None:
     print("=" * 72)
 
 
-async def _dry_report(name: str, gather, build_messages, edition: str, task_class: str) -> dict:
-    """Gather → write → gate → longform → mirror payload. Returns a result dict."""
+def _http_content_type(url: str) -> str:
+    """HEAD (GET fallback) → 'ok image/jpeg 725626B' or 'FAIL <reason>'."""
+    for method in ("HEAD", "GET"):
+        try:
+            req = urllib.request.Request(  # noqa: S310 - brand URL only
+                url, method=method, headers={"User-Agent": "Mozilla/5.0 (rugmunchbot proof)"}
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:  # noqa: S310 - brand URL only
+                ctype = resp.headers.get("Content-Type", "")
+                size = resp.headers.get("Content-Length", "?")
+                return f"{resp.status} {ctype} {size}B"
+        except Exception as exc:
+            last = repr(exc)[:90]
+    return f"FAIL {last}"
+
+
+def _graphic_proof(post_type: str, override: str) -> dict:
+    from rugmunchbot.support.image_policy import is_valid_image
+    from rugmunchbot.support.post_graphics import graphic_for_type
+
+    url = graphic_for_type(post_type, override)
+    valid = is_valid_image(url)
+    print(f"  graphic[{post_type}] = {url}")
+    print(f"    policy_valid={valid} served={_http_content_type(url)}")
+    return {"url": url, "valid": valid}
+
+
+def _feed_proof(report: str, image_url: str, edition: str) -> dict:
+    """Write through the production writer into a temp store; read it back."""
+    from rugmunchbot.channels.scheduler._posts_rag import mirror_post_to_feed
+
+    with tempfile.TemporaryDirectory() as tmp:
+        slug = mirror_post_to_feed(
+            {
+                "text": report,
+                "story_ref": f"dryrun-{edition.lower()}",
+                "source": "rugmunch.io",
+                "kind": "briefing",
+                "title": edition,
+                "tags": ["briefing", edition.lower()],
+                "image_url": image_url,
+            },
+            store_dir=tmp,
+        )
+        stored = json.loads((Path(tmp) / "posts.json").read_text())[0]
+    ok = bool(slug) and bool(stored.get("title")) and bool(stored.get("image"))
+    print(
+        f"  feed slug={slug} title={stored.get('title')!r} image_kept={bool(stored.get('image'))}"
+    )
+    return {"slug": slug, "feed_ok": ok, "stored": stored}
+
+
+async def _dry_report(
+    name: str,
+    post_type: str,
+    graphic_override: str,
+    gather,
+    build_messages,
+    edition: str,
+    task_class: str,
+    *,
+    use_llm: bool,
+) -> dict:
     from rugmunchbot.channels._longform import to_markdown
-    from rugmunchbot.channels._longform_lexical import to_lexical
+    from rugmunchbot.channels.midday_market_report._pipeline import cleanup_html, strip_echo
     from rugmunchbot.channels.report_guardrails import report_guardrails
 
     out: dict = {"name": name, "edition": edition}
@@ -37,136 +104,95 @@ async def _dry_report(name: str, gather, build_messages, edition: str, task_clas
         ctx = await gather()
     except Exception as exc:
         print(f"  gather FAILED: {exc!r}")
-        out["error"] = f"gather:{exc!r}"
-        return out
-    sources = ctx.get("sources") or []
-    print(f"  sources={sources}")
-    for k in ("macro_stories", "recap_stories", "stories", "ranked_stories"):
-        v = ctx.get(k)
-        if v:
-            print(f"  {k}: {len(v)} items")
-            for s in v[:3]:
-                print(f"    - {str(s.get('title') or s.get('content') or s)[:90]}")
-    out["sources"] = sources
+        return {**out, "error": f"gather:{exc!r}"}
+    print(f"  sources={ctx.get('sources')}")
+    out["sources"] = ctx.get("sources")
 
-    _hr(f"[{name}] 2. WRITE (Qwythos lane, task_class={task_class})")
-    from rugmunchbot.llm_config import chat_with_fallback
+    _hr(f"[{name}] 2. WRITE (task_class={task_class})")
+    report = ""
+    if use_llm:
+        from rugmunchbot.llm_config import chat_with_fallback
 
-    messages = build_messages(ctx)
-    try:
-        raw = await chat_with_fallback(messages, "long", task_class=task_class)
-    except Exception as exc:
-        print(f"  write FAILED: {exc!r}")
-        out["error"] = f"write:{exc!r}"
-        return out
-    print(f"  raw chars={len(raw)}")
-    out["raw_chars"] = len(raw)
+        try:
+            raw = await chat_with_fallback(build_messages(ctx), "long", task_class=task_class)
+            report = cleanup_html(strip_echo(raw))
+        except Exception as exc:
+            print(f"  write FAILED: {exc!r}")
+            return {**out, "error": f"write:{exc!r}"}
+    print(f"  chars={len(report)}")
+    out["chars"] = len(report)
 
-    from rugmunchbot.channels.midday_market_report._pipeline import cleanup_html, strip_echo
+    _hr(f"[{name}] 3. EDITORIAL PROOF (dateline · commentary)")
+    words = len(report.split())
+    dateline = "data as of" in report and "UTC" in report
+    print(f"  words={words} dateline_ok={dateline}")
+    out["dateline_ok"] = dateline
+    if report:
+        ok, reasons = await report_guardrails(report, check_links=False)
+        print(f"  recency ok={ok} reasons={reasons}")
+        print(f"  longform chars={len(to_markdown(report))}")
 
-    report = cleanup_html(strip_echo(raw))
-    print(f"  cleaned chars={len(report)}")
-    out["report"] = report
+    _hr(f"[{name}] 4. GRAPHIC")
+    graphic = _graphic_proof(post_type, graphic_override)
+    out.update(graphic)
 
-    _hr(f"[{name}] 3. GUARDRAILS (recency + links)")
-    ok, reasons = await report_guardrails(report, check_links=False)
-    print(f"  recency ok={ok} reasons={reasons}")
-    out["guardrails_ok"] = ok
-
-    _hr(f"[{name}] 4. LONGFORM TRANSFORM (Telegram HTML → markdown)")
-    md = to_markdown(report)
-    print(f"  markdown chars={len(md)}")
-    print("  --- markdown sample (first 900 chars) ---")
-    print("\n".join("  " + ln for ln in md[:900].splitlines()))
-    out["markdown"] = md
-
-    _hr(f"[{name}] 5. GHOST-MIRROR PAYLOAD (built, NOT sent)")
-    try:
-        lex = to_lexical(report)
-        doc = json.loads(lex)
-        print(f"  lexical root children={len(doc.get('root', {}).get('children', []))}")
-        out["lexical_ok"] = True
-    except Exception as exc:
-        print(f"  lexical FAILED: {exc!r}")
-        out["lexical_ok"] = False
+    _hr(f"[{name}] 5. FEED (same commentary + graphic)")
+    if report:
+        out["feed"] = _feed_proof(report, graphic["url"], edition)
+    else:
+        print("  skipped (no report body)")
     return out
 
 
 async def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--no-llm", action="store_true", help="skip the LLM write step")
+    ap.add_argument("--no-llm", action="store_true", help="gather + graphic/feed proof only")
     args = ap.parse_args()
 
-    from rugmunchbot.channels.midday_market_report import (
-        EDITION as ME,
-        build_messages as m_build,
-        gather_midday_report_data as m_gather,
+    from rugmunchbot.channels.daily_rug import (
+        EDITION as DE,
+        build_messages as d_build,
+        gather_daily_rug_data as d_gather,
     )
     from rugmunchbot.channels.evening_wrap import (
         EDITION as EE,
+        EVENING_WRAP_GRAPHIC,
         build_messages as e_build,
         gather_evening_wrap_data as e_gather,
     )
-
-    results = []
-    if not args.no_llm:
-        results.append(await _dry_report("MIDDAY", m_gather, m_build, ME, "market_brief"))
-        results.append(await _dry_report("EVENING", e_gather, e_build, EE, "recap"))
-    else:
-        print("--no-llm: skipping gather/write")
-
-    _hr("THREE-WAY DISTINCTNESS PROOF")
-    from rugmunchbot.channels._edition_dedup import (
-        exclude_prior_editions,
-        mark_edition_stories,
-        story_hash,
+    from rugmunchbot.channels.midday_market_report import (
+        EDITION as ME,
+        MIDDAY_REPORT_GRAPHIC,
+        build_messages as m_build,
+        gather_midday_report_data as m_gather,
     )
 
-    stories = [
-        {"title": "Fed holds rates steady", "url": "https://ex.com/fed"},
-        {"title": "Token X rug pulls $4M", "url": "https://ex.com/rugx"},
-        {"title": "KOL shills Token Y", "url": "https://ex.com/shill"},
+    specs = (
+        ("MORNING", "daily_rug", "", d_gather, d_build, DE, "market_brief"),
+        ("MIDDAY", "midday_report", MIDDAY_REPORT_GRAPHIC, m_gather, m_build, ME, "market_brief"),
+        ("EVENING", "evening_wrap", EVENING_WRAP_GRAPHIC, e_gather, e_build, EE, "recap"),
+    )
+    results = [
+        await _dry_report(*spec, use_llm=not args.no_llm)
+        for spec in specs  # type: ignore[misc]
     ]
-    print("  story set:", [s["title"] for s in stories])
-    # Morning claims all three.
-    mark_edition_stories("morning", stories)
-    print("  morning marked all 3")
-    # Midday must exclude morning's.
-    midday_kept = exclude_prior_editions(stories, before="midday")
-    print(f"  midday sees {len(midday_kept)} (excluded {len(stories) - len(midday_kept)})")
-    # Evening must exclude morning + midday.
-    mark_edition_stories("midday", stories[:1])
-    evening_kept = exclude_prior_editions(stories, before="evening")
-    print(f"  evening sees {len(evening_kept)} (excluded {len(stories) - len(evening_kept)})")
-    print(f"  hashes: {[story_hash(s)[:8] for s in stories]}")
 
-    _hr("GUARDRAILS — recency gate + link validator")
-    from rugmunchbot.channels.report_guardrails import recency_gate, validate_links
-
-    old = "The exploit happened on 2026-01-05 and drained the pool."
-    ok, reason = recency_gate(old, max_age_hours=48)
-    print(f"  OLD claim  → ok={ok} reason={reason}")
-    fresh = "Today, 2026-10-17, the pool was drained."
-    ok2, reason2 = recency_gate(fresh, max_age_hours=48)
-    print(f"  FRESH claim→ ok={ok2} reason={reason2}")
-    dead = await validate_links("see https://httpstat.us/404 and https://example.com")
-    print(f"  link validator dead={dead}")
-
-    _hr("SCHEDULER")
-    from rugmunchbot.channels.midday_market_report import midday_report_run_time
-    from rugmunchbot.channels.evening_wrap import evening_wrap_run_time
-
-    print(f"  midday  job time = {midday_report_run_time()}")
-    print(f"  evening job time = {evening_wrap_run_time()}")
-
-    _hr("SUMMARY")
+    _hr("SUMMARY — three editions")
     for r in results:
         print(
-            f"  {r['name']}: sources={r.get('sources')} raw={r.get('raw_chars')} "
-            f"guardrails_ok={r.get('guardrails_ok')} lexical_ok={r.get('lexical_ok')} "
-            f"err={r.get('error')}"
+            f"  {r['name']}: sources={r.get('sources')} chars={r.get('chars')} "
+            f"dateline={r.get('dateline_ok')} graphic_valid={r.get('valid')} "
+            f"feed_ok={(r.get('feed') or {}).get('feed_ok')} err={r.get('error')}"
         )
-    return 0
+    failed = [
+        r
+        for r in results
+        if r.get("error")
+        or r.get("valid") is False
+        or (r.get("chars") and r.get("dateline_ok") is False)
+        or (r.get("chars") and not (r.get("feed") or {}).get("feed_ok"))
+    ]
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

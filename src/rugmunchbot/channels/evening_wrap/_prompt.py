@@ -81,7 +81,7 @@ def build_messages(context: dict[str, Any]) -> list[dict[str, str]]:
         generated = context.get("generated_at")
         if generated:
             date_str = (
-                datetime.fromisoformat(str(generated)).astimezone(UTC).strftime("%A, %B %d, %Y")
+                datetime.fromisoformat(str(generated)).astimezone(UTC).strftime("%A, %B %d, %Y · data as of %H:%M UTC")
             )
     except (TypeError, ValueError):
         date_str = "—"

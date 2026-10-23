@@ -30,6 +30,11 @@ logger = logging.getLogger("rmi_bot.channels.report_mirror")
 #: feed.rugmunch.io deep-link base for a mirrored post slug.
 FEED_POST_URL_FMT = "https://rugmunch.io/blog/{slug}"
 
+#: Full-report cap for the feed store. The old 3900-char Telegram cap cut
+#: the commentary mid-sentence on the website (2026-10-24); the SPA renders
+#: the whole body, so the store carries it.
+FEED_TEXT_MAX = 12000
+
 
 def _title(edition: str) -> str:
     """Dated Ghost post title for an edition."""
@@ -46,7 +51,7 @@ async def _mirror_to_feed_site(
         slug = (
             mirror_post_to_feed(
                 {
-                    "text": report[:3900],
+                    "text": report[:FEED_TEXT_MAX],
                     "story_ref": story_ref,
                     "source": "rugmunch.io",
                     "kind": "briefing",
