@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
+from telegram.error import TelegramError
 from telegram.ext import CommandHandler
 
 from rugmunchbot import db
@@ -535,10 +536,9 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f'\U0001f310 <a href="{WEBSITE_URL}">rugmunch.io</a>'
         )
 
-    with contextlib.suppress(Exception):
+    try:
         await msg.edit_text(
-            text,
-            parse_mode=ParseMode.HTML,
-            reply_markup=news_kb,
-            disable_web_page_preview=True,
+            text, parse_mode=ParseMode.HTML, reply_markup=news_kb, disable_web_page_preview=True
         )
+    except TelegramError:  # message too old / not modified / chat deleted
+        logger.debug("news:edit_failed", exc_info=True)
