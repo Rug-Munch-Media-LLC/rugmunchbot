@@ -11,9 +11,16 @@ from telegram.constants import ParseMode
 
 from rugmunchbot import db
 from rugmunchbot.config import TIERS, fmt_number
-from rugmunchbot.formatters import detect_chain, footer_links, sep
+from rugmunchbot.formatters import footer_links, sep
 from rugmunchbot.handlers._messages import failure_card, usage_hint
 from rugmunchbot.handlers.alerts._backend_subs import _subscribe_backend_alerts
+from rugmunchbot.handlers.alerts._delete import cmd_alertdel
+from rugmunchbot.handlers.alerts._manage import (
+    active_alert_count,
+    is_duplicate,
+    parse_alert_args,
+    quota_error,
+)
 from rugmunchbot.keyboards import back_kb, pricing_kb
 from rugmunchbot.support.logging import get_logger
 
@@ -94,6 +101,7 @@ async def cmd_alerts(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             text += f"  ... and {len(triggered_alerts) - 5} more\n"
 
     text += "\nSet new: /alert ABOVE <code>addr</code> <price>"
+    text += "\nRemove: /alert delete <code>addr</code>"
     text += footer_links()
     await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
         text, parse_mode=ParseMode.HTML, reply_markup=back_kb(), disable_web_page_preview=True
@@ -121,6 +129,10 @@ async def cmd_alert(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
+    if (ctx.args or [""])[0].lower() == "delete":
+        await cmd_alertdel(update, ctx)
+        return
+
     if len(ctx.args or []) < 2:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             "\U0001f514 <b>Set Price Alert</b>\n\n"
@@ -139,67 +151,47 @@ async def cmd_alert(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    direction_raw = (ctx.args or [])[0].upper()
-    addr = (ctx.args or [])[1]
-    price_str = (ctx.args or [])[2] if len(ctx.args or []) > 2 else None
-
-    valid_directions = {"ABOVE", "BELOW", "CHANGE_5", "ANY"}
-    if direction_raw not in valid_directions:
+    spec, err = parse_alert_args(list(ctx.args or []))
+    if spec is None:
         await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
             failure_card(
-                "Invalid Direction",
-                f"Choose one of: {', '.join(d.lower() for d in valid_directions)}",
+                "Invalid Alert",
+                err or "Could not parse that alert.",
                 "Example: /alert ABOVE <code>address</code> 0.005",
             ),
             parse_mode=ParseMode.HTML,
         )
         return
 
-    if direction_raw in ("ABOVE", "BELOW") and not price_str:
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            failure_card(
-                "Missing Target Price",
-                "ABOVE/BELOW alerts need a target price.",
-                "Example: /alert ABOVE <code>address</code> 0.005",
-            ),
-            parse_mode=ParseMode.HTML,
-        )
-        return
-
-    chain = detect_chain(addr)
-    if chain == "unknown":
-        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-            failure_card(
-                "Chain Not Detected",
-                "Ensure it's a valid EVM (0x...) or Solana address.",
-                "Example: /alert BELOW EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v 0.85",
-            ),
-            parse_mode=ParseMode.HTML,
-        )
-        return
-
-    alert_price: float | None = None
-    if price_str:
-        try:
-            alert_price = float(price_str)
-            if alert_price <= 0:
-                raise ValueError
-        except (ValueError, TypeError):
+    addr, chain, alert_price = spec.address, spec.chain, spec.price
+    direction_raw = spec.direction.upper()
+    entries = db.get_watchlist_for_user(user.id, include_triggered=True)
+    existing_entry = next(
+        (w for w in entries if str(w["token_address"]).lower() == addr.lower()),
+        None,
+    )
+    if existing_entry is None:
+        limit_err = quota_error(tier, active_alert_count(entries))
+        if limit_err:
             await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
                 failure_card(
-                    "Invalid Price",
-                    "Use a positive number (e.g., 0.005, 1.50, 42000).",
-                    "Example: /alert ABOVE <code>address</code> 1.50",
+                    "Alert Limit Reached",
+                    limit_err,
+                    "Use /alerts to review, /alert delete to remove one.",
                 ),
                 parse_mode=ParseMode.HTML,
             )
             return
-
-    existing = db.get_watchlist(user.id)
-    existing_entry = next(
-        (w for w in existing if w["token_address"].lower() == addr.lower()),
-        None,
-    )
+    elif is_duplicate(existing_entry, spec):
+        # Dedupe: the exact same rule is already armed — no DB write.
+        await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
+            f"\u2139\ufe0f <b>Alert Already Active</b>\n\n"
+            f"Token: <code>{addr}</code>\n"
+            f"Rule: {spec.direction} {fmt_number(alert_price) if alert_price else 'any move'}\n\n"
+            f"Nothing changed. Use /alert delete <code>{addr}</code> to remove it.",
+            parse_mode=ParseMode.HTML,
+        )
+        return
 
     if existing_entry:
         conn = db.get_db()

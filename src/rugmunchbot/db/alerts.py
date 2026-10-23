@@ -38,3 +38,22 @@ def mark_alert_triggered(watch_id: int) -> None:
     )
     conn.commit()
     conn.close()
+
+
+def delete_alert(user_id: int, token_address: str) -> bool:
+    """Clear the alert rule on a user's watchlist row (address case-insensitive).
+
+    Only rows that actually carry a rule are touched, so a plain /watch entry
+    is never deactivated by /alertdel. Returns True when a rule was removed.
+    """
+    conn = get_db()
+    cursor = conn.execute(
+        "UPDATE watchlists SET alert_price = NULL, alert_direction = NULL, "
+        "is_active = 0, alert_triggered_at = NULL "
+        "WHERE user_id = ? AND LOWER(token_address) = LOWER(?) AND alert_price IS NOT NULL",
+        (user_id, token_address),
+    )
+    conn.commit()
+    removed = cursor.rowcount > 0
+    conn.close()
+    return removed
