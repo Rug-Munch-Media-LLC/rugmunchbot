@@ -22,12 +22,14 @@ from rugmunchbot.handlers.chat_ai._live_tools import (
     TOOL_ANSWER_EXTRA_WAIT,
     _run_live_tools_bounded,
 )
+from rugmunchbot.handlers.chat_ai._llm._citations import tool_citations
 from rugmunchbot.handlers.chat_ai._llm._constants import (
     _CONTEXT_GATHER_TIMEOUT,
     FALLBACK_CONTEXT_HARD_CAP,
     FALLBACK_CONTEXT_WAIT,
     RAG_LOOKUP_WAIT,
 )
+from rugmunchbot.handlers.chat_ai._llm._refusal import no_source_refusal
 from rugmunchbot.handlers.chat_ai._llm._router import _gather_context
 from rugmunchbot.handlers.chat_ai._llm._sources import _untrusted_block
 from rugmunchbot.support.logging import get_logger
@@ -204,6 +206,11 @@ async def _build_fallback_answer(
         logger.debug("fallback tool prompt block failed (user=%s): %s", user.id, exc)
     if tool_block:
         context_parts.append(_untrusted_block(tool_block))
+    # Cite the providers that ACTUALLY answered: the tool ``source`` label
+    # (``dexscreener:/defi/price``, ``birdeye:/defi/price``) becomes a URL-
+    # bearing entry in the message-level Sources footer, so a price the user
+    # can check is never presented without the feed it came from.
+    bridge_sources = bridge_sources + tool_citations(fallback_live_results)
 
     # Thin question router (fail-open, bounded ~5s): detect the question TYPE
     # and pull 1-2 relevant sources (price / scanner / RAG KB / news_v2) so
@@ -242,6 +249,26 @@ async def _build_fallback_answer(
     has_market_context = bool(daily_context) or any(
         isinstance(s, dict) and s.get("type") == "market" for s in bridge_sources
     )
+
+    # DETERMINISTIC NO-SOURCE FLOOR: a live-data question (price / scan /
+    # holders / trending) whose routed tools ALL failed must refuse instead of
+    # letting the model answer from training memory. Real grounding from the
+    # bridge market block or a RAG hit still answers — only an ungrounded
+    # data claim is refused.
+    grounded_elsewhere = bool(rag_result is not None and rag_result.ok) or any(
+        isinstance(s, dict) and s.get("type") in {"market", "live"} for s in bridge_sources
+    )
+    if not grounded_elsewhere:
+        refusal = no_source_refusal(text, fallback_live_results)
+        if refusal:
+            logger.info("fallback refused — no live source (user=%s)", user.id)
+            return (
+                {"message": refusal, "rag_count": 0, "provider": "tools"},
+                bridge_sources,
+                bridge_actions,
+                rag_result,
+                False,
+            )
 
     # Fallback: remote LLM chain (snappy/long, routed by intent) — grounded
     # with the bridge blocks + live tool data, reporting rag_count =

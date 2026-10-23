@@ -22,8 +22,6 @@ from rugmunchbot.handlers.chat_ai import _llm as _llm_mod
 from rugmunchbot.handlers.chat_ai._llm._constants import (
     _SNAPPY_CONTEXT_BUDGET,
     _SNAPPY_DIGEST_CHARS,
-    _SNAPPY_HISTORY_CHARS,
-    _SNAPPY_HISTORY_MSGS,
     _SNAPPY_SYSTEM_PROMPT,
     MAX_MESSAGE_CHARS,
     REMOTE_LLM_CONTEXT_BUDGET,
@@ -33,6 +31,7 @@ from rugmunchbot.handlers.chat_ai._llm._constants import (
     REMOTE_SNAPPY_TIMEOUT,
     REMOTE_UNAVAILABLE_MESSAGE,
 )
+from rugmunchbot.handlers.chat_ai._llm._history import compress_history
 from rugmunchbot.handlers.chat_ai._llm._router import _route_tier
 from rugmunchbot.handlers.chat_ai._llm._sources import (
     _append_source_block,
@@ -70,9 +69,7 @@ def _owner_mode(user_id: int) -> bool:
         return False
 
 
-def _owner_augment_messages(
-    messages: list[dict[str, str]], user_id: int
-) -> list[dict[str, str]]:
+def _owner_augment_messages(messages: list[dict[str, str]], user_id: int) -> list[dict[str, str]]:
     """Append the owner persona block to the system message (copy-on-write)."""
     if not _owner_mode(user_id):
         return messages
@@ -81,7 +78,7 @@ def _owner_augment_messages(
         if m.get("role") == "system":
             m["content"] = str(m.get("content", "")) + _OWNER_MODE_BLOCK
             return out
-    return [{"role": "system", "content": _OWNER_MODE_BLOCK.lstrip()}] + out
+    return [{"role": "system", "content": _OWNER_MODE_BLOCK.lstrip()}, *out]
 
 
 def _local_chat_first_enabled() -> bool:
@@ -105,7 +102,7 @@ def _local_snappy_patience() -> float:
 
     Tuned so a fast local turn (≤8 s on the 2B respond lane) wins
     automatically; a slow/queued local turn yields to the cloud chain so the
-    user never waits more than ~patience + cloud_latency (≈15–20 s total).
+    user never waits more than ~patience + cloud_latency (≈15-20 s total).
     Override with RMI_LOCAL_SNAPPY_PATIENCE.
     """
     try:
@@ -237,18 +234,14 @@ async def _call_remote_fast(
     # 2026-09-16: HEDGED — if local doesn't finish within the patience
     # window, race it against the cloud chain and take whichever finishes
     # first. This caps user-visible latency at ~patience + cloud_latency
-    # (≈15–20 s) while keeping idle turns zero-cost on the local lane.
+    # (≈15-20 s) while keeping idle turns zero-cost on the local lane.
     if tier == "snappy" and _local_chat_first_enabled():
-        local_task = asyncio.create_task(
-            _call_local_chat(messages, user_id, sources=sources)
-        )
+        local_task = asyncio.create_task(_call_local_chat(messages, user_id, sources=sources))
         try:
-            local_result = await asyncio.wait_for(
-                local_task, timeout=_local_snappy_patience()
-            )
+            local_result = await asyncio.wait_for(local_task, timeout=_local_snappy_patience())
             if local_result is not None:
                 return local_result
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass  # local is slow — fall through to the cloud race
 
         # Patience exhausted: race local vs cloud, take first success.
@@ -307,8 +300,8 @@ async def _call_remote_fast(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-                "User-Agent": "rugmunchbot/1.0 (+https://rugmunch.io)",
-"HTTP-Referer": "https://rugmunch.io",
+        "User-Agent": "rugmunchbot/1.0 (+https://rugmunch.io)",
+        "HTTP-Referer": "https://rugmunch.io",
         "X-Title": "RMI Telegram Bot",
     }
     t0 = time.monotonic()
@@ -488,27 +481,21 @@ async def _call_remote_llm(
     # model "finish" the old answer instead of answering the new question.
     # Render it as one inert block, not as real user/assistant turns, and never
     # emit a trailing bare user turn before the current question. The snappy
-    # tier keeps only the LAST message, shorter (lean prompt = faster).
-    if history:
-        hist_limit = _SNAPPY_HISTORY_MSGS if is_snappy else 2
-        hist_chars = _SNAPPY_HISTORY_CHARS if is_snappy else 300
-        hist_lines: list[str] = []
-        for msg in history[-hist_limit:]:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if role in ("user", "assistant") and content:
-                hist_lines.append(f"[{role}] {content[:hist_chars]}")
-        if hist_lines:
-            messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        "PREVIOUS CONVERSATION (reference only — do NOT "
-                        "continue it, do NOT quote it, answer only the NEW "
-                        "question below):\n" + "\n".join(hist_lines)
-                    ),
-                }
-            )
+    # tier keeps a leaner block (fast model = faster answer). Long threads are
+    # COMPRESSED (cc-compress lane, fact-preserving) rather than sliced — see
+    # ``_history.compress_history``.
+    history_block = await compress_history(history, is_snappy=is_snappy)
+    if history_block:
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "PREVIOUS CONVERSATION (reference only — do NOT "
+                    "continue it, do NOT quote it, answer only the NEW "
+                    "question below):\n" + history_block
+                ),
+            }
+        )
     # The retrieved context (RAG hits / bridge / scan / live tool data) is a
     # SEPARATELY-labeled user message with its own budget — it must never
     # share (and thus consume) the question's window. Each block keeps its
