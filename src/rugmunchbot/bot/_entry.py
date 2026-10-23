@@ -44,7 +44,6 @@ from rugmunchbot.commands import (
     cmd_portfolio,
     cmd_rugmap,
     cmd_simulate,
-    cmd_smartmoney,
     cmd_tweet,
     cmd_tweets,
 )
@@ -63,6 +62,7 @@ from rugmunchbot.config import (
     BOT_TOKEN,
     check_backend_health,
 )
+from rugmunchbot.handlers._alpha_handlers import cmd_alpha
 from rugmunchbot.handlers.account import (
     cmd_account,
     cmd_buystars,
@@ -93,12 +93,10 @@ from rugmunchbot.handlers.groups import (
     cmd_voicechat,
 )
 from rugmunchbot.handlers.hlwhales import register_hlwhales
-from rugmunchbot.handlers.whalewatch import register_whalewatch
 from rugmunchbot.handlers.holders import cmd_holders
 from rugmunchbot.handlers.inline import handle_inline
 from rugmunchbot.handlers.integrity_handlers import register_integrity
 from rugmunchbot.handlers.liqmap import register_liqmap
-from rugmunchbot.handlers._alpha_handlers import cmd_alpha
 from rugmunchbot.handlers.market import cmd_news, cmd_rugcheck, register_market
 from rugmunchbot.handlers.osint import (
     cmd_email,
@@ -127,6 +125,12 @@ from rugmunchbot.handlers.owner import (
 from rugmunchbot.handlers.payments import precheckout, successful_payment
 from rugmunchbot.handlers.portfolio import register_portfolio
 from rugmunchbot.handlers.prediction import register_prediction
+from rugmunchbot.handlers.premium_watch import (
+    cmd_export,
+    cmd_unwatch,
+    cmd_watch,
+    cmd_watchlist,
+)
 from rugmunchbot.handlers.price import cmd_dex, cmd_price
 from rugmunchbot.handlers.report import cmd_report
 from rugmunchbot.handlers.research import cmd_research
@@ -145,20 +149,16 @@ from rugmunchbot.handlers.scanning import (
     sentinel_scan,
 )
 from rugmunchbot.handlers.sentiment import cmd_sentiment
+from rugmunchbot.handlers.smart_money import register_smart_money
 from rugmunchbot.handlers.status import register_status
 from rugmunchbot.handlers.trace import cmd_trace, register_trace_commands
-from rugmunchbot.handlers.premium_watch import (
-    cmd_export,
-    cmd_unwatch,
-    cmd_watch,
-    cmd_watchlist,
-)
 from rugmunchbot.handlers.watchlist import (
     cmd_monitor,
     cmd_monitors,
     cmd_unmonitor,
 )
 from rugmunchbot.handlers.webhook import cmd_webhook
+from rugmunchbot.handlers.whalewatch import register_whalewatch
 from rugmunchbot.moderation import register_moderation
 from rugmunchbot.observability import (
     set_scheduler_running,
@@ -214,6 +214,7 @@ def _register_all_handlers(app: Application[Any, Any, Any, Any, Any, Any]) -> No
     register_portfolio(app)  # /portfolio
     register_cascade_token(app)  # /cascadewatch /tokeninfo
     register_prediction(app)  # /polymarket /election /odds
+    register_smart_money(app)  # /smartmoney /whales /predictions
     register_defi(app)  # /yield /lpcheck /defi
     _reg(app, "news", cmd_news)
     _reg(app, "sentiment", cmd_sentiment)
@@ -255,7 +256,6 @@ def _register_all_handlers(app: Application[Any, Any, Any, Any, Any, Any]) -> No
     _reg(app, "chart", cmd_chart)
     _reg(app, "portfolio", cmd_portfolio)
     _reg(app, "simulate", cmd_simulate)
-    _reg(app, "smartmoney", cmd_smartmoney)
     _reg(app, "rugmap", cmd_rugmap)
     _reg(app, "events", cmd_events)
 
@@ -380,9 +380,6 @@ def main() -> None:
     # the remote LLM) no longer blocks every other user's command. Bounded
     # at 4 to protect the SQLite-backed db module from concurrency thrash.
     app = Application.builder().token(BOT_TOKEN).request(request).concurrent_updates(4).build()
-
-
-
 
     _register_all_handlers(app)
 

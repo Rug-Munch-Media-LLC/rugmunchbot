@@ -1,0 +1,121 @@
+{
+	"category": "all",
+	"total": 6,
+	"sources": ["polymarket", "kalshi", "limitless"],
+	"results": [
+		{
+			"source": "polymarket",
+			"question": "Will Luiz In\u00e1cio Lula da Silva win the 2026 Brazilian presidential election?",
+			"slug": "will-luiz-incio-lula-da-silva-win-the-2026-brazilian-presidential-election",
+			"probability": {
+				"yes": 0.235,
+				"no": 0.765,
+				"yes_pct": "23.5%",
+				"no_pct": "76.5%"
+			},
+			"volume_usd": 28733111.51,
+			"category": "",
+			"tokens_mentioned": [],
+			"is_security_relevant": false,
+			"is_crypto_relevant": false,
+			"url": "https://polymarket.com/event/will-luiz-incio-lula-da-silva-win-the-2026-brazilian-presidential-election",
+			"ends_at": "2026-10-05T03:59:00Z",
+			"updated_at": "2026-10-23T10:14:10.560830+00:00"
+		},
+		{
+			"source": "polymarket",
+			"question": "Will Gavin Newsom win the 2028 Democratic presidential nomination?",
+			"slug": "will-gavin-newsom-win-the-2028-democratic-presidential-nomination-568",
+			"probability": {
+				"yes": 0.1455,
+				"no": 0.8545,
+				"yes_pct": "14.5%",
+				"no_pct": "85.5%"
+			},
+			"volume_usd": 28036203.25,
+			"category": "",
+			"tokens_mentioned": [],
+			"is_security_relevant": false,
+			"is_crypto_relevant": false,
+			"url": "https://polymarket.com/event/will-gavin-newsom-win-the-2028-democratic-presidential-nomination-568",
+			"ends_at": "2028-11-08T04:59:00Z",
+			"updated_at": "2026-10-23T10:14:10.560186+00:00"
+		},
+		{
+			"source": "polymarket",
+			"question": "Will Gavin Newsom win the 2028 US Presidential Election?",
+			"slug": "will-gavin-newsom-win-the-2028-us-presidential-election",
+			"probability": {
+				"yes": 0.0925,
+				"no": 0.9075,
+				"yes_pct": "9.2%",
+				"no_pct": "90.8%"
+			},
+			"volume_usd": 18718922.67,
+			"category": "",
+			"tokens_mentioned": [],
+			"is_security_relevant": false,
+			"is_crypto_relevant": false,
+			"url": "https://polymarket.com/event/will-gavin-newsom-win-the-2028-us-presidential-election",
+			"ends_at": "2028-11-08T04:59:00Z",
+			"updated_at": "2026-10-23T10:14:10.560481+00:00"
+		},
+		{
+			"source": "polymarket",
+			"question": "Will JD Vance win the 2028 US Presidential Election?",
+			"slug": "will-jd-vance-win-the-2028-us-presidential-election",
+			"probability": {
+				"yes": 0.2005,
+				"no": 0.7995,
+				"yes_pct": "20.1%",
+				"no_pct": "80.0%"
+			},
+			"volume_usd": 17192450.63,
+			"category": "",
+			"tokens_mentioned": [],
+			"is_security_relevant": false,
+			"is_crypto_relevant": false,
+			"url": "https://polymarket.com/event/will-jd-vance-win-the-2028-us-presidential-election",
+			"ends_at": "2028-11-08T04:59:00Z",
+			"updated_at": "2026-10-23T10:14:10.560442+00:00"
+		},
+		{
+			"source": "polymarket",
+			"question": "Will J.D. Vance win the 2028 Republican presidential nomination?",
+			"slug": "will-jd-vance-win-the-2028-republican-presidential-nomination",
+			"probability": {
+				"yes": 0.4405,
+				"no": 0.5595,
+				"yes_pct": "44.0%",
+				"no_pct": "56.0%"
+			},
+			"volume_usd": 16012732.46,
+			"category": "",
+			"tokens_mentioned": [],
+			"is_security_relevant": false,
+			"is_crypto_relevant": false,
+			"url": "https://polymarket.com/event/will-jd-vance-win-the-2028-republican-presidential-nomination",
+			"ends_at": "2028-11-08T04:59:00Z",
+			"updated_at": "2026-10-23T10:14:10.560609+00:00"
+		},
+		{
+			"source": "polymarket",
+			"question": "Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?",
+			"slug": "will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653",
+			"probability": {
+				"yes": 0.1755,
+				"no": 0.8245,
+				"yes_pct": "17.5%",
+				"no_pct": "82.5%"
+			},
+			"volume_usd": 15553569.03,
+			"category": "",
+			"tokens_mentioned": [],
+			"is_security_relevant": false,
+			"is_crypto_relevant": false,
+			"url": "https://polymarket.com/event/will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653",
+			"ends_at": "2028-11-08T04:59:00Z",
+			"updated_at": "2026-10-23T10:14:10.560325+00:00"
+		}
+	]
+}
