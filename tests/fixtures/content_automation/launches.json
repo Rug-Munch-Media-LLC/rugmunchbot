@@ -1,0 +1,22 @@
+{
+	"_label": "SYNTHETIC FIXTURE — invented launches, not live launchpad data",
+	"items": [
+		{
+			"address": "FIXTUREmintAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1",
+			"symbol": "FIXL",
+			"name": "Fixture Launch",
+			"chain": "solana",
+			"liquidity_usd": 84000,
+			"holders": 312,
+			"risk_level": "medium",
+			"risk_flags": ["mint_authority_active"]
+		},
+		{
+			"address": "FIXTUREmintBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB2",
+			"symbol": "FIXS",
+			"name": "Second Fixture",
+			"chain": "solana",
+			"liquidity_usd": 12000
+		}
+	]
+}

@@ -1,0 +1,30 @@
+{
+	"_label": "SYNTHETIC FIXTURE — invented wallets/numbers, not real market data",
+	"items": [
+		{
+			"wallet": "FIXTUREwalletAAAAAAAAAAAAAAAAAAAAAAAAAAAA1",
+			"symbol": "FIXT",
+			"action": "buy",
+			"amount_usd": 1250000,
+			"chain": "solana",
+			"tx_hash": "FIXTUREtx-move-0001",
+			"entity": "Fixture Capital",
+			"pnl_usd": 420000
+		},
+		{
+			"wallet": "FIXTUREwalletBBBBBBBBBBBBBBBBBBBBBBBBBBBB2",
+			"symbol": "FIX2",
+			"action": "sell",
+			"amount_usd": 300000,
+			"chain": "solana",
+			"tx_hash": "FIXTUREtx-move-0002"
+		},
+		{
+			"symbol": "NOWALLET",
+			"action": "buy",
+			"amount_usd": 9000000,
+			"chain": "solana",
+			"tx_hash": "FIXTUREtx-move-0003"
+		}
+	]
+}
