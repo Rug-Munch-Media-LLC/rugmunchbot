@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     from telegram import Update
 
 from rugmunchbot.config._endpoints import backend_headers
+from rugmunchbot.support.logging import get_logger
+
+logger = get_logger("rmi_bot.status")
 
 _START = time.monotonic()
 
@@ -98,8 +101,8 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 )
         if rows:
             lines.extend(["", "<b>Tool Metrics (this process)</b>", *rows])
-    except Exception:  # noqa: S110 — best-effort metrics, never block /status
-        pass
+    except Exception as exc:  # best-effort metrics, never block /status
+        logger.debug("status: tool metrics unavailable err=%s", str(exc)[:120])
     lines.extend(["", "via @rugmunchbot · rugmunch.io"])
     await wait.edit_text("\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 

@@ -393,10 +393,10 @@ async def _enrich_with_quick_scan(tokens: list[dict[str, Any]], chain: str) -> l
                             token["symbol"] = p.get("baseToken", {}).get("symbol", "")
                             if not token.get("name"):
                                 token["name"] = p.get("baseToken", {}).get("name", "")
-                except Exception:  # noqa: S110 — enrichment is best-effort
-                    pass
-        except Exception:  # noqa: S110 — return token even if enrichment fails
-            pass
+                except Exception as exc:  # enrichment is best-effort
+                    logger.debug("trending: enrichment failed err=%s", str(exc)[:120])
+        except Exception as exc:  # return token even if enrichment fails
+            logger.debug("trending: token enrichment failed err=%s", str(exc)[:120])
         return token
 
     # Run scans in parallel (max 5 concurrent to avoid overload)
