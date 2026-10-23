@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import httpx as httpx
 
+from rugmunchbot.handlers.chat_ai._llm._citations import tool_citations as tool_citations
 from rugmunchbot.handlers.chat_ai._llm._clients import (
     _call_remote_fast as _call_remote_fast,
     _call_remote_llm as _call_remote_llm,
@@ -73,6 +74,8 @@ from rugmunchbot.handlers.chat_ai._llm._fallback import (
     _build_fallback_answer as _build_fallback_answer,
     _gather_fallback_context as _gather_fallback_context,
 )
+from rugmunchbot.handlers.chat_ai._llm._history import compress_history as compress_history
+from rugmunchbot.handlers.chat_ai._llm._refusal import no_source_refusal as no_source_refusal
 from rugmunchbot.handlers.chat_ai._llm._router import (
     _classify_context_need as _classify_context_need,
     _classify_question as _classify_question,
