@@ -7,6 +7,7 @@ import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from rugmunchbot.channels._story_cta import attach_story_cta, slug_from_url
 from rugmunchbot.channels.daily_market_summary._assemble import gather_summary_data
 from rugmunchbot.channels.daily_market_summary._config import (
     DAILY_MARKET_SUMMARY_FEED_ENABLED,
@@ -253,21 +254,15 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         select_edition_image,
     )
 
-    ledger_eval = evaluate_report(
-        report, namespace="morning_rug", min_words=100, log=logger
-    )
+    ledger_eval = evaluate_report(report, namespace="morning_rug", min_words=100, log=logger)
     if not ledger_eval.allowed:
-        logger.warning(
-            "daily_market_summary:publication_skipped reason=%s", ledger_eval.reason
-        )
+        logger.warning("daily_market_summary:publication_skipped reason=%s", ledger_eval.reason)
         return 0
     record_publication("morning_rug", ledger_eval.content_hash, log=logger)
     # Explicit image default: resolved story image (og:image) or the RugMunch
     # Intelligence logo (app favicon) — NEVER the @cryptorugmuncher X/Telegram
     # profile pic, which is_valid_image rejects.
-    report_image = select_edition_image(
-        candidate=gate.image_url or _pick_report_image(context)
-    )
+    report_image = select_edition_image(candidate=gate.image_url or _pick_report_image(context))
 
     # Market-report delivery doctrine (2026-08-26): Telegram readers get the
     # FULL report — split at line boundaries into ≤3900-char parts (Telegram's
@@ -301,6 +296,12 @@ async def post_daily_market_summary(ctx: ContextTypes.DEFAULT_TYPE) -> int:
         + "\n🤖 Live token intel, scans &amp; alerts: @rugmunchbot"
     )
     parts[-1] = parts[-1].rstrip() + "\n\n" + closer
+    # Story CTA: mirrored Ghost slug when present, else the edition's section.
+    parts[-1] = attach_story_cta(
+        parts[-1],
+        {"story_slug": slug_from_url(feed_url)},
+        "morning" if edition == MORNING_EDITION else "midday",
+    )
 
     # Photo-aware delivery (2026-09): the flagship report leads with an image
     # when the gathered context carries one (top news story's og:image). The

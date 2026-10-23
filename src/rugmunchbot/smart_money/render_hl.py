@@ -69,4 +69,6 @@ def render_hl(feed: Any, item: dict[str, Any]) -> NewsPost:
         source="Hyperliquid metaAndAssetCtxs via rmi-backend",
         updated=feed.updated_at,
         risk=_RISK,
+        lane="whales",
+        payload=item,
     )

@@ -24,6 +24,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
+from rugmunchbot.channels._story_cta import attach_story_cta
 from rugmunchbot.channels.formatters._primitives import (
     NewsPost,
     _clip,
@@ -33,7 +34,7 @@ from rugmunchbot.channels.formatters._primitives import (
     _scan_channel_shill,
     site_news_line,
 )
-from rugmunchbot.formatters import sep, short_addr
+from rugmunchbot.formatters import sep
 from rugmunchbot.support.post_graphics import graphic_for
 
 #: Severity → (banner emoji, banner label, framing line). The framing line
@@ -159,7 +160,7 @@ def format_scam_alert(item: dict[str, Any]) -> NewsPost:
     lines.append(sep())
     lines.append(_scan_channel_shill())
 
-    post = NewsPost(_clip("\n".join(lines)))
+    post = NewsPost(attach_story_cta(_clip("\n".join(lines)), item, "scam"))
     post.image_url = graphic_for("scam_alert")
     return post
 

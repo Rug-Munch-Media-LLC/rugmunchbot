@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
+from rugmunchbot.channels._story_cta import attach_story_cta
 from rugmunchbot.channels.formatters._primitives import (
     _BREAKING_SUMMARY_CHARS,
     _COMMENTARY_HOOK_CHARS,
@@ -21,6 +22,17 @@ from rugmunchbot.channels.formatters._primitives import (
     site_news_line,
 )
 from rugmunchbot.formatters import footer_links, sep
+
+
+def _with_story_cta(post: NewsPost, lane: str = "news") -> NewsPost:
+    """Attach the canonical story CTA row (section page — sweeps carry no slug).
+
+    A swept article has a source URL, never a rugmunch.io slug, so the CTA
+    resolves to the lane's section page and records ``story_url=None``.
+    """
+    wrapped = NewsPost(attach_story_cta(post, {}, lane))
+    wrapped.image_url = post.image_url
+    return wrapped
 
 
 def _story_line(item: dict[str, Any], index: int) -> list[str]:
@@ -82,7 +94,7 @@ def format_news_post(items: list[dict[str, Any]]) -> NewsPost:
             break
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = image_url or _graphic_for("news")
-    return post
+    return _with_story_cta(post, "news")
 
 
 def format_breaking_post(item: dict[str, Any]) -> NewsPost:
@@ -122,7 +134,7 @@ def format_breaking_post(item: dict[str, Any]) -> NewsPost:
     lines.append(footer_links())
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = _pick_image_url(item.get("image_url")) or _graphic_for("breaking")
-    return post
+    return _with_story_cta(post, "news")
 
 
 def format_feature_post(item: dict[str, Any]) -> NewsPost:
@@ -165,7 +177,7 @@ def format_feature_post(item: dict[str, Any]) -> NewsPost:
     lines.append(footer_links())
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = _pick_image_url(item.get("image_url")) or _graphic_for("feature")
-    return post
+    return _with_story_cta(post, "news")
 
 
 def format_hybrid_post(items: list[dict[str, Any]]) -> NewsPost:
@@ -222,7 +234,7 @@ def format_hybrid_post(items: list[dict[str, Any]]) -> NewsPost:
             image_url = _pick_image_url(item.get("image_url"))
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = image_url or _graphic_for("hybrid")
-    return post
+    return _with_story_cta(post, "news")
 
 
 def format_themed_post(items: list[dict[str, Any]], theme: str = "") -> NewsPost:
@@ -253,7 +265,7 @@ def format_themed_post(items: list[dict[str, Any]], theme: str = "") -> NewsPost
             break
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = image_url or _graphic_for("themed")
-    return post
+    return _with_story_cta(post, "news")
 
 
 def format_scam_digest(items: list[dict[str, Any]]) -> NewsPost:
@@ -295,4 +307,4 @@ def format_scam_digest(items: list[dict[str, Any]]) -> NewsPost:
             break
     post = NewsPost(_clip("\n".join(lines)))
     post.image_url = image_url or _graphic_for("scam_alert")
-    return post
+    return _with_story_cta(post, "scam")

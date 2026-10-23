@@ -35,4 +35,6 @@ def render_prediction(feed: Any, market: dict[str, Any]) -> NewsPost:
         source=f"{feed.source} via rmi-backend (aggregate book)",
         updated=feed.updated_at,
         risk=_RISK,
+        lane="predictions",
+        payload=market,
     )

@@ -116,6 +116,7 @@ returns placeholder/limited output · **owner** = owner/admin-gated.
 | /admin_set_tier /admin_broadcast /admin_toggle /admin_toggle_chat | owner | User/tier admin |
 | /admin_user /admin_ban /admin_unban /admin_logs | owner | User admin |
 
+
 ## Website parity (2026-10-24)
 
 Five website abilities are reachable from the bot. The bot does **not** re-implement the web UI: each surface renders a compact summary and hands off with one `🌐 Open on rugmunch.io` button (`handlers/_site_links.py`). Paths are the canonical rmi-frontend routes — `/scam-school`, not the `/scamschool` alias.
@@ -128,6 +129,48 @@ Five website abilities are reachable from the bot. The bot does **not** re-imple
 | /portfolio | /portfolio · /dashboard | Existing portfolio + dashboard row |
 | /pricing | /pricing | Existing plan card + hand-off row |
 | /dashboard | /dashboard | New; portfolio/watches/alerts/history |
+||||||| 437f5d1
+
+## Content CTA contract — every outbound post links the full story
+
+Source of truth: `src/rugmunchbot/channels/_story_cta.py`
+(`attach_story_cta`, `story_cta`, `cta_line`, `cta_markup`).
+
+Every outbound **content** lane ends with exactly one CTA row:
+
+```
+📖 Read the full story → https://rugmunch.io/story/<slug>?utm_source=telegram&…
+```
+
+| Lane | Component | Section fallback |
+|---|---|---|
+| morning | `channels/daily_rug/_publish.py` | `rugmunch.io/feed` |
+| midday / morning edition | `channels/daily_market_summary/_publish/send.py` | `rugmunch.io/news` |
+| evening | `channels/evening_wrap/_publish.py` | `rugmunch.io/feed` |
+| news | `channels/formatters/_news.py` (digest, breaking, feature, hybrid, themed) | `rugmunch.io/news` |
+| scam call-outs | `channels/formatters/_scam_alert.py`, `channels/scammer_warning.py` | `rugmunch.io/scam-school` |
+| shill campaigns | `channels/shill_campaign_post.py` | `rugmunch.io/wall-of-shame` |
+| smart money | `channels/automation/render_call.py` → `smart_money/render_base.compose` | `rugmunch.io/market-intel` |
+| whales | `smart_money/render_hl.py`, `render_move.py`, `scheduler/_posts_whales.py` | `rugmunch.io/market-intel` |
+| predictions | `smart_money/render_prediction.py` | `rugmunch.io/market-intel` |
+
+Rules:
+
+1. **Slug is payload-derived only** — `story_slug` / `slug` / `ghost_slug`,
+   validated `[a-z0-9-]+` (≤96 chars). Slugs are never built from a headline.
+2. **No slug → section page**, and the resolution reports
+   `story_url: null` with `reason` = `slug_missing` | `slug_invalid` |
+   `unknown_lane` (logged at DEBUG by `attach_story_cta`). Nothing is invented.
+3. **Teaser, not a wall** — the CTA is one row appended to the post's existing
+   body; no naked links, no link spam, no claims the body does not support.
+4. **Attribution** — generated URLs carry `utm_source=telegram`,
+   `utm_medium=bot`, `utm_campaign=<lane>`, `utm_content=rugmunchbot`, `ref=rugmunchbot`.
+   The trading referral strip (`referrals.referral_line`) is unchanged and still appended.
+5. **Idempotent** — a post already carrying the row or a `/story/` link is untouched.
+
+Tests: `tests/test_story_cta.py` (module contract, all lanes),
+`tests/test_story_cta_lanes.py` (per-lane builders + wiring guards).
+
 
 ## Known gaps
 
