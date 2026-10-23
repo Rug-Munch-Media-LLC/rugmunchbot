@@ -26,6 +26,7 @@ from rugmunchbot.channels.style_guides import channel_accepts_content
 from rugmunchbot.config import (
     _resolve_channel_id,
 )
+from rugmunchbot.partners import lane_for_content_type, with_partner_strip
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
@@ -72,7 +73,26 @@ _MAX_POSTED = 5000
 _TITLE_PUNCT_RE = re.compile(r"[^\w\s]+")
 
 _TITLE_STOPWORDS = frozenset(
-    ["a", "an", "and", "as", "at", "by", "for", "from", "in", "into", "is", "it", "its", "of", "on", "the", "to", "with"]
+    [
+        "a",
+        "an",
+        "and",
+        "as",
+        "at",
+        "by",
+        "for",
+        "from",
+        "in",
+        "into",
+        "is",
+        "it",
+        "its",
+        "of",
+        "on",
+        "the",
+        "to",
+        "with",
+    ]
 )
 
 
@@ -266,6 +286,10 @@ async def _safe_send(
     text: str,
     *,
     content_type: str | None = None,
+    lane: str | None = None,
+    chain: str = "",
+    token: str = "",
+    venue: str = "",
 ) -> bool:
     """Send one HTML message to a channel. Returns True on success, fails open.
 
@@ -289,6 +313,8 @@ async def _safe_send(
     """
     if not _enforce_content_contract(chat_id, content_type):
         return False
+    lane_key = lane or lane_for_content_type(content_type)
+    text = with_partner_strip(text, lane=lane_key, chain=chain, token=token, venue=venue)
     text = enforce_format_law(text)
     max_attempts = 1 + _POST_RETRIES
     attempt = 0

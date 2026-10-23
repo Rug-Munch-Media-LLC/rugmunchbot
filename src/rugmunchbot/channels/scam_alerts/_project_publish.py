@@ -96,8 +96,6 @@ async def publish_project_alert(
         return {"status": "no_channel", "fingerprint": fingerprint, "post": post}
 
     try:
-        from telegram.constants import ParseMode
-
         from rugmunchbot.channels.scheduler._core import _safe_send
 
         sent = bool(
@@ -105,8 +103,8 @@ async def publish_project_alert(
                 bot,
                 chat_id,
                 post,
-                parse_mode=ParseMode.HTML,
                 content_type="scam_alert",
+                lane="scam_alert",
             )
         )
     except Exception as exc:  # a transport bug must not crash the scheduler

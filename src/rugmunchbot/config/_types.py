@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 
 class TierDefinition(TypedDict, total=False):
@@ -49,3 +49,6 @@ class DexRefLink(TypedDict):
     url: str
     chains: list[str]
     description: str
+    #: Chain-agnostic landing page with the ref code, used when a lane has no
+    #: token to deep-link (token-less content posts). Optional by design.
+    home: NotRequired[str]

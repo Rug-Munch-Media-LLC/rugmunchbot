@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from rugmunchbot.channels import scheduler_state
+from rugmunchbot.partners import AUTOMATION_LANES
 from rugmunchbot.smart_money import fetch_hl, fetch_moves, fetch_predictions, publish
 
 from .gate import LaneGate
@@ -80,6 +81,9 @@ async def run_lane(
                 bot=bot,
                 role=role or plan.channel_role,
                 gate=gate or GATE,
+                lane=AUTOMATION_LANES.get(lane, ""),
+                chain=plan.chain,
+                token=plan.token,
             )
             statuses.append(str(sent.get("status") or "unknown"))
             if sent.get("status") == "sent":
