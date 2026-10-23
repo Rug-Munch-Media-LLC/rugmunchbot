@@ -99,6 +99,7 @@ from rugmunchbot.handlers.inline import handle_inline
 from rugmunchbot.handlers.integrity_handlers import register_integrity
 from rugmunchbot.handlers.liqmap import register_liqmap
 from rugmunchbot.handlers.market import cmd_news, cmd_rugcheck, register_market
+from rugmunchbot.handlers.moderation import register_moderation_commands
 from rugmunchbot.handlers.osint import (
     cmd_email,
     cmd_face,
@@ -317,6 +318,10 @@ def _register_all_handlers(app: Application[Any, Any, Any, Any, Any, Any]) -> No
     # message never reaches the AI chat pipeline. Inert for every chat
     # missing from configs/moderation.json; dry-run by default.
     register_moderation(app)
+    # Heimdall-class admin commands — /modstatus /modrules /warn /mute /ban
+    # /trust /untrust /modactions /modpardon. Read-only unless the engine is
+    # explicitly configured live; every action is audited.
+    register_moderation_commands(app)
 
     # Inline, callbacks, messages
     app.add_handler(InlineQueryHandler(handle_inline))
