@@ -45,6 +45,11 @@ def _raw_config() -> dict[str, Any]:
     return data
 
 
+def raw_config() -> dict[str, Any]:
+    """Public read of the hot-reloaded document (community settings, overview)."""
+    return _raw_config()
+
+
 def use_config_path(path: str | Path) -> None:
     """Point the loader at another file (harness, tests). Clears the cache."""
     global CONFIG_PATH
@@ -77,5 +82,6 @@ __all__ = [
     "ChatPolicy",
     "guarded_chat_ids",
     "load_chat_policy",
+    "raw_config",
     "use_config_path",
 ]

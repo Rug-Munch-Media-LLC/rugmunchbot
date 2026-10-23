@@ -5,6 +5,19 @@
 		"-1001234567890": {
 			"enabled": true,
 			"dry_run": true,
+			"community": {
+				"_readme": "Optional MissRose/Heimdall-style extras. Every switch is OFF by default; enable one at a time. Notes/filters/gbans/schedules persist in Redis only when RUGMUNCH_MODERATION_REDIS=1, else process memory.",
+				"welcome_enabled": false,
+				"goodbye_enabled": false,
+				"welcome_text": "Welcome {name} - read the pins, never share a seed phrase.",
+				"goodbye_text": "",
+				"filters_enabled": false,
+				"filter_replies_per_min": 3,
+				"enforce_gban": false,
+				"scheduled_enabled": false,
+				"schedule_max": 10,
+				"notes_admins_only": true
+			},
 			"exempt_user_ids": [123456789],
 			"exempt_admins": true,
 

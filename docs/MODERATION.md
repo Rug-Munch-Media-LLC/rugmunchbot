@@ -119,3 +119,36 @@ post `t.me/+abc` (delete), post an allowlisted link (allowed), run `/modstatus` 
   `admin/owner/dev` names and raise the action to `ban` per chat if that is the policy.
 - Velocity/dedup/verified state is in-process: a restart forgets windows (no rule fires on stale data).
 - `chat_raid` alerts, it never auto-actions — a raid must not silence the room.
+
+## Community features (MissRose/Heimdall parity)
+
+Opt-in per chat under the `community` key of the same JSON block. **Every switch
+defaults to off**, so adding a chat to the moderation config never starts
+greeting, auto-replying, banning or scheduling anything.
+
+| Feature | Commands | Config key(s) | Behaviour |
+|---|---|---|---|
+| Welcome / goodbye | `/setwelcome`, `/setgoodbye`, `/modconfig` | `welcome_enabled`, `goodbye_enabled`, `welcome_text`, `goodbye_text` | Plain text (no `parse_mode`), placeholders `{name}` / `{chat}`; additive, so it also posts in `dry_run` |
+| Captcha | automatic | `new_member_captcha`, `captcha_type`, `captcha_timeout_s`, `captcha_kick` | Existing gate: button or math challenge, timeout mute/kick |
+| Notes | `/save`, `/get`, `/notes`, `/clear` | `notes_admins_only` | Writes admin-only by default; reads open; 100 notes/chat, names `[a-z0-9_-]{1,32}` |
+| Keyword filters | `/filter`, `/filters`, `/stopfilter` | `filters_enabled`, `filter_replies_per_min` | Case-insensitive substring match; replies capped per user per minute |
+| Global bans | `/gban`, `/ungban`, `/gbans` | `enforce_gban` (**plus a live chat**) | Owner-only list; a chat bans a listed user only when `enforce_gban` is true AND `dry_run` is false; chat admins are never auto-banned |
+| Scheduled messages | `/schedule`, `/schedules`, `/unschedule` | `scheduled_enabled`, `schedule_max` | `HH:MM` UTC, daily repeat, one post per chat+minute (restart-safe) |
+
+### Module map (community additions)
+
+| Module | Responsibility |
+|---|---|
+| `chatconf.py` | `community` block loader: whitelist merge, clamps, all-off defaults |
+| `auth.py` | Admin authorization (bot owner or chat administrator) for every mutating command |
+| `store.py` | Narrow Redis hash/set facade; memory fallback; Redis via `RUGMUNCH_MODERATION_REDIS=1` |
+| `welcome.py` | Join/leave greetings, plain text, failures swallowed |
+| `notes.py` | Saved notes (`/save`, `/get`, `/notes`, `/clear`) |
+| `filters.py` | Keyword auto-replies with a per-user rate limit |
+| `gban.py` | Global ban list plus opt-in enforcement in gate -1 |
+| `schedule.py` | Scheduled messages plus the 60 s tick job |
+| `settings_cmd.py` | `/setwelcome`, `/setgoodbye`, `/modconfig` |
+
+Every mutating command writes an audit row (`rule=note_*`, `filter_set`, `gban`,
+`schedule_*`, `community_config`) through the existing JSONL trail, and none can
+rewrite `configs/moderation.json` - the JSON stays the operator opt-in ceiling.
