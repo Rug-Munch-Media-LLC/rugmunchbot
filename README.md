@@ -1,11 +1,12 @@
 [//]: # (SPDX-License-Identifier: MIT)
 [//]: # (Copyright (c) 2026 Rug Munch Media LLC)
-
 # RugMunchBot
 
-Self-hostable Telegram bot for crypto intelligence: token scanning, wallet
-forensics, market data, and AI-powered risk analysis. Free tier included —
-premium/billing is an operator opt-in.
+> Self-hostable Telegram bot for crypto intelligence: token scanning, wallet forensics, market data and AI-powered risk analysis.
+
+**License:** [Source Available 1.0](LICENSE) · **Canonical:** https://git.rugmunch.io/RugMunchMedia/rugmunchbot
+**Mirrors:** [GitHub](https://github.com/Rug-Munch-Media-LLC) · [GitLab](https://gitlab.com/rug-munch-media-group) · [Codeberg](https://codeberg.org/RugMunchMedia)
+
 
 > **Status: COMPLETE — the bot lives in its own repo (single brain).**
 > `src/rugmunchbot` is the canonical bot code (runs standalone, systemd uses
