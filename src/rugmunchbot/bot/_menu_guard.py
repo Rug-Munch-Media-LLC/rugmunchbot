@@ -59,6 +59,7 @@ ADMIN_MENU_COMMANDS: frozenset[str] = frozenset(
         "menu",
         "restart",
         "services",
+        "setup",
         "sources",
         "users",
         "whalewatch",

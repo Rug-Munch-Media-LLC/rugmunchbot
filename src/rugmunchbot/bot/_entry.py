@@ -82,6 +82,7 @@ from rugmunchbot.handlers.callback import handle_callback
 from rugmunchbot.handlers.cascade_token import register_cascade_token
 from rugmunchbot.handlers.chat import cmd_chat
 from rugmunchbot.handlers.chat_ai import register_chat_ai
+from rugmunchbot.handlers.community_admin import register_community_admin
 from rugmunchbot.handlers.deepscan import cmd_deepscan
 from rugmunchbot.handlers.defi import cmd_lpcheck, register_defi
 from rugmunchbot.handlers.dislocation import register_dislocation
@@ -295,6 +296,7 @@ def _register_all_handlers(app: Application[Any, Any, Any, Any, Any, Any]) -> No
 
     # @rmi_admin_bot server-management commands (owner-only, hidden from menu)
     register_admin_commands(app)
+    register_community_admin(app)  # /setup (channel owners)
 
     # Premium commands
     _reg(app, "holders", cmd_holders)
