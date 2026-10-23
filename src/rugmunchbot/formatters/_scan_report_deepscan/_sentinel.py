@@ -775,7 +775,7 @@ def format_sentinel_deepscan_section(data: dict[str, Any], analyst_read: str = "
     )
     _addr = data.get("address", data.get("token", ""))
     _chain = data.get("chain", "solana")
-    lines.append(footer_links(_addr, _chain))
+    lines.append(footer_links(_addr, _chain, purpose="deepscan"))
     return _collapse_blank_lines("\n".join(lines))
 
 

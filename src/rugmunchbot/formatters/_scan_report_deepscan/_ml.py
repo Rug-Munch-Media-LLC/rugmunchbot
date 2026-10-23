@@ -207,5 +207,5 @@ def format_deep_ml_scan_report(report: Any, analyst_read: str = "") -> str:
 
     # ── 4. What to watch ──
     lines.extend(["", f"\U0001f440 <b>Watch:</b> {_ml_what_to_watch(overall, sorted_findings)}"])
-    lines.append(footer_links())
+    lines.append(footer_links(purpose="deepscan"))
     return _collapse_blank_lines("\n".join(lines))
