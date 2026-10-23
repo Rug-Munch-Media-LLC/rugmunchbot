@@ -252,9 +252,11 @@ def register_surface_commands(app: Application[Any, Any, Any, Any, Any, Any]) ->
     from rugmunchbot.handlers._desk import cmd_desk
     from rugmunchbot.handlers._more import cmd_more
     from rugmunchbot.handlers._plans import cmd_plans
+    from rugmunchbot.handlers._site import SITE_COMMANDS
 
     existing = collect_registered_commands(app)
-    for name, handler in (("desk", cmd_desk), ("plans", cmd_plans), ("more", cmd_more)):
+    surface = (("desk", cmd_desk), ("plans", cmd_plans), ("more", cmd_more), *SITE_COMMANDS)
+    for name, handler in surface:
         if name not in existing:
             _reg(app, name, handler)
 

@@ -6,7 +6,7 @@
 > check `check_menu_coverage()` logs `MENU_DRIFT` / `HELP_DRIFT` loudly when
 > the registry and menu drift apart (log-only, never crashes startup).
 
-Counts: **97 registered** · **51 advertised in menu** · **46 unadvertised**
+Counts: **100 registered** · **51 advertised in menu** · **49 unadvertised**
 (admin/owner, aliases, auxiliary — deliberate).
 
 Status legend: **working** = fully functional · **stub** = registered but
@@ -68,11 +68,14 @@ returns placeholder/limited output · **owner** = owner/admin-gated.
 | /sentiment | working | Social sentiment breakdown |
 | /dex | working | DEX pair & liquidity lookup |
 
-## Unadvertised (registered, deliberate) — 46
+## Unadvertised (registered, deliberate) — 49
 
 | Command | Status | Note |
 |---|---|---|
 | /menu | working | Capability atlas (onboarding surface) |
+| /docs | working | Documentation hub → rugmunch.io/docs (MCP cross-link) |
+| /mcpdocs | working | MCP/developer docs → rugmunch.io/mcp-docs |
+| /dashboard | working | Web dashboard hand-off → rugmunch.io/dashboard |
 | /faq | working | FAQ card |
 | /account | working | Tier, weekly usage, balances, all-time stats |
 | /pricing | working | Stars pricing plans |
@@ -112,6 +115,19 @@ returns placeholder/limited output · **owner** = owner/admin-gated.
 | /admin_stats /credits /users | owner | Fleet analytics |
 | /admin_set_tier /admin_broadcast /admin_toggle /admin_toggle_chat | owner | User/tier admin |
 | /admin_user /admin_ban /admin_unban /admin_logs | owner | User admin |
+
+## Website parity (2026-10-24)
+
+Five website abilities are reachable from the bot. The bot does **not** re-implement the web UI: each surface renders a compact summary and hands off with one `🌐 Open on rugmunch.io` button (`handlers/_site_links.py`). Paths are the canonical rmi-frontend routes — `/scam-school`, not the `/scamschool` alias.
+
+| Bot command | Site surface | Behaviour |
+|---|---|---|
+| /news | rugmunch.io/news | Existing feed + hand-off row |
+| /docs · /mcpdocs | /docs · /mcp-docs | New; cross-linked to each other |
+| /scamschool | /scam-school | Existing topic menu + hand-off row |
+| /portfolio | /portfolio · /dashboard | Existing portfolio + dashboard row |
+| /pricing | /pricing | Existing plan card + hand-off row |
+| /dashboard | /dashboard | New; portfolio/watches/alerts/history |
 
 ## Known gaps
 

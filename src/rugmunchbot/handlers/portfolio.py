@@ -16,6 +16,7 @@ from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from rugmunchbot.formatters import footer_links, sep
+from rugmunchbot.handlers._site_links import with_site_link
 from rugmunchbot.services.pricing import resolve
 from rugmunchbot.support import backend_user
 from rugmunchbot.support.logging import get_logger
@@ -63,6 +64,7 @@ async def _show_user_portfolio(update: Update) -> None:
         await wait.edit_text(
             "📭 Your portfolio is empty. Use /add to add tokens.",
             parse_mode=ParseMode.HTML,
+            reply_markup=with_site_link("portfolio"),
         )
         return
 
@@ -124,7 +126,12 @@ async def _show_user_portfolio(update: Update) -> None:
     lines.append(summary)
     lines.append(footer_links())
 
-    await wait.edit_text("\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    await wait.edit_text(
+        "\n".join(lines),
+        parse_mode=ParseMode.HTML,
+        reply_markup=with_site_link("dashboard"),
+        disable_web_page_preview=True,
+    )
 
 
 async def cmd_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
