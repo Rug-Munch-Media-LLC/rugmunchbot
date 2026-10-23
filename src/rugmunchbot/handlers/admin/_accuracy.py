@@ -11,9 +11,8 @@ import html
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from telegram.constants import ParseMode
 
-from rugmunchbot.states import is_owner
+from rugmunchbot.handlers.admin import _reply
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
@@ -23,21 +22,6 @@ if TYPE_CHECKING:
 logger = get_logger("rmi_bot.admin.accuracy")
 
 _TIMEOUT = 15.0
-
-
-async def _reply(update: Update, text: str) -> None:
-    """Send a formatted HTML reply, failing open to plain text."""
-    msg = update.effective_message
-    if msg is None:
-        return
-    try:
-        await msg.reply_text(text, parse_mode=ParseMode.HTML)
-    except Exception as exc:
-        logger.warning("admin_reply_failed err=%s", str(exc)[:120])
-        try:
-            await msg.reply_text(text)
-        except Exception:
-            logger.warning("admin_reply_plain_failed", exc_info=True)
 
 
 def _fmt_pct(value: Any) -> str:
@@ -51,9 +35,9 @@ def _fmt_pct(value: Any) -> str:
 async def accuracy_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/accuracy — show scanner accuracy stats from last backtest (owner only)."""
     user = update.effective_user
-    if user is None or not is_owner(user.id):
+    if user is None or _reply._deny(update):
         logger.warning("admin_cmd_denied cmd=accuracy user=%s", user.id if user else None)
-        await _reply(update, "\u26a0\ufe0f <b>Owner only.</b>")
+        await _reply._reply(update, "\u26a0\ufe0f <b>Owner only.</b>")
         return
 
     from rugmunchbot.config import BACKEND_URL, backend_headers
@@ -66,18 +50,18 @@ async def accuracy_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             )
     except (ConnectionError, OSError, TimeoutError, httpx.HTTPError, httpx.TimeoutException) as exc:
         logger.warning("admin_accuracy_failed err=%s", str(exc)[:120])
-        await _reply(update, "\u274c Backend unreachable — accuracy stats unavailable.")
+        await _reply._reply(update, "\u274c Backend unreachable — accuracy stats unavailable.")
         return
 
     if r.status_code != 200:
         logger.warning("admin_accuracy_http status=%d", r.status_code)
-        await _reply(update, f"\u274c Accuracy stats unavailable (HTTP {r.status_code}).")
+        await _reply._reply(update, f"\u274c Accuracy stats unavailable (HTTP {r.status_code}).")
         return
 
     try:
         data: dict[str, Any] = r.json()
     except ValueError:
-        await _reply(update, "\u274c Accuracy endpoint returned invalid JSON.")
+        await _reply._reply(update, "\u274c Accuracy endpoint returned invalid JSON.")
         return
 
     metrics = data.get("metrics", data)
@@ -95,4 +79,4 @@ async def accuracy_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     if data.get("last_run") is not None:
         lines.append(f"\U0001f552 Last run: <code>{html.escape(str(data['last_run']))}</code>")
 
-    await _reply(update, "\n".join(lines))
+    await _reply._reply(update, "\n".join(lines))
