@@ -1,0 +1,29 @@
+{
+	"_label": "SYNTHETIC FIXTURE — invented Hyperliquid numbers, not live market data",
+	"items": [
+		{
+			"kind": "cluster",
+			"asset": "FIXT",
+			"open_interest_usd": 48000000,
+			"liquidation_pressure": 6200000,
+			"funding_rate": 0.00012,
+			"long_liq_price_10x": 11.4,
+			"short_liq_price_10x": 14.9,
+			"oi_share_pct": 18.2
+		},
+		{
+			"kind": "squeeze",
+			"asset": "FIXT",
+			"direction": "long_squeeze",
+			"funding_rate": 0.00031,
+			"open_interest_usd": 21000000
+		},
+		{
+			"kind": "mover",
+			"asset": "FIXT",
+			"direction": "up",
+			"change_24h_pct": 12.5,
+			"volume_24h": 9000000
+		}
+	]
+}

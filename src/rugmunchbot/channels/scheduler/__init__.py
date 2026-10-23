@@ -15,6 +15,8 @@ Layout:
 
 from __future__ import annotations
 
+from typing import Any
+
 from rugmunchbot.channels.scheduler._core import (
     _FIRST_RUN_SECONDS as _FIRST_RUN_SECONDS,
     _MAX_POSTED as _MAX_POSTED,
@@ -44,12 +46,21 @@ from rugmunchbot.channels.scheduler._posts_scan import (
     post_scan_update as post_scan_update,
 )
 from rugmunchbot.channels.scheduler._register import (
-    register_channel_jobs as register_channel_jobs,
+    register_channel_jobs as _register_channel_jobs,
 )
 from rugmunchbot.channels.scheduler._tick import (
     _load_channel_state as _load_channel_state,
     _tick_wrapper as _tick_wrapper,
 )
+
+
+def register_channel_jobs(app: Any) -> None:
+    """Register channel jobs, then the unified content-automation lanes."""
+    _register_channel_jobs(app)
+    from rugmunchbot.channels.automation.register import register_content_jobs
+
+    register_content_jobs(app)
+
 
 __all__ = [
     "post_alert_update",

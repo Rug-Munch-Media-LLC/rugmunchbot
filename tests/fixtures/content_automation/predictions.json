@@ -1,0 +1,31 @@
+{
+	"_label": "SYNTHETIC FIXTURE — invented market questions, not live odds",
+	"items": [
+		{
+			"market_id": "FIXTURE-mkt-shift",
+			"question": "FIXTURE: will the test market resolve yes?",
+			"yes": 0.61,
+			"volume_usd": 2100000,
+			"source": "polymarket",
+			"delta": 0.07,
+			"wallet_identity": null
+		},
+		{
+			"market_id": "FIXTURE-mkt-level",
+			"question": "FIXTURE: market with no 24h baseline",
+			"yes": 0.42,
+			"volume_usd": 900000,
+			"source": "polymarket",
+			"delta": null
+		},
+		{
+			"market_id": "FIXTURE-mkt-kalshi",
+			"question": "FIXTURE: kalshi aggregate market",
+			"yes": 0.33,
+			"volume_usd": 450000,
+			"source": "kalshi",
+			"delta": -0.05,
+			"wallet_identity": "FIXTUREwalletSHOULD-BE-STRIPPED"
+		}
+	]
+}
