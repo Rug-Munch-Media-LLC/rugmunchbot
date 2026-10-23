@@ -30,6 +30,8 @@ CATALOG: tuple[tuple[str, str, str, tuple[tuple[str, str], ...]], ...] = (
             ("channels", "All RugMunch channels & what they serve"),
             ("feed", "feed.rugmunch.io — the written digest"),
             ("site", "rugmunch.io — full scanner platform"),
+            ("docs", "Documentation hub — guides, API, pricing, FAQ"),
+            ("mcpdocs", "MCP & developer docs — tools, x402, auth"),
         ),
     ),
     (
@@ -161,6 +163,7 @@ CATALOG: tuple[tuple[str, str, str, tuple[tuple[str, str], ...]], ...] = (
         "👤",
         (
             ("account", "Your account, tier & usage"),
+            ("dashboard", "Web dashboard — portfolio, watches, history"),
             ("pricing", "Plans & pricing"),
             ("topup", "Top up credits"),
             ("buystars", "Buy Telegram Stars"),

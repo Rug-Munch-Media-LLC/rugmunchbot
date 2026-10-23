@@ -34,6 +34,7 @@ from rugmunchbot.handlers._market_helpers import (
     _time_ago as _time_ago,
     _window_change,
 )
+from rugmunchbot.handlers._site_links import with_site_link
 from rugmunchbot.handlers._trending import _fetch_cg_trending_news, _fetch_dexscreener_trending_news
 from rugmunchbot.keyboards import back_kb, token_buttons
 from rugmunchbot.support.logging import get_logger
@@ -470,12 +471,15 @@ async def cmd_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             articles = ds_items
             source_label = "DexScreener Trending"
 
-    news_kb = InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("\U0001f504 Refresh", callback_data="news_refresh")],
-            [InlineKeyboardButton("\U0001f4e2 Alerts Channel", url=TELEGRAM_CHANNEL)],
-            [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
-        ]
+    news_kb = with_site_link(
+        "news",
+        InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("\U0001f504 Refresh", callback_data="news_refresh")],
+                [InlineKeyboardButton("\U0001f4e2 Alerts Channel", url=TELEGRAM_CHANNEL)],
+                [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
+            ]
+        ),
     )
 
     if articles:

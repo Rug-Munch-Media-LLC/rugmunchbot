@@ -29,6 +29,7 @@ from rugmunchbot.formatters import (
     sep,
     thin_sep,
 )
+from rugmunchbot.handlers._site_links import with_site_link
 from rugmunchbot.keyboards import (
     buy_stars_kb,
     pricing_kb,
@@ -137,7 +138,10 @@ async def cmd_pricing(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         f"{footer_links()}"
     )
     await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        text, parse_mode=ParseMode.HTML, reply_markup=pricing_kb(), disable_web_page_preview=True
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=with_site_link("pricing", pricing_kb()),
+        disable_web_page_preview=True,
     )
 
 
@@ -189,7 +193,8 @@ async def cmd_scamschool(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         f"{footer_links()}"
     )
     await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields
-        text, parse_mode=ParseMode.HTML, reply_markup=scamschool_kb(), disable_web_page_preview=True
+        text, parse_mode=ParseMode.HTML, reply_markup=with_site_link("scamschool", scamschool_kb()),
+        disable_web_page_preview=True,
     )
 
 
