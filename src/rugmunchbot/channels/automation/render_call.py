@@ -47,4 +47,6 @@ def render_call(feed: Feed, item: dict[str, Any]) -> NewsPost:
         source=feed.source or "unknown",
         updated=feed.updated_at,
         risk=_RISK,
+        lane="smart_money",
+        payload=item,
     )

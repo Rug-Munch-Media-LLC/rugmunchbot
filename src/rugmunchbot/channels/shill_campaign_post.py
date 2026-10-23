@@ -38,6 +38,7 @@ from typing import Any
 import httpx
 from telegram.constants import ParseMode
 
+from rugmunchbot.channels._story_cta import attach_story_cta
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.channels.shill_campaign_post")
@@ -187,7 +188,7 @@ def build_shill_campaign_post(campaign: dict[str, Any]) -> str:
             raise ValueError(f"style violation: banned phrase {banned!r}")
     lines.append("")
     lines.append(commentary_txt)
-    return "\n".join(lines)
+    return attach_story_cta("\n".join(lines), campaign, "shill")
 
 
 def _pick_screenshot(campaign: dict[str, Any]) -> str | None:

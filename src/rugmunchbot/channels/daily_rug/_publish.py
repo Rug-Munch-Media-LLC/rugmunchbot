@@ -23,6 +23,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from rugmunchbot.channels._story_cta import attach_story_cta, slug_from_url
 from rugmunchbot.channels.daily_rug._config import (
     DAILY_RUG_FEED_ENABLED,
     DAILY_RUG_MAX_CHARS,
@@ -324,6 +325,8 @@ async def post_daily_rug(ctx: Any) -> int:
     )
     parts = _split_for_telegram(report)
     parts[-1] = parts[-1].rstrip() + "\n\n" + closer
+    # Story CTA: the mirrored Ghost slug when we have one, else /feed.
+    parts[-1] = attach_story_cta(parts[-1], {"story_slug": slug_from_url(feed_url)}, "morning")
 
     sent = 0
     for idx, part in enumerate(parts, 1):

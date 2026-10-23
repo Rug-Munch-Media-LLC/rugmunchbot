@@ -43,4 +43,6 @@ def render_move(feed: Any, move: dict[str, Any]) -> NewsPost:
         source=(f"rmi {feed.source}".strip() if feed.source else "unknown"),
         updated=feed.updated_at,
         risk=_RISK,
+        lane="whales",
+        payload=move,
     )

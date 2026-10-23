@@ -40,6 +40,7 @@ __all__ = [
     "attributed_url",
     "cta_line",
     "cta_markup",
+    "slug_from_url",
     "story_cta",
     "story_slug",
 ]
@@ -90,6 +91,19 @@ def story_slug(payload: dict[str, Any] | None) -> str:
         if slug:
             return slug
     return ""
+
+
+_URL_SLUG_RE = re.compile(r"/(?:blog|story)/([a-z0-9]+(?:-[a-z0-9]+)*)")
+
+
+def slug_from_url(url: Any) -> str:
+    """Extract the story slug from a ``/blog/<slug>`` or ``/story/<slug>`` URL.
+
+    Lanes that already mirrored a post (Ghost ``/blog/`` deep link) pass that
+    URL here instead of re-deriving a slug. Pure; ``""`` when absent.
+    """
+    match = _URL_SLUG_RE.search(str(url or ""))
+    return match.group(1) if match else ""
 
 
 def attributed_url(url: str, lane: str) -> str:
