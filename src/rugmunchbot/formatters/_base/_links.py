@@ -14,6 +14,7 @@ from rugmunchbot.config import (
     WEB_APP_URL,
 )
 from rugmunchbot.formatters._base._primitives import sep
+from rugmunchbot.referrals import disclosure_text, jupiter_referral, referral_line
 
 REF_CODES = {
     # GMGN already ships with `ref=rugmunch` in config.DEX_REF_LINKS — keep
@@ -53,49 +54,41 @@ def _ref_code(platform: str) -> str:
     return os.environ.get(env_name, REF_CODES.get(platform, ""))
 
 
-def footer_links(address: str = "", chain: str = "") -> str:
-    """Bot footer with links. When a token is provided, includes the full
-    referral trade-link set (GMGN · Jupiter · Photon · Birdeye · 1inch ·
-    PancakeSwap · DexScreener · DexTools) plus RugCharts → RugMaps as a
-    clean SINGLE tappable-text line — every platform that embeds the token
-    address carries our ``?ref=`` code (see ``DEX_REF_LINKS`` / ``REF_CODES``)
-    so the report ends with one links footer instead of a button stack.
-    HTML-safe for Telegram (only ``<a>`` tags)."""
-    if address:
-        chain_l = (chain or "").lower()
-        # Referral platforms that embed the token address (chain-filtered).
-        ref_parts: list[str] = []
-        for key in DEX_BUTTON_PRIORITY:
-            dex = DEX_REF_LINKS.get(key)
-            if not dex or chain_l not in dex.get("chains", []):
-                continue
-            if "{token}" not in dex["url"]:
-                continue  # signup/home bots have no per-token URL — skip in text footer
-            url = dex["url"].format(
-                token=address,
-                chain=chain_l,
-                chain_id=CHAIN_IDS.get(chain_l, 1),
-            )
-            ref_parts.append(
-                f'<a href="{html.escape(url, quote=True)}">{html.escape(dex["name"])}</a>'
-            )
-        # Chart links (DexScreener no-ref + DexTools ref when configured).
-        ref_parts.append(
-            f'<a href="{html.escape(dexscreener_url(address, chain_l), quote=True)}">DexScreener</a>'
+def footer_links(address: str = "", chain: str = "", *, purpose: str = "scan") -> str:
+    """Bot footer with links and a tier-aware referral disclosure.
+
+    With a token, renders the referral trade-link set (GMGN · Jupiter · Photon ·
+    Birdeye · 1inch · PancakeSwap · DexScreener · DexTools) plus RugCharts
+    → RugMaps on one line; without one, a generic Jupiter referral line.
+    ``purpose`` picks the tier (standard vs ultra). HTML-safe (``<a>`` only)."""
+    chain_l = (chain or "solana").lower()
+    bot = f'\U0001f50d Rug Munch Bot | <a href="{TELEGRAM_CHANNEL}">/help</a> | @RugMunchBot'
+    if not address:
+        ref = referral_line(chain=chain_l, purpose=purpose)
+        return f"\n{sep()}\n{ref}\n{bot}" if ref else f"\n{sep()}\n{bot}"
+    ref_parts: list[str] = []
+    for key in DEX_BUTTON_PRIORITY:
+        dex = DEX_REF_LINKS.get(key)
+        if not dex or chain_l not in dex.get("chains", []) or "{token}" not in dex["url"]:
+            continue  # signup/home bots have no per-token URL — skip in text footer
+        url = dex["url"].format(
+            token=address, chain=chain_l, chain_id=CHAIN_IDS.get(chain_l, 1)
         )
-        ref_parts.append(
-            f'<a href="{html.escape(dextools_url(address, chain_l), quote=True)}">DexTools</a>'
-        )
-        trade = " | ".join(ref_parts)
-        charts = (
-            f'\U0001f4c8 <a href="https://rugmunch.io/rugcharts?token={address}&chain={chain_l}">RugCharts</a>'
-            f' | \U0001f5fa\ufe0f <a href="https://rugmunch.io/rugmaps?token={address}&chain={chain_l}">RugMaps</a>'
-        )
-        return (
-            f"\n{sep()}\n{trade} | {charts}\n"
-            f'\U0001f50d Rug Munch Bot | <a href="{TELEGRAM_CHANNEL}">/help</a> | @RugMunchBot'
-        )
-    return f'\n{sep()}\n\U0001f50d Rug Munch Bot | <a href="{TELEGRAM_CHANNEL}">/help</a> | @RugMunchBot'
+        ref_parts.append(f'<a href="{html.escape(url, quote=True)}">{html.escape(dex["name"])}</a>')
+    ref_parts += [
+        f'<a href="{html.escape(dexscreener_url(address, chain_l), quote=True)}">DexScreener</a>',
+        f'<a href="{html.escape(dextools_url(address, chain_l), quote=True)}">DexTools</a>',
+    ]
+    charts = (
+        f'\U0001f4c8 <a href="https://rugmunch.io/rugcharts?token={address}&chain={chain_l}">RugCharts</a>'
+        f' | \U0001f5fa\ufe0f <a href="https://rugmunch.io/rugmaps?token={address}&chain={chain_l}">RugMaps</a>'
+    )
+    lines = [f"{' | '.join(ref_parts)} | {charts}"]
+    note = disclosure_text(jupiter_referral(token=address, chain=chain_l, purpose=purpose))
+    if note:
+        lines.append(note)
+    return f"\n{sep()}\n" + "\n".join(lines) + f"\n{bot}"
+
 
 
 def web_scan_button(address: str, chain: str = "") -> InlineKeyboardButton:
@@ -119,16 +112,19 @@ _SHILL_CHANNELS: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def scan_shill_footer() -> str:
+def scan_shill_footer(purpose: str = "scan", chain: str = "") -> str:
     """Shill footer for scan posts: the bot, the site + every RugMunch channel.
 
-    Rendered at the end of every scan report so readers can reach the product
-    from anywhere (t.me/rugmunchbot is the bot handle; the rest are the
-    public Telegram channels). HTML-safe for Telegram (``<a>`` only).
+    Rendered at the end of every scan report so readers reach the product from
+    anywhere; the trailing referral line is tier-aware (``purpose``) and the
+    text is HTML-safe for Telegram (``<a>`` only).
     """
     lines = [f"\n{sep()}\n\U0001f4e2 <b>RugMunch Intelligence</b>"]
     for emoji, url, label in _SHILL_CHANNELS:
         lines.append(f'{emoji} <a href="{html.escape(url, quote=True)}">{html.escape(label)}</a>')
+    ref = referral_line(chain=chain, purpose=purpose)
+    if ref:
+        lines.append(ref)
     return "\n".join(lines)
 
 
