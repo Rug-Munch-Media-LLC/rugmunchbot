@@ -10,7 +10,16 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from rugmunchbot.moderation import addresses, captcha, captcha_verify, ocr
+from rugmunchbot.moderation import (
+    addresses,
+    captcha,
+    captcha_verify,
+    chatconf,
+    filters,
+    gban,
+    ocr,
+    welcome,
+)
 from rugmunchbot.moderation.actions import execute
 from rugmunchbot.moderation.config import load_chat_policy
 from rugmunchbot.moderation.decide import decide as decide_message
@@ -124,11 +133,16 @@ async def handle_message(update: Any, context: Any) -> bool:
         return False
     if policy.ocr_scan and ctx.media_id and ocr.available():
         ctx.text = f"{ctx.text} {await ocr.text_of(ctx.media_id)}".strip()
+    cfg = await chatconf.effective(chat.id)
+    if await gban.enforce(context.bot, ctx, policy, cfg):
+        return True
 
     verdicts = {}
     if ctx.text and _scan_allowed(chat.id):
         verdicts = await addresses.assess(ctx.text)
     decision = decide_message(ctx, policy, verdicts)
+    if decision is None or not decision.blocks_pipeline:
+        await filters.maybe_reply(update, ctx, cfg)
     if decision is None:
         return False
     record = await execute(context.bot, ctx, policy, decision)
@@ -151,7 +165,10 @@ async def moderation_gate(update: Any, context: Any) -> None:
 
     consumed = False
     if update.message is not None and update.message.new_chat_members:
+        await welcome.handle_join(update, context)
         consumed = await captcha.handle_new_members(update, context)
+    elif update.message is not None and update.message.left_chat_member is not None:
+        await welcome.handle_leave(update, context)
     elif update.callback_query is not None:
         consumed = await captcha_verify.handle_captcha_callback(update, context)
     elif update.edited_message is not None:

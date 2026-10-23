@@ -73,6 +73,13 @@ class FakeMessage:
     video: Any = None
     animation: Any = None
     document: Any = None
+    left_chat_member: Any = None
+    reply_to_message: Any = None
+    from_user: Any = None
+    replies: list[str] = field(default_factory=list)
+
+    async def reply_text(self, text: str = "", **kwargs: Any) -> None:
+        self.replies.append(text)
 
     def parse_entity(self, entity: Any) -> str:  # pragma: no cover — no entities in harness
         return ""
