@@ -2,10 +2,12 @@
 [//]: # (Copyright (c) 2026 Rug Munch Media LLC)
 # RugMunchBot
 
-> Self-hostable Telegram bot for crypto intelligence: token scanning, wallet forensics, market data and AI-powered risk analysis.
+> Self-hostable Telegram bot for crypto intelligence — **90 commands** for token scanning, wallet forensics, market data and AI-powered risk analysis.
 
 **License:** [Source Available 1.0](LICENSE) · **Canonical:** https://git.rugmunch.io/RugMunchMedia/rugmunchbot
 **Mirrors:** [GitHub](https://github.com/Rug-Munch-Media-LLC) · [GitLab](https://gitlab.com/rug-munch-media-group) · [Codeberg](https://codeberg.org/RugMunchMedia)
+
+> **Platform:** 21 networks (20 EVM-family chains incl. Tron, plus Solana) · ~422k labels · 283M indexed transfers (+628M internal) · 50+ security modules.
 
 
 > **Status: COMPLETE — the bot lives in its own repo (single brain).**
