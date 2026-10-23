@@ -7,6 +7,11 @@ standard/ultra Jupiter accounts and the disclosure live in ONE place.
 from __future__ import annotations
 
 from ._disclosure import DISCLOSURE, disclosure_text
+from ._gmgn_perps import (
+    GMGN_PERPS_PLATFORM,
+    VERIFIED_PERP_MARKETS,
+    gmgn_perps_referral,
+)
 from ._jupiter import ACCOUNT_BY_TIER, jupiter_referral
 from ._jupiter_api import PLATFORM_FEE_BPS, jupiter_swap_params
 from ._polymarket import POLYMARKET_ENV_KEY, POLYMARKET_UNCONFIGURED, polymarket_referral
@@ -17,14 +22,17 @@ from ._types import Referral
 __all__ = [
     "ACCOUNT_BY_TIER",
     "DISCLOSURE",
+    "GMGN_PERPS_PLATFORM",
     "PLATFORM_FEE_BPS",
     "POLYMARKET_ENV_KEY",
     "POLYMARKET_UNCONFIGURED",
     "STANDARD",
     "TIER_BY_PURPOSE",
     "ULTRA",
+    "VERIFIED_PERP_MARKETS",
     "Referral",
     "disclosure_text",
+    "gmgn_perps_referral",
     "jupiter_referral",
     "jupiter_swap_params",
     "polymarket_referral",

@@ -490,6 +490,43 @@ def register_channel_jobs(app: Application[Any, Any, Any, Any, Any, Any]) -> Non
             name="channel_lp_expiry",
         )
 
+    # Perps desk recap (2026-10-24): daily funding / OI / liquidation card with
+    # the GMGN perps CTA. ALPHA content — a closed-ended data signal, which the
+    # alpha charter allows ("show the signal, label the risk, link evidence");
+    # never a rug/exploit detection. Card carries at most ONE link.
+    if (
+        ALPHA_CHANNEL_ENABLED
+        and _chat_id("alpha")
+        and hasattr(job_queue, "run_daily")
+        and os.getenv("RMI_PERPS_RECAP_ENABLED", "true").lower() in ("1", "true", "yes")
+    ):
+        from datetime import UTC, time as _perps_time
+
+        from rugmunchbot.channels.perps_recap import build_perps_recap_post
+
+        async def _perps_recap_tick(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            try:
+                text = await build_perps_recap_post()
+                if text and _chat_id("alpha"):
+                    from rugmunchbot.channels.scheduler._core import (
+                        _post_photo_aware,
+                        _safe_send,
+                    )
+
+                    await _post_photo_aware(
+                        ctx.bot, _chat_id("alpha"), text, _safe_send, content_type="alpha"
+                    )
+            except Exception as exc:
+                logger.warning("perps_recap_tick failed: %s", str(exc)[:120])
+
+        job_queue.run_daily(
+            _tick_wrapper("channel_perps_recap", _perps_recap_tick, envelope=True),
+            time=_perps_time(
+                hour=int(os.getenv("RMI_PERPS_RECAP_HOUR_UTC", "7")), minute=0, tzinfo=UTC
+            ),
+            name="channel_perps_recap",
+        )
+
     # Content rotation slots (win 32+): NOT registered — the per-type
     # generators were never wired, so these jobs fired daily and did nothing
     # except log noise (removed 2026-08-25). Re-register when a generator
