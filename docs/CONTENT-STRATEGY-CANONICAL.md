@@ -73,3 +73,18 @@ omit silently.
 4. W12/W13 chat citations
 5. W7/W8 scans/alerts→RAG
 6. Per-channel prompt templates (style guides)
+
+## STORY CTA — TELEGRAM DRIVES THE SITE (2026-10-24)
+
+Every outbound content post ends with one CTA row pointing at the full story:
+
+- `channels/_story_cta.py` is the only place the URL is built
+  (`https://rugmunch.io/story/<slug>` + UTM + `ref=rugmunchbot`).
+- The slug comes from the content payload (`story_slug` / `slug` /
+  `ghost_slug`). Absent or malformed → the lane's section page
+  (`/news`, `/feed`, `/market-intel`, `/scam-school`, `/wall-of-shame`,
+  all verified in the 2026-10-24 sitemap) and `story_url: null` + `reason`.
+- Lanes covered: 3 daily pieces, news, scam call-outs, shill campaigns,
+  smart money, whales, predictions. `COMMANDS.md` carries the per-lane table.
+- The post body stays a 1–3 line teaser plus evidence; the CTA is a row,
+  never a naked-link block. The trading referral strip is untouched.

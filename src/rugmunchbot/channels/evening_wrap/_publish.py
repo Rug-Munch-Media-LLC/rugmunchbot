@@ -21,6 +21,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from rugmunchbot.channels._story_cta import attach_story_cta, slug_from_url
 from rugmunchbot.channels.evening_wrap._config import (
     EVENING_WRAP_FEED_ENABLED,
     EVENING_WRAP_GRAPHIC,
@@ -128,6 +129,7 @@ async def _send_parts(ctx: Any, chat_id: Any, wrap: str, image_url: str, feed_ur
     )
     parts = split_for_telegram(wrap)
     parts[-1] = parts[-1].rstrip() + "\n\n" + closer
+    parts[-1] = attach_story_cta(parts[-1], {"story_slug": slug_from_url(feed_url)}, "evening")
 
     sent = 0
     for idx, part in enumerate(parts, 1):

@@ -27,6 +27,7 @@ from typing import Any
 import httpx
 
 from rugmunchbot._vendor.logging_shim import get_logger
+from rugmunchbot.channels._story_cta import attach_story_cta
 
 logger = get_logger(__name__)
 
@@ -442,6 +443,8 @@ async def build_whale_post() -> str | None:
     now = datetime.now(UTC).strftime("%b %d, %H:%M UTC")
     header = f"🐋 <b>WHALE WATCH</b> — last {FRESH_HOURS:.0f}h\n🕐 {now}"
     post = header + "\n\n" + "\n\n".join(lines)
+    # Canonical story CTA (market-intel section) — funnel to the full intel.
+    post = attach_story_cta(post, {}, "whales")
 
     if rclient and new_ids:
         try:

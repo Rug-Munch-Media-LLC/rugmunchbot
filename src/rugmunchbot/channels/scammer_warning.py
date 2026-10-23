@@ -36,6 +36,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from rugmunchbot.channels._story_cta import attach_story_cta
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.channels.scammer_warning")
@@ -231,6 +232,8 @@ async def post_scammer_warning(bot: Any, call: dict[str, Any]) -> dict[str, Any]
         source_url=str(call.get("source_url") or ""),
         group=str(call.get("_group") or ""),
     )
+    # Canonical story CTA (scam section) — one link row, never a naked link.
+    text = attach_story_cta(text, call, "scam")
     result: dict[str, Any] = {
         "handle": handle,
         "token": token_symbol or token_address,
