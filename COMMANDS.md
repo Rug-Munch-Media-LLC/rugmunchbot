@@ -31,7 +31,7 @@ returns placeholder/limited output · **owner** = owner/admin-gated.
 | /news | working | News feed (internal → backend → CoinGecko fallback) |
 | /tweet | working | Read X post via ApiPass |
 | /tweets | working | Recent X posts from account |
-| /alerts | working | Price alert management |
+| /alerts | working | Price alert list (active + recently triggered) |
 | /chat | working | Freestyle AI chat |
 | /volume | working | Wash-trading check |
 | /exchangeaudit | working | Exchange wash-trading ranking |
@@ -98,7 +98,8 @@ returns placeholder/limited output · **owner** = owner/admin-gated.
 | /face | working | OSINT face search |
 | /watchlist /watch /unwatch | working | Watchlist management |
 | /monitor /monitors /unmonitor | working | Token monitors |
-| /alert | working | Single alert setter (alias of /alerts flow) |
+| /alert | working | Create/update an alert: `/alert ABOVE\|BELOW\|CHANGE_5\|ANY <address> [price]` |
+| /alert delete | working | Delete your alert for one token: `/alert delete <address>` |
 | /report | working | User report submission |
 | /ask | working | One-shot AI question |
 | /dumps | working | Recent dump tracing |
