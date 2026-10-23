@@ -49,6 +49,8 @@ def select_liquidations(feed: Feed, limit: int = 1) -> list[PostPlan]:
             post=render_hl(feed, row),
             source=feed.source,
             observed_at=feed.updated_at,
+            chain=str(row.get("chain") or ""),
+            token=str(row.get("token_address") or row.get("token") or ""),
         )
         for row in rows[: max(1, limit)]
     ]

@@ -11,6 +11,7 @@ import os
 from typing import Any
 
 from rugmunchbot.config._channels import _resolve_channel_id
+from rugmunchbot.partners import with_partner_strip
 
 from .events import EventGate
 
@@ -31,6 +32,9 @@ async def publish(
     bot: Any = None,
     role: str = "alpha",
     gate: EventGate | None = None,
+    lane: str | None = None,
+    chain: str = "",
+    token: str = "",
 ) -> dict[str, Any]:
     """Gate, then (opt-in only) send one post. Returns a result envelope."""
     verdict = (gate or GATE).allow(key)
@@ -46,7 +50,8 @@ async def publish(
         return {**result, "status": "suppressed"}
     if result["dry_run"] or bot is None or not chat_id:
         return {**result, "status": "dry_run", "chars": len(str(post))}
+    text = with_partner_strip(str(post), lane=lane, chain=chain, token=token)
     await bot.send_message(
-        chat_id=chat_id, text=str(post), parse_mode="HTML", disable_web_page_preview=True
+        chat_id=chat_id, text=text, parse_mode="HTML", disable_web_page_preview=True
     )
     return {**result, "status": "sent"}

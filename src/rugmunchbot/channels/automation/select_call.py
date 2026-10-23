@@ -38,6 +38,8 @@ def select_calls(feed: Feed, limit: int = 1) -> list[PostPlan]:
                 post=render_call(feed, row),
                 source=feed.source,
                 observed_at=feed.updated_at,
+                chain=str(row.get("chain") or ""),
+                token=str(row.get("address") or ""),
             )
         )
     return plans

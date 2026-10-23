@@ -22,6 +22,8 @@ class PostPlan:
     source: str = ""
     observed_at: str = ""
     risk_note: str = ""
+    chain: str = ""
+    token: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         """JSON-able summary for ``channels:tick`` telemetry (no post body)."""

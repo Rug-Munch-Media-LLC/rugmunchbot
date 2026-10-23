@@ -43,6 +43,7 @@ def select_odds(feed: Feed, limit: int = 1) -> list[PostPlan]:
             source=feed.source,
             observed_at=feed.updated_at,
             risk_note="aggregate book — Kalshi carries no wallet identity",
+            chain=str(row.get("chain") or ""),
         )
         for row in rows[: max(1, limit)]
     ]

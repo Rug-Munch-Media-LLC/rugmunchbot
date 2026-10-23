@@ -48,6 +48,9 @@ DEX_REF_LINKS: dict[str, DexRefLink] = {
     "gmgn": {
         "name": "GMGN.ai",
         "emoji": "📊",
+        # [home] chain-agnostic landing page — token-less content lanes
+        # (news / alpha / scam alert) have no address to deep-link.
+        "home": "https://gmgn.ai/?ref=rugmunch",
         # [chart] token chart page. NOTE: `sol` slug is hardcoded — correct for
         # Solana (the dominant use case); EVM scans land on GMGN's /sol/ route
         # which resolves by address. Flagged [REVIEW] if cross-chain routing
