@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from types import SimpleNamespace
 
 from rugmunchbot.community.moderation import ModerationEngine, Policy
+from rugmunchbot.community.moderation_config import policy_key
+from rugmunchbot.community.store import COMMUNITY_CLIENT_KEY
 from rugmunchbot.handlers import moderation as mod
 
 
@@ -51,9 +54,31 @@ def _update(user_id: int = 1, message: FakeMessage | None = None) -> SimpleNames
     )
 
 
-def _context(engine: ModerationEngine | None = None, bot: FakeBot | None = None, args=()):
+class FakeRedis:
+    """Async Redis stand-in holding at most one stored policy document."""
+
+    def __init__(self, document: dict | None = None) -> None:
+        self.values: dict[str, str] = {}
+        if document is not None:
+            self.values[policy_key(-100)] = json.dumps(document)
+
+    async def get(self, key: str) -> str | None:
+        return self.values.get(key)
+
+    async def set(self, key: str, value: str) -> bool:
+        self.values[key] = value
+        return True
+
+
+def _context(
+    engine: ModerationEngine | None = None,
+    bot: FakeBot | None = None,
+    args=(),
+    redis: FakeRedis | None = None,
+):
     bot = bot or FakeBot()
     data = {} if engine is None else {mod.ENGINE_KEY: engine}
+    data[COMMUNITY_CLIENT_KEY] = redis or FakeRedis()
     return SimpleNamespace(bot=bot, application=SimpleNamespace(bot_data=data), args=list(args))
 
 
@@ -139,9 +164,10 @@ def test_target_missing_shows_usage() -> None:
 
 
 def test_live_mute_reaches_telegram_client() -> None:
-    engine = ModerationEngine(Policy(dry_run=False), admins=[42])
+    engine = ModerationEngine(admins=[42])
     bot = FakeBot()
-    _call("mute", _update(user_id=42), _context(engine=engine, bot=bot, args=["7"]))
+    redis = FakeRedis({"dry_run": False})
+    _call("mute", _update(user_id=42), _context(engine=engine, bot=bot, args=["7"], redis=redis))
     assert any(call[0] == "mute" and call[2] == 7 for call in bot.calls)
 
 

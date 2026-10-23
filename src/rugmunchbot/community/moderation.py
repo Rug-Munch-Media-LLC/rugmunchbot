@@ -3,6 +3,7 @@
 Telegram-free and network-free: the caller injects a :class:`ModerationClient`.
 Defaults are inert — ``dry_run=True`` and ``allow_auto_ban=False`` mean a
 spammer is warned and audited, never removed, until an operator opts in.
+Per-chat policies come from :func:`moderation_config.sync_policy`; no I/O here.
 """
 
 from __future__ import annotations
@@ -11,7 +12,8 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from rugmunchbot.community.moderation_access import AccessControl
-from rugmunchbot.community.moderation_audit import AuditLog
+from rugmunchbot.community.moderation_actions import act
+from rugmunchbot.community.moderation_audit import AuditLog, JsonlAudit
 from rugmunchbot.community.moderation_detect import detect_reasons
 from rugmunchbot.community.moderation_models import (
     MessageEvent,
@@ -35,10 +37,12 @@ class ModerationEngine:
         trusted: Iterable[int] = (),
         admins: Iterable[int] = (),
         clock: Any = time.time,
+        audit_sink: JsonlAudit | None = None,
     ) -> None:
         self.policy = policy or Policy()
         self.access = AccessControl(trusted=trusted, admins=admins)
-        self.audit = AuditLog()
+        self.audit = AuditLog(sink=audit_sink)
+        self._policies: dict[int, Policy] = {}
         self._strikes: dict[tuple[int, int], int] = {}
         self._window = DuplicateWindow(clock)
         self._clock = clock
@@ -49,9 +53,18 @@ class ModerationEngine:
     def is_admin(self, user_id: int) -> bool:
         return self.access.is_admin(user_id)
 
-    # -- reporting ---------------------------------------------------------
-    def policy_summary(self) -> dict[str, Any]:
-        p = self.policy
+    def policy_for(self, chat_id: int | None = None) -> Policy:
+        """The policy *chat_id* runs under — the default policy when none is set."""
+        if chat_id is None:
+            return self.policy
+        return self._policies.get(int(chat_id), self.policy)
+
+    def use_policy(self, chat_id: int, policy: Policy) -> None:
+        """Install a loaded policy for one chat, leaving the default untouched."""
+        self._policies[int(chat_id)] = policy
+
+    def policy_summary(self, chat_id: int | None = None) -> dict[str, Any]:
+        p = self.policy_for(chat_id)
         return {
             "dry_run": p.dry_run,
             "auto_ban": p.allow_auto_ban,
@@ -70,35 +83,36 @@ class ModerationEngine:
             "chat_id": chat_id,
             "strikes": {uid: n for (cid, uid), n in self._strikes.items() if cid == chat_id},
             "actions": len(self.audit.actions(chat_id, limit=200)),
-            "summary": self.policy_summary(),
+            "summary": self.policy_summary(chat_id),
         }
 
     def actions(self, chat_id: int | None = None, limit: int = 10) -> list[dict[str, Any]]:
         return self.audit.actions(chat_id, limit)
 
-    # -- decisions ---------------------------------------------------------
     def inspect(self, ev: MessageEvent) -> list[str]:
         """Every detector hit for *ev* without consuming state."""
-        return detect_reasons(ev, self.policy, frozenset(self.policy.trusted_hosts))
+        policy = self.policy_for(ev.chat_id)
+        return detect_reasons(ev, policy, frozenset(policy.trusted_hosts))
 
     def evaluate(self, ev: MessageEvent) -> Verdict:
         """Detect, count a strike, escalate, and append one audit row."""
+        policy = self.policy_for(ev.chat_id)
         reasons = self.inspect(ev)
-        if self._window.hit(ev, self.policy):
+        if self._window.hit(ev, policy):
             reasons.append("duplicate_spam")
         if not reasons or ev.is_admin or self.is_trusted(ev.user_id):
             if reasons:
-                self._record(ev, Verdict(reasons=tuple(reasons), dry_run=self.policy.dry_run))
-            return Verdict(reasons=tuple(reasons), dry_run=self.policy.dry_run)
+                self._record(ev, Verdict(reasons=tuple(reasons), dry_run=policy.dry_run))
+            return Verdict(reasons=tuple(reasons), dry_run=policy.dry_run)
 
         key = (int(ev.chat_id), int(ev.user_id))
         self._strikes[key] = self._strikes.get(key, 0) + 1
         strikes = self._strikes[key]
         level, capped = "warn", False
-        if strikes >= self.policy.strikes_mute:
+        if strikes >= policy.strikes_mute:
             level = "mute"
-        if strikes >= self.policy.strikes_ban:
-            if self.policy.allow_auto_ban:
+        if strikes >= policy.strikes_ban:
+            if policy.allow_auto_ban:
                 level = "ban"
             else:
                 level, capped = "mute", True
@@ -106,20 +120,22 @@ class ModerationEngine:
             level=level,
             reasons=tuple(reasons),
             strikes=strikes,
-            dry_run=self.policy.dry_run,
+            dry_run=policy.dry_run,
             capped=capped,
         )
         self._record(ev, verdict)
         return verdict
 
-    # -- enforcement -------------------------------------------------------
     async def enforce(self, ev: MessageEvent, verdict: Verdict, client: ModerationClient) -> str:
-        """Perform the verdict's action unless the engine is in dry-run."""
+        """Perform the verdict action unless this chat is in dry-run."""
         if verdict.level == "ok":
             return "none"
-        if verdict.dry_run:
+        policy = self.policy_for(ev.chat_id)
+        if verdict.dry_run or policy.dry_run:
             return "dry_run"
-        return await self._act(verdict.level, ev.chat_id, ev.user_id, client, ev.message_id)
+        return await act(
+            policy, verdict.level, ev.chat_id, ev.user_id, client, ev.message_id, now=self._clock()
+        )
 
     async def enforce_manual(
         self,
@@ -131,8 +147,9 @@ class ModerationEngine:
         reason: str = "",
         message_id: int = 0,
     ) -> str:
-        """Apply an admin command (/warn, /mute, /ban, /trust, /untrust, /modpardon)."""
+        """Apply an admin command (warn, mute, ban, trust, untrust, pardon)."""
         chat_id, user_id = int(chat_id), int(user_id)
+        policy = self.policy_for(chat_id)
         if action == "trust":
             self.access.trust(user_id)
         elif action == "untrust":
@@ -144,8 +161,10 @@ class ModerationEngine:
         outcome = "recorded"
         if action in ("warn", "mute", "ban"):
             outcome = "dry_run"
-            if not self.policy.dry_run and client is not None:
-                outcome = await self._act(action, chat_id, user_id, client, message_id)
+            if not policy.dry_run and client is not None:
+                outcome = await act(
+                    policy, action, chat_id, user_id, client, message_id, now=self._clock()
+                )
         self.audit.record(
             {
                 "chat_id": chat_id,
@@ -154,31 +173,12 @@ class ModerationEngine:
                 "level": action,
                 "reasons": [reason] if reason else ["manual"],
                 "strikes": self._strikes.get((chat_id, user_id), 0),
-                "dry_run": self.policy.dry_run,
+                "dry_run": policy.dry_run,
                 "capped": False,
                 "at": self._clock(),
             }
         )
         return outcome
-
-    async def _act(
-        self,
-        level: str,
-        chat_id: int,
-        user_id: int,
-        client: ModerationClient,
-        message_id: int = 0,
-    ) -> str:
-        if level != "warn" and message_id and self.policy.delete_on_action:
-            await client.delete_message(chat_id, message_id)
-        if level == "warn":
-            await client.send_message(chat_id, f"⚠️ Warning for user {user_id}.")
-        elif level == "mute":
-            until = int(self._clock()) + self.policy.mute_seconds
-            await client.restrict_member(chat_id, user_id, until)
-        else:
-            await client.ban_member(chat_id, user_id)
-        return level
 
     def _record(self, ev: MessageEvent, verdict: Verdict) -> None:
         self.audit.record(
