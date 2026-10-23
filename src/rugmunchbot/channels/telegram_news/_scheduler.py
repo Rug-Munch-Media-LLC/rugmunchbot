@@ -27,6 +27,7 @@ from rugmunchbot.channels.formatters import (
     format_scam_digest,
 )
 from rugmunchbot.channels.importance import select_important
+from rugmunchbot.channels.telegram_news import _coverage
 from rugmunchbot.channels.telegram_news._digest import (
     _apply_commentaries,
     _article_to_post_dict,
@@ -293,45 +294,29 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     any post — the post-time ``_remember`` guard is a final freshness check,
     so only fresh important stories ship.
 
-    Post variety on the news channel (deterministic, by story count / shared
-    topic / batch parity — see ``_digest._news_post_for``): a breaking top
-    story (🚨/BREAKING/URGENT/JUST IN/FLASH in its title,
-    ``is_breaking_article``) is posted **solo immediately** with its official
-    link (``format_breaking_post``); a single story is posted as a **solo
-    top-story card** (image + one-line hook + lede, ``format_feature_post``);
-    stories sharing a ``$TOKEN`` form a **themed roundup**
-    (``format_themed_post``); otherwise the batch alternates between the
-    **top-3 hybrid** (lead card + image + short list, ``format_hybrid_post``)
-    and the full **numbered digest** (``format_news_post``) via a stable
-    batch-parity signal, so readers don't see the same digest every tick. The
-    selection is sorted by rerank importance, secondarily by the deterministic
-    ``lightweight_importance`` score.
+    Post variety on the news channel (deterministic — see
+    ``_digest._news_post_for``): a breaking top story (🚨/BREAKING/URGENT/
+    JUST IN/FLASH, ``is_breaking_article``) posts **solo immediately** with its
+    official link (``format_breaking_post``); a single story posts as a **solo
+    top-story card** (``format_feature_post``); stories sharing a ``$TOKEN``
+    form a **themed roundup** (``format_themed_post``); otherwise the batch
+    alternates **top-3 hybrid** (``format_hybrid_post``) and full **numbered
+    digest** (``format_news_post``) by batch parity. Selection is ordered by
+    rerank importance, then ``lightweight_importance``.
 
-    Main-channel solo (importance ≥ 0.7): the top story is posted solo; a
-    breaking marker keeps the 🚨 ``format_breaking_post`` shape, otherwise the
-    compelling ⭐ ``format_feature_post`` card (rewritten title + one-line
-    hook) is used with the story's image attached when one exists. High-
-    importance stories ALSO surface on the news channel (dual-post) and, after
-    a successful main post, are published to the rugmunch.io (Ghost) feed
-    best-effort (``publish_story_to_feed`` — fail-open when Ghost is gated).
+    Main-channel solo (importance ≥ 0.7): the top story posts solo — 🚨
+    ``format_breaking_post`` when it carries a breaking marker, else the ⭐
+    ``format_feature_post`` card with its image. High-importance stories also
+    surface on the news channel (dual-post) and, after a successful main post,
+    publish to the rugmunch.io (Ghost) feed best-effort (fail-open).
 
     AI commentary: every posted story gets a one-line "why it matters" hook
-    written by the snappy LLM tier (``attach_commentaries`` →
-    ``generate_commentary`` via ``app.llm_config.chat_with_fallback``) —
-    bounded per call, parallel per batch, fail-open to title-only when the
-    LLM times out/empties. Applied to news posts (all formats) and the
-    main-channel escalations.
+    (``attach_commentaries`` → ``generate_commentary``), bounded per call,
+    parallel per batch, fail-open to title-only.
 
-    Additive side-effects (all fail-open):
-    * freshly-persisted TG items are merged into the website full-feed Redis
-      cache (``inject_into_news_cache``) so ``/api/v1/news/feed`` +
-      ``/headlines`` surface them with attribution;
-    * a lightweight market-awareness snapshot (top headlines + trending
-      tokens) is published to ``rmi:news:market_awareness`` for the bot's
-      chat context (``publish_market_awareness``);
-    * the swept articles are clustered into stories and embedded into the
-      RAG ``news_v2`` collection (``ingest_into_rag``) so RAG "benefits
-      from" the news lane.
+    Additive side-effects (all fail-open): ``inject_into_news_cache`` (website
+    feed cache), ``publish_market_awareness`` (``rmi:news:market_awareness``),
+    and ``ingest_into_rag`` (cluster → embed into ``news_v2``).
     """
     # Lazy import keeps the scheduler ↔ this module import graph acyclic
     # (scheduler.py imports this module at module scope for registration).
@@ -386,8 +371,13 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     alpha_scored: list[Any] = []
     main_scored: list[Any] = []
     alerts_scored: list[Any] = []
+    routed: dict[str, str] = {}
+    posted_keys: set[str] = set()
     for s in scored:
-        dest = route_news(s.importance, s.article.category)
+        # fallback=True when the reranker was down: heuristic scores are not on
+        # the cross-encoder scale, so the 0.4 news floor must not be applied.
+        dest = route_news(s.importance, s.article.category, fallback=s.fallback)
+        routed[_coverage.article_key(s.article)] = dest
         if dest == "main":
             main_scored.append(s)
             if s.article.category not in (ROUTE_ALPHA_CATEGORY, ROUTE_SCAM_CATEGORY):
@@ -429,6 +419,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 )
                 if ok:
                     await _note_published("tgnews", top)
+                    posted_keys.add(_coverage.article_key(top))
                     logger.info("tg_news:posted_breaking title=%s", top.title[:80])
                     posted += 1
         else:
@@ -452,6 +443,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 if ok:
                     for a in fresh_articles:
                         await _note_published("tgnews", a)
+                        posted_keys.add(_coverage.article_key(a))
                     logger.info("tg_news:posted_news count=%s", min(len(fresh), TG_NEWS_POST_LIMIT))
                     posted += 1
 
@@ -509,6 +501,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
                         await _record_main_post()
                         await _note_published("tgmain", top)
+                        posted_keys.add(_coverage.article_key(top))
                         logger.info("tg_news:posted_main title=%s", top.title[:80])
                         posted += 1
                         # rugmunch.io (Ghost) feed publish — best-effort + fail-open:
@@ -565,6 +558,7 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             if ok:
                 for a in fresh_alpha[:TG_NEWS_POST_LIMIT]:
                     await _note_published("tgalpha", a)
+                    posted_keys.add(_coverage.article_key(a))
                 logger.info(
                     "tg_news:posted_alpha count=%s", min(len(fresh_alpha), TG_NEWS_POST_LIMIT)
                 )
@@ -594,11 +588,16 @@ async def post_tg_news_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
             if ok:
                 for a in fresh_alerts[:TG_NEWS_POST_LIMIT]:
                     await _note_published("tgscam", a)
+                    posted_keys.add(_coverage.article_key(a))
                 logger.info(
                     "tg_news:posted_scam_alerts count=%s",
                     min(len(fresh_alerts), TG_NEWS_POST_LIMIT),
                 )
                 posted += 1
+
+    # Per-source coverage: swept/scored/routed/posted for EVERY channel, so a
+    # channel that never reaches content is visible instead of silent.
+    _coverage.log_news_coverage(articles, scored, routed, posted_keys)
 
     if not posted:
         logger.debug("tg_news:all_already_posted")
