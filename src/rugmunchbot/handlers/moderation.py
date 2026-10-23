@@ -16,6 +16,9 @@ from telegram.error import TelegramError
 from telegram.ext import CommandHandler, ContextTypes
 
 from rugmunchbot.community.moderation import ModerationEngine
+from rugmunchbot.community.moderation_audit import JsonlAudit
+from rugmunchbot.community.moderation_config import sync_policy
+from rugmunchbot.community.store import COMMUNITY_CLIENT_KEY
 
 __all__ = ["ENGINE_KEY", "PtbModerationClient", "register_moderation_commands"]
 
@@ -48,16 +51,20 @@ class PtbModerationClient:
         return await self._bot.send_message(chat_id, text)
 
 
-def _engine(context: ContextTypes.DEFAULT_TYPE) -> ModerationEngine:
+async def _engine(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> ModerationEngine:
+    """Return the engine for *chat_id*, hydrating its policy from Redis."""
     store = context.application.bot_data
-    if ENGINE_KEY not in store:
-        store[ENGINE_KEY] = ModerationEngine()
-    return store[ENGINE_KEY]
+    engine = store.get(ENGINE_KEY)
+    if engine is None:
+        engine = ModerationEngine(audit_sink=JsonlAudit())
+        store[ENGINE_KEY] = engine
+    await sync_policy(engine, chat_id, store.get(COMMUNITY_CLIENT_KEY))
+    return engine
 
 
 async def _is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     user = update.effective_user
-    engine = _engine(context)
+    engine = await _engine(context, update.effective_chat.id)
     if user is not None and engine.is_admin(user.id):
         return True
     try:
@@ -93,7 +100,7 @@ async def _cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE, engine
 
 
 async def _cmd_rules(update: Update, context: ContextTypes.DEFAULT_TYPE, engine: ModerationEngine):
-    p = engine.policy
+    p = engine.policy_for(update.effective_chat.id)
     await _reply(
         update,
         "📜 Moderation rules\n"
@@ -152,7 +159,7 @@ def _wrap(fn: Handler, *, admin: bool):
         if admin and not await _is_admin(update, context):
             await _reply(update, DENIED)
             return
-        await fn(update, context, _engine(context))
+        await fn(update, context, await _engine(context, update.effective_chat.id))
 
     return handler
 
