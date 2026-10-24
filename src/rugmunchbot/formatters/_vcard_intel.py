@@ -57,33 +57,47 @@ def _holders_row(r: dict[str, Any], ts: str) -> str:
     return _row("Holders", " \u00b7 ".join(bits), source_for(r, "holders"), ts)
 
 
+def _bundle_bits(block: dict[str, Any]) -> list[str]:
+    """Detail bits for a detected bundle: wallets, confidence, risk label."""
+    bits: list[str] = []
+    wallets = _bundle_wallet_count(block)
+    if wallets is not None:
+        bits.append(f"\U0001f534 <b>{wallets:,}</b> wallets")
+    conf = _float_or_none(block.get("confidence"))
+    if conf is not None:
+        bits.append(f"{conf:.0f}% conf")
+    label = str(block.get("risk_label") or "").strip().upper()
+    if label:
+        bits.append(label)
+    return bits
+
+
+def _bundle_detected_row(r: dict[str, Any], block: dict[str, Any], ts: str) -> str:
+    """Row for a detected bundle -- always shows at least the red dot."""
+    bits = _bundle_bits(block) or ["\U0001f534 detected"]
+    return _row("Bundle", " \u00b7 ".join(bits), source_for(r, "bundle"), ts)
+
+
+def _bundle_unscanned_row(block: dict[str, Any]) -> str:
+    """Row when the engine answered without a verdict: its reason, capped."""
+    reason = str(block.get("reason") or block.get("result") or "not scanned").strip()
+    return f"  {'Bundle':<12} {DASH} \u00b7 engine: {reason[:60]}"
+
+
 def _bundle_row(r: dict[str, Any], ts: str) -> str:
     """Bundle verdict -- detected, clean-scanned, or the engine's own reason."""
     block = r.get("bundle_analysis")
     if not isinstance(block, dict):
         return f"  {'Bundle':<12} {DASH} \u00b7 engine: bundle engine not run"
     if block.get("is_bundled") is True:
-        bits: list[str] = []
-        wallets = _bundle_wallet_count(block)
-        if wallets is not None:
-            bits.append(f"\U0001f534 <b>{wallets:,}</b> wallets")
-        conf = _float_or_none(block.get("confidence"))
-        if conf is not None:
-            bits.append(f"{conf:.0f}% conf")
-        label = str(block.get("risk_label") or "").strip().upper()
-        if label:
-            bits.append(label)
-        if not bits:
-            bits.append("\U0001f534 detected")
-        return _row("Bundle", " \u00b7 ".join(bits), source_for(r, "bundle"), ts)
+        return _bundle_detected_row(r, block, ts)
     if str(block.get("result") or "").lower() == "scanned":
         return _row("Bundle", "\U0001f7e2 none detected", source_for(r, "bundle"), ts)
-    reason = str(block.get("reason") or block.get("result") or "not scanned").strip()
-    return f"  {'Bundle':<12} {DASH} \u00b7 engine: {reason[:60]}"
+    return _bundle_unscanned_row(block)
 
 
-def _reasons(r: dict[str, Any]) -> list[str]:
-    """Up to three ranked reasons, each a fact the scan actually returned."""
+def _contract_reasons(r: dict[str, Any]) -> list[str]:
+    """Hard fails the contract itself reports: honeypot, authorities, tax."""
     out: list[str] = []
     if r.get("honeypot") is True:
         out.append("honeypot \u2014 sells can be blocked")
@@ -91,27 +105,48 @@ def _reasons(r: dict[str, Any]) -> list[str]:
         out.append("mint authority live")
     if r.get("freezable") is True:
         out.append("freeze authority live")
-    try:
-        if float(r.get("sell_tax", 0) or 0) >= SELL_TAX_HARD_FAIL:
-            out.append("sell tax \u2265 50%")
-    except (TypeError, ValueError):
-        pass
-    raw_profile = r.get("deployer_profile")
-    profile: dict[str, Any] = raw_profile if isinstance(raw_profile, dict) else {}
-    rate = _float_or_none(profile.get("rug_rate"))
-    if rate is not None and rate >= 0.5:
-        out.append(f"deployer rugged {rate * 100:.0f}% of past launches")
+    tax = _float_or_none(r.get("sell_tax"))
+    if tax is not None and tax >= SELL_TAX_HARD_FAIL:
+        out.append("sell tax \u2265 50%")
+    return out
+
+
+def _deployer_reasons(r: dict[str, Any]) -> list[str]:
+    """Repeat-rug deployer: only when the engine measured a 50%+ rug rate."""
+    profile = r.get("deployer_profile")
+    rate = _float_or_none(profile.get("rug_rate")) if isinstance(profile, dict) else None
+    if rate is None or rate < 0.5:
+        return []
+    return [f"deployer rugged {rate * 100:.0f}% of past launches"]
+
+
+def _concentration_reasons(r: dict[str, Any]) -> list[str]:
+    """Top-10 concentration, when the scan actually measured it."""
     concentration = r.get("holder_concentration")
-    top10 = concentration.get("top10_pct") if isinstance(concentration, dict) else None
-    try:
-        if top10 is not None and float(top10) >= 50:
-            out.append(f"top-10 hold {float(top10):.0f}%")
-    except (TypeError, ValueError):
-        pass
+    measured = concentration.get("top10_pct") if isinstance(concentration, dict) else None
+    top10 = _float_or_none(measured)
+    if top10 is None or top10 < 50:
+        return []
+    return [f"top-10 hold {top10:.0f}%"]
+
+
+def _liquidity_reasons(r: dict[str, Any]) -> list[str]:
+    """Thin LP lock, when a lock percentage is known."""
     lock = _lp_lock_pct(r)
-    if lock is not None and lock < 20:
-        out.append(f"LP only {lock:.0f}% locked")
-    return out[:3]
+    if lock is None or lock >= 20:
+        return []
+    return [f"LP only {lock:.0f}% locked"]
+
+
+def _reasons(r: dict[str, Any]) -> list[str]:
+    """Up to three ranked reasons, each a fact the scan actually returned."""
+    ranked = [
+        *_contract_reasons(r),
+        *_deployer_reasons(r),
+        *_concentration_reasons(r),
+        *_liquidity_reasons(r),
+    ]
+    return ranked[:3]
 
 
 def intel_lines(r: dict[str, Any], ts: str, *, word: str = "") -> list[str]:
