@@ -135,6 +135,21 @@ async def test_throttle_after_three(tmp_path):
     assert len(bot.sent) == report.REPORTS_PER_WINDOW
 
 
+async def test_group_handler_stops_the_pipeline_only_in_groups(tmp_path):
+    from telegram.ext import ApplicationHandlerStop
+
+    enable_modlog(tmp_path)
+    bot = FakeBot()
+    group_update = make_update(FakeMessage(reply_to=target_message()))
+    with pytest.raises(ApplicationHandlerStop):
+        await report.group_report_command(group_update, context(bot))
+
+    dm_update = make_update(FakeMessage(reply_to=target_message()))
+    dm_update.effective_chat.type = "private"
+    assert await report.handle_group_report(dm_update, context(bot)) is False
+    assert dm_update.effective_message.replies == []
+
+
 async def test_unconfigured_chat_tells_the_member():
     message = FakeMessage(reply_to=target_message())
     bot = FakeBot()

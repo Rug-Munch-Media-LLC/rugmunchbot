@@ -27,6 +27,7 @@ from rugmunchbot.moderation.commands import (
     cmd_modstatus,
 )
 from rugmunchbot.moderation.gate import moderation_gate
+from rugmunchbot.moderation.report import group_report_command
 
 COMMANDS: dict[str, Any] = {
     "modstatus": cmd_modstatus,
@@ -62,6 +63,10 @@ def register_moderation(app: Any) -> None:
     from telegram import Update
     from telegram.ext import CommandHandler, TypeHandler
 
+    # Group -2: the group /report shape. DMs fall through to the scam-address
+    # intake registered at group 0 (handlers/report.py), so one command name
+    # serves both shapes without a second engine.
+    app.add_handler(CommandHandler("report", group_report_command), group=-2)
     app.add_handler(TypeHandler(Update, moderation_gate), group=-1)
     for name, callback in COMMANDS.items():
         app.add_handler(CommandHandler(name, callback), group=0)
