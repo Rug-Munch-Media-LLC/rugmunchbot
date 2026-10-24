@@ -15,13 +15,13 @@ class _JQ:
         self.repeating: list[dict[str, Any]] = []
         self.once: list[dict[str, Any]] = []
 
-    def run_repeating(self, callback, interval, first=None, name=None, **kw):
-        self.repeating.append({"callback": callback, "name": name, "interval": interval})
+    def run_repeating(self, callback, interval, **kw):
+        self.repeating.append({"callback": callback, "name": kw.get("name"), "interval": interval})
 
     def run_once(self, callback, when, name=None, **kw):
         self.once.append({"name": name})
 
-    def run_daily(self, callback, time, days=None, name=None, **kw):
+    def run_daily(self, callback, time, **kw):
         pass
 
 
