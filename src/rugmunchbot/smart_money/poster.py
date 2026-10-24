@@ -13,6 +13,7 @@ from typing import Any
 from rugmunchbot.config._channels import _resolve_channel_id
 from rugmunchbot.partners import with_partner_strip
 
+from ._premium import premium_status
 from .events import EventGate
 
 GATE = EventGate()
@@ -35,8 +36,16 @@ async def publish(
     lane: str | None = None,
     chain: str = "",
     token: str = "",
+    premium: bool = False,
+    item: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Gate, then (opt-in only) send one post. Returns a result envelope."""
+    """Gate, then (opt-in only) send one post. Returns a result envelope.
+
+    ``premium=True`` routes the post to the paid lane and applies the
+    evidence gate: an item without on-chain proof, a named source, a
+    timestamp and a "why it matters" line is HELD (``held_low_signal``)
+    instead of shipping as premium — the $5 tier sells proof, not vibes.
+    """
     verdict = (gate or GATE).allow(key)
     chat_id = _resolve_channel_id(role)
     result: dict[str, Any] = {
@@ -46,8 +55,12 @@ async def publish(
         "gate": verdict,
         "dry_run": not posting_enabled(),
     }
+    if premium:
+        result["premium"] = premium_status(item)
     if verdict != "ok":
         return {**result, "status": "suppressed"}
+    if premium and not result["premium"]["eligible"]:
+        return {**result, "status": "held_low_signal"}
     if result["dry_run"] or bot is None or not chat_id:
         return {**result, "status": "dry_run", "chars": len(str(post))}
     text = with_partner_strip(str(post), lane=lane, chain=chain, token=token)

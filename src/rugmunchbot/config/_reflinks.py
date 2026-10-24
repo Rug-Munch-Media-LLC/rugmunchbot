@@ -34,7 +34,10 @@ DEX_REF_LINKS: dict[str, DexRefLink] = {
     "jupiter": {
         "name": "Jupiter",
         "emoji": "🪐",
-        "url": "https://jup.ag/swap/SOL-{token}?ref=rugmunch",  # [swap] token pair
+        # [swap] token pair. Attribution is ON-CHAIN via `referralAccount`
+        # + 50 bps (see rugmunchbot.referrals.jupiter_swap_params); Jupiter's
+        # UI ignores `?ref=`, so a query code here would be a fake link.
+        "url": "https://jup.ag/swap/SOL-{token}",
         "chains": ["solana"],
         "description": "Best Solana DEX aggregator",
     },
@@ -48,14 +51,15 @@ DEX_REF_LINKS: dict[str, DexRefLink] = {
     "gmgn": {
         "name": "GMGN.ai",
         "emoji": "📊",
-        # [home] chain-agnostic landing page — token-less content lanes
-        # (news / alpha / scam alert) have no address to deep-link.
-        "home": "https://gmgn.ai/?ref=rugmunch",
-        # [chart] token chart page. NOTE: `sol` slug is hardcoded — correct for
-        # Solana (the dominant use case); EVM scans land on GMGN's /sol/ route
-        # which resolves by address. Flagged [REVIEW] if cross-chain routing
-        # must be explicit (then use gmgn_url() slug mapping in _base.py).
-        "url": "https://gmgn.ai/sol/token/{token}?ref=rugmunch",
+        # [home] chain landing page — token-less content lanes (news /
+        # alpha / scam alert) have no address to deep-link. BUILD IT VIA
+        # `partners.gmgn_url`, never by formatting this string.
+        "home": "https://gmgn.ai/?chain={chain}&ref=rugmunch",
+        # [chart] token page. GMGN credits the referral through the SLUG
+        # (`<code>_<contract>`), not a query param — build it with
+        # `partners.gmgn_url` (chain-aware slug) and never by formatting
+        # this string.
+        "url": "https://gmgn.ai/{chain}/token/rugmunch_{token}",
         "chains": [
             "solana",
             "ethereum",

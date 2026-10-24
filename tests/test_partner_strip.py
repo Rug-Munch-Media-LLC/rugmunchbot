@@ -32,6 +32,7 @@ TOKEN = "So11111111111111111111111111111111111111112"
 ALLOWED_HOSTS = {
     "jup.ag",
     "gmgn.ai",
+    "photon-sol.tinyastro.io",
     "t.me",
     "axiom.trade",
     "padre.trade",
@@ -103,7 +104,9 @@ def test_solana_and_evm_get_different_venues() -> None:
 
 def test_token_deep_link_is_used_when_an_address_exists() -> None:
     strip = partner_strip("smart_money", chain="solana", token=TOKEN)
-    assert f"gmgn.ai/sol/token/{TOKEN}" in strip
+    # GMGN credits the referral through the SLUG, not a ?ref= param.
+    assert f"gmgn.ai/sol/token/rugmunch_{TOKEN}" in strip
+    assert "?ref=" not in strip.split("gmgn.ai")[1].split('"')[0]
 
 
 def test_predictions_lane_is_null_with_reason(
@@ -138,9 +141,9 @@ def test_strip_is_idempotent_and_dedupes_body_links() -> None:
     once = with_partner_strip("body", lane="news")
     assert with_partner_strip(once, lane="news") == once
     assert once.count(STRIP_MARK) == 1
-    body = 'see <a href="https://gmgn.ai/?ref=rugmunch">GMGN</a>'
+    body = 'see <a href="https://gmgn.ai/?chain=sol&ref=rugmunch">GMGN</a>'
     deduped = with_partner_strip(body, lane="news")
-    assert deduped.count("https://gmgn.ai/?ref=rugmunch") == 1
+    assert deduped.count("https://gmgn.ai/?chain=sol&ref=rugmunch") == 1
 
 
 def test_env_code_override_replaces_or_drops_the_code(
@@ -148,12 +151,13 @@ def test_env_code_override_replaces_or_drops_the_code(
 ) -> None:
     monkeypatch.setenv("RMI_REF_PADRE", "newcode")
     assert "ref=newcode" in partner_strip("alpha", chain="ethereum")
-    monkeypatch.setenv("RMI_REF_GMGN", "")
-    strip = partner_strip("news")
-    assert '<a href="https://gmgn.ai/">GMGN.ai</a>' in strip  # code dropped
-    # Jupiter URLs are owned by rugmunchbot.referrals (tier-aware), so the
-    # strip never forks its own Jupiter link.
-    assert referral_for("jupiter").url == "https://jup.ag/swap/SOL-USDC?ref=rugmunch"
+    monkeypatch.setenv("RMI_REF_GMGN_CODE", "altcode")
+    strip = partner_strip("smart_money", token=TOKEN)
+    assert f"gmgn.ai/sol/token/altcode_{TOKEN}" in strip
+    # Jupiter URLs are owned by rugmunchbot.referrals (tier-aware, on-chain
+    # referralAccount + 50 bps) — the UI link stays plain, no fake ?ref=.
+    assert referral_for("jupiter").url == "https://jup.ag/swap/SOL-USDC"
+    assert "ref=" not in referral_for("jupiter").url
 
 
 def test_content_type_mapping_covers_the_lanes() -> None:

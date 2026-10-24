@@ -304,10 +304,9 @@ def test_shill_footer_contains_all_channels() -> None:
 
 def _assert_ref_links(out: str) -> None:
     for expected in (
-        "jup.ag/swap/SOL-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v?ref=rugmunch",  # jupiter
-        "gmgn.ai/sol/token/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v?ref=rugmunch",  # gmgn
+        "jup.ag/swap/SOL-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # jupiter (plain; on-chain referral)
+        "gmgn.ai/sol/token/rugmunch_EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # gmgn (slug)
         "photon-sol.tinyastro.io/en/lp/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v?handle=rugmunch",  # photon
-        "birdeye.so/token/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # birdeye
         "dexscreener.com/solana/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # dexscreener
         "dextools.io/app/en/sol/pair-explorer/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # dextools
         "rugmunch.io/rugcharts?token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # rugcharts

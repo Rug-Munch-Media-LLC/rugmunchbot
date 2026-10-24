@@ -21,8 +21,18 @@ from rugmunchbot.referrals import (
     polymarket_referral,
 )
 
+from ._gmgn import gmgn_url
+
 #: Venues whose URL/code lives in ``config.DEX_REF_LINKS``.
-DEX_PARTNERS: tuple[str, ...] = ("jupiter", "gmgn", "banana", "odin", "axiom", "padre")
+DEX_PARTNERS: tuple[str, ...] = (
+    "jupiter",
+    "gmgn",
+    "photon",
+    "banana",
+    "odin",
+    "axiom",
+    "padre",
+)
 
 #: Referrers with no link stored in this repo — reported as null + reason.
 MANUAL_PARTNERS: dict[str, str] = {
@@ -51,6 +61,18 @@ def _apply_env_code(key: str, url: str) -> str:
     if not code:
         return _CODE_PARAM_RE.sub("", url)
     return _CODE_VALUE_RE.sub(lambda m: f"{m.group(1)}={quote(code, safe='@')}", url)
+
+
+def _gmgn_referral(token: str, chain: str) -> Referral:
+    """GMGN link via the canonical builder (token slug carries the code)."""
+    dex = DEX_REF_LINKS["gmgn"]
+    chains = [str(c).lower() for c in dex["chains"]]
+    if chain and chain not in chains:
+        return Referral("gmgn", STANDARD, None, None, f"gmgn:unsupported-chain:{chain}")
+    url = gmgn_url(token=token, chain=chain or "solana")
+    if not url.startswith("https://"):
+        return Referral("gmgn", STANDARD, None, None, "gmgn:invalid-url")
+    return Referral("gmgn", STANDARD, url, None)
 
 
 def _dex_referral(key: str, token: str, chain: str) -> Referral:
@@ -89,6 +111,8 @@ def referral_for(key: str, *, token: str = "", chain: str = "") -> Referral:
         return polymarket_referral()
     if key == "hyperliquid":
         return Referral("hyperliquid", STANDARD, None, None, "hyperliquid:no-code-stored")
+    if key == "gmgn":
+        return _gmgn_referral(token_s, chain_l)
     return _dex_referral(key, token_s, chain_l)
 
 
