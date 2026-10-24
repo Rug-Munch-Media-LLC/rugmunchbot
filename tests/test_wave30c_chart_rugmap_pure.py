@@ -15,8 +15,8 @@ from rugmunchbot.commands.chart import (
 from rugmunchbot.commands.rugmap import (
     _guess_chain,
     _web_rugmap_url,
-    render_bubble_map_png,
 )
+from rugmunchbot.services.visuals import render_cluster_map
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
@@ -104,14 +104,14 @@ def test_render_chart_png_valid_candles_png_bytes() -> None:
     assert len(out) > 5000
 
 
-def test_render_bubble_map_png_empty_nodes_none() -> None:
-    assert render_bubble_map_png([], [], "Pepe", "PEPE", "0xtok") is None
+def test_render_cluster_map_empty_nodes_none() -> None:
+    assert render_cluster_map([], [], "Pepe", "PEPE", "0xtok") is None
 
 
-def test_render_bubble_map_png_valid_graph_png_bytes() -> None:
+def test_render_cluster_map_valid_graph_png_bytes() -> None:
     nodes = [{"id": "a", "address": "0xa", "label": "dev", "value": 10, "risk": "high"}]
     links = [{"source": "a", "target": "a", "weight": 1}]
-    out = render_bubble_map_png(nodes, links, "Pepe", "PEPE", "0xtok")
+    out = render_cluster_map(nodes, links, "Pepe", "PEPE", "0xtok")
     assert out is not None
     assert out.startswith(PNG_MAGIC)
     assert len(out) > 5000
