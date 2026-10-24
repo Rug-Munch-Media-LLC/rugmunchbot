@@ -7,7 +7,7 @@ import asyncio
 import pytest
 
 from rugmunchbot.smart_money._premium import premium_status
-from rugmunchbot.smart_money.poster import publish
+from rugmunchbot.smart_money.poster import PublishOptions, publish
 from rugmunchbot.support.premium_signal import (
     PREMIUM_MIN_SCORE,
     PREMIUM_MIN_USD,
@@ -73,13 +73,19 @@ def test_premium_status_is_json_safe() -> None:
 
 def test_publish_holds_low_signal_premium() -> None:
     result = asyncio.run(
-        publish("post text", key="premium:low", premium=True, item={"amount_usd": 1})
+        publish(
+            "post text",
+            key="premium:low",
+            opts=PublishOptions(premium=True, item={"amount_usd": 1}),
+        )
     )
     assert result["status"] == "held_low_signal"
     assert result["premium"]["eligible"] is False
 
 
 def test_publish_admits_high_signal_premium() -> None:
-    result = asyncio.run(publish("post text", key="premium:high", premium=True, item=GOOD))
+    result = asyncio.run(
+        publish("post text", key="premium:high", opts=PublishOptions(premium=True, item=GOOD))
+    )
     assert result["status"] in {"dry_run", "sent"}
     assert result["premium"]["eligible"] is True

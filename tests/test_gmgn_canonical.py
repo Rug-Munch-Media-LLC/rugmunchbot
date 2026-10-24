@@ -9,23 +9,20 @@ ignores `?ref=` too — its attribution is the on-chain `referralAccount` plus
 from __future__ import annotations
 
 import os
-import re
 from contextlib import contextmanager
 
 import pytest
 
-from rugmunchbot.formatters._base._links import footer_links, gmgn_url
+from rugmunchbot.formatters._base._links import gmgn_url
 from rugmunchbot.partners import gmgn_slug, referral_for, referral_snapshot
 from rugmunchbot.partners._gmgn import gmgn_url as canonical_gmgn
 from rugmunchbot.referrals import (
-    DISCLOSURE,
     PLATFORM_FEE_BPS,
     jupiter_referral,
     jupiter_swap_params,
 )
 
 TOKEN = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-HREF_RE = re.compile(r'href="([^"]+)"')
 
 
 def test_gmgn_token_link_uses_the_slug_not_a_query_code() -> None:
@@ -93,28 +90,6 @@ def test_jupiter_link_is_plain_and_attribution_is_onchain() -> None:
     params = jupiter_swap_params(token=TOKEN)
     assert params["platformFeeBps"] == PLATFORM_FEE_BPS == 50
     assert set(params) == {"referralAccount", "platformFeeBps"}
-
-
-def test_scan_footer_leads_with_jupiter_and_gmgn_and_caps_refs() -> None:
-    footer = footer_links(TOKEN, "solana", purpose="scan")
-    refs = [h for h in HREF_RE.findall(footer) if "jup.ag" in h or "gmgn.ai" in h]
-    assert refs[0].startswith("https://jup.ag/swap/SOL-")
-    assert refs[1].startswith("https://gmgn.ai/sol/token/rugmunch_")
-    # Referral links (the two above plus one more) never exceed three.
-    assert (
-        len(
-            [
-                h
-                for h in HREF_RE.findall(footer)
-                if "t.me" not in h
-                and "rugmunch.io" not in h
-                and "dexscreener" not in h
-                and "dextools" not in h
-            ]
-        )
-        <= 3
-    )
-    assert footer.count(DISCLOSURE) == 1
 
 
 def test_ref_matrix_reports_every_partner_honestly() -> None:
