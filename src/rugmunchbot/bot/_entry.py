@@ -37,6 +37,7 @@ from rugmunchbot.bot._shutdown import (
     install_sigterm_shutdown,
 )
 from rugmunchbot.buybot import register_buybot
+from rugmunchbot.calltrack.handlers import register_calltrack
 from rugmunchbot.channels import register_channel_jobs
 from rugmunchbot.commands import (
     cmd_chart,
@@ -324,6 +325,7 @@ def _register_all_handlers(app: Application[Any, Any, Any, Any, Any, Any]) -> No
     # explicitly configured live; every action is audited.
     register_moderation_commands(app)
     register_buybot(app)  # /buybot — admin-configurable buy popups
+    register_calltrack(app)  # /call /calls /lb /fc — group call tracking
 
     # Inline, callbacks, messages
     app.add_handler(InlineQueryHandler(handle_inline))
