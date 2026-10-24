@@ -40,6 +40,15 @@ async def cmd_report(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     if user is None or update.message is None:
         return
+    chat = update.effective_chat
+    if chat is not None and chat.type in {"group", "supergroup"}:
+        # In a group /report flags a *message* for the admins; the DM shape
+        # below stays the scam-address intake.
+        from rugmunchbot.moderation.report import handle_group_report
+
+        await handle_group_report(update, ctx)
+        return
+
     db.get_or_create_user(user.id, user.username, user.first_name)
 
     if not ctx.args:

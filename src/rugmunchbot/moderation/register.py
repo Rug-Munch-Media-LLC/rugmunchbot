@@ -12,7 +12,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from rugmunchbot.moderation import filters, gban, notes, schedule, settings_cmd
+from rugmunchbot.moderation import (
+    filters,
+    gban,
+    notes,
+    rules_cmd,
+    schedule,
+    settings_cmd,
+)
 from rugmunchbot.moderation.commands import (
     cmd_appeal,
     cmd_modactions,
@@ -42,6 +49,9 @@ COMMANDS: dict[str, Any] = {
     "setwelcome": settings_cmd.cmd_setwelcome,
     "setgoodbye": settings_cmd.cmd_setgoodbye,
     "modconfig": settings_cmd.cmd_modconfig,
+    "rules": rules_cmd.cmd_rules,
+    "setrules": rules_cmd.cmd_setrules,
+    "clearrules": rules_cmd.cmd_clearrules,
 }
 
 SCHEDULE_INTERVAL_S = 60
