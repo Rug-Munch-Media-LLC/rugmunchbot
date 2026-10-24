@@ -1,0 +1,19 @@
+{
+	"rules": {
+		"magic-threshold": 8,
+		"signal-list": 2,
+		"prompt-judgement": 6
+	},
+	"total": 16,
+	"reasons": [
+		{
+			"date": "2026-10-24",
+			"rules": {
+				"magic-threshold": [0, 8],
+				"signal-list": [0, 2],
+				"prompt-judgement": [0, 6]
+			},
+			"reason": "Recorded at the TRUE current count (magic-threshold 8, prompt-judgement 6, signal-list 2). This is not a raise to turn CI green: the gate had no baseline file at all (baseline 0), so every pre-existing finding blocked every commit. Nothing in this triage is a published internal method or path. Frozen vendored copy of rmi-backend/app/rag (\"VENDORED 2026-08-24 ... do not edit\", re-vendor via scripts/refresh-vendors.sh). The gate's skip_dirs covers vendor, third_party and site-packages but not the _vendor convention. The durable fix is a skip_dirs entry in the shared gate pattern data in the standards repo (tracked separately), not an edit to the vendored tree. channels/daily_rug, channels/evening_wrap, channels/midday_market_report _prompt.py and tools/web.py. Public product copy: voice, banned-phrase list, output shape. No weights, no calibration, no signal vocabulary, no scoring cut-off. scam_alerts/_project_alert.py (high/medium/low label bands), portfolio_risk.py (diversification warning), scanner/_ai_verdict.py (percentage wording inside a prompt), _scan_report_riskreport/_extract.py (data-derived rug_rate flag), wallet_intelligence.py (whale labelling constant). These band numbers produced elsewhere; they do not calibrate a score. Ratchet: shrink-only. Any NEW finding in these rules fails the gate."
+		}
+	]
+}
