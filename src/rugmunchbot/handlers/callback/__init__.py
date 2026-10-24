@@ -76,6 +76,13 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     # refresh edits the SAME message instead of sending a second one.
     if await _vcard.handle(update, ctx, query, data):
         return
+    if data.startswith("shill:"):
+        # Shill/promo alert card actions (quarantine / ban / false positive /
+        # escalate). Admin-gated inside the handler; unknown payloads refused.
+        from rugmunchbot.channels.shill_alerts import handle_moderation_action
+
+        await handle_moderation_action(update, ctx)
+        return
     if data.startswith("run_"):
         await _dispatch_run_cmd(update, ctx, data[4:])
         return
