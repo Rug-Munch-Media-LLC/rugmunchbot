@@ -39,6 +39,7 @@ from rugmunchbot.formatters._vcard_fields import field_line, source_for, stamp
 from rugmunchbot.formatters._vcard_fit import fit_card
 from rugmunchbot.formatters._vcard_freshbuyers import first_buyer_lines
 from rugmunchbot.formatters._vcard_funding import funding_lines
+from rugmunchbot.formatters._vcard_intel import intel_lines
 from rugmunchbot.formatters._vcard_signals import collect
 from rugmunchbot.formatters._vcard_verdict import WORD_EMOJI, verdict
 
@@ -139,6 +140,7 @@ def format_verdict_card(
     tail: list[str] = []
     if signals.top10:  # rule 2: a real measurement, or no row at all
         tail.append(field_line("Top-10", "top10", signals.top10, source_for(r, "top10"), ts))
+    tail.extend(intel_lines(r, ts, word=word))
     tail.extend(signals.clusters)
     tail.extend([signals.dev, signals.kol])
     if signals.wash:
