@@ -6,41 +6,54 @@ helpers only. Split out of ``handlers/_market_helpers.py`` (2026-10-23).
 
 from __future__ import annotations
 
+import html
 from typing import Any
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from rugmunchbot.config import WEBSITE_URL, fmt_number, fmt_pct
+from rugmunchbot.config import WEBSITE_URL
 from rugmunchbot.formatters import footer_links, sep
 from rugmunchbot.handlers._market_helpers._badges import (
+    TRENDING_CHAIN_LIST,
     TRENDING_CHAINS,
-    _chain_badge,
-    _fmt_price,
-    _liq_badge,
-    _risk_emoji,
+    _is_trending_chain,
 )
+from rugmunchbot.handlers._market_helpers._boosted import (
+    _render_boosted_lines,
+    _split_paid,
+)
+from rugmunchbot.handlers._market_helpers._card import _render_token_card
 from rugmunchbot.handlers._market_helpers._names import _trending_display
 from rugmunchbot.handlers._market_helpers._rank import _sort_trending, _window_note
-from rugmunchbot.handlers._market_helpers._tokens import (
-    TRENDING_WINDOWS,
-    _age_badge,
-    _window_change,
-)
+from rugmunchbot.handlers._market_helpers._tokens import TRENDING_WINDOWS
 
 _MAX_TRENDING_ROWS = 10
 
 
 def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str) -> str:
-    """HTML trending list with badges, clickable CAs, risk indicators."""
-    tokens = _sort_trending(tokens, window)
-    lines = [f"🔥 <b>Trending — {chain.capitalize()} · {window}</b>", sep()]
+    """HTML trending list — ranked organic cards, then the disclosed paid block.
+
+    Paid placements (DexScreener token-boosts) are removed BEFORE ranking, so
+    a boost can never move an organic rank; they render in their own block
+    with the "paid placement" disclosure, never as a numbered entry.
+    """
+    organic, paid = _split_paid(tokens)
+    ranked = _sort_trending(organic, window)
+    lines = [
+        f"\U0001f525 <b>Trending \u2014 {html.escape(chain.capitalize())} \u00b7 {window}</b>",
+        sep(),
+    ]
+    if not _is_trending_chain(chain):
+        # Malformed chain arg: say so instead of pretending the feed is empty.
+        lines.append(
+            f"<i>Unknown chain \u201c{html.escape(chain)}\u201d \u2014 pick a chain below.</i>"
+        )
+        lines.append("")
 
     rendered = 0
-    for t in tokens:
-        addr = t.get("address", "")
-        if not addr:
+    for token in ranked:
+        if not token.get("address"):
             continue
-        name, symbol = _trending_display(t)
         rendered += 1
         if rendered > _MAX_TRENDING_ROWS:
             break
@@ -48,37 +61,16 @@ def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str)
         # blur into a wall of text.
         if rendered > 1:
             lines.append("")
-        chg = _window_change(t, window)
-        vol = float(t.get("volume_24h") or 0)
-        liq = float(t.get("liquidity_usd") or 0)
-        risk = t.get("risk_score")
-        created = t.get("created_at")
+        lines.extend(_render_token_card(rendered, token, chain, window))
 
-        # Badges — per-token chain so the "all" view shows each token's home chain
-        chain_badge = _chain_badge(t.get("chain") or chain)
-        age_badge = _age_badge(created)
-        liq_badge = _liq_badge(liq)
-        risk_emoji = _risk_emoji(risk)
-        chg_emoji = "🟢" if chg >= 0 else "🔴"
-        price_txt = _fmt_price(t.get("price_usd") or t.get("price"))
+    if rendered == 0:
+        lines.append("<i>No organic trending tokens right now.</i>")
 
-        # Bundle warning
-        bundle_flag = " 🚨" if t.get("bundle_detected") else ""
-
-        # If name unknown, show truncated address instead
-        display_name = name if name not in ("Unknown", "???", "") else f"{addr[:8]}...{addr[-6:]}"
-        display_symbol = symbol if symbol not in ("Unknown", "???", "") else "?"
-        price_part = f"Price: {price_txt} | " if price_txt else ""
-        lines.append(
-            f"{rendered}. {chain_badge} {age_badge} {risk_emoji} <b>{display_name}</b> ({display_symbol}){bundle_flag}\n"
-            f"   {liq_badge} | {chg_emoji} {fmt_pct(chg)} | {price_part}Vol: {fmt_number(vol)}\n"
-            f"   <code>{addr}</code>"
-        )
-
-    note = _window_note(window, tokens)
+    note = _window_note(window, ranked)
     if note:
         lines.append("")
         lines.append(f"<i>{note}</i>")
+    lines.extend(_render_boosted_lines(paid, chain, window))
     lines.append(f"\n<i>Chains: {TRENDING_CHAINS}</i>")
     lines.append(footer_links())
     return "\n".join(lines)
@@ -96,8 +88,9 @@ def _build_trending_kb(
     """
     rows: list[list[InlineKeyboardButton]] = []
 
-    # Token buttons — one per token, deep link to rugcharts chart page
-    for t in tokens[:_MAX_TRENDING_ROWS]:
+    # Token buttons — one per ORGANIC token, deep link to the rugcharts chart
+    # page. Paid placements get no button: the keyboard mirrors the ranking.
+    for t in _split_paid(tokens)[0][:_MAX_TRENDING_ROWS]:
         addr = t.get("address", "")
         if not addr:
             continue
@@ -117,8 +110,15 @@ def _build_trending_kb(
         )
 
     # Chain selector row: [SOL] [ETH] [BSC] [BASE] [ALL]
-    chain_list = ["solana", "ethereum", "bsc", "base", "all"]
-    chain_label = {"solana": "SOL", "ethereum": "ETH", "bsc": "BSC", "base": "BASE", "all": "ALL"}
+    chain_list = list(TRENDING_CHAIN_LIST)
+    chain_label = {
+        "solana": "SOL",
+        "ethereum": "ETH",
+        "bsc": "BSC",
+        "base": "BASE",
+        "arbitrum": "ARB",
+        "all": "ALL",
+    }
     rows.append(
         [
             InlineKeyboardButton(

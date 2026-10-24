@@ -24,6 +24,10 @@ def _merge_trending_sources(
 ) -> list[dict[str, Any]]:
     """Merge and deduplicate trending tokens — only tokens WITH a real address.
 
+    Paid placements (the DexScreener token-boost leg) are tagged
+    ``paid_placement`` so the renderer can disclose them separately; they are
+    only tagged when no organic leg carries the same token.
+
     Degen ranking intent:
       - CoinGecko ``/search/trending`` is NOT merged: it is a CEX search-score
         feed with no contract address, so it would either render as an
@@ -38,10 +42,10 @@ def _merge_trending_sources(
     merged: dict[str, dict[str, Any]] = {}
 
     # Priority: RugCharts (full data) = fresh launches (degen gold) > DexScreener boosts
-    for source_tokens, priority in [
-        (rugcharts or [], 3),
-        (fresh_launches or [], 3),
-        (dexscreener or [], 2),
+    for source_tokens, priority, paid_leg in [
+        (rugcharts or [], 3, False),
+        (fresh_launches or [], 3, False),
+        (dexscreener or [], 2, True),
     ]:
         for t in source_tokens:
             addr = (t.get("address") or "").strip()
@@ -83,6 +87,7 @@ def _merge_trending_sources(
                     "_priority": priority,
                     "_quality": quality,
                     "_source": t.get("source", "unknown"),
+                    "_paid_leg": paid_leg,
                 }
 
     # Convert to list and sort by: quality + freshness + mover magnitude, then
@@ -93,6 +98,16 @@ def _merge_trending_sources(
             abs(_window_change(x, "24h")),
             float(x.get("volume_24h") or 0),
         )
+
+    # A token carried by an organic leg stays organic even when it is also
+    # boosted: paying must not demote (or promote) a real trending entry.
+    organic_addrs = {
+        _normalize_address((t.get("address") or "").strip())
+        for t in [*(rugcharts or []), *(fresh_launches or [])]
+        if (t.get("address") or "").strip()
+    }
+    for norm, row in merged.items():
+        row["paid_placement"] = bool(row.get("_paid_leg")) and norm not in organic_addrs
 
     result = list(merged.values())
     result.sort(key=_rank_key, reverse=True)
