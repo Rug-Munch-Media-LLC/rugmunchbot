@@ -154,32 +154,36 @@ def test_detect_min_thresholds_respected():
     assert len(detect_shill_campaigns(articles, min_accounts=2, min_mentions=2)) == 1
 
 
+def _stub_runner(monkeypatch, *, importance=0.6):
+    """Baseline shill runner env: dedupe store, fake scorer, capture/scan off.
+
+    Four runner tests used to repeat this six-line setup by hand; one seam
+    keeps them honest about what the runner actually needs.
+    """
+    from rugmunchbot.channels.scheduler import _core
+
+    async def _fake_score(campaign):
+        campaign.importance = importance
+        return importance
+
+    monkeypatch.setattr(_core, "_posted_keys", {})
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score
+    )
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False
+    )
+
+
 @pytest.mark.asyncio
 async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
     """Runner: sweeps → detects → posts to alerts; per-day dedupe; release on fail."""
     from rugmunchbot.channels import shill_watch
     from rugmunchbot.channels.scheduler import _core
 
-    monkeypatch.setattr(_core, "_posted_keys", {})
-
-    # 2026-08-30 intelligent routing: the campaign must clear the alerts floor
-    # (0.4) to post. Patch the rerank-scorer so the synthetic campaign scores
-    # ``0.6`` — above the alerts floor, below the main gate → alerts only.
-    async def _fake_score(campaign):
-        campaign.importance = 0.6
-        return 0.6
-
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score
-    )
-    # Screenshot capture is disabled in the runner unit test (no X URLs anyway).
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
-    # Scanner-evidence pass must be off in unit tests (fake addresses would
-    # otherwise trigger real scan calls against the network).
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False
-    )
+    _stub_runner(monkeypatch, importance=0.6)
 
     addr = "0x" + "e" * 40
     articles = [
@@ -228,22 +232,7 @@ async def test_run_releases_mark_on_failed_send(monkeypatch):
     from rugmunchbot.channels import shill_watch
     from rugmunchbot.channels.scheduler import _core
 
-    monkeypatch.setattr(_core, "_posted_keys", {})
-
-    async def _fake_score(campaign):
-        campaign.importance = 0.6
-        return 0.6
-
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score
-    )
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
-    # Scanner-evidence pass must be off in unit tests (fake addresses would
-    # otherwise trigger real scan calls against the network).
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False
-    )
+    _stub_runner(monkeypatch, importance=0.6)
 
     addr = "0x" + "f" * 40
     articles = [
@@ -313,7 +302,7 @@ def test_format_alert_includes_evidence():
         screenshots=[
             {
                 "url": "https://x.com/a/status/123",
-                "image_path": "/srv/data/shill_shots/x.png",
+                "image_path": "shill_shots/x.png",
                 "text": "GET IN $MOON NOW @badkol",
                 "account": "a_call",
             }
@@ -332,22 +321,7 @@ async def test_run_holds_below_importance_floor(monkeypatch):
     from rugmunchbot.channels import shill_watch
     from rugmunchbot.channels.scheduler import _core
 
-    monkeypatch.setattr(_core, "_posted_keys", {})
-
-    async def _fake_score(campaign):
-        campaign.importance = 0.2
-        return 0.2
-
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score
-    )
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
-    # Scanner-evidence pass must be off in unit tests (fake addresses would
-    # otherwise trigger real scan calls against the network).
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False
-    )
+    _stub_runner(monkeypatch, importance=0.2)
 
     addr = "0x" + "d" * 40
     articles = [
@@ -387,22 +361,7 @@ async def test_run_escalates_main_at_gate(monkeypatch):
     from rugmunchbot.channels import shill_watch
     from rugmunchbot.channels.scheduler import _core
 
-    monkeypatch.setattr(_core, "_posted_keys", {})
-
-    async def _fake_score(campaign):
-        campaign.importance = 0.8
-        return 0.8
-
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score
-    )
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
-    # Scanner-evidence pass must be off in unit tests (fake addresses would
-    # otherwise trigger real scan calls against the network).
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False
-    )
+    _stub_runner(monkeypatch, importance=0.8)
 
     addr = "0x" + "c" * 40
     articles = [
