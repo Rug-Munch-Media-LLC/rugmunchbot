@@ -295,7 +295,7 @@ class TestGhostPayloadLongform:
         ):
             url = await _publish._mirror_to_feed(report, "https://rugmunch.io/brand/x.png")
 
-        assert url.endswith("/blog/post-1")
+        assert url.endswith("/story/post-1")  # canonical story route (2026-10-24)
         content = captured["content"]
         assert "<b>" not in content and "<a href" not in content
         assert "━━━" not in content

@@ -156,7 +156,7 @@ def test_desk_renders_source_timestamp_and_read_more(store):
     assert "Midday Market Report" in text
     assert "2026-10-22 16:30Z" in text, "timestamp missing"
     assert "https://t.me/cryptorugmuncher/901" in text, "source link missing"
-    assert "rugmunch.io/blog/post-2" in text, "Read-more deep link missing"
+    assert "rugmunch.io/story/post-2" in text, "Read-more deep link missing"
     # The headline must not be pasted into the excerpt slot twice.
     assert text.count("Exploit: $JUP router drained 1.2M") == 1
 

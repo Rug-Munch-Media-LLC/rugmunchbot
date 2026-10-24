@@ -56,11 +56,6 @@ from rugmunchbot.channels.formatters._news import (
     format_scam_digest as format_scam_digest,
     format_themed_post as format_themed_post,
 )
-from rugmunchbot.channels.formatters._scam_alert import (
-    SEVERITY_FRAMING as SEVERITY_FRAMING,
-    format_scam_alert as format_scam_alert,
-    is_postable_scam_alert as is_postable_scam_alert,
-)
 from rugmunchbot.channels.formatters._primitives import (
     _BREAKING_SUMMARY_CHARS as _BREAKING_SUMMARY_CHARS,
     _COMMENTARY_HOOK_CHARS as _COMMENTARY_HOOK_CHARS,
@@ -86,13 +81,18 @@ from rugmunchbot.channels.formatters._primitives import (
     _strip_markup as _strip_markup,
     _takeaway as _takeaway,
 )
+from rugmunchbot.channels.formatters._scam_alert import (
+    SEVERITY_FRAMING as SEVERITY_FRAMING,
+    format_scam_alert as format_scam_alert,
+    is_postable_scam_alert as is_postable_scam_alert,
+)
 
 __all__ = [
     "MAX_HEADLINE_CHARS",
     "MAX_PARA_SENTENCES",
     "MAX_SAME_EMOJI",
-    "NewsPost",
     "SEVERITY_FRAMING",
+    "NewsPost",
     "alert_verdict",
     "enforce_format_law",
     "format_alerts_post",

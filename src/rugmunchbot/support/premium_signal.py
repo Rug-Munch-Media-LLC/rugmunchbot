@@ -12,8 +12,9 @@ entry in that table, never another branch in the verdict.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Final
+from typing import Any, Final
 
 #: Minimum evidence score for premium (0-100).
 PREMIUM_MIN_SCORE: Final = 60

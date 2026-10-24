@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from rugmunchbot.channels.content.helpers import _as_list, _image_url, logger
+from rugmunchbot.channels.content.helpers import _as_list, _image_url
 from rugmunchbot.data_resolver import backend_get_json
 
 __all__ = [

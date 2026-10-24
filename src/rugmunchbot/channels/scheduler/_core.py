@@ -26,6 +26,7 @@ from rugmunchbot.channels.style_guides import channel_accepts_content
 from rugmunchbot.config import (
     _resolve_channel_id,
 )
+from rugmunchbot.content_style import prepare_for_send
 from rugmunchbot.partners import lane_for_content_type, with_partner_strip
 from rugmunchbot.support.logging import get_logger
 
@@ -316,6 +317,18 @@ async def _safe_send(
     lane_key = lane or lane_for_content_type(content_type)
     text = with_partner_strip(text, lane=lane_key, chain=chain, token=token, venue=venue)
     text = enforce_format_law(text)
+    # Canonical renderer: one layout pass, then HTML-safe parts <= 4096.
+    parts = prepare_for_send(text)
+    if not parts:
+        return False
+    for part in parts:
+        if not await _send_part(bot, chat_id, part):
+            return False
+    return True
+
+
+async def _send_part(bot: Any, chat_id: str, text: str) -> bool:
+    """Send one already-rendered HTML part, with the shared retry budget."""
     max_attempts = 1 + _POST_RETRIES
     attempt = 0
     while True:
