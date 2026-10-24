@@ -1,125 +1,87 @@
-[//]: # (SPDX-License-Identifier: LicenseRef-Source-Available-1.0)
-[//]: # (Copyright (c) 2026 Rug Munch Media LLC)
-# RugMunchBot
+# rugmunchbot
 
-> Self-hostable Telegram bot for crypto intelligence — **90 commands** for token scanning, wallet forensics, market data and AI-powered risk analysis.
+The Telegram bot: paste a token or wallet address, get a risk verdict, a chart, or
+a portfolio view in the chat, plus watchlist alerts when something changes.
 
-**License:** [Source Available 1.0](LICENSE) · **Canonical:** https://git.rugmunch.io/RugMunchMedia/rugmunchbot
-**Mirrors:** [GitHub](https://github.com/Rug-Munch-Media-LLC) · [GitLab](https://gitlab.com/rug-munch-media-group) · [Codeberg](https://codeberg.org/RugMunchMedia)
+**Status:** production — this is the bot serving `@rugmunchbot`.
+**Licence:** Rug Munch Intelligence Source Available 1.0 — see [LICENSE](LICENSE).
 
-> **Platform:** 21 networks (20 EVM-family chains incl. Tron, plus Solana) · ~422k labels · 283M indexed transfers (+628M internal) · 50+ security modules.
+Canonical: https://git.rugmunch.io/RugMunchMedia/rugmunchbot
 
+## Quickstart
 
-> **Status: COMPLETE — the bot lives in its own repo (single brain).**
-> `src/rugmunchbot` is the canonical bot code (runs standalone, systemd uses
-> this repo's venv). Vendored platform modules are frozen copies from
-> rmi-backend — refresh them with `bash scripts/refresh-vendors.sh` after
-> backend changes to those modules (see
-> [`docs/RUGMUNCHBOT-EXTRACTION.md`](docs/RUGMUNCHBOT-EXTRACTION.md)).
-
-## Features
-
-- 🔍 **Token scanning** — honeypot, rug-pull, bundle, wash-trade, and
-  fresh-wallet detection across major EVM chains and Solana (public APIs:
-  DexScreener, GoPlus, Honeypot.is)
-- 👛 **Wallet forensics** — P&L, counterparty analysis, dev wallet history
-- 📊 **Market intelligence** — prices, trending, news, technical analysis
-- 🤖 **AI chat** — free-text questions grounded in live data, with a local
-  LLM fallback (no cloud dependency required)
-- 🚨 **Alerts & watchlists** — real-time price and scam alerts
-- 🛡️ **Anti-abuse** — flood control, secret-extraction heuristics,
-  rate-limited owner alerting
-
-## Quickstart (self-host)
-
-### 1. Install
+Python 3.11+, Redis, and a bot token from BotFather.
 
 ```bash
-git clone <this-repo-url> && cd rugmunchbot
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+git clone https://git.rugmunch.io/RugMunchMedia/rugmunchbot.git
+cd rugmunchbot
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env      # TELEGRAM_BOT_TOKEN, REDIS_URL, RMI_BACKEND_URL
+python -m rugmunchbot.bot
 ```
 
-### 2. Configure
+The bot exposes a health endpoint on `:9191` (`/healthz`), which is what the
+container healthcheck probes.
+
+Compose runs the bot and its Redis together and refuses to start without the
+token:
 
 ```bash
-cp .env.example .env
-# Minimum for a running bot:
-export TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."   # from @BotFather
+export TELEGRAM_BOT_TOKEN='...'
+docker compose up -d
 ```
 
-All configuration is environment-driven. Nothing is hardcoded — tokens,
-channel IDs, owner IDs, referral codes, and quotas come from env vars (see
-[`.env.example`](.env.example) and `src/rugmunchbot/config.py`).
+## What it does
 
-### 3. Run
+- **Scan in chat.** A pasted contract address returns the verdict and the flags
+  that produced it, with the evidence, not just a number.
+- **Wallet and portfolio.** Balances and P&L across the chains the backend
+  supports.
+- **Charts.** RugCharts output delivered as an image in the conversation.
+- **Watchlists and alerts.** `broadcast_worker.py` fans out price and scam alerts
+  to subscribers; Redis holds the queue so a restart does not drop pending sends.
+- **Commands are data.** `command_lookup.py` and `configs/` define the command
+  surface, so adding one is a config change plus a handler.
 
-```bash
-python -m rugmunchbot
-```
-
-The bot creates its SQLite database (`data/bot_users.db` by default) on
-first run.
-
-### 4. Optional backends
-
-| Backend | Env | Default |
-|---|---|---|
-| Local LLM (chat fallback) | `BOT_LLM_API_BASE`, `BOT_LLM_MODEL` | off (chat disabled) |
-| Birdeye price API | `BIRDEYE_API_KEY` | off (CoinGecko/DexScreener used) |
-| SearXNG meta-search | `SEARXNG_URL` | `http://127.0.0.1:8889` |
-| Operator scanner backend | `RMI_BACKEND_URL`, `RMI_API_KEY` | off (public APIs used) |
-| Redis flood-control cache | `REDIS_URL`/`REDIS_HOST`/`REDIS_PORT` | off (SQLite fallback) |
-
-## Architecture
+## How it is put together
 
 ```
 src/rugmunchbot/
-├── bot.py            Application build + entry (main)
-├── config.py         Env-driven configuration (no secrets)
-├── db.py             SQLite persistence (users, quota, ref codes)
-├── scanner.py        Scan orchestration (ScanProvider protocol)
-├── handlers/         Command & message handlers (28 modules)
-├── commands/         Slash-command implementations
-├── tools/            Live-data tool registry (21 tools)
-├── formatters/       Report/text/keyboard builders
-├── services/         Chart/image generation (Pillow)
-├── support/          Self-contained logging shim
-└── plugins/          Provider protocols: Billing, Scan, Data, LLM
+  bot.py               entry point (`python -m rugmunchbot.bot`)
+  command_lookup.py    command registry
+  data_resolver.py     backend calls, caching
+  broadcast_worker.py  alert fan-out
+  webhook_manager.py   webhook vs polling switch
+  model_router.py      optional LLM routing for free-text questions
+  ta_indicators.py     indicator maths for chart views
 ```
 
-Provider seams (`plugins/`) are the extension points: bring your own
-scanner backend, billing, LLM router, or data provider without forking the
-bot.
+## Configuration
 
-## Security & privacy
+| Variable | Purpose |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | required; the process exits without it |
+| `REDIS_URL` | queue, rate limits, subscriber state |
+| `RMI_BACKEND_URL`, `RMI_API_KEY` | intelligence API and its credential |
+| `ADVANCED_SCAN_URL` | separate endpoint used by the deep-scan command |
+| `BOT_OWNER_IDS` | Telegram user ids allowed to run admin commands |
+| `BOT_CHANNELS` | channels the broadcast worker may post to |
+| `BOT_FREE_SCANS_PER_WEEK`, `BOT_FREE_AI_MSGS_PER_WEEK` | free-tier quotas |
+| `BOT_DEX_REF_LINKS`, `RMI_REF_GMGN` | referral codes attached to links |
 
-- **No secrets in the repo.** Everything comes from the environment.
-- **No user data is collected by the project.** The SQLite DB is local to
-  your deployment.
-- Telegram Stars / premium billing is **not** part of this OSS build — it is
-  a `BillingProvider` you can implement yourself.
+Command reference lives in `COMMANDS.md`.
 
-## Tests
+## Known limits
 
-```bash
-make test
-```
+- Source-available, not open source. Running your own copy is fine for internal
+  use; redistributing it is not.
+- Needs a working `rmi-backend`. The bot is a client and holds no analysis code.
+- Free-text questions depend on an LLM lane being configured on the backend; with
+  no key, those commands answer with a canned message.
+- Telegram rate limits are enforced by the library, not by us — a large broadcast
+  is throttled, not queued faster.
 
-> Note: the stale `tests/` (exercising the removed deprecated `bot/` tree) were
-> removed in Phase 0. Core behavior is verified by the standalone import/smoke
-> gates in CI and the refresh-vendors invariant checks.
+## Licence
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
-Conventional commits required; lint via `make lint`; types via
-`make typecheck`.
-
-## License
-
-Source Available 1.0 — see [LICENSE](LICENSE).
-
-## FAQ
-
-See [docs/FAQ.md](docs/FAQ.md) for frequently asked questions.
+Rug Munch Intelligence Source Available License 1.0. See [LICENSE](LICENSE).
