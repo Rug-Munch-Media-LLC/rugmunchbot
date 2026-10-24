@@ -27,11 +27,13 @@ PARTNER_LANES: tuple[str, ...] = (
 #: lane → partner keys, highest priority first (keys resolve in _catalog).
 LANE_PARTNERS: dict[str, tuple[str, ...]] = {
     NEWS: ("jupiter", "gmgn", "banana", "padre", "axiom", "odin"),
-    ALPHA: ("gmgn", "axiom", "banana", "padre", "jupiter", "odin"),
+    ALPHA: ("gmgn", "jupiter", "axiom", "banana", "padre", "odin"),
     WHALES: ("hyperliquid", "gmgn", "banana", "jupiter", "padre"),
     PREDICTIONS: ("polymarket",),
     SCAM_ALERT: ("gmgn", "jupiter", "banana", "padre"),
-    SMART_MONEY: ("gmgn", "axiom", "banana", "padre", "jupiter", "odin"),
+    # Scan output: Jupiter (on-chain referralAccount + 50 bps) then GMGN
+    # (slug attribution) always lead, so the 3-link cap can never drop them.
+    SMART_MONEY: ("jupiter", "gmgn", "photon", "banana", "axiom", "padre", "odin"),
 }
 
 #: ``content_type`` handed to ``_safe_send`` → content lane.
