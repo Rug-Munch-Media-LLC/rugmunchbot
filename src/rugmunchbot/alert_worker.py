@@ -138,20 +138,27 @@ async def _deliver_one(ctx: ContextTypes.DEFAULT_TYPE, item: dict[str, Any]) -> 
     try:
         text = _format_alert(item)
     except (ValueError, TypeError, KeyError) as exc:
-        logger.warning("alert_worker: cannot format alert type=%s user=%s: %s", item.get("type"), user_id, exc)
+        logger.warning(
+            "alert_worker: cannot format alert type=%s user=%s: %s", item.get("type"), user_id, exc
+        )
         return True  # poison item — re-queuing won't fix formatting
 
     if not text:
-        logger.debug("alert_worker: no formatted text for type=%s user=%s", item.get("type"), user_id)
+        logger.debug(
+            "alert_worker: no formatted text for type=%s user=%s", item.get("type"), user_id
+        )
         return True
 
+    from rugmunchbot.content_style import prepare_for_send
+
     try:
-        await ctx.bot.send_message(
-            chat_id=user_id,
-            text=text,
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
-        )
+        for part in prepare_for_send(text):
+            await ctx.bot.send_message(
+                chat_id=user_id,
+                text=part,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
     except Exception as exc:  # TelegramError and friends — never drop a failed send
         item["last_error"] = str(exc)
         logger.warning(
@@ -183,15 +190,24 @@ async def _requeue_or_deadletter(item: dict[str, Any]) -> None:
     retries = int(item.get("retry_count") or 0) + 1
     item["retry_count"] = retries
     reason = str(item.get("last_error") or "unknown")
-    summary = f"type={item.get('type')} user={item.get('user_id')} event={item.get('event_id') or '?'}"
+    summary = (
+        f"type={item.get('type')} user={item.get('user_id')} event={item.get('event_id') or '?'}"
+    )
     r = get_redis_async()
     if r is None:
-        logger.warning("alert_worker: redis unavailable — alert not re-queued (%s): %s", summary, reason)
+        logger.warning(
+            "alert_worker: redis unavailable — alert not re-queued (%s): %s", summary, reason
+        )
         return
     try:
         if retries >= MAX_ALERT_RETRIES:
             await r.lpush(ALERT_DEAD_LETTER_KEY, json.dumps(item))
-            logger.warning("alert_worker: alert dead-lettered after %s attempts (%s): %s", retries, summary, reason)
+            logger.warning(
+                "alert_worker: alert dead-lettered after %s attempts (%s): %s",
+                retries,
+                summary,
+                reason,
+            )
             try:
                 from rugmunchbot.observability import record_error
 
@@ -258,9 +274,13 @@ def _fmt_scan_line(addr: str) -> str:
 
 
 def _fmt_chain_short(chain: str) -> str:
-    return {"ethereum": "ETH", "solana": "SOL", "bsc": "BSC", "polygon": "MATIC", "base": "BASE"}.get(
-        (chain or "").lower(), (chain or "unknown").upper()
-    )
+    return {
+        "ethereum": "ETH",
+        "solana": "SOL",
+        "bsc": "BSC",
+        "polygon": "MATIC",
+        "base": "BASE",
+    }.get((chain or "").lower(), (chain or "unknown").upper())
 
 
 def _fmt_money(value: Any) -> str:
@@ -298,7 +318,13 @@ def _format_alert(item: dict[str, Any]) -> str:
         )
     elif etype == "token.price_change":
         direction = str(payload.get("direction") or "")
-        arrow = "\U0001f4c8" if direction == "up" else "\U0001f4c9" if direction == "down" else "\U0001f4ca"
+        arrow = (
+            "\U0001f4c8"
+            if direction == "up"
+            else "\U0001f4c9"
+            if direction == "down"
+            else "\U0001f4ca"
+        )
         change = str(payload.get("change_pct") or "0")
         price = _fmt_money(payload.get("price"))
         text = (
@@ -347,7 +373,9 @@ def _format_alert(item: dict[str, Any]) -> str:
         )
     elif etype == "token.monitor_change":
         changes = payload.get("changes") or []
-        changes_text = "\n".join(f"\u2022 {c}" for c in changes) if changes else "Security properties changed."
+        changes_text = (
+            "\n".join(f"\u2022 {c}" for c in changes) if changes else "Security properties changed."
+        )
         text = (
             f"\U0001f6f0\ufe0f <b>Monitor Change: {symbol}</b>\n{header}"
             f"<b>{symbol}</b> <code>{token_addr}</code>\n\n"

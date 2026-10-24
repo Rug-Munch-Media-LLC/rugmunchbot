@@ -30,8 +30,8 @@ from rugmunchbot.channels._news_items import (
 )
 from rugmunchbot.channels._news_window import (
     MAX_WINDOW_HOURS,
-    MORNING_JOB_NAMES,
     MIDDAY_JOB_NAMES,
+    MORNING_JOB_NAMES,
     midday_window_hours,
     morning_window_hours,
     window_hours_since,

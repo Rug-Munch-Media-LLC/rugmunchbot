@@ -366,7 +366,7 @@ SITE_NEWS_URL: str = "https://rugmunch.io/news"
 SITE_FEED_URL: str = "https://rugmunch.io/feed"
 #: Per-post deep-link pattern — the in-app Ghost post route (BlogPostPage
 #: renders the CMS content inside the platform shell).
-SITE_FEED_POST_URL: str = "https://rugmunch.io/blog/{slug}"
+SITE_FEED_POST_URL: str = "https://rugmunch.io/story/{slug}"
 
 
 def site_news_line() -> str:
@@ -377,7 +377,7 @@ def site_news_line() -> str:
 def feed_site_line(slug: str = "") -> str:
     """Exact feed.rugmunch.io link line (deep link when a slug exists)."""
     url = SITE_FEED_POST_URL.format(slug=slug) if slug else SITE_FEED_URL
-    label = "rugmunch.io" + (f"/blog/{slug}" if slug else "/feed")
+    label = "rugmunch.io" + (f"/story/{slug}" if slug else "/feed")
     return f'📖 <a href="{url}">{label}</a> — on the site'
 
 

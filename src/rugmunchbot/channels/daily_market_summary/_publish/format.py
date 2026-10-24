@@ -292,25 +292,9 @@ def cleanup_html(text: str, *, max_chars: int = DAILY_MARKET_SUMMARY_MAX_CHARS) 
 
 
 def _split_for_telegram(report: str, max_chars: int = 3900) -> list[str]:
-    """Split an HTML report into Telegram-sized parts at line boundaries.
+    """Split an HTML report into Telegram-sized parts (canonical splitter)."""
+    from rugmunchbot.content_style import split_html
 
-    Never cuts mid-tag or mid-line; keeps part order so the report reads
-    continuously across messages. Returns [report] when it already fits.
-    """
-    if len(report) <= max_chars:
-        return [report]
-    parts: list[str] = []
-    remaining = report
-    while len(remaining) > max_chars:
-        cut = remaining[:max_chars]
-        newline = cut.rfind("\n")
-        if newline > max_chars * 0.5:
-            cut = cut[:newline]
-        cut = cut.rstrip()
-        if cut.endswith("<"):
-            cut = cut[:-1]
-        parts.append(cut)
-        remaining = remaining[len(cut) :].lstrip()
-    if remaining:
-        parts.append(remaining)
-    return parts
+    return split_html(report, max_chars)
+
+

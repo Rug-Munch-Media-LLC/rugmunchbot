@@ -49,6 +49,12 @@ import html as _html
 import os
 import re
 
+from rugmunchbot.content_style._normalize import normalize
+from rugmunchbot.content_style._rules import (
+    MAX_HEADLINE_CHARS as _CANON_HEADLINE,
+    MAX_SAME_EMOJI as _CANON_SAME_EMOJI,
+)
+
 __all__ = [
     "MAX_HEADLINE_CHARS",
     "MAX_PARA_SENTENCES",
@@ -57,14 +63,14 @@ __all__ = [
 ]
 
 #: Spec law: HEADLINE line <=80 chars (visible text, tags excluded).
-MAX_HEADLINE_CHARS = int(os.getenv("RMI_FORMAT_MAX_HEADLINE", "80"))
+MAX_HEADLINE_CHARS = _CANON_HEADLINE
 
 #: Spec law: BODY short paragraphs — max 3 sentences per paragraph.
 MAX_PARA_SENTENCES = int(os.getenv("RMI_FORMAT_MAX_PARA_SENTENCES", "3"))
 
 #: Emoji-spam cap: the same emoji may appear at most this many times per post.
 #: Structural markers are single-use by design; anything repeated harder is spam.
-MAX_SAME_EMOJI = int(os.getenv("RMI_FORMAT_MAX_SAME_EMOJI", "2"))
+MAX_SAME_EMOJI = _CANON_SAME_EMOJI
 
 #: Paragraphs shorter than this are never wall-split (avoid churn).
 _WALL_MIN_CHARS = 240
@@ -278,7 +284,8 @@ def enforce_format_law(text: str) -> str:
         out = _cap_emoji(out)
         out = _clip_headlines(out)
         out = _split_walls(out)
-        out = _BLANK_RUN_RE.sub("\n\n", out)
+        # canonical layout: blank runs, bullets, banners, balanced tags
+        out = normalize(out, links=False)
         return out.strip()
     except Exception:  # fail-open: a formatter bug must never block a send
         return text

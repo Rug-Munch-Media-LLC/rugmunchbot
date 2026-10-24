@@ -148,8 +148,8 @@ def test_site_link_helpers():
     )
 
     assert "rugmunch.io/news" in site_news_line()
-    assert "rugmunch.io/blog/abc123" in feed_site_line("abc123")
-    assert "rugmunch.io/blog/abc123" in feed_site_line("abc123")
+    assert "rugmunch.io/story/abc123" in feed_site_line("abc123")
+    assert "rugmunch.io/story/abc123" in feed_site_line("abc123")
 
     text = "Some post text"
     linked = enforce_site_link(text, site="news")

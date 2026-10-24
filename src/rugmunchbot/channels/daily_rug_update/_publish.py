@@ -518,24 +518,10 @@ class _ImagePost(str):
 
 
 def _split_for_telegram(report: str, max_chars: int = DAILY_RUG_UPDATE_MAX_CHARS) -> list[str]:
-    """Split an HTML post into Telegram-sized parts at line boundaries."""
-    if len(report) <= max_chars:
-        return [report]
-    parts: list[str] = []
-    remaining = report
-    while len(remaining) > max_chars:
-        cut = remaining[:max_chars]
-        newline = cut.rfind("\n")
-        if newline > max_chars * 0.5:
-            cut = cut[:newline]
-        cut = cut.rstrip()
-        if cut.endswith("<"):
-            cut = cut[:-1]
-        parts.append(cut)
-        remaining = remaining[len(cut) :].lstrip()
-    if remaining:
-        parts.append(remaining)
-    return parts
+    """Split an HTML post into Telegram-sized parts (canonical splitter)."""
+    from rugmunchbot.content_style import split_html
+
+    return split_html(report, max_chars)
 
 
 async def post_daily_rug_update(ctx: Any) -> int:
