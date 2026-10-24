@@ -89,10 +89,15 @@ def test_repeat_message_needs_configured_count():
     assert action.rule == "repeat_message"
 
 
-def test_exempt_user_and_admin_are_never_actioned():
-    policy = _policy()
+def test_admin_exemption_is_opt_in_not_implicit():
     for _ in range(5):
-        assert decide(_ctx("100x guaranteed", is_admin=True), policy) is None
+        assert decide(_ctx("100x guaranteed", is_admin=True), _policy()) is not None
+    opted_in = _policy(exempt_admins=True)
+    for _ in range(5):
+        assert decide(_ctx("100x guaranteed", is_admin=True), opted_in) is None
+
+
+def test_exempt_user_is_never_actioned():
     assert decide(_ctx("100x guaranteed", user_id=999), _policy(exempt_user_ids=[999])) is None
 
 
