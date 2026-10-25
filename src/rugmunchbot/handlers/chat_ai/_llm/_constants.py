@@ -230,9 +230,9 @@ _TA_ANSWER_HINT = (
     "concrete leaning ('leaning bullish/bearish') with a stated confidence "
     "(low/medium/high) and the on-chain/technical reasons from the data "
     "above, then the honest caveat that no prediction is certain — never "
-    "fence-sit, never 'I can't predict'; 6) close with a neutral "
-    "not-financial-advice line, e.g. "
-    '"not financial advice — always DYOR".'
+    "fence-sit, never 'I can't predict'; 6) close with the risk that "
+    "invalidates the read — describe risk, never tell the reader to act, "
+    "and never disclaim with NFA/DYOR phrasing."
 )
 
 # EDUCATION / CRYPTO-LORE / TOKEN-USE-CASE questions (qtype "education" or
@@ -281,8 +281,8 @@ _MARKET_ANSWER_HINT = (
     "question asks for a market PREDICTION/outlook, close with a concrete "
     "leaning (risk-on/risk-off) + a stated confidence + the reasons, then "
     "the honest caveat that no prediction is certain — no fence-sitting. "
-    "Close with a neutral not-financial-advice line, e.g. 'not financial "
-    "advice — always DYOR'."
+    "Close with the risk that invalidates the read — describe risk, never "
+    "tell the reader to act."
 )
 # TRENDING / MOVERS fetch depth + block budget. The trending tool's default
 # limit is 10 (tools/intent.py tool_kwargs) — a "20 tokens trending today"
@@ -333,8 +333,8 @@ _TRENDING_ANSWER_HINT = (
     '4) put ALL sources in the dedicated "Sources:" footer at the very '
     'END of the answer — NEVER emit a "Sources:" line inside the list '
     "or anywhere in the middle of the answer; 5) cite ONLY numbers present "
-    "in the blocks above — never invent values. Close with a neutral "
-    "not-financial-advice line, e.g. 'not financial advice — always DYOR'."
+    "in the blocks above — never invent values. Close with the risk that "
+    "matters — describe risk, never tell the reader to act."
 )
 # An education/lore RAG gather with FEWER deduped hits than this (or a
 # context block shorter than this many chars) is "thin" — the router then
