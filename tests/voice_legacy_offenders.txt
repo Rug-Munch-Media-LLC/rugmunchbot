@@ -1,0 +1,94 @@
+# Shrink-only. Each line is a banned phrase still present in shipped chrome,
+# pinned per file. Delete a line when the string is fixed: the lint fails on
+# a stale pin, so this file can only get shorter.
+src/rugmunchbot/channels/automation/render_call.py::not financial advice
+src/rugmunchbot/channels/automation/render_call.py::🚀
+src/rugmunchbot/formatters/_base/_primitives.py::🚀
+src/rugmunchbot/formatters/_base/_texts.py::!
+src/rugmunchbot/formatters/_base/_texts.py::dyor
+src/rugmunchbot/formatters/_base/_texts.py::🚀
+src/rugmunchbot/formatters/_news.py::🔥
+src/rugmunchbot/formatters/_scan_report_deepscan/_sentinel.py::dyor
+src/rugmunchbot/formatters/_scan_report_deepscan/_sentinel.py::🔥
+src/rugmunchbot/formatters/_scan_report_risk.py::dyor
+src/rugmunchbot/formatters/_scan_report_wallet.py::🚀
+src/rugmunchbot/formatters/_sentinel_helpers.py::🚀
+src/rugmunchbot/formatters/_wallet.py::💎
+src/rugmunchbot/formatters/alert_items.py::!
+src/rugmunchbot/handlers/_alpha_handlers.py::please try again in a moment
+src/rugmunchbot/handlers/_alpha_handlers.py::🚀
+src/rugmunchbot/handlers/_help_text.py::🚀
+src/rugmunchbot/handlers/_market_helpers/_boosted.py::🚀
+src/rugmunchbot/handlers/_market_helpers/_render.py::🔥
+src/rugmunchbot/handlers/_messages.py::please try again in a moment
+src/rugmunchbot/handlers/_plans.py::🚀
+src/rugmunchbot/handlers/_scan_handlers/_extras.py::🔥
+src/rugmunchbot/handlers/_scan_handlers/_extras.py::🚀
+src/rugmunchbot/handlers/_scan_handlers/_scan.py::!
+src/rugmunchbot/handlers/_scanning_helpers.py::not financial advice
+src/rugmunchbot/handlers/_ta_handlers.py::not financial advice
+src/rugmunchbot/handlers/account.py::!
+src/rugmunchbot/handlers/account.py::💎
+src/rugmunchbot/handlers/admin/_deploy.py::🚀
+src/rugmunchbot/handlers/alerts/_jobs.py::!
+src/rugmunchbot/handlers/api_access.py::!
+src/rugmunchbot/handlers/callback/_actions.py::!
+src/rugmunchbot/handlers/callback/_inline.py::please try again in a moment
+src/rugmunchbot/handlers/callback/_inline.py::🔥
+src/rugmunchbot/handlers/callback/_inline.py::🚀
+src/rugmunchbot/handlers/callback/_invoices.py::!
+src/rugmunchbot/handlers/callback/_menus.py::!
+src/rugmunchbot/handlers/callback/_menus.py::🔥
+src/rugmunchbot/handlers/callback/_refresh.py::🔥
+src/rugmunchbot/handlers/callback/_run_cards.py::!
+src/rugmunchbot/handlers/callback/_run_cards.py::🔥
+src/rugmunchbot/handlers/callback/_run_cards.py::🚀
+src/rugmunchbot/handlers/cascade_token.py::sequencing token dna
+src/rugmunchbot/handlers/chat.py::!
+src/rugmunchbot/handlers/chat_ai/_classify.py::gm
+src/rugmunchbot/handlers/chat_ai/_format.py::🔥
+src/rugmunchbot/handlers/chat_ai/_helpers.py::!
+src/rugmunchbot/handlers/chat_ai/_helpers.py::🔥
+src/rugmunchbot/handlers/chat_ai/_llm/_constants.py::!
+src/rugmunchbot/handlers/chat_ai/_llm/_constants.py::dyor
+src/rugmunchbot/handlers/chat_ai/_llm/_constants.py::nfa
+src/rugmunchbot/handlers/chat_ai/_local_ai.py::!
+src/rugmunchbot/handlers/chat_ai/_local_ai.py::gm
+src/rugmunchbot/handlers/chat_ai/_local_ai.py::hodl
+src/rugmunchbot/handlers/chat_ai/_local_ai.py::🔥
+src/rugmunchbot/handlers/chat_ai/_markup/_beautify.py::!
+src/rugmunchbot/handlers/chat_ai/_markup/_beautify.py::dyor
+src/rugmunchbot/handlers/chat_ai/_markup/_beautify.py::gm
+src/rugmunchbot/handlers/chat_ai/_markup/_constants.py::🔥
+src/rugmunchbot/handlers/chat_ai/_markup/_constants.py::🚀
+src/rugmunchbot/handlers/chat_ai/_markup/_html.py::!
+src/rugmunchbot/handlers/chat_ai/_parts.py::!
+src/rugmunchbot/handlers/chat_ai/_rag_chat.py::!
+src/rugmunchbot/handlers/chat_ai/_routing/_address.py::!
+src/rugmunchbot/handlers/defi.py::please try again in a moment
+src/rugmunchbot/handlers/groups.py::!
+src/rugmunchbot/handlers/groups.py::please try again in a moment
+src/rugmunchbot/handlers/inline.py::🔥
+src/rugmunchbot/handlers/investigate.py::!
+src/rugmunchbot/handlers/market/_cmd_market.py::🔥
+src/rugmunchbot/handlers/market/_cmd_movers.py::🚀
+src/rugmunchbot/handlers/market/_cmd_news.py::!
+src/rugmunchbot/handlers/market/_cmd_news.py::🔥
+src/rugmunchbot/handlers/market/_cmd_rugcheck.py::!
+src/rugmunchbot/handlers/market/_cmd_trending.py::please try again in a moment
+src/rugmunchbot/handlers/market/_cmd_trending.py::🔥
+src/rugmunchbot/handlers/market/_cmd_whales.py::💎
+src/rugmunchbot/handlers/market/_constants.py::please try again in a moment
+src/rugmunchbot/handlers/market/_render.py::🚀
+src/rugmunchbot/handlers/onboarding.py::🔥
+src/rugmunchbot/handlers/osint/_format.py::please try again in a moment
+src/rugmunchbot/handlers/osint/osintall_cmd.py::please try again in a moment
+src/rugmunchbot/handlers/payments.py::!
+src/rugmunchbot/handlers/payments.py::please try again in a moment
+src/rugmunchbot/handlers/prediction.py::please try again in a moment
+src/rugmunchbot/handlers/report.py::!
+src/rugmunchbot/handlers/sentiment.py::please try again in a moment
+src/rugmunchbot/handlers/sentiment.py::🔥
+src/rugmunchbot/handlers/webhook/_commands.py::!
+src/rugmunchbot/handlers/webhook/_commands.py::please try again in a moment
+src/rugmunchbot/handlers/whalewatch.py::💎
