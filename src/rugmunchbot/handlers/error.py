@@ -13,8 +13,9 @@ from typing import TYPE_CHECKING
 
 import httpx
 from telegram import Update
-from telegram.error import NetworkError, RetryAfter, TimedOut
+from telegram.error import RetryAfter
 
+from rugmunchbot.errors import ErrorKind, classify
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
@@ -54,10 +55,12 @@ async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await asyncio.sleep(backoff)
         return  # transient — no user-facing error
 
-    if isinstance(error, (TimedOut, NetworkError)):
-        # Transient transport failures (timeout / connection reset): log only.
-        # Replying here floods users during API outages and slows the poll loop.
-        logger.warning("telegram_transient_error type=%s", type(error).__name__)
+    # Taxonomy (rugmunchbot.errors) decides quiet-vs-reply: transient
+    # transport failures are logged only — replying floods users during an
+    # API outage and slows the poll loop. Backend API errors are excluded:
+    # their message ("rate limited", "needs a higher tier") is actionable.
+    if classify(error) is ErrorKind.TRANSIENT and not _is_backend_error(error):
+        logger.warning("transient_error kind=transient type=%s", type(error).__name__)
         return
 
     if isinstance(update, Update) and update.effective_message:
@@ -66,6 +69,16 @@ async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             logger.error("user_facing_error id=%s type=%s", error_id, type(error).__name__)
         with contextlib.suppress(Exception):
             await update.effective_message.reply_text(user_msg, parse_mode="HTML")
+
+
+def _is_backend_error(error: Exception) -> bool:
+    """True when *error* came from our backend API (its status carries meaning)."""
+    try:
+        from rugmunchbot.tools._client import BackendApiError
+
+        return isinstance(error, BackendApiError)
+    except ImportError:  # pragma: no cover - module always present in prod
+        return False
 
 
 def _error_id(error: Exception) -> str:
