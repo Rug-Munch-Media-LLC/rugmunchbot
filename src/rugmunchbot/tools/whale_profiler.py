@@ -1,157 +1,134 @@
 """Whale Profiler — deep wallet intelligence from our own indexed data.
 
-Given a wallet address, builds a comprehensive profile:
-  - Token holdings (from Ankr Advanced multichain balance)
-  - Recent transfers (from Ankr Advanced)
-  - Risk flags (interaction with known scam addresses)
+Given a wallet address, builds a profile:
+  - Token holdings (Ankr Advanced multichain balance)
+  - Recent transfers (Ankr Advanced)
   - Behavioral classification (sniper, whale, early buyer, etc.)
 
-Uses our own indexer first, falls back to Ankr Advanced API.
 Free-data-first doctrine: no paid APIs required.
+
+HONESTY CONTRACT (2026-10-25): a provider outage is NOT a small wallet. When
+the balance source fails, the profile reports ``size_class="UNKNOWN"`` and
+``degraded=True`` with the underlying errors — never a fabricated ``MINNOW``
+computed from a placeholder zero balance.
 """
 
 from __future__ import annotations
 
 import logging
-import os
+import re
 import time
 from typing import Any
 
-import httpx
+from rugmunchbot.tools._whale_ankr import (
+    get_wallet_balance,
+    get_wallet_transfers,
+    usd,
+)
 
 logger = logging.getLogger(__name__)
 
-ANKR_MULTICHAIN = "https://rpc.ankr.com/multichain"
+_EVM_ADDR = re.compile(r"^(?:0x)?[0-9a-fA-F]{40}$")
+
+SIZE_THRESHOLDS: tuple[tuple[float, str], ...] = (
+    (10_000_000, "MEGA_WHALE"),
+    (1_000_000, "WHALE"),
+    (100_000, "DOLPHIN"),
+    (10_000, "FISH"),
+)
 
 
-def _ankr_key() -> str:
-    return os.getenv("ANKR_API_KEY", "").strip()
+def normalize_wallet(wallet: str) -> str:
+    """Trim + EVM-normalize an address without corrupting non-EVM chains.
 
-
-async def _ankr_call(method: str, params: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
-    key = _ankr_key()
-    if not key:
-        raise RuntimeError("ANKR_API_KEY unset")
-    async with httpx.AsyncClient(timeout=timeout) as c:
-        r = await c.post(
-            ANKR_MULTICHAIN,
-            json={"jsonrpc": "2.0", "method": method, "params": params, "id": 1},
-            headers={"X-API-KEY": key},
-        )
-        if r.status_code != 200:
-            raise RuntimeError(f"Ankr HTTP {r.status_code}")
-        d = r.json()
-        if "error" in d:
-            raise RuntimeError(f"Ankr error: {d['error']}")
-        return d.get("result", {})
-
-
-async def get_wallet_balance(wallet: str) -> dict[str, Any]:
-    """Multichain token balances for a wallet."""
-    res = await _ankr_call("ankr_getAccountBalance", {"walletAddress": wallet})
-    assets = res.get("assets") or []
-    total_usd = sum(float(a.get("balanceUsd") or 0) for a in assets)
-    tokens = sorted(assets, key=lambda a: float(a.get("balanceUsd") or 0), reverse=True)
-    return {
-        "total_usd": round(total_usd, 2),
-        "token_count": len(assets),
-        "top_tokens": [
-            {"symbol": a.get("symbol", "?"), "chain": a.get("chainId", ""),
-             "balance_usd": round(float(a.get("balanceUsd") or 0), 2)}
-            for a in tokens[:10]
-        ],
-    }
-
-
-async def get_wallet_transfers(wallet: str, limit: int = 20) -> list[dict[str, Any]]:
-    """Recent transfers involving this wallet."""
-    res = await _ankr_call(
-        "ankr_getTransactionsByAddress",
-        {"address": wallet, "pageSize": min(limit, 50)},
-    )
-    transfers = res.get("transfers") or []
-    return [
-        {
-            "chain": t.get("blockchain", ""),
-            "from": t.get("from", ""),
-            "to": t.get("to", ""),
-            "value_usd": round(float(t.get("usdValue") or 0), 2),
-            "timestamp": t.get("timestamp"),
-            "token": t.get("tokenSymbol", ""),
-        }
-        for t in transfers[:limit]
-    ]
+    A Solana base58 address must NOT gain a ``0x`` prefix — that silently
+    queries a different (never-existing) account.
+    """
+    addr = (wallet or "").strip()
+    if _EVM_ADDR.match(addr):
+        return addr if addr.startswith("0x") else f"0x{addr}"
+    return addr
 
 
 def classify_whale_profile(
-    balance_data: dict[str, Any],
-    transfers: list[dict[str, Any]],
+    balance_data: Any,
+    transfers: Any,
+    *,
+    balance_available: bool = True,
 ) -> dict[str, Any]:
-    """Build behavioral classification from balance + transfer data."""
-    total_usd = balance_data.get("total_usd", 0)
-    token_count = balance_data.get("token_count", 0)
+    """Build behavioral classification from balance + transfer data.
 
-    # Size classification
-    if total_usd >= 10_000_000:
-        size_class = "MEGA_WHALE"
-    elif total_usd >= 1_000_000:
-        size_class = "WHALE"
-    elif total_usd >= 100_000:
-        size_class = "DOLPHIN"
-    elif total_usd >= 10_000:
-        size_class = "FISH"
-    else:
+    ``balance_available=False`` means the balance source failed: the size
+    class is UNKNOWN and the profile is flagged degraded (a zero placeholder
+    balance must never be classified as a MINNOW).
+    """
+    balance = balance_data if isinstance(balance_data, dict) else {}
+    rows = [t for t in transfers if isinstance(t, dict)] if isinstance(transfers, list) else []
+    total_usd = usd(balance.get("total_usd"))
+    token_count = balance.get("token_count")
+    token_count = (
+        token_count if isinstance(token_count, int) else len(balance.get("top_tokens") or [])
+    )
+
+    size_class = "UNKNOWN"
+    if balance_available:
         size_class = "MINNOW"
+        for floor, label in SIZE_THRESHOLDS:
+            if total_usd >= floor:
+                size_class = label
+                break
 
-    # Activity metrics
-    recent_volume = sum(t.get("value_usd", 0) for t in transfers[:10])
-    unique_chains = len({t.get("chain", "") for t in transfers})
+    recent_volume = sum(usd(t.get("value_usd")) for t in rows[:10])
+    unique_chains = len({str(t.get("chain") or "") for t in rows if t.get("chain")})
 
-    # Behavioral flags
-    flags = []
+    flags: list[str] = []
     if token_count > 20:
         flags.append("multi_chain_degen")
     if recent_volume > 100_000:
         flags.append("high_velocity")
-    if len(transfers) >= 15 and unique_chains >= 3:
+    if len(rows) >= 15 and unique_chains >= 3:
         flags.append("cross_chain_operator")
 
     return {
         "size_class": size_class,
-        "total_portfolio_usd": total_usd,
-        "tokens_held": token_count,
+        "total_portfolio_usd": total_usd if balance_available else None,
+        "tokens_held": token_count if balance_available else None,
         "recent_transfer_volume_usd": round(recent_volume, 2),
         "unique_chains_active": unique_chains,
         "behavioral_flags": flags,
+        "degraded": not balance_available,
     }
 
 
 async def profile_whale(wallet: str) -> dict[str, Any]:
     """Full whale profile: balance + transfers + behavioral classification."""
-    if not wallet.startswith("0x"):
-        wallet = "0x" + wallet.replace("0x", "")
+    address = normalize_wallet(wallet)
+    errors: list[str] = []
 
     try:
-        balance_data = await get_wallet_balance(wallet)
+        balance_data = await get_wallet_balance(address)
+        balance_ok = True
     except Exception as exc:
         logger.warning("whale_profiler:balance_failed err=%s", str(exc)[:100])
+        errors.append(f"balance: {str(exc)[:120]}")
         balance_data = {"total_usd": 0, "token_count": 0, "top_tokens": []}
+        balance_ok = False
 
     try:
-        transfers = await get_wallet_transfers(wallet, limit=20)
+        transfers = await get_wallet_transfers(address, limit=20)
     except Exception as exc:
         logger.warning("whale_profiler:transfers_failed err=%s", str(exc)[:100])
+        errors.append(f"transfers: {str(exc)[:120]}")
         transfers = []
 
-    behavior = classify_whale_profile(balance_data, transfers)
+    behavior = classify_whale_profile(balance_data, transfers, balance_available=balance_ok)
 
     return {
-        "wallet": wallet,
+        "wallet": address,
         "balance": balance_data,
         "recent_transfers": transfers[:10],
         "behavior": behavior,
+        "degraded": bool(errors),
+        "errors": errors,
         "profiled_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
-
-
-# time import for the timestamp
