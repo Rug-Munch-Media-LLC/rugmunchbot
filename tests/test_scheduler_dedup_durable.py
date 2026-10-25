@@ -96,13 +96,12 @@ def test_release_undoes_title_hash_too():
     assert _core._remember("rag_news", "rag:https://a/1", title="Big Hack Drains Vault") is True
 
 
-def test_has_posted_fail_open(monkeypatch):
+def test_has_posted_fail_open():
     """Redis down → has_posted returns False (never raises, never blocks)."""
-    monkeypatch.setattr(scheduler_state, "_sync_acquire", lambda: None)
-    assert scheduler_state.has_posted("anything") is False
+    assert scheduler_state.has_posted("anything", client=None) is False
 
 
-def test_has_posted_hit(monkeypatch):
+def test_has_posted_hit():
     """A durable hit returns True via SISMEMBER on the global set."""
 
     class FakeRedis:
@@ -110,9 +109,8 @@ def test_has_posted_hit(monkeypatch):
             assert skey == "bot:channels:posted:__global__"
             return member == "known-key"
 
-    monkeypatch.setattr(scheduler_state, "_sync_acquire", lambda: FakeRedis())
-    assert scheduler_state.has_posted("known-key") is True
-    assert scheduler_state.has_posted("unknown-key") is False
+    assert scheduler_state.has_posted("known-key", client=FakeRedis()) is True
+    assert scheduler_state.has_posted("unknown-key", client=FakeRedis()) is False
 
 
 def test_title_hash_pure():
