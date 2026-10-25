@@ -26,7 +26,6 @@ def _tier(name: str):
 # ── the feature table itself ────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("feature", sorted(gating.FEATURES))
 def test_dedupe_memory_is_bounded_by_the_window() -> None:
     clock = _Clock()
     gate = _open_gate(clock=clock)

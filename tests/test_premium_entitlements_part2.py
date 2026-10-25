@@ -25,7 +25,6 @@ def _tier(name: str):
 # ── the feature table itself ────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("feature", sorted(gating.FEATURES))
 def test_cancel_is_idempotent_and_only_the_first_call_wins() -> None:
     registry = deepscan_job.JobRegistry()
     job = registry.start(2, "addr", "solana", "free")
