@@ -60,7 +60,11 @@ def test_scan_report_with_hostile_long_payload_fits() -> None:
         "description": "& <b> " * 2000,
         "ai_verdict": "very long <verdict> & text " * 200,
     }
-    out = format_scan_report(report)
+    # Boundary moved 2026-10-26: the formatter emits the whole card (a tail cut
+    # was eating the risk-report/ref-link sections); the SEND path owns the
+    # Telegram limit via ``fit_report``. The guarantee is unchanged: what goes
+    # out never exceeds the limit and is never unbalanced HTML.
+    out = fit_report(format_scan_report(report))
     assert len(out) <= TELEGRAM_LIMIT
     assert balance_tags(out) == out
     assert "<b>A<B" not in out
