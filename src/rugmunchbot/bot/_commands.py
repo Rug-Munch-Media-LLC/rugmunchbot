@@ -32,19 +32,22 @@ from telegram.ext import (
     Application,
     CommandHandler,
     ContextTypes,
+    MessageHandler,
+    filters,
 )
 
 from rugmunchbot import db
 from rugmunchbot.admin_state import track_command
+from rugmunchbot.command_menu import (
+    MAX_ADVERTISED as MAX_ADVERTISED,
+    advertised_set as _advertised_set,
+    menu_rows,
+)
 from rugmunchbot.flood_control import check_flood as _check_flood
 from rugmunchbot.states import is_owner
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
-
-#: Hard ceiling for the advertised BotFather menu. Progressive disclosure:
-#: 20 is the most a human scans in one screen; the rest live under /more.
-MAX_ADVERTISED = 20
 
 #: Per-command flood gate (2026-09-01). The free-text AI surface was already
 #: flood-limited (3/s, 30/min); command handlers were not, so a user could
@@ -60,65 +63,15 @@ _COMMAND_FLOOD_ENABLED = os.getenv("RMI_COMMAND_FLOOD_ENABLED", "true").lower() 
 )
 
 
-#: The advertised surface: 20 commands, five intent groups. Anything not
-#: listed here is still registered and reachable — it is simply not shouting
-#: at a first-time user from the menu. Add to this list only by removing
-#: something else (the guard enforces the ceiling).
-_COMMAND_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
-    (
-        "Start here",
-        [
-            ("start", "Welcome & 5-command quickstart"),
-            ("scan", "Scan a token for scams & risks"),
-            ("desk", "Latest write-ups from the desk"),
-            ("plans", "Free vs Pro — stated honestly"),
-            ("help", "How the bot works"),
-        ],
-    ),
-    (
-        "Scan & safety",
-        [
-            ("deepscan", "Deep scan — full forensic audit"),
-            ("wallet", "Wallet forensics & analysis"),
-            ("holders", "Holder distribution analysis"),
-            ("trace", "Cross-chain fund trace"),
-        ],
-    ),
-    (
-        "Markets",
-        [
-            ("price", "Token price by address"),
-            ("chart", "Chart & technical analysis"),
-            ("trending", "Hot tokens right now"),
-            ("market", "Market overview & trends"),
-        ],
-    ),
-    (
-        "Intel",
-        [
-            ("news", "Latest crypto news"),
-            ("research", "Deep research report on a token"),
-            ("alerts", "Manage price alerts"),
-            ("portfolio", "Your portfolio: value, P&L, 24h"),
-        ],
-    ),
-    (
-        "Account",
-        [
-            ("account", "Your account, tier & usage"),
-            ("report", "Report a scam / rug"),
-            ("more", "All commands, grouped by category"),
-        ],
-    ),
-]
-
-
-_BOT_COMMANDS: list[BotCommand] = [
-    BotCommand(cmd, desc) for _section, cmds in _COMMAND_SECTIONS for cmd, desc in cmds
-]
+#: The advertised menu is DATA (``command_menu.py``): this module registers
+#: from it and pushes the same rows to BotFather, and /help renders it. One
+#: copy — the 2026-10-25 audit found the list duplicated here, which is exactly
+#: how a menu row and the handler set drift apart without anyone noticing.
+#: The rows pushed to BotFather — generated from the same data /help renders.
+_BOT_COMMANDS: list[BotCommand] = [BotCommand(cmd, desc) for cmd, desc in menu_rows()]
 
 #: Advertised command names (menu = source of truth for the user surface).
-_MENU_COMMANDS: frozenset[str] = frozenset(bc.command for bc in _BOT_COMMANDS)
+_MENU_COMMANDS: frozenset[str] = _advertised_set()
 
 
 def collect_registered_commands(app: Application[Any, Any, Any, Any, Any, Any]) -> set[str]:
@@ -253,12 +206,15 @@ def register_surface_commands(app: Application[Any, Any, Any, Any, Any, Any]) ->
     from rugmunchbot.handlers._more import cmd_more
     from rugmunchbot.handlers._plans import cmd_plans
     from rugmunchbot.handlers._site import SITE_COMMANDS
+    from rugmunchbot.handlers._unknown import cmd_unknown
 
     existing = collect_registered_commands(app)
     surface = (("desk", cmd_desk), ("plans", cmd_plans), ("more", cmd_more), *SITE_COMMANDS)
     for name, handler in surface:
         if name not in existing:
             _reg(app, name, handler)
+    # Group 1: only fires when no group-0 handler claimed the update.
+    app.add_handler(MessageHandler(filters.COMMAND, cmd_unknown), group=1)
 
 
 # ── Channel-shill commands (menu "Our Channels") ────────────────────────
