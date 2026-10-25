@@ -15,6 +15,7 @@ import pytest
 
 from rugmunchbot.config import TIERS
 from rugmunchbot.handlers.premium_watch import _limits
+from _premium_support import _Clock, _open_gate
 from rugmunchbot.premium import gating, watch_alerts
 
 

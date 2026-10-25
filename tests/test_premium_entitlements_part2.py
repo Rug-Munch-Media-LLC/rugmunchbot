@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 import pytest
 
 from rugmunchbot.config import TIERS
+from _premium_support import _Clock, _open_gate
 from rugmunchbot.premium import deepscan_job, gating, quota, watch_alerts
 
 
