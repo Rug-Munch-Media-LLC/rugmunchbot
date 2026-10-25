@@ -179,7 +179,8 @@ class TestCardRules:
 
     def test_every_number_has_source_and_stamp(self) -> None:
         card = format_verdict_card(_result())
-        assert "dexscreener" in card and "onchain" in card
+        assert "dexscreener" in card
+        assert "onchain" in card
         assert "Updated " in card
 
 
@@ -233,7 +234,5 @@ class TestRefresh:
         assert handled is True
         assert len(query.edits) == 2, "skeleton + card, one message"
         assert (
-            ("Scanning" not in query.edits[-1]
-            and "AVOID" in query.edits[-1])
-            or "RISK" in query.edits[-1]
-        )
+            "Scanning" not in query.edits[-1] and "AVOID" in query.edits[-1]
+        ) or "RISK" in query.edits[-1]

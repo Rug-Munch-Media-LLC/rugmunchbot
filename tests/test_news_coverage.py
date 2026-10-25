@@ -78,7 +78,7 @@ async def test_score_importance_scores_past_the_batch_limit(
     monkeypatch.setattr(importance, "MAX_ARTICLES_PER_BATCH", 2)
 
     async def _fake_rerank(query: str, texts: list[str]) -> dict[int, float]:
-        return {i: 0.5 for i in range(len(texts))}
+        return dict.fromkeys(range(len(texts)), 0.5)
 
     monkeypatch.setattr(importance, "_rerank_query", _fake_rerank)
     articles = [_art(f"story {i}") for i in range(5)]

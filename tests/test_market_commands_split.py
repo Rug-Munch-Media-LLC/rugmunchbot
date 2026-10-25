@@ -16,8 +16,7 @@ import respx
 
 from rugmunchbot.config import BACKEND_URL
 from rugmunchbot.handlers import market
-from rugmunchbot.handlers.market import _commands, _constants
-from rugmunchbot.handlers.market import _cmd_market, _cmd_movers, _cmd_news
+from rugmunchbot.handlers.market import _cmd_market, _cmd_movers, _cmd_news, _commands, _constants
 
 # ── fakes ───────────────────────────────────────────────────────────────────
 
@@ -188,14 +187,16 @@ async def test_cmd_launches_renders_items_with_refresh_and_menu():
     update = _update()
     await market.cmd_launches(update, SimpleNamespace(args=[]))
     text = update.message.texts[-1]
-    assert "NEWTOK" in text and "New Token" in text
+    assert "NEWTOK" in text
+    assert "New Token" in text
     callbacks = [
         b.callback_data
         for row in update.message.kwargs[-1]["reply_markup"].inline_keyboard
         for b in row
         if b.callback_data
     ]
-    assert "launches_refresh" in callbacks and "menu_main" in callbacks
+    assert "launches_refresh" in callbacks
+    assert "menu_main" in callbacks
 
 
 # ── module identity (one command per module) ────────────────────────────────
