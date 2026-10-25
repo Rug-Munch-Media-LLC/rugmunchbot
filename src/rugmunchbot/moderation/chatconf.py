@@ -25,16 +25,22 @@ DEFAULTS: dict[str, Any] = {
     "goodbye_enabled": False,
     "welcome_text": "",
     "goodbye_text": "",
+    "rules_text": "",
     "filters_enabled": False,
     "filter_replies_per_min": 3,
     "enforce_gban": False,
     "scheduled_enabled": False,
     "schedule_max": 10,
     "notes_admins_only": True,
+    "rules_enabled": False,
+    "post_rules_enabled": False,
+    "modlog_enabled": False,
+    "modlog_chat_id": 0,
+    "modlog_linked": False,
 }
 
 _BOOLS = tuple(k for k, v in DEFAULTS.items() if isinstance(v, bool))
-_TEXTS = ("welcome_text", "goodbye_text")
+_TEXTS = ("welcome_text", "goodbye_text", "rules_text")
 
 
 def _clamp(value: Any, low: int, high: int, fallback: int) -> int:
@@ -59,6 +65,12 @@ class CommunityConfig:
     scheduled_enabled: bool = False
     schedule_max: int = 10
     notes_admins_only: bool = True
+    rules_enabled: bool = False
+    post_rules_enabled: bool = False
+    modlog_enabled: bool = False
+    modlog_chat_id: int = 0
+    modlog_linked: bool = False
+    rules_text: str = ""
 
     @classmethod
     def from_dict(cls, chat_id: int, block: Any) -> CommunityConfig:
@@ -73,6 +85,10 @@ class CommunityConfig:
             merged[key] = str(merged[key] or "")[:MAX_TEXT]
         merged["filter_replies_per_min"] = _clamp(merged.get("filter_replies_per_min"), 1, 10, 3)
         merged["schedule_max"] = _clamp(merged.get("schedule_max"), 1, 50, 10)
+        try:
+            merged["modlog_chat_id"] = int(merged.get("modlog_chat_id") or 0)
+        except (TypeError, ValueError):
+            merged["modlog_chat_id"] = 0
         return cls(chat_id=int(chat_id), **merged)
 
     def any_enabled(self) -> bool:

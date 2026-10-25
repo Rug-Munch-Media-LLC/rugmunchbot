@@ -15,7 +15,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from rugmunchbot.moderation import audit, propagate
+from rugmunchbot.moderation import audit, chatconf, modlog, propagate
 from rugmunchbot.moderation.models import (  # noqa: TC001 — Action is built at runtime
     Action,
     MsgContext,
@@ -122,7 +122,26 @@ async def execute(
         extra={"evidence": decision.meta} if decision.meta else None,
     )
     audit.record(entry)
+    await _mirror(bot=bot, context=ctx, entry=entry, decision=decision, applied=applied)
     return entry
+
+
+async def _mirror(
+    *, bot: Any, context: MsgContext, entry: dict[str, Any], decision: Action, applied: bool
+) -> None:
+    """Mirror the decision into the chat's modlog when one is configured.
+
+    Only enforced-or-alerting outcomes are mirrored: a suppressed warn that the
+    user already saw in chat does not need a second line in the log, and a
+    dry-run stays quiet so an unevaluated chat never spams its operators.
+    """
+    if decision.action not in {"alert", "ban", "mute"} and not applied:
+        return
+    try:
+        cfg = await chatconf.effective(context.chat_id)
+        await modlog.deliver(bot, entry, chat_id=context.chat_id, cfg=cfg, title=context.chat_title)
+    except Exception:  # logging must never break the moderation path
+        logger.info("modlog mirror failed", exc_info=True)
 
 
 async def lift(bot: Any, chat_id: int, user_id: int, policy: Any) -> bool:
