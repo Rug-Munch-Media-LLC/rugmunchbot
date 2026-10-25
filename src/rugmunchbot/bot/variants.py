@@ -79,8 +79,7 @@ POOLS: dict[str, tuple[str, ...]] = {
         "<b>🛡️ Always run /scan before buying!</b>",
         "<b>🛡️ /scan it first, then buy.</b>",
         "<b>🛡️ Check it with /scan before buying.</b>",
-    ),
-}
+    ),}
 
 
 def render_variant(situation: str, chat_id: int | None = None,
