@@ -269,34 +269,6 @@ def add_discovered_kol(
 # ══════════════════════════════════════════════════════════════════════════
 
 
-def _seed_tokens(limit: int) -> list[str]:
-    """Candidate tokens to search X for: recent shill-evidence tokens.
-
-    Reads the bot's local ``shill_evidence`` table (tokens the shill watcher
-    already captured) — those are tokens with live shill activity. Fail-open
-    ``[]``. Bounded to ``limit`` distinct tokens.
-    """
-    tokens: list[str] = []
-    try:
-        from rugmunchbot.db._base import get_db
-
-        conn = get_db()
-        try:
-            rows = conn.execute(
-                "SELECT DISTINCT token FROM shill_evidence WHERE token != '' ORDER BY id DESC LIMIT ?",
-                (max(1, int(limit) * 3),),
-            ).fetchall()
-        finally:
-            conn.close()
-        for row in rows:
-            token = str(row[0] or "").strip()
-            if token and token not in tokens:
-                tokens.append(token)
-    except Exception as exc:  # fail-open by contract
-        logger.debug("kol_discovery:seed_tokens_failed err=%s", str(exc)[:120])
-    return tokens[: max(1, limit)]
-
-
 async def _is_risky_token(token: str, chain: str) -> bool:
     """True when the canonical scanner flags the token HIGH/CRITICAL risky.
 

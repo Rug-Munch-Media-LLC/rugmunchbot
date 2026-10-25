@@ -1,0 +1,7 @@
+{
+  "tool": "vulture 2.16 --min-confidence 60 (src/, src/rugmunchbot/_vendor excluded)",
+  "dead_symbols": 99,
+  "baseline_commit": "e1f716d",
+  "measured": "2026-10-25",
+  "rule": "shrink-only ratchet: lower this number when you delete code, never raise it"
+}

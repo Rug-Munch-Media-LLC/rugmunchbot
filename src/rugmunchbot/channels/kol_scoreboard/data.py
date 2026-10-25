@@ -344,46 +344,6 @@ async def detect_deleted_calls(
     return []
 
 
-def _card_from_rows(
-    calls: list[KolCall],
-    cached: dict[str, dict[str, Any]],
-    identity: KolIdentity | None = None,
-    name_changes: int = 0,
-) -> KolReportCard | None:
-    """Build one card from fresh rows + a cached aggregate (pure wrapper)."""
-    from rugmunchbot.channels.kol_scoreboard.scoring import compute_report_card
-
-    if not calls:
-        return None
-    handle = calls[0].handle
-    wallet = ""
-    for c in calls:
-        if c.wallet_address:
-            wallet = c.wallet_address
-            break
-    if not wallet and identity and identity.wallets:
-        wallet = identity.wallets[0]
-    if not wallet:
-        cached_row = cached.get(handle.lower())
-        if cached_row:
-            wallet = str(cached_row.get("wallet_address") or "")
-    traced_wallets: list[dict[str, str]] = []
-    if identity:
-        try:
-            from rugmunchbot.db import list_kol_wallets
-
-            traced_wallets = list_kol_wallets(identity.kol_id)
-        except Exception:  # fail-open by contract
-            traced_wallets = []
-    return compute_report_card(
-        calls,
-        wallet_address=wallet,
-        name_changes=name_changes,
-        identity=identity,
-        traced_wallets=traced_wallets,
-    )
-
-
 def build_scoreboard_cards(limit: int = 400) -> list[KolReportCard]:
     """Build report cards for every KOL with recorded calls (fail-open).
 

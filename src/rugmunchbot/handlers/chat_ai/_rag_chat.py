@@ -164,35 +164,3 @@ def build_payload(
     return payload
 
 
-async def ask_rag_chat(
-    text: str,
-    *,
-    user_id: int | str,
-    persona: str | None = None,
-    history: list[dict[str, str]] | None = None,
-) -> RagAnswer | None:
-    """Ask the canonical knowledge desk. Never raises — ``None`` on any failure."""
-    if not text.strip():
-        return None
-    payload = build_payload(text, user_id=user_id, persona=persona, history=history)
-    try:
-        async with httpx.AsyncClient(timeout=CHAT_TIMEOUT) as client:
-            response = await client.post(CHAT_ENDPOINT, json=payload)
-        if response.status_code >= 400:
-            logger.warning("rag_chat:desk_error status=%s user=%s", response.status_code, user_id)
-            try:
-                return parse_answer(response.json(), retrieval_only=True)
-            except ValueError:
-                return None
-        return parse_answer(response.json())
-    except (httpx.TimeoutException, httpx.HTTPError, ValueError) as exc:
-        logger.warning(
-            "rag_chat:desk_unreachable user=%s error=%s endpoint=%s",
-            user_id,
-            type(exc).__name__,
-            CHAT_ENDPOINT,
-        )
-        return None
-    except Exception:  # a chat turn must never crash the poll loop
-        logger.exception("rag_chat:desk_unexpected user=%s", user_id)
-        return None

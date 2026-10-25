@@ -30,3 +30,6 @@ clean: ## Remove build artifacts
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
 	rm -rf .pytest_cache .mypy_cache .ruff_cache
+
+dead-code: ## Dead-code ratchet - fails if dead symbols grow past the baseline
+	python3 scripts/check-dead-code.py
