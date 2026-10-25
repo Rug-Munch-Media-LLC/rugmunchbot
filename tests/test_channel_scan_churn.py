@@ -76,10 +76,10 @@ def test_scan_churn_notes_are_flagged_churned(monkeypatch):
 
     monkeypatch.setattr(content, "_churn_one_scan", _fake_churn_one)
     # fetch_suspect_scan_notes imports _scanner_candidates locally from
-    # rugmunchbot.tools.trend_algo._candidates — patch it at the module it imports from.
-    import rugmunchbot.tools.trend_algo._candidates as trend_algo
+    # rugmunchbot.tools.trending — patch it at the module it imports from.
+    import rugmunchbot.tools.trending as trending_mod
 
-    monkeypatch.setattr(trend_algo, "_scanner_candidates", _fake_scanner)
+    monkeypatch.setattr(trending_mod, "_scanner_candidates", _fake_scanner)
     import asyncio
 
     notes = asyncio.run(content.fetch_suspect_scan_notes(limit=2))
