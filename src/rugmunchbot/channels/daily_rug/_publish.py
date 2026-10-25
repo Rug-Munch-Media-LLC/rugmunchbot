@@ -127,10 +127,18 @@ class _ImagePost(str):
 
 
 def _split_for_telegram(report: str, max_chars: int = DAILY_RUG_MAX_CHARS) -> list[str]:
-    """Split an HTML post into Telegram-sized parts (canonical splitter)."""
+    """Split an HTML post into Telegram-sized parts (canonical splitter).
+
+    The story CTA is attached here — the last point where the outbound body is
+    still one string — so the morning lane always links its story exactly once
+    (``attach_story_cta`` is idempotent) instead of losing it to the split.
+    """
+    from rugmunchbot.channels._story_cta import attach_story_cta
     from rugmunchbot.content_style import split_html
 
-    return split_html(report, max_chars)
+    match = re.search(r"https?://rugmunch\.io/story/([A-Za-z0-9_-]+)", report)
+    payload = {"slug": match.group(1)} if match else {}
+    return split_html(attach_story_cta(report, payload, "morning"), max_chars)
 
 
 async def _write_brief(context: dict[str, Any]) -> str:

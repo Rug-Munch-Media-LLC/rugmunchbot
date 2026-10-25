@@ -12,14 +12,17 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-REGISTER = (
+SCHEDULER = (
     Path(__file__).resolve().parents[1]
     / "src"
     / "rugmunchbot"
     / "channels"
     / "scheduler"
-    / "_register.py"
 )
+
+# Registrations were split into ``_register_<family>.py``; the guard must read
+# the whole family or a wrapped job in a sibling file reads as missing.
+REGISTERS = tuple(sorted(SCHEDULER.glob("_register*.py")))
 
 # Jobs that legitimately bypass ``_tick_wrapper``. ``channel_state_load`` runs
 # ONCE at boot to hydrate scheduler state and is the thing that makes last_run
@@ -30,39 +33,40 @@ EXPLICITLY_DISABLED: frozenset[str] = frozenset({"channel_state_load"})
 
 def test_every_registered_channel_job_is_tick_wrapped() -> None:
     """Every ``job_queue.run_*`` call must pass ``_tick_wrapper(...)`` as its callback."""
-    tree = ast.parse(REGISTER.read_text(encoding="utf-8"))
+    assert REGISTERS, "no _register*.py files found — the scheduler moved"
 
     registered: dict[str, str] = {}  # job name -> callback expression kind
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not node.args:
-            continue
-        func = node.func
-        if not (
-            isinstance(func, ast.Attribute)
-            and func.attr.startswith("run_")
-            and isinstance(func.value, ast.Name)
-            and func.value.id == "job_queue"
-        ):
-            continue
+    for path in REGISTERS:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not node.args:
+                continue
+            func = node.func
+            if not (
+                isinstance(func, ast.Attribute)
+                and func.attr.startswith("run_")
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "job_queue"
+            ):
+                continue
 
-        job_name = ""
-        for kw in node.keywords:
-            if kw.arg == "name" and isinstance(kw.value, ast.Constant):
-                job_name = str(kw.value.value)
+            job_name = ""
+            for kw in node.keywords:
+                if kw.arg == "name" and isinstance(kw.value, ast.Constant):
+                    job_name = str(kw.value.value)
 
-        first = node.args[0]
-        wrapped = (
-            isinstance(first, ast.Call)
-            and isinstance(first.func, ast.Name)
-            and first.func.id == "_tick_wrapper"
-        )
-        kind = "wrapped" if wrapped else "bare"
-        if wrapped:
-            for inner in first.args:
-                if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
-                    job_name = inner.value
-                    break
-        registered[job_name or "<unnamed>"] = kind
+            first = node.args[0]
+            wrapped = (
+                isinstance(first, ast.Call)
+                and isinstance(first.func, ast.Name)
+                and first.func.id == "_tick_wrapper"
+            )
+            if wrapped:
+                for inner in first.args:
+                    if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
+                        job_name = inner.value
+                        break
+            registered[job_name or "<unnamed>"] = "wrapped" if wrapped else "bare"
 
     assert registered, "no channel jobs found — the AST scan or the file moved"
 
@@ -83,7 +87,7 @@ def test_every_registered_channel_job_is_tick_wrapped() -> None:
         assert registered.get(name) == "wrapped", f"{name} is not tick-wrapped"
 
     # Gated channels must explain their absence rather than vanish silently.
-    source = REGISTER.read_text(encoding="utf-8")
+    source = "\n".join(p.read_text(encoding="utf-8") for p in REGISTERS)
     for name in ("channel_personal", "channel_updates"):
         assert registered.get(name) == "wrapped", f"{name} is not tick-wrapped"
         assert "channels:disabled" in source
