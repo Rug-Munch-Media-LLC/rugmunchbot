@@ -77,36 +77,47 @@ async def _search(limit: int, rerank: bool) -> list[dict[str, Any]]:
     )
 
 
+def _field(hit: dict[str, Any], metadata: dict[str, Any], *keys: str) -> str:
+    """First non-empty string among *keys* (hit first, then metadata)."""
+    for key in keys:
+        value = str(hit.get(key) or metadata.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _item(hit: dict[str, Any], *, rerank: bool, degraded: bool) -> dict[str, Any] | None:
+    """One raw hit -> trending-news item (``None`` when it carries no content)."""
+    metadata = hit.get("metadata") if isinstance(hit.get("metadata"), dict) else {}
+    title = _field(hit, metadata, "title")
+    text = _field(hit, metadata, "text", "content")
+    if not title and not text:
+        return None
+    return {
+        "title": (title or text)[:200],
+        "summary": (text or title)[:500],
+        "url": _field(hit, metadata, "source_url"),
+        "source": _field(hit, metadata, "source") or "rugbrain",
+        "sentiment_label": _field(hit, metadata, "sentiment_label"),
+        "factual_rating": _field(hit, metadata, "factual_rating"),
+        # Provenance markers: a post may only claim RAG grounding when these
+        # say so (consumed by the news poster's context footer).
+        "_rag_source": f"rugbrain:{_collection()}",
+        "_rag_rerank": rerank,
+        "_rag_degraded": degraded,
+    }
+
+
 def _normalize(
     hits: list[dict[str, Any]], limit: int, *, rerank: bool, degraded: bool
 ) -> list[dict[str, Any]]:
     """Map raw RugBrain hits onto the shared trending-news item shape."""
-    items: list[dict[str, Any]] = []
-    for hit in hits[: max(1, limit)]:
-        if not isinstance(hit, dict):
-            continue
-        metadata = hit.get("metadata") if isinstance(hit.get("metadata"), dict) else {}
-        title = str(hit.get("title") or metadata.get("title") or "").strip()
-        text = str(hit.get("text") or hit.get("content") or "").strip()
-        if not title and not text:
-            continue
-        url = str(metadata.get("source_url") or hit.get("source_url") or "").strip()
-        items.append(
-            {
-                "title": (title or text)[:200],
-                "summary": (text or title)[:500],
-                "url": url,
-                "source": str(metadata.get("source") or "rugbrain").strip(),
-                "sentiment_label": str(metadata.get("sentiment_label") or "").strip(),
-                "factual_rating": str(metadata.get("factual_rating") or "").strip(),
-                # Provenance markers: a post may only claim RAG grounding when
-                # these say so (consumed by the news poster's context footer).
-                "_rag_source": f"rugbrain:{_collection()}",
-                "_rag_rerank": rerank,
-                "_rag_degraded": degraded,
-            }
-        )
-    return items
+    mapped = (
+        _item(h, rerank=rerank, degraded=degraded)
+        for h in hits[: max(1, limit)]
+        if isinstance(h, dict)
+    )
+    return [item for item in mapped if item is not None]
 
 
 async def fetch_rag_news_result(limit: int = 5) -> RagNewsResult:

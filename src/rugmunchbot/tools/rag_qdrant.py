@@ -133,6 +133,37 @@ async def embed_query(query: str) -> list[float] | None:
     return (await embed_query_outcome(query)).vector
 
 
+def _aggregate(results: list[Any]) -> tuple[list[dict[str, Any]], list[str]]:
+    """Fold per-collection outcomes into ``(hits, failure reasons)``."""
+    hits: list[dict[str, Any]] = []
+    failures: list[str] = []
+    for res in results:
+        if isinstance(res, LaneOutcome):
+            hits.extend(res.hits)
+            if not res.ok:
+                failures.append(res.reason or "collection_failed")
+        elif isinstance(res, BaseException):
+            failures.append(type(res).__name__)
+    return hits, failures
+
+
+def _lane_result(hits: list[dict[str, Any]], failures: list[str], total: int) -> LaneOutcome:
+    """Log coverage and build the typed lane outcome."""
+    if failures:
+        logger.warning(
+            "rag_qdrant:lane_partial failed=%d/%d hits=%d first=%s",
+            len(failures),
+            total,
+            len(hits),
+            failures[0],
+        )
+    elif not hits:
+        logger.info("rag_qdrant:lane_empty collections=%d (no corpus hits)", total)
+    return LaneOutcome(
+        hits=hits, ok=bool(hits), degraded=bool(failures), reason=";".join(failures)[:200]
+    )
+
+
 async def direct_qdrant_outcome(
     search_query: str, collections: list[str], limit: int
 ) -> LaneOutcome:
@@ -153,28 +184,8 @@ async def direct_qdrant_outcome(
     except TimeoutError:
         logger.warning("rag_qdrant:lane_degraded stage=search reason=timeout")
         return LaneOutcome(ok=False, degraded=True, reason="search_timeout")
-    hits: list[dict[str, Any]] = []
-    failures: list[str] = []
-    for res in results:
-        if isinstance(res, LaneOutcome):
-            hits.extend(res.hits)
-            if not res.ok:
-                failures.append(res.reason or "collection_failed")
-        elif isinstance(res, BaseException):
-            failures.append(type(res).__name__)
-    if failures:
-        logger.warning(
-            "rag_qdrant:lane_partial failed=%d/%d hits=%d first=%s",
-            len(failures),
-            len(results),
-            len(hits),
-            failures[0],
-        )
-    elif not hits:
-        logger.info("rag_qdrant:lane_empty collections=%d (no corpus hits)", len(collections))
-    return LaneOutcome(
-        hits=hits, ok=bool(hits), degraded=bool(failures), reason=";".join(failures)[:200]
-    )
+    hits, failures = _aggregate(list(results))
+    return _lane_result(hits, failures, len(results))
 
 
 async def direct_qdrant(
