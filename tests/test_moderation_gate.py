@@ -40,8 +40,10 @@ from rugmunchbot.moderation.harness_fakes import (
 @pytest.fixture(autouse=True)
 def _clean_state():
     state.reset()
+    captcha.reset()
     yield
     state.reset()
+    captcha.reset()
 
 
 @pytest.fixture
@@ -112,6 +114,7 @@ def test_math_captcha_wrong_answer_fails_and_right_answer_passes(cfg, tmp_path):
 
     original = audit.AUDIT_PATH
     audit.use_audit_path(tmp_path / "a.jsonl")
+    captcha.register_pending(MATH_CHAT_ID, 556, 300)
     user = FakeUser(556)
     right = challenge.challenge(MATH_CHAT_ID, 556)[2]
     prev = challenge.challenge(MATH_CHAT_ID, 556, now=challenge.time.time() - challenge.BUCKET_S)[2]

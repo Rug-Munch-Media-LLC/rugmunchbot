@@ -1,8 +1,13 @@
 """Append-only audit trail for every moderation decision (JSONL).
 
 One record per decision — including dry-run and "allowed" no-ops are NOT
-recorded (volume), only actions. Writes are best-effort: an audit failure is
-logged and never blocks moderation.
+recorded (volume), only actions.
+
+``record`` does NOT swallow failures. The audit trail is the accountability
+record for containment, so an ``OSError`` propagates to the caller: a mute
+nobody can review is a bug, not a best-effort write. Callers on a
+containment path use ``contain.write``/``contain.record``, which degrade
+loudly (error log + ``False``) instead of hiding the loss.
 
 Path: ``RUGMUNCH_MODERATION_AUDIT`` or ``<repo>/data/moderation_actions.jsonl``.
 Rotate with logrotate; each line is self-contained JSON.
@@ -82,14 +87,11 @@ def use_audit_path(path: str | Path) -> None:
 
 
 def record(entry: dict[str, Any]) -> None:
-    """Append one record. Best-effort: failures are logged, never raised."""
-    try:
-        AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        line = json.dumps(entry, ensure_ascii=False, separators=(",", ":"))
-        with open(AUDIT_PATH, "a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
-    except OSError:
-        logger.warning("moderation audit write failed", exc_info=True)
+    """Append one record. Raises ``OSError`` when the trail cannot be written."""
+    AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(entry, ensure_ascii=False, separators=(",", ":"))
+    with open(AUDIT_PATH, "a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
 
 
 def tail(chat_id: int | None = None, limit: int = 10) -> list[dict[str, Any]]:

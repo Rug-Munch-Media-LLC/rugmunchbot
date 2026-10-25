@@ -100,6 +100,32 @@ def _judge(
     engage(chat_id, reason, settings, ts)
     return RaidSignal(count, window_s, True, reason)
 
+async def cmd_modraid(update: Any, context: Any) -> None:
+    """Admin: /modraid [status|on|off] — inspect or release the lockdown."""
+    from rugmunchbot.moderation.commands import _allowed
+
+    chat = update.effective_chat
+    if chat is None or not await _allowed(update, context):
+        await update.effective_message.reply_text("⛔ Chat admins only.")
+        return
+    action = ((context.args or ["status"])[0] or "status").lower()
+    if action == "on":
+        engage(chat.id, "manual lockdown by admin", GuardSettings())
+    elif action in {"off", "release"}:
+        changed = release(chat.id, actor=f"admin:{update.effective_user.id}")
+        await update.effective_message.reply_text(
+            "🔓 Raid state released." if changed else "No raid state active."
+        )
+        return
+    current = status(chat.id)
+    if current is None:
+        await update.effective_message.reply_text("🟢 No raid state active.")
+        return
+    await update.effective_message.reply_text(
+        f"🔴 Raid: {current['reason']} — auto-release in {current['expires_in_s']}s. "
+        "/modraid off to release now."
+    )
+
 
 def reset() -> None:
     _joins.clear()

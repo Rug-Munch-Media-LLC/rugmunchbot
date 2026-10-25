@@ -99,8 +99,9 @@ def mark_member(chat_id: int, user_id: int, now: float | None = None) -> None:
 
 
 def mark_verified(chat_id: int, user_id: int, now: float | None = None) -> None:
-    """Remember that a member passed the entrance gate."""
+    """Remember that a member passed the entrance gate (durably)."""
     _verified[(chat_id, user_id)] = time.time() if now is None else now
+    _save_verified()
 
 
 def is_verified(chat_id: int, user_id: int, now: float | None = None) -> bool:
@@ -111,9 +112,41 @@ def is_verified(chat_id: int, user_id: int, now: float | None = None) -> bool:
     return (time.time() if now is None else now) - ts < VERIFIED_TTL_S
 
 
+def _save_verified() -> None:
+    """Mirror the verified set into the snapshot (best-effort, never raises)."""
+    from rugmunchbot.moderation import persist
+
+    persist.save(
+        "state",
+        {"verified": {f"{chat}:{user}": ts for (chat, user), ts in _verified.items()}},
+    )
+
+
+def recover() -> int:
+    """Restore unexpired verified members after a restart. Returns the count."""
+    from rugmunchbot.moderation import persist
+
+    raw = (persist.section("state").get("verified")) or {}
+    now = time.time()
+    restored = 0
+    for key, ts in raw.items() if isinstance(raw, dict) else ():
+        try:
+            chat_id, user_id = (int(part) for part in str(key).split(":", 1))
+            stamp = float(ts)
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if now - stamp >= VERIFIED_TTL_S:
+            continue
+        _verified[(chat_id, user_id)] = stamp
+        restored += 1
+    return restored
+
+
 def forget_member(chat_id: int, user_id: int) -> None:
+    had_verified = _verified.pop((chat_id, user_id), None) is not None
+    if had_verified:
+        _save_verified()
     _first_seen.pop((chat_id, user_id), None)
-    _verified.pop((chat_id, user_id), None)
     _by_user.pop((chat_id, user_id), None)
     _media.pop((chat_id, user_id), None)
 
@@ -132,5 +165,6 @@ __all__ = [
     "mark_member",
     "mark_verified",
     "note_message",
+    "recover",
     "reset",
 ]

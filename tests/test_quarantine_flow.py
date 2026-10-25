@@ -101,8 +101,10 @@ def test_modrelease_requires_admin():
     update = FakeUpdate(
         chat=FakeChat(CHAT_ID), user=FakeUser(7), message=FakeMessage(text="/modrelease 7")
     )
+    from rugmunchbot.moderation.commands import cmd_modrelease
+
     context = SimpleNamespace(bot=FakeBot(), args=["7"])
-    asyncio.run(quarantine.cmd_modrelease(update, context))
+    asyncio.run(cmd_modrelease(update, context))
     assert update.message.replies == ["⛔ Chat admins only."]
 
 
