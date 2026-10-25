@@ -57,13 +57,17 @@ def _run(coro: Any) -> None:
     asyncio.run(coro)
 
 
-def test_free_tier_gets_two_and_paid_gets_twenty_five() -> None:
+def test_quota_follows_the_pricing_table() -> None:
+    """Enforcement equals the advertised copy: 2 free, 10 scout, 50 hunter, pro ∞."""
     assert _limits.watch_limit("free") == 2
-    assert _limits.watch_limit("pro") == 25
     assert _limits.watch_limit("anything-unknown") == 2
+    assert _limits.watch_limit("scout") == 10
+    assert _limits.watch_limit("hunter") == 50
+    assert _limits.watch_limit("pro") == _limits.UNLIMITED
+    assert _limits.limit_text("pro") == "∞"
     refusal = _limits.limit_refusal(2, 2)
     assert "2/2" in refusal
-    assert "25" in refusal
+    assert "50" in refusal
     assert "/pricing" in refusal
 
 
@@ -149,7 +153,7 @@ def test_watchlist_shows_quota_and_per_row_unwatch(monkeypatch: pytest.MonkeyPat
     _run(_commands.cmd_watchlist(update, _ctx()))
 
     text = update.effective_message.texts[0]
-    assert "1/25 (pro)" in text
+    assert "1/∞ (pro)" in text
     assert "4 watching" in text
     assert f"/unwatch <code>{SOL}</code>" in text
 
