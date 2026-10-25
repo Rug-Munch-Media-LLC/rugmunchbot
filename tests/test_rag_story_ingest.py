@@ -7,7 +7,7 @@ pipeline error, and a raised exception — plus the image backfill.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import patch
 
 import pytest
@@ -16,21 +16,21 @@ from rugmunchbot.channels.telegram_news._rag_stories import ingest_story_docs
 
 
 class _Report:
-    def __init__(
-        self,
-        accepted: int = 0,
-        duplicate: int = 0,
-        rejected: int = 0,
-        errors: list[str] | None = None,
-        status: str = "ok",
-        rejections: dict[str, int] | None = None,
-    ) -> None:
-        self.accepted = accepted
-        self.duplicate = duplicate
-        self.rejected = rejected
-        self.errors = errors or []
-        self.status = status
-        self.rejections = rejections or {}
+    """Minimal ingest report; any attribute can be overridden per test."""
+
+    _DEFAULTS: ClassVar[dict[str, Any]] = {
+        "accepted": 0,
+        "duplicate": 0,
+        "rejected": 0,
+        "errors": [],
+        "status": "ok",
+        "rejections": {},
+    }
+
+    def __init__(self, **kw: Any) -> None:
+        for name, default in self._DEFAULTS.items():
+            value = kw.get(name, default)
+            setattr(self, name, list(value) if isinstance(value, list) else value)
 
 
 class _Ingestor:
