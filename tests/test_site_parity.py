@@ -88,7 +88,9 @@ def test_existing_keyboards_gain_the_hand_off_row() -> None:
         merged = with_site_link(surface, markup)
         assert len(merged.inline_keyboard) == before + 1
         assert merged.inline_keyboard[-1][0].url == site_url(surface)
-        assert merged.inline_keyboard[0][0].callback_data == markup.inline_keyboard[0][0].callback_data
+        assert (
+            merged.inline_keyboard[0][0].callback_data == markup.inline_keyboard[0][0].callback_data
+        )
 
 
 @pytest.fixture(scope="module")
@@ -118,7 +120,7 @@ class FakeMessage:
         self.markup: Any = None
         self.kwargs: dict[str, Any] = {}
 
-    async def reply_text(self, text: str, **kwargs: Any) -> "FakeMessage":
+    async def reply_text(self, text: str, **kwargs: Any) -> FakeMessage:
         self.text, self.kwargs = text, kwargs
         self.markup = kwargs.get("reply_markup")
         return self

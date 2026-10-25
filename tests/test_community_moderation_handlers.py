@@ -6,7 +6,7 @@ import asyncio
 import json
 from types import SimpleNamespace
 
-from rugmunchbot.community.moderation import ModerationEngine, Policy
+from rugmunchbot.community.moderation import ModerationEngine
 from rugmunchbot.community.moderation_config import policy_key
 from rugmunchbot.community.store import COMMUNITY_CLIENT_KEY
 from rugmunchbot.handlers import moderation as mod

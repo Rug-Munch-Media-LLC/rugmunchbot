@@ -60,7 +60,26 @@ POOLS: dict[str, tuple[str, ...]] = {
         "{feature} is a {tier} feature.",
         "Unlock {feature} on {tier}.",
     ),
-}
+    "market.loading": (
+        "⏳ <b>Fetching {subject}…</b>",
+        "📡 <b>Pulling {subject} now…</b>",
+        "🔍 <b>Loading {subject}…</b>",
+    ),
+    "market.empty": (
+        "❌ <b>{subject} unavailable</b>\n\nCould not fetch it right now — retry in a moment.",
+        "❌ <b>No {subject} right now</b>\n\nThe sources came back empty. Retry shortly.",
+        "❌ <b>{subject} did not load</b>\n\nNothing came back. Try again in a moment.",
+    ),
+    "portfolio.empty_portfolio": (
+        "📭 Your portfolio is empty. Use /add to add tokens.",
+        "📭 Nothing tracked yet — /add starts one.",
+        "📭 No tokens yet. /add gets you started.",
+    ),
+    "rugcheck.footer": (
+        "<b>🛡️ Always run /scan before buying!</b>",
+        "<b>🛡️ /scan it first, then buy.</b>",
+        "<b>🛡️ Check it with /scan before buying.</b>",
+    ),}
 
 
 def render_variant(situation: str, chat_id: int | None = None,

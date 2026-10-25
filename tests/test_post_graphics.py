@@ -71,7 +71,7 @@ def test_register_graphic_ignores_empty_input() -> None:
     before = dict(POST_TYPE_GRAPHICS)
     register_graphic("", "x.png")
     register_graphic("news", "")
-    assert POST_TYPE_GRAPHICS == before
+    assert before == POST_TYPE_GRAPHICS
 
 
 def test_no_post_type_uses_identity_chrome() -> None:
