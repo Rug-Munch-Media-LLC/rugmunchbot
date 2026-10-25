@@ -3,13 +3,18 @@
 
 SHELL := /bin/bash
 
-.PHONY: help test lint typecheck policy clean
+.PHONY: help test voice-eval lint typecheck policy clean
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-test: ## Run tests
+test: voice-eval ## Run tests
 	python -m pytest tests/ -v 2>&1
+
+VOICE_MIN ?= 0.75
+
+voice-eval: ## Voice gate — deterministic voice scorer (fails below VOICE_MIN)
+	python3 eval/voice/score.py --min $(VOICE_MIN)
 
 lint: ## Run ruff linter + formatter check
 	ruff check src/ tests/
