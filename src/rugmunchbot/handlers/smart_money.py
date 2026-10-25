@@ -60,12 +60,22 @@ async def cmd_smartmoney(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     await msg.edit_text(str(post) + extra, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
 
-async def cmd_whales(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """`/whales` — Hyperliquid movers, funding squeezes, liquidation clusters."""
+async def cmd_whales(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE, *, fetch: Any = fetch_hl
+) -> None:
+    """`/whales` + `/hlwhales` — Hyperliquid movers, squeezes, liq clusters.
+
+    ONE renderer for both command names (consolidated 2026-10-25): the old
+    ``handlers/hlwhales.py`` re-formatted the same feed through a second,
+    untested path whose bare ``float()`` coercions crashed on a malformed
+    ``change_24h``. *fetch* is the DI seam the tests use; PTB passes two args.
+    """
+    if not update.message:
+        return
     msg = await update.message.reply_text(
         "🐋 <b>Reading Hyperliquid whale flow…</b>", parse_mode=ParseMode.HTML
     )
-    feed = await fetch_hl(limit=_HL_LIMIT)
+    feed = await fetch(limit=_HL_LIMIT)
     if not feed.ok:
         await msg.edit_text(_fallback("Hyperliquid snapshot", feed), parse_mode=ParseMode.HTML)
         return
@@ -96,8 +106,13 @@ async def cmd_predictions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
+#: One renderer, two names — `/hlwhales` is an alias, never a second path.
+HL_COMMANDS = ("whales", "hlwhales")
+
+
 def register_smart_money(app: Application[Any, Any, Any, Any, Any, Any]) -> None:
     """Register the smart-money surface (menu stays under /more)."""
     app.add_handler(CommandHandler("smartmoney", cmd_smartmoney))
-    app.add_handler(CommandHandler("whales", cmd_whales))
+    for name in HL_COMMANDS:
+        app.add_handler(CommandHandler(name, cmd_whales))
     app.add_handler(CommandHandler("predictions", cmd_predictions))
