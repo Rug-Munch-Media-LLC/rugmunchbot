@@ -49,6 +49,16 @@ from rugmunchbot.support.logging import get_logger
 logger = get_logger(__name__)
 
 
+#: Alert-store writer seam: ``set_writer`` in tests, backend import in prod.
+_WRITER: Any = None
+
+
+def set_writer(write: Any = None) -> None:
+    """Install the alert-store writer (tests); ``None`` restores the backend."""
+    global _WRITER
+    _WRITER = write
+
+
 async def _persist_alerts(session: Any, rows: list[dict[str, Any]]) -> int:
     """Insert alert rows through the canonical backend store, fail-closed.
 
@@ -57,6 +67,8 @@ async def _persist_alerts(session: Any, rows: list[dict[str, Any]]) -> int:
     that store is absent this returns 0 — and 0 inserted means nothing is queued
     for delivery, never a phantom page.
     """
+    if _WRITER is not None:
+        return await _WRITER(session, rows)
     try:
         from app.domains.alerts.postgres_store import save_alerts
     except ImportError:  # bot runtime: no backend alert store installed
