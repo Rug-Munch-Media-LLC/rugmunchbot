@@ -102,45 +102,57 @@ async def deliver_pending_alerts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
     return processed
 
 
-async def _deliver_one(ctx: ContextTypes.DEFAULT_TYPE, item: dict[str, Any]) -> bool:
-    """Deliver one alert.
-
-    True = no retry needed (sent, or skipped: invalid, duplicate, gated,
-    rate-limited, unformattable). False = re-queue (failed send, or held).
-    """
+def _valid_user(item: dict[str, Any]) -> bool:
     user_id = item.get("user_id")
-    if not isinstance(user_id, int) or user_id <= 0:
-        logger.warning("alert_worker: invalid user_id in alert item")
+    if isinstance(user_id, int) and user_id > 0:
         return True
+    logger.warning("alert_worker: invalid user_id in alert item")
+    return False
 
+
+def _admitted(item: dict[str, Any]) -> bool:
+    """True when this item may be sent now: dedupe → watch gate → rate limit."""
     event_id = str(item.get("event_id") or "")
     if event_id and not _dedupe(event_id):
-        return True
-
+        return False
     verdict = screen(item, forget=_RECENT_EVENT_IDS.discard)  # premium watch gate
     if verdict == "hold":
         item[_GATE_HOLD] = True  # deferred, not failed: keep the retry budget
         return False
     if verdict == "drop":
-        return True
+        return False
+    # Retried items skip the per-user limit: the failed attempt took the slot.
+    return bool(item.get("retry_count")) or check_alert_rate_limit(item["user_id"])
 
-    # Per-user rate limit (shared with price alerts: max 1 DM / 5 min). Retried
-    # items bypass it: the failed first attempt already took the slot.
-    if not item.get("retry_count") and not check_alert_rate_limit(user_id):
-        return True
 
+def _text_for(item: dict[str, Any]) -> str | None:
+    """Formatted HTML, or None when this item can never be rendered."""
+    user_id = item["user_id"]
     try:
         text = _format_alert(item)
     except (ValueError, TypeError, KeyError) as exc:
         logger.warning(
             "alert_worker: cannot format alert type=%s user=%s: %s", item.get("type"), user_id, exc
         )
-        return True  # poison item — re-queuing won't fix formatting
-
+        return None
     if not text:
         logger.debug("alert_worker: blank text type=%s user=%s", item.get("type"), user_id)
-        return True
+        return None
+    return text
 
+
+def _record_delivery(item: dict[str, Any]) -> None:
+    try:  # metrics: count the delivered event (best-effort, never raises)
+        from rugmunchbot.observability import record_webhook_event
+
+        record_webhook_event(str(item.get("type") or "unknown"))
+    except Exception:
+        logger.debug("observability record_webhook_event failed", exc_info=True)
+
+
+async def _send_alert(ctx: ContextTypes.DEFAULT_TYPE, item: dict[str, Any], text: str) -> bool:
+    """Send one rendered alert; False when the send failed and must be retried."""
+    user_id = item["user_id"]
     from rugmunchbot.content_style import prepare_for_send
 
     try:
@@ -154,21 +166,27 @@ async def _deliver_one(ctx: ContextTypes.DEFAULT_TYPE, item: dict[str, Any]) -> 
     except Exception as exc:  # TelegramError and friends — never drop a failed send
         item["last_error"] = str(exc)
         logger.warning(
-            "alert_worker: send failed to user=%s type=%s event=%s: %s",
-            user_id,
-            item.get("type"),
-            event_id or "?",
-            exc,
+            "alert_worker: send failed to user=%s type=%s: %s", user_id, item.get("type"), exc
         )
         return False
-
-    try:  # metrics: count the delivered event (best-effort, never raises)
-        from rugmunchbot.observability import record_webhook_event
-
-        record_webhook_event(str(item.get("type") or "unknown"))
-    except Exception:
-        logger.debug("observability record_webhook_event failed", exc_info=True)
+    _record_delivery(item)
     return True
+
+
+async def _deliver_one(ctx: ContextTypes.DEFAULT_TYPE, item: dict[str, Any]) -> bool:
+    """Deliver one alert.
+
+    True = no retry needed (sent, or skipped: invalid, duplicate, dropped,
+    rate-limited, unformattable). False = re-queue (failed send, or held).
+    """
+    if not _valid_user(item):
+        return True
+    if not _admitted(item):
+        return _GATE_HOLD not in item
+    text = _text_for(item)
+    if text is None:
+        return True
+    return await _send_alert(ctx, item, text)
 
 
 async def _requeue_or_deadletter(item: dict[str, Any]) -> None:
