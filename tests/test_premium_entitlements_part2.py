@@ -83,22 +83,6 @@ def test_gate_defaults_to_the_free_cap_when_no_tier_is_given() -> None:
     assert watch_alerts.AlertGate().cap == watch_alerts.HOURLY_CAP["free"]
 
 
-class _Clock:
-    def __init__(self, at: float = 0.0) -> None:
-        self.at = at
-
-    def __call__(self) -> float:
-        return self.at
-
-
-def _open_gate(tier: str = "pro", clock=None) -> watch_alerts.AlertGate:
-    return watch_alerts.AlertGate(
-        quiet=watch_alerts.QuietHours(start=0, end=0),  # window disabled
-        tier=tier,
-        clock=clock or _Clock(),
-    )
-
-
 def test_dedupe_drops_a_repeat_then_allows_the_key_again_after_the_window() -> None:
     clock = _Clock()
     gate = _open_gate(clock=clock)
