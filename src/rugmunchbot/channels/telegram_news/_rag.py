@@ -1,4 +1,4 @@
-"""TG news → RAG ingestion (additive, fail-open).
+"""TG news → RAG ingestion (additive, fail-open, never silent).
 
 Submodule of ``channels/telegram_news.py`` — owns the **feed-RAG** hop of the
 pipeline: freshly-swept TG articles are clustered into stories and embedded
@@ -24,17 +24,20 @@ Contract notes:
   counts with ``errors``; the website + Telegram halves of the pipeline keep
   working. ``TG_NEWS_RAG`` (env ``RMI_TG_NEWS_RAG``) is read through the shim
   at call time so ``patch.object(tg_news, "TG_NEWS_RAG", ...)`` keeps working.
+* Visibility (2026-10-25): the returned counts always carry ``degraded`` and
+  ``status`` (``ok`` / ``partial`` / ``failed`` / ``disabled``) so a partially
+  embedded sweep can no longer look identical to a healthy one.
 """
 
 from __future__ import annotations
 
-import asyncio
 import sys
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from rugmunchbot._vendor.news_ingest.ingest import extract_canonical_url
 from rugmunchbot.channels.telegram_news._persist import _news_id_for
+from rugmunchbot.channels.telegram_news._rag_stories import ingest_story_docs
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
@@ -49,58 +52,73 @@ logger = get_logger("rmi_bot.channels.tg_news")
 #: tool) and the news router search (mirrors ``index_databus_news``).
 _RAG_NEWS_COLLECTION: str = "news_v2"
 
-#: Max concurrent per-story RAG ingests. Each story embeds + upserts chunks
-#: over the network; bounded concurrency collapses N serial stories into
-#: ~N/3 wall-time without overloading the embedder (whose own client caps
-#: at 8 connections).
-_STORY_INGEST_CONCURRENCY: int = 3
+#: Minimum body length for a post to become a RAG story (see the gate below).
+_MIN_BODY_CHARS: int = 60
+
+
+def _status(counts: dict[str, Any]) -> str:
+    """Derive the lane status from the counters (never a silent ``ok``)."""
+    if counts.get("disabled"):
+        return "disabled"
+    if not counts["errors"]:
+        return "ok" if counts["ingested"] else ("empty" if not counts["stories"] else "partial")
+    return "partial" if counts["ingested"] else "failed"
+
+
+def _build_story_docs(articles: list[NewsArticle]) -> list[dict[str, Any]]:
+    """Cluster articles into story RAG docs (bodyless posts dropped first)."""
+    from rugmunchbot._vendor.news_clusterer import (
+        NewsItem as ClusterNewsItem,
+        build_story_rag_docs,
+    )
+
+    # Source-quality gate (2026-08-25): bodyless channel posts (spam
+    # channels whose messages are just "URL + Source") must NOT become
+    # RAG stories — they clustered into near-identical docs that the
+    # quality gate then rejected 150+/sweep. Real news has a body.
+    substantive = [a for a in articles if len((a.body or "").strip()) >= _MIN_BODY_CHARS]
+    skipped_bodyless = len(articles) - len(substantive)
+    if skipped_bodyless:
+        logger.info("tg_news:rag_skipped_bodyless count=%s", skipped_bodyless)
+    cluster_input = [
+        ClusterNewsItem(
+            id=_news_id_for(article),
+            title=article.title or "",
+            body=article.body or "",
+            source=article.source_channel or "",
+            url=extract_canonical_url(article) or article.source_url,
+            published_at=article.posted_at or datetime.now(UTC),
+            sentiment=0.0,  # the clusterer derives the rating card itself
+        )
+        for article in substantive
+    ]
+    return build_story_rag_docs(cluster_input)
 
 
 async def ingest_into_rag(articles: list[NewsArticle]) -> dict[str, Any]:
     """Embed freshly-swept TG articles into the RAG ``news_v2`` collection.
 
-    Returns ``{"stories", "ingested", "duplicates", "errors"}``. Fails open:
-    a disabled gate, empty input, or a RAG outage all return counts without
-    raising — the scheduler keeps running and the other halves of the
-    pipeline still work.
+    Returns ``{"stories", "ingested", "duplicates", "errors", "rejected_gate",
+    "degraded", "status"}``. Fails open: a disabled gate, empty input, or a
+    RAG outage all return counts without raising — but the counts say WHY.
     """
-    counts: dict[str, Any] = {"stories": 0, "ingested": 0, "duplicates": 0, "errors": 0}
+    counts: dict[str, Any] = {
+        "stories": 0,
+        "ingested": 0,
+        "duplicates": 0,
+        "errors": 0,
+        "rejected_gate": 0,
+        "degraded": False,
+        "status": "empty",
+    }
     if not articles:
         return counts
     if not _tg.TG_NEWS_RAG:
         logger.info("tg_news:rag_ingest_disabled articles=%s", len(articles))
+        counts.update(disabled=True, degraded=True, status="disabled")
         return counts
     try:
-        from rugmunchbot._vendor.news_clusterer import (
-            NewsItem as ClusterNewsItem,
-            build_story_rag_docs,
-        )
-        from rugmunchbot._vendor.rag_pkg.ingestion import BatchIngestor
-
-        # Source-quality gate (2026-08-25): bodyless channel posts (spam
-        # channels whose messages are just "URL + Source") must NOT become
-        # RAG stories — they clustered into near-identical docs that the
-        # quality gate then rejected 150+/sweep. Real news has a body.
-        substantive = [a for a in articles if len((a.body or "").strip()) >= 60]
-        skipped_bodyless = len(articles) - len(substantive)
-        if skipped_bodyless:
-            logger.info(
-                "tg_news:rag_skipped_bodyless count=%s", skipped_bodyless
-            )
-        articles = substantive
-        cluster_input = [
-            ClusterNewsItem(
-                id=_news_id_for(article),
-                title=article.title or "",
-                body=article.body or "",
-                source=article.source_channel or "",
-                url=extract_canonical_url(article) or article.source_url,
-                published_at=article.posted_at or datetime.now(UTC),
-                sentiment=0.0,  # the clusterer derives the rating card itself
-            )
-            for article in articles
-        ]
-        story_docs = build_story_rag_docs(cluster_input)
+        story_docs = _build_story_docs(articles)
         counts["stories"] = len(story_docs)
         # 2026-09-01 (operator, FINAL): scraped-text image extraction is
         # RETIRED. Inline image links in source posts are channel chrome
@@ -110,73 +128,25 @@ async def ingest_into_rag(articles: list[NewsArticle]) -> dict[str, Any]:
         # badge placeholder. The image_by_url map stays (empty) so the
         # downstream story-doc shape is unchanged.
         image_by_url: dict[str, str] = {}
-        ingestor = BatchIngestor()
-        # Story ingestion is independent and network-bound (embed + Qdrant
-        # upsert per chunk), so run the per-story ingest concurrently with a
-        # bounded semaphore instead of serializing N stories. Keeps the
-        # per-story fail-open contract; the count dict is updated by the
-        # single task loop after all stories finish.
-        sem = asyncio.Semaphore(_STORY_INGEST_CONCURRENCY)
-
-        async def _ingest_story(doc: dict[str, Any]) -> Any:
-            async with sem:
-                metadata = dict(doc.get("metadata") or {})
-                if not metadata.get("image_url"):
-                    for member_url in metadata.get("source_urls") or []:
-                        if image_by_url.get(member_url):
-                            metadata["image_url"] = image_by_url[member_url]
-                            break
-                doc["metadata"] = metadata
-                report = await ingestor.ingest(
-                    content=doc["content"],
-                    collection=_RAG_NEWS_COLLECTION,
-                    doc_id=doc["doc_id"],
-                    metadata=doc["metadata"],
-                    source_type="news",
-                )
-                return report
-
-        reports = await asyncio.gather(*(_ingest_story(doc) for doc in story_docs), return_exceptions=True)
-        for report in reports:
-            if isinstance(report, BaseException):
-                counts["errors"] += 1
-                logger.debug("tg_news:rag_story_failed err=%s", str(report)[:160])
-                continue
-            if report.accepted:
-                counts["ingested"] += 1
-            elif report.duplicate:
-                counts["duplicates"] += 1
-            else:
-                # Distinguish rejection vs failure: rejected = quality gate
-                # (expected), failed = pipeline error (needs attention).
-                if getattr(report, "rejected", 0):
-                    counts["rejected_gate"] = counts.get("rejected_gate", 0) + 1
-                else:
-                    counts["errors"] += len(report.errors or []) or 1
-                    logger.warning(
-                        "tg_news:rag_story_error status=%s errs=%s",
-                        getattr(report, "status", "?"),
-                        (report.errors or ["?"])[:2],
-                    )
-                # W-visibility: rejected/reason breakdown so mass rejections
-                # are diagnosable from the summary line alone.
-                reasons = getattr(report, "rejections", None) or {}
-                if isinstance(reasons, dict) and reasons:
-                    top = sorted(reasons.items(), key=lambda kv: -kv[1])[:3]
-                    logger.info(
-                        "tg_news:rag_reject_reasons %s",
-                        " ".join(f"{k}={v}" for k, v in top),
-                    )
-        logger.info(
-            "tg_news:rag_ingested articles=%s stories=%s ingested=%s duplicates=%s errors=%s rejected_gate=%s",
-            len(articles),
-            counts["stories"],
-            counts["ingested"],
-            counts["duplicates"],
-            counts["errors"],
-            counts.get("rejected_gate", 0),
-        )
+        counts.update(await ingest_story_docs(story_docs, image_by_url, _RAG_NEWS_COLLECTION))
     except Exception as exc:  # fail-open: a RAG outage never crashes the job
-        logger.warning("tg_news:rag_ingest_failed err=%s", str(exc)[:200])
+        logger.warning("tg_news:rag_ingest_failed err=%s", f"{type(exc).__name__}:{str(exc)[:180]}")
         counts["errors"] = len(articles)
+    counts["status"] = _status(counts)
+    counts["degraded"] = counts["status"] not in ("ok", "empty")
+    logger.info(
+        "tg_news:rag_ingested articles=%s stories=%s ingested=%s duplicates=%s "
+        "errors=%s rejected_gate=%s status=%s degraded=%s",
+        len(articles),
+        counts["stories"],
+        counts["ingested"],
+        counts["duplicates"],
+        counts["errors"],
+        counts.get("rejected_gate", 0),
+        counts["status"],
+        counts["degraded"],
+    )
     return counts
+
+
+__all__ = ["ingest_into_rag"]
