@@ -9,6 +9,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 
 from rugmunchbot import db
+from rugmunchbot.bot.variants import render_variant
 from rugmunchbot.config import fmt_chain
 from rugmunchbot.formatters import footer_links, is_owner, paywall_text, sep, thin_sep
 from rugmunchbot.keyboards import token_buttons
@@ -35,7 +36,13 @@ async def cmd_whales(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     market-wide /whales list. Left on /api/v1/market/whales.
     """
     msg = await update.message.reply_text(
-        "\U0001f40b <b>Deep-scanning whale flow (24h)...</b>", parse_mode=ParseMode.HTML
+        render_variant(
+            "market.loading",
+            getattr(getattr(update, "effective_chat", None), "id", None),
+            getattr(getattr(update, "effective_message", None), "message_id", None),
+            subject="whale flow (24h)",
+        ),
+        parse_mode=ParseMode.HTML,
     )  # type: ignore[union-attr]  # PTB None-able fields
     data = await _fetch_market_intel("/api/v1/market/whales", params={"limit": 10})
     items = (data or {}).get("items") or []

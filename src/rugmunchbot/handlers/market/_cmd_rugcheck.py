@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from telegram import Update
 from telegram.constants import ParseMode
 
+from rugmunchbot.bot.variants import render_variant
 from rugmunchbot.formatters import thin_sep
 from rugmunchbot.keyboards import back_kb
 
@@ -41,7 +42,13 @@ async def cmd_rugcheck(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         f"  \u2705 No blacklist/mint functions\n"
         f"  \u2705 Diverse holder distribution\n"
         f"  \u2705 Organic volume patterns\n\n"
-        f"<b>\U0001f6e1\ufe0f Always run /scan before buying!</b>"
+        f"{
+            render_variant(
+                'rugcheck.footer',
+                getattr(getattr(update, 'effective_chat', None), 'id', None),
+                getattr(getattr(update, 'effective_message', None), 'message_id', None),
+            )
+        }"
         f"{footer_links()}"
     )
     await update.message.reply_text(  # type: ignore[union-attr]  # PTB None-able fields

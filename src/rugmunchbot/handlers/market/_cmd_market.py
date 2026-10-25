@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 
+from rugmunchbot.bot.variants import render_variant
 from rugmunchbot.config import fmt_pct
 from rugmunchbot.formatters import footer_links, sep
 
@@ -30,7 +31,13 @@ def _menu_kb() -> InlineKeyboardMarkup:
 async def cmd_market(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /market — global market overview (mcap, volume, dominance, fear/greed, BTC/ETH)."""
     msg = await update.message.reply_text(
-        "\U0001f4ca <b>Fetching market overview...</b>", parse_mode=ParseMode.HTML
+        render_variant(
+            "market.loading",
+            getattr(getattr(update, "effective_chat", None), "id", None),
+            getattr(getattr(update, "effective_message", None), "message_id", None),
+            subject="market overview",
+        ),
+        parse_mode=ParseMode.HTML,
     )  # type: ignore[union-attr]  # PTB None-able fields
     overview, macro = await asyncio.gather(
         _fetch_market_intel("/api/v1/market/overview"),
