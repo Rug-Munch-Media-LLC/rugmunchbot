@@ -319,11 +319,10 @@ class TestSchedule:
 
 class TestRegistration:
     def test_registered_in_scheduler(self) -> None:
-        import inspect
 
-        from rugmunchbot.channels.scheduler import _register
+        from _registrars import registrar_sources
 
-        src = inspect.getsource(_register.register_channel_jobs)
+        src = registrar_sources()
         assert "channel_midday_update" in src
         assert "post_daily_rug_update" in src
         assert "rug_update_run_time" in src

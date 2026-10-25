@@ -12,7 +12,7 @@ DEFAULTS: dict[str, Any] = {
     "enabled": True,
     "dry_run": True,
     "exempt_user_ids": [],
-    "exempt_admins": True,
+    "exempt_admins": False,  # no implicit admin bypass; opt in per chat
     "links_allow": [
         "rugmunch.io",
         "docs.rugmunch.io",
@@ -127,7 +127,7 @@ class ChatPolicy:
     enabled: bool = True
     dry_run: bool = True
     exempt_user_ids: tuple[int, ...] = ()
-    exempt_admins: bool = True
+    exempt_admins: bool = False
     links_allow: tuple[str, ...] = ()
     link_action: str = "warn"
     scam_domains: tuple[str, ...] = ()

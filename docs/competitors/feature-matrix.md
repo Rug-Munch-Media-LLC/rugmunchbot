@@ -152,3 +152,48 @@ Do not cite them in external content.
   labels, not slash commands. Treat slash-command claims about them as UNVERIFIED.
 - No Telegram bot interaction was performed (no Start, no `getUpdates` probing, no
   synthetic accounts). Anything requiring bot interaction is UNVERIFIED.
+
+## 5. Scan-card parity actions (2026-10-24, rugmunchbot `scan-parity`)
+
+What the six named competitors (Phanes, Trench Radar, GMGN, PreviewBot,
+DevsNightmare, Mugetsu) put in front of a reader, mapped to the rows our
+verdict card already renders or now renders. Every cell is grounded in the
+refs above or in the card's own module.
+
+| Competitor capability | Ref | Our row | Source of truth |
+|---|---|---|---|
+| Risk word + score up front | [1][2][10] | `VERDICT word · score/100 · $SYMBOL` (new: 2026-10) | `formatters/_vcard.py` |
+| Hard-fail enumeration | [2][9] | why line lists honeypot / mint / freeze / sell-tax fails | `_vcard_verdict.py` |
+| Holder count + fresh-wallet share | [6][9] | `Holders 3,241 · fresh 18%` (new) | `_vcard_intel.py` |
+| Bundle verdict | [5][9][12] | `Bundle 🔴 12 wallets · 78% conf` / `none detected` / reason (new) | `_vcard_intel.py` |
+| Sniper / insider / team cohorts | [1][9][12] | `Clusters Team/Insiders/Snipers: bought → current · realised SOL` | `_vcard_clusters.py` |
+| Dev history (rug rate) | [2][6][9] | `Dev rug-rate · (rugs/launches) · funder` | `_vcard_signals.py` |
+| LP / tax / authority row | [2][6][16] | one safety row, `—` when unread | `_vcard_safety.py` |
+| Holder concentration | [6] | `Top-10` row, omitted when unmeasured | `_vcard_signals.py` |
+| Plain-language read | [6][11] | AI analyst paragraph, numeric-grounded (new) | `tools/scanner/_ai_grounding.py` |
+| Launch-cohort economics | [9][12] | parity block: cohort % + realised SOL | `_scan_report_parity.py` |
+| Honest null with a reason | none of them | parity sections render `—` + the engine's reason; card rows do the same (new) | `_scan_report_parity.py`, `_vcard_intel.py` |
+
+Deliberate non-goals (unchanged): in-bot buy/sell execution (GMGN [4], Thor
+[16]) is a trading-terminal feature, not a scan feature; monetisation and
+language coverage are out of scope for this card.
+
+## 6. DevsNightmare and PreviewBot (added 2026-10-24)
+
+Not folded into the 8-bot matrix above (that table is a fixed set); recorded
+separately with the same evidence rule.
+
+| Capability | DevsNightmare [18] | PreviewBot [19] |
+|---|---|---|
+| Product | `@DevsNightmareProbot` token checker/tracker (channel `@soldevnightmarebot`) | UNVERIFIED |
+| Scan fields | token history + alerts; exact field list **UNVERIFIED** | UNVERIFIED |
+| Holder / bundle / sniper presentation | UNVERIFIED; channel posts document alert deltas and a "token tracking count" | UNVERIFIED |
+| Dev history | no documented deployer rug-rate surface | UNVERIFIED |
+| Alerts | ✓ alerts that show what changed since the last report (balance/SOL shifts) | UNVERIFIED |
+| Chains | Solana; posts document PumpSwap, Raydium CPMM/CLMM and Token-2022 coverage | UNVERIFIED |
+| Reliability claim | node-dependent: "no info found" while its node was down; 3-month retention after a disk upgrade | UNVERIFIED |
+
+**Do not cite** DevsNightmare scan fields or any PreviewBot capability in
+external content until a primary source is reached. Our parity work therefore
+uses Phanes/GMGN/PIRBView/Trench/Mugetsu ([1]-[12]) as the design benchmark and
+treats [18]/[19] as watch items only.

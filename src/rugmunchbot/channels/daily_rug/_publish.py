@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from rugmunchbot.channels._report_mirror import FEED_TEXT_MAX
-from rugmunchbot.channels._story_cta import attach_story_cta, slug_from_url
+from rugmunchbot.channels._story_cta import slug_from_url
 from rugmunchbot.channels.daily_rug._config import (
     DAILY_RUG_FEED_ENABLED,
     DAILY_RUG_MAX_CHARS,
@@ -44,7 +44,7 @@ from rugmunchbot.support.post_graphics import graphic_for_type
 logger = logging.getLogger("rmi_bot.channels.daily_rug")
 
 #: feed.rugmunch.io deep-link base for a mirrored post slug.
-FEED_POST_URL_FMT = "https://rugmunch.io/blog/{slug}"
+FEED_POST_URL_FMT = "https://rugmunch.io/story/{slug}"
 
 #: Prompt-echo markers stripped from LLM output before the gate.
 _ECHO_MARKERS = (
@@ -81,6 +81,20 @@ def _strip_echo(raw: str) -> str:
     return raw
 
 
+def _ensure_masthead(report: str) -> str:
+    """Prepend the canonical ruled title when the brief lacks one.
+
+    The prompt asks for a masthead, but an LLM can drop it. Layout only: the
+    edition title is the fixed product name, never generated content.
+    """
+    from rugmunchbot.content_style import HEADING_RULE, esc
+
+    head = (report or "").lstrip().split("\n", 1)[0]
+    if HEADING_RULE in head:
+        return report
+    return f"<b>{HEADING_RULE} {esc(EDITION)} {HEADING_RULE}</b>\n\n{report.lstrip()}"
+
+
 def _has_min_stories(text: str, *, min_links: int = 3) -> bool:
     """True when the brief carries at least ``min_links`` distinct http links."""
     links = set(re.findall(r"https?://[^\s)>\"']+", text))
@@ -113,24 +127,10 @@ class _ImagePost(str):
 
 
 def _split_for_telegram(report: str, max_chars: int = DAILY_RUG_MAX_CHARS) -> list[str]:
-    """Split an HTML post into Telegram-sized parts at line boundaries."""
-    if len(report) <= max_chars:
-        return [report]
-    parts: list[str] = []
-    remaining = report
-    while len(remaining) > max_chars:
-        cut = remaining[:max_chars]
-        newline = cut.rfind("\n")
-        if newline > max_chars * 0.5:
-            cut = cut[:newline]
-        cut = cut.rstrip()
-        if cut.endswith("<"):
-            cut = cut[:-1]
-        parts.append(cut)
-        remaining = remaining[len(cut) :].lstrip()
-    if remaining:
-        parts.append(remaining)
-    return parts
+    """Split an HTML post into Telegram-sized parts (canonical splitter)."""
+    from rugmunchbot.content_style import split_html
+
+    return split_html(report, max_chars)
 
 
 async def _write_brief(context: dict[str, Any]) -> str:
@@ -314,20 +314,13 @@ async def post_daily_rug(ctx: Any) -> int:
     feed_url = await _mirror_to_feed(report, image_url)
 
     # 9. Post to the main channel.
-    from rugmunchbot.support.content_lint import canonical_url
+    # Canonical footer: story CTA (https://rugmunch.io/story/<slug>) + bot CTA.
+    from rugmunchbot.content_style import footer_block
 
-    already_linked = bool(feed_url) and canonical_url(feed_url) in {
-        canonical_url(u) for u in re.findall(r"https?://[^\s)>\"']+", report)
-    }
-    closer = (
-        f"📖 <b>{EDITION}</b> — full brief on rugmunch.io"
-        + (f' — <a href="{feed_url}">read it here</a>.' if feed_url and not already_linked else ".")
-        + "\n🤖 Live token intel, scans &amp; alerts: @rugmunchbot"
-    )
+    closer = footer_block({"story_slug": slug_from_url(feed_url)}, "morning")
+    report = _ensure_masthead(report)
     parts = _split_for_telegram(report)
     parts[-1] = parts[-1].rstrip() + "\n\n" + closer
-    # Story CTA: the mirrored Ghost slug when we have one, else /feed.
-    parts[-1] = attach_story_cta(parts[-1], {"story_slug": slug_from_url(feed_url)}, "morning")
 
     sent = 0
     for idx, part in enumerate(parts, 1):

@@ -7,6 +7,8 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from rugmunchbot.formatters._base._primitives import esc
+
 _MAX_BODY_CHARS = 4090
 
 
@@ -120,8 +122,13 @@ def _graphic_for(post_type: str) -> str:
 
 
 def _esc(value: object) -> str:
-    """HTML-escape text for Telegram parse_mode=HTML (quotes left intact)."""
-    return html.escape(str(value), quote=False)
+    """HTML-escape text for Telegram parse_mode=HTML (canonical helper).
+
+    Delegates to ``formatters._base.esc`` so channel posts and card
+    formatters escape identically — and so ``None`` renders empty instead of
+    the literal ``"None"`` (the old local copy stringified it).
+    """
+    return esc(value)
 
 
 def _is_placeholder(value: object) -> bool:
@@ -366,7 +373,7 @@ SITE_NEWS_URL: str = "https://rugmunch.io/news"
 SITE_FEED_URL: str = "https://rugmunch.io/feed"
 #: Per-post deep-link pattern — the in-app Ghost post route (BlogPostPage
 #: renders the CMS content inside the platform shell).
-SITE_FEED_POST_URL: str = "https://rugmunch.io/blog/{slug}"
+SITE_FEED_POST_URL: str = "https://rugmunch.io/story/{slug}"
 
 
 def site_news_line() -> str:
@@ -377,7 +384,7 @@ def site_news_line() -> str:
 def feed_site_line(slug: str = "") -> str:
     """Exact feed.rugmunch.io link line (deep link when a slug exists)."""
     url = SITE_FEED_POST_URL.format(slug=slug) if slug else SITE_FEED_URL
-    label = "rugmunch.io" + (f"/blog/{slug}" if slug else "/feed")
+    label = "rugmunch.io" + (f"/story/{slug}" if slug else "/feed")
     return f'📖 <a href="{url}">{label}</a> — on the site'
 
 

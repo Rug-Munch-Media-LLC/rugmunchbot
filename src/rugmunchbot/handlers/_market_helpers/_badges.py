@@ -49,6 +49,9 @@ RUGCHARTS_CHAIN_ALIASES = {
 }
 TRENDING_CHAINS = "solana · ethereum · base · bsc · arbitrum · tron"
 
+# Chains the /trending chain keyboard can render (order = button order).
+TRENDING_CHAIN_LIST = ("solana", "ethereum", "bsc", "base", "arbitrum", "all")
+
 # Chain badge emojis
 CHAIN_BADGES = {
     "solana": "🟣",
@@ -82,6 +85,11 @@ def _resolve_chain(arg: str | None) -> str:
         return "all"
     chain = arg.lower().strip()
     return RUGCHARTS_CHAIN_ALIASES.get(chain, chain)
+
+
+def _is_trending_chain(value: str | None) -> bool:
+    """True when ``value`` is a chain the /trending keyboard can render."""
+    return bool(value) and value.lower().strip() in TRENDING_CHAIN_LIST
 
 
 def _chain_badge(chain: str) -> str:

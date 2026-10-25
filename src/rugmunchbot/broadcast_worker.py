@@ -69,10 +69,14 @@ async def _deliver_one(ctx: ContextTypes.DEFAULT_TYPE, bcast: dict[str, object])
     sent = failed = 0
     await update_broadcast(bcast_id, status="sending", total=total)
 
+    from rugmunchbot.content_style import prepare_for_send
+
+    parts = prepare_for_send(message)
     for row in rows:
         uid = str(row["user_id"])
         try:
-            await ctx.bot.send_message(uid, message, parse_mode="HTML")
+            for part in parts:
+                await ctx.bot.send_message(uid, part, parse_mode="HTML")
             sent += 1
         except (TelegramError, KeyError, TypeError) as exc:
             failed += 1

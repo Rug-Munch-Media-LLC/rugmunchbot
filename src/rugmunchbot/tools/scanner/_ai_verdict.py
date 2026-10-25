@@ -14,6 +14,10 @@ import html
 from typing import Any
 
 from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools.scanner._ai_grounding import grounded_text
+from rugmunchbot.tools.scanner._ai_verdict_facts import (
+    verdict_facts as _verdict_facts,
+)
 
 logger = get_logger("rmi_bot.tools.scanner")
 
@@ -49,105 +53,6 @@ _AI_VERDICT_SYSTEM = (
 )
 
 
-def _verdict_facts(result: dict[str, Any]) -> dict[str, Any]:
-    """Project the structured scan result onto the small fact set the LLM
-    verdict is allowed to cite. Every value is optional (None when absent) so
-    the prompt never contains fabricated data. Reads both shapes: the legacy
-    top-level fields (``honeypot``/``mintable``/``buy_tax``…) and the v2
-    ``evidence`` security checks (HP01 honeypot, CR03 mintable, LP, holders).
-    """
-    risk = result.get("risk_score")
-    try:
-        risk_f = round(float(risk), 1) if risk is not None else None
-    except (TypeError, ValueError):
-        risk_f = None
-
-    evidence = result.get("evidence")
-    if not isinstance(evidence, dict):
-        evidence = {}
-    ev_sec = evidence.get("security")
-    if not isinstance(ev_sec, dict):
-        ev_sec = {}
-    ev_checks = ev_sec.get("checks")
-    if not isinstance(ev_checks, dict):
-        ev_checks = {}
-    ev_holders = evidence.get("holders")
-    if not isinstance(ev_holders, dict):
-        ev_holders = {}
-    ev_liq = evidence.get("liquidity")
-    if not isinstance(ev_liq, dict):
-        ev_liq = {}
-
-    checks = result.get("security_checks")
-    if not isinstance(checks, dict):
-        checks = {}
-    for code, detail in ev_checks.items():
-        if isinstance(detail, dict) and code not in checks:
-            checks[str(code)] = detail
-
-    def status(code: str) -> str | None:
-        c = checks.get(code)
-        return c.get("status") if isinstance(c, dict) else None
-
-    flags = [str(f) for f in (result.get("risk_flags") or result.get("threats") or []) if f]
-    total_holders = result.get("holders")
-    if not total_holders:
-        total_holders = ev_holders.get("holder_count")
-    top10 = (result.get("holder_analysis") or {}).get("top_10_pct") or ev_holders.get("top_10_pct")
-    lp_locked = result.get("lp_locked")
-    if lp_locked is None and ev_liq.get("locked_pct") is not None:
-        try:
-            lp_locked = float(ev_liq["locked_pct"]) / 100
-        except (TypeError, ValueError):
-            lp_locked = None
-
-    return {
-        "name": result.get("name"),
-        "symbol": result.get("symbol"),
-        "chain": result.get("chain"),
-        "risk_score": risk_f,
-        "risk_level": result.get("risk_level"),
-        # Explicit is-not-None checks: a meaningful False ("not a
-        # honeypot") must survive — `or` chains erase it to None and the
-        # LLM loses the distinction between "clean" and "unknown".
-        "honeypot": result.get("honeypot")
-        if result.get("honeypot") is not None
-        else (status("HP01") or status("HP04")),
-        "mintable": result.get("mintable")
-        if result.get("mintable") is not None
-        else status("CR03"),
-        "can_blacklist": result.get("can_blacklist"),
-        "owner_renounced": result.get("owner_renounced"),
-        "contract_verified": result.get("contract_verified"),
-        "buy_tax": result.get("buy_tax"),
-        "sell_tax": result.get("sell_tax"),
-        "lp_locked": lp_locked,
-        "total_holders": total_holders,
-        "top_10_holder_pct": top10,
-        "top5_holder_pct": (result.get("holder_analysis") or {}).get("top5_pct"),
-        "holder_sample_size": (result.get("holder_analysis") or {}).get("sample_size"),
-        "holder_data_source": (result.get("holder_analysis") or {}).get("source"),
-        "bundle_cluster_score": ((result.get("bundle_analysis") or {}).get("launch_cluster_score")),
-        "flow_participants": ((result.get("flow_analysis") or {}).get("participants")),
-        "flow_top_mover_share_pct": ((result.get("flow_analysis") or {}).get("top_mover_share_pct")),
-        "flow_concentrated": ((result.get("flow_analysis") or {}).get("concentrated_flow")),
-        "rug_prediction": (result.get("rug_prediction") or {}).get("rug_probability"),
-        "rug_prediction_band": (result.get("rug_prediction") or {}).get("band"),
-        # Deployer track record (repeat-deployer engine)
-        "deployer_tokens_launched": ((result.get("deployer_profile") or {}).get("total_tokens_launched")),
-        "deployer_rugged_pct": ((result.get("deployer_profile") or {}).get("rugged_pct")),
-        "bundle_detected": result.get("bundle_detected"),
-        "fresh_wallet_pct": result.get("fresh_wallet_pct"),
-        "exchange_funded_pct": result.get("exchange_funded_pct"),
-        "flagged_security_checks": {
-            str(k): (v.get("status") if isinstance(v, dict) else None)
-            for k, v in checks.items()
-            if isinstance(v, dict) and v.get("status") in ("fail", "pass")
-        },
-        "threats": flags[:6],
-    }
-
-
 async def _llm_verdict_text(result: dict[str, Any]) -> str:
     """One bounded snappy-tier call. Returns the verdict text or "" (never raises)."""
     import json
@@ -164,8 +69,14 @@ async def _llm_verdict_text(result: dict[str, Any]) -> str:
         {"role": "system", "content": _AI_VERDICT_SYSTEM},
         {"role": "user", "content": prompt},
     ]
-    text = await asyncio.wait_for(chat_with_fallback(messages, "snappy"), timeout=_AI_VERDICT_TIMEOUT)
-    return (text or "").strip()
+    text = await asyncio.wait_for(
+        chat_with_fallback(messages, "snappy"), timeout=_AI_VERDICT_TIMEOUT
+    )
+    raw = (text or "").strip()
+    grounded = grounded_text(raw, facts)
+    if grounded != raw:
+        logger.debug("ai_verdict_ungrounded_sentences_dropped")
+    return grounded
 
 
 async def render_ai_verdict(result: dict[str, Any]) -> str:

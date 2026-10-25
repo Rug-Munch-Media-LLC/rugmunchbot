@@ -127,9 +127,9 @@ def test_build_trending_kb_buttons_and_selectors() -> None:
     assert "trending_win_base_7d" in callbacks
     assert "trending_refresh_base" in callbacks
     assert "menu_main" in callbacks
-    # Chain selector row: [SOL] [ETH] [BSC] [BASE] [ALL], current bracketed.
+    # Chain selector row: [SOL] [ETH] [BSC] [BASE] [ARB] [ALL], current bracketed.
     chain_row = rows[-3]
-    assert [b.text for b in chain_row] == ["SOL", "ETH", "BSC", "[BASE]", "ALL"]
+    assert [b.text for b in chain_row] == ["SOL", "ETH", "BSC", "[BASE]", "ARB", "ALL"]
     # Current chain/window render bracketed among the selectors.
     win_btn = next(b for b in flat if b.callback_data == "trending_win_base_7d")
     assert win_btn.text.startswith("[")
@@ -141,4 +141,4 @@ def test_build_trending_kb_deep_link_uses_token_chain_in_all_view() -> None:
     btn = kb.inline_keyboard[0][0]
     assert btn.url == "https://rugmunch.io/charts?chain=bsc&address=0xCCCC"
     chain_row = kb.inline_keyboard[-3]
-    assert [b.text for b in chain_row] == ["SOL", "ETH", "BSC", "BASE", "[ALL]"]
+    assert [b.text for b in chain_row] == ["SOL", "ETH", "BSC", "BASE", "ARB", "[ALL]"]

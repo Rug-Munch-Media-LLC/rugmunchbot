@@ -96,7 +96,8 @@ def test_referral_line_carries_disclosure_and_tier_label() -> None:
     assert DISCLOSURE in line
     assert "Trade on Jupiter" in line
     assert "Ultra" not in line
-    assert "ref=rugmunch" in line
+    assert "jup.ag/swap/SOL-" in line
+    assert "?ref=" not in line  # Jupiter attribution is on-chain, not a query code
     ultra = referral_line(token=ADDR, purpose="deepscan")
     assert "Ultra" in ultra
     assert referral_line(chain="arbitrum") == ""
@@ -113,12 +114,15 @@ def test_swap_params_expose_public_account_only() -> None:
 def test_footer_gets_referral_and_disclosure() -> None:
     generic = footer_links(purpose="trending")
     assert DISCLOSURE in generic
-    assert "ref=rugmunch" in generic
+    assert "jup.ag/swap/SOL-USDC" in generic
     token_footer = footer_links(ADDR, "solana", purpose="scan")
     assert DISCLOSURE in token_footer
     assert ADDR in token_footer
+    # EVM: Jupiter is Solana-only, but GMGN is a real configured referral —
+    # so a disclosure is still required, exactly once.
     evm = footer_links("0xabc", "ethereum", purpose="scan")
-    assert DISCLOSURE not in evm
+    assert evm.count(DISCLOSURE) == 1
+    assert "jup.ag" not in evm
 
 
 def test_scan_shill_footer_is_tier_aware() -> None:

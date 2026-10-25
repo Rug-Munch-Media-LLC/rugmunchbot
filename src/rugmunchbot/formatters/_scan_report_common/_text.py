@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import re
 
+from rugmunchbot.formatters._base._primitives import (
+    clip as _clip_canonical,
+    short_addr as _short_addr,
+)
+
 
 def _clip(text: object, limit: int) -> str:
-    """Truncate ``text`` to ``limit`` chars, adding a leading-ellipsis mark
-    (``…``) ONLY when content was actually cut. Avoids the mid-tag / mid-word
-    garbage that a bare ``[:n]`` can leave in a Telegram-HTML payload."""
-    s = str(text or "").strip()
-    if len(s) <= limit:
-        return s
-    return s[: limit - 1].rstrip() + "\u2026"
+    """Truncate ``text`` to ``limit`` chars with a trailing ellipsis (canonical).
+
+    Delegates to :func:`formatters._base._primitives.clip` so every section
+    truncates identically — the local copies drifted (one appended the marker
+    even when nothing was cut, another sliced mid-tag when the cut landed
+    inside an HTML tag).
+    """
+    return _clip_canonical(text, limit)
 
 
 def _collapse_blank_lines(text: str) -> str:
@@ -25,9 +31,4 @@ def _collapse_blank_lines(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text)
 
 
-def _short_addr(addr: str) -> str:
-    """Compact ``0xAb12...34cd`` form for long wallet addresses."""
-    addr = str(addr)
-    if len(addr) <= 12:
-        return addr
-    return f"{addr[:6]}...{addr[-4:]}"
+__all__ = ["_clip", "_collapse_blank_lines", "_short_addr"]

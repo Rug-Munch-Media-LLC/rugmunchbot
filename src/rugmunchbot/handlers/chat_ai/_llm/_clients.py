@@ -39,6 +39,7 @@ from rugmunchbot.handlers.chat_ai._llm._sources import (
     _untrusted_block,
 )
 from rugmunchbot.model_usage import record as _record_model_usage
+from rugmunchbot.persona import system_prompt
 from rugmunchbot.prompts import FALLBACK_SYSTEM_PROMPT
 from rugmunchbot.support.logging import get_logger
 
@@ -453,10 +454,9 @@ async def _call_remote_llm(
     # the long tier keeps the full forensic persona and rich windows.
     tier = _route_tier(message)
     is_snappy = tier == "snappy"
-    # ONE shared condensed prompt for the long/deep fallback path — see
-    # prompts.FALLBACK_SYSTEM_PROMPT. The snappy tier uses the lean
-    # _SNAPPY_SYSTEM_PROMPT instead (fewer prompt-eval tokens = snappier).
-    system_content = _SNAPPY_SYSTEM_PROMPT if is_snappy else FALLBACK_SYSTEM_PROMPT
+    # Tier persona + the canonical guardrail card (rugmunchbot.persona).
+    base_prompt = _SNAPPY_SYSTEM_PROMPT if is_snappy else FALLBACK_SYSTEM_PROMPT
+    system_content = system_prompt(base_prompt, snappy=is_snappy)
     if _owner_mode(user_id):
         system_content += _OWNER_MODE_BLOCK
     # Real-time market/news digest → SYSTEM prompt (passed in by the fallback

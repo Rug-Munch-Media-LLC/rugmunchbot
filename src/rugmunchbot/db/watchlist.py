@@ -1,13 +1,32 @@
 #!/usr/bin/env python3
-"""Watchlist CRUD for the rugmunchbot DB layer."""
+"""Watchlist CRUD for the rugmunchbot DB layer.
+
+The per-tier item cap is enforced inside a ``BEGIN IMMEDIATE`` transaction, so
+concurrent adds cannot race the slot count and overshoot the cap.
+"""
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 import time
 from typing import Any
 
 from ._base import get_db
 from .tiers import get_user_tier
+
+logger = logging.getLogger("rugmunchbot.db.watchlist")
+
+#: Max active watchlist items per tier; -1 means unlimited, 0 means none.
+WATCHLIST_CAPS = {"free": 0, "scout": 10, "hunter": 50, "pro": -1}
+
+
+def _active_watch_count(conn: sqlite3.Connection, user_id: int) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) AS c FROM watchlists WHERE user_id = ? AND is_active = 1",
+        (user_id,),
+    ).fetchone()
+    return int(row["c"])
 
 
 def add_watchlist(
@@ -18,24 +37,30 @@ def add_watchlist(
     alert_price: float | None = None,
     alert_dir: str | None = None,
 ) -> bool:
-    tier = get_user_tier(user_id)
-    max_items = {"free": 0, "scout": 10, "hunter": 50, "pro": -1}.get(tier, 0)
+    """Add a watchlist item. False when the tier has no room (or no access)."""
+    max_items = WATCHLIST_CAPS.get(get_user_tier(user_id), 0)
     if max_items == 0:
         return False
     conn = get_db()
-    count = conn.execute(
-        "SELECT COUNT(*) as c FROM watchlists WHERE user_id = ? AND is_active = 1", (user_id,)
-    ).fetchone()["c"]
-    if max_items != -1 and count >= max_items:
-        conn.close()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if max_items > 0 and _active_watch_count(conn, user_id) >= max_items:
+            conn.rollback()
+            return False
+        conn.execute(
+            "INSERT INTO watchlists "
+            "(user_id, token_address, chain, symbol, alert_price, alert_direction, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user_id, token_address, chain, symbol, alert_price, alert_dir, int(time.time())),
+        )
+        conn.commit()
+        return True
+    except sqlite3.Error:
+        conn.rollback()
+        logger.warning("watchlist_add_failed user_id=%s", user_id, exc_info=True)
         return False
-    conn.execute(
-        "INSERT INTO watchlists (user_id, token_address, chain, symbol, alert_price, alert_direction, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (user_id, token_address, chain, symbol, alert_price, alert_dir, int(time.time())),
-    )
-    conn.commit()
-    conn.close()
-    return True
+    finally:
+        conn.close()
 
 
 def get_watchlist(user_id: int) -> list[dict[str, Any]]:

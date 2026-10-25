@@ -1,30 +1,34 @@
-"""Canonical source links — footer, referral codes, DEX/explorer URLs."""
+"""Canonical source links — scan footer, referral disclosure, shill block.
+
+URL shapes and chain slugs live in ``_urls.py`` and are re-exported here so
+existing ``formatters._base._links`` imports keep working unchanged.
+"""
 
 from __future__ import annotations
 
 import html
-import os
 
 from telegram import InlineKeyboardButton
 
 from rugmunchbot.config import (
-    CHAIN_IDS,
     DEX_REF_LINKS,
     TELEGRAM_CHANNEL,
     WEB_APP_URL,
 )
 from rugmunchbot.formatters._base._primitives import sep
-from rugmunchbot.referrals import disclosure_text, jupiter_referral, referral_line
-
-REF_CODES = {
-    # GMGN already ships with `ref=rugmunch` in config.DEX_REF_LINKS — keep
-    # that attribution here so the footer GMGN link matches the keyboard.
-    # Change to "" (or set RMI_REF_GMGN) to drop the param.
-    "gmgn": "rugmunch",
-    # fill in your ref code
-    "dextools": "",
-}
-
+from rugmunchbot.formatters._base._urls import (
+    DEXSCREENER_CHAINS as DEXSCREENER_CHAINS,
+    DEXTOOLS_CHAINS as DEXTOOLS_CHAINS,
+    GMGN_CHAINS as GMGN_CHAINS,
+    REF_CODES as REF_CODES,
+    _ref_code as _ref_code,
+    dexscreener_url as dexscreener_url,
+    dextools_url as dextools_url,
+    explorer_url as explorer_url,
+    gmgn_url as gmgn_url,
+)
+from rugmunchbot.partners import select_partners
+from rugmunchbot.referrals import DISCLOSURE, referral_line
 
 DEX_BUTTON_PRIORITY = (
     "gmgn",
@@ -44,37 +48,38 @@ DEX_BUTTONS_PER_ROW = 2
 UNKNOWN_CHAIN_MINIMAL = ("odinbot", "banana")
 
 
-def _ref_code(platform: str) -> str:
-    """Resolve the owner's referral code for a platform.
+_NAME_OVERRIDES = {"gmgn": "GMGN.ai"}
 
-    Env overrides (``RMI_REF_GMGN`` / ``RMI_REF_DEXTOOLS``) take precedence
-    over ``REF_CODES``; an empty result omits the ``?ref=`` param.
-    """
-    env_name = f"RMI_REF_{platform.upper()}"
-    return os.environ.get(env_name, REF_CODES.get(platform, ""))
+
+def _name(platform: str) -> str:
+    """Display label for a partner key (config name, with GMGN's dot form)."""
+    if platform in _NAME_OVERRIDES:
+        return _NAME_OVERRIDES[platform]
+    dex = DEX_REF_LINKS.get(platform)
+    return str(dex["name"]) if dex else platform.title()
 
 
 def footer_links(address: str = "", chain: str = "", *, purpose: str = "scan") -> str:
-    """Bot footer with links and a tier-aware referral disclosure.
+    """Bot footer with links and ONE referral disclosure.
 
-    With a token, renders the referral trade-link set (GMGN · Jupiter · Photon ·
-    Birdeye · 1inch · PancakeSwap · DexScreener · DexTools) plus RugCharts
-    → RugMaps on one line; without one, a generic Jupiter referral line.
-    ``purpose`` picks the tier (standard vs ultra). HTML-safe (``<a>`` only)."""
+    With a token: at most THREE referral links from the partner selector
+    (Jupiter + GMGN first, chain-filtered, never invented) plus the
+    non-referral chart utilities (DexScreener, DexTools, RugCharts, RugMaps)
+    on one line. Without one: a tier-aware Jupiter line. ``purpose`` picks
+    the tier (standard vs ultra). HTML-safe (``<a>`` only)."""
     chain_l = (chain or "solana").lower()
     bot = f'\U0001f50d Rug Munch Bot | <a href="{TELEGRAM_CHANNEL}">/help</a> | @RugMunchBot'
     if not address:
         ref = referral_line(chain=chain_l, purpose=purpose)
         return f"\n{sep()}\n{ref}\n{bot}" if ref else f"\n{sep()}\n{bot}"
-    ref_parts: list[str] = []
-    for key in DEX_BUTTON_PRIORITY:
-        dex = DEX_REF_LINKS.get(key)
-        if not dex or chain_l not in dex.get("chains", []) or "{token}" not in dex["url"]:
-            continue  # signup/home bots have no per-token URL — skip in text footer
-        url = dex["url"].format(
-            token=address, chain=chain_l, chain_id=CHAIN_IDS.get(chain_l, 1)
-        )
-        ref_parts.append(f'<a href="{html.escape(url, quote=True)}">{html.escape(dex["name"])}</a>')
+    # Ref attribution comes from ONE place: the partner selector caps the
+    # strip at 3 links with Jupiter + GMGN leading the smart-money lane, so a
+    # scan footer can never drift into an 8-link referral wall again.
+    refs = [ref for ref in select_partners("smart_money", chain=chain_l, token=address) if ref.url]
+    ref_parts = [
+        f'<a href="{html.escape(str(ref.url), quote=True)}">{html.escape(_name(ref.platform))}</a>'
+        for ref in refs
+    ]
     ref_parts += [
         f'<a href="{html.escape(dexscreener_url(address, chain_l), quote=True)}">DexScreener</a>',
         f'<a href="{html.escape(dextools_url(address, chain_l), quote=True)}">DexTools</a>',
@@ -84,11 +89,10 @@ def footer_links(address: str = "", chain: str = "", *, purpose: str = "scan") -
         f' | \U0001f5fa\ufe0f <a href="https://rugmunch.io/rugmaps?token={address}&chain={chain_l}">RugMaps</a>'
     )
     lines = [f"{' | '.join(ref_parts)} | {charts}"]
-    note = disclosure_text(jupiter_referral(token=address, chain=chain_l, purpose=purpose))
-    if note:
-        lines.append(note)
+    # ONE disclosure line per post, and only when a referral link is present.
+    if refs:
+        lines.append(DISCLOSURE)
     return f"\n{sep()}\n" + "\n".join(lines) + f"\n{bot}"
-
 
 
 def web_scan_button(address: str, chain: str = "") -> InlineKeyboardButton:
@@ -126,99 +130,3 @@ def scan_shill_footer(purpose: str = "scan", chain: str = "") -> str:
     if ref:
         lines.append(ref)
     return "\n".join(lines)
-
-
-DEXSCREENER_CHAINS = {
-    "solana": "solana",
-    "ethereum": "ethereum",
-    "base": "base",
-    "bsc": "bsc",
-    "arbitrum": "arbitrum",
-    "tron": "tron",
-    "polygon": "polygon",
-    "avalanche": "avax",
-    "optimism": "optimism",
-}
-
-
-def dexscreener_url(address: str, chain: str) -> str:
-    """DexScreener token page URL — tap-to-open chart for any token."""
-    slug = DEXSCREENER_CHAINS.get((chain or "").lower(), (chain or "solana").lower())
-    return f"https://dexscreener.com/{slug}/{address}"
-
-
-GMGN_CHAINS = {
-    "solana": "sol",
-    "ethereum": "eth",
-    "base": "base",
-    "bsc": "bsc",
-    "polygon": "polygon",
-    "arbitrum": "arbitrum",
-    "optimism": "optimism",
-    "avalanche": "avax",
-    "fantom": "fantom",
-    "tron": "tron",
-    "robinhood": "robinhood",
-}
-
-
-def gmgn_url(address: str, chain: str) -> str:
-    """GMGN token page URL — smart-money tracking + trading terminal.
-
-    Appends the owner's ``?ref=`` param when a GMGN ref code is configured
-    (``REF_CODES["gmgn"]`` or ``RMI_REF_GMGN``); omits it when empty.
-    """
-    slug = GMGN_CHAINS.get((chain or "").lower(), (chain or "solana").lower())
-    url = f"https://gmgn.ai/{slug}/token/{address}"
-    ref = _ref_code("gmgn")
-    if ref:
-        url += f"?ref={ref}"
-    return url
-
-
-DEXTOOLS_CHAINS = {
-    "solana": "sol",
-    "ethereum": "ether",
-    "base": "base",
-    "bsc": "bnb",
-    "arbitrum": "arbitrum",
-    "polygon": "polygon",
-    "avalanche": "avalanche",
-    "optimism": "optimism",
-    "tron": "tron",
-}
-
-
-def dextools_url(address: str, chain: str) -> str:
-    """DexTools pair page URL — chart explorer for any token.
-
-    Appends the owner's ``?ref=`` param when a DexTools ref code is
-    configured (``REF_CODES["dextools"]`` or ``RMI_REF_DEXTOOLS``); omits
-    it when empty.
-    """
-    slug = DEXTOOLS_CHAINS.get((chain or "").lower(), (chain or "solana").lower())
-    url = f"https://www.dextools.io/app/en/{slug}/pair-explorer/{address}"
-    ref = _ref_code("dextools")
-    if ref:
-        url += f"?ref={ref}"
-    return url
-
-
-def explorer_url(address: str, chain: str) -> str:
-    """Block explorer URL for a token/wallet on the given chain."""
-    chain_l = (chain or "").lower()
-    if chain_l == "solana":
-        return f"https://solscan.io/account/{address}"
-    domains = {
-        "ethereum": "etherscan.io",
-        "bsc": "bscscan.com",
-        "polygon": "polygonscan.com",
-        "arbitrum": "arbiscan.io",
-        "optimism": "optimistic.etherscan.io",
-        "base": "basescan.org",
-        "avalanche": "snowtrace.io",
-        "fantom": "ftmscan.com",
-        "tron": "tronscan.org",
-    }
-    domain = domains.get(chain_l, "etherscan.io")
-    return f"https://{domain}/address/{address}"

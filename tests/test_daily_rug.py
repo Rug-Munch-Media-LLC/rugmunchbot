@@ -252,11 +252,10 @@ class TestPost:
 
 class TestRegistration:
     def test_registered_in_scheduler(self) -> None:
-        import inspect
 
-        from rugmunchbot.channels.scheduler import _register
+        from _registrars import registrar_sources
 
-        src = inspect.getsource(_register.register_channel_jobs)
+        src = registrar_sources()
         assert "channel_daily_rug" in src
         assert "post_daily_rug" in src
         assert "daily_rug_run_time" in src
@@ -278,7 +277,7 @@ class TestGhostPayloadLongform:
             "<b>━━━ THE DAILY RUG ━━━</b>\n\n"
             "## THE DAY'S BEST STORIES\n\n"
             "<b>ETF options cleared</b>\n"
-            "• <a href=\"https://e.com/a\">Story one</a>\n"
+            '• <a href="https://e.com/a">Story one</a>\n'
         )
         captured: dict[str, Any] = {}
 
@@ -286,18 +285,22 @@ class TestGhostPayloadLongform:
             captured.update(kwargs)
             return {"url": "https://blog.rugmunch.io/p/x"}
 
-        with patch(
-            "rugmunchbot.channels.scheduler._posts_rag.mirror_post_to_feed",
-            return_value="post-1",
-        ), patch(
-            "rugmunchbot._vendor.content_platform.create_post",
-            new=_create_post,
+        with (
+            patch(
+                "rugmunchbot.channels.scheduler._posts_rag.mirror_post_to_feed",
+                return_value="post-1",
+            ),
+            patch(
+                "rugmunchbot._vendor.content_platform.create_post",
+                new=_create_post,
+            ),
         ):
             url = await _publish._mirror_to_feed(report, "https://rugmunch.io/brand/x.png")
 
-        assert url.endswith("/blog/post-1")
+        assert url.endswith("/story/post-1")  # canonical story route (2026-10-24)
         content = captured["content"]
-        assert "<b>" not in content and "<a href" not in content
+        assert "<b>" not in content
+        assert "<a href" not in content
         assert "━━━" not in content
         assert content.startswith("# THE DAILY RUG")
         assert "## THE DAY'S BEST STORIES" in content

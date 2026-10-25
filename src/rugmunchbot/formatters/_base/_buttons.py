@@ -14,6 +14,7 @@ from rugmunchbot.formatters._base._links import (
     UNKNOWN_CHAIN_MINIMAL,
     dexscreener_url,
     dextools_url,
+    gmgn_url,
 )
 
 
@@ -43,11 +44,15 @@ def _ref_platform_buttons(
                 continue
         elif chain_l not in dex.get("chains", []):
             continue
-        url = dex["url"].format(
-            token=token,
-            chain=chain_l,
-            chain_id=CHAIN_IDS.get(chain_l, 1),
-        )
+        if key == "gmgn":
+            # GMGN credits the slug (`rugmunch_<contract>`), not ?ref=.
+            url = gmgn_url(token, chain_l)
+        else:
+            url = dex["url"].format(
+                token=token,
+                chain=chain_l,
+                chain_id=CHAIN_IDS.get(chain_l, 1),
+            )
         buttons.append(InlineKeyboardButton(f"{dex['emoji']} {dex['name']}", url=url))
     return buttons
 

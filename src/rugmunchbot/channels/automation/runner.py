@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from rugmunchbot.channels import scheduler_state
 from rugmunchbot.partners import AUTOMATION_LANES
 from rugmunchbot.smart_money import fetch_hl, fetch_moves, fetch_predictions, publish
+from rugmunchbot.smart_money.poster import PublishOptions
 
 from .gate import LaneGate
 from .lane_call import fetch_calls
@@ -78,12 +79,14 @@ async def run_lane(
             sent = await publish(
                 plan.post,
                 key=plan.event_key,
-                bot=bot,
-                role=role or plan.channel_role,
-                gate=gate or GATE,
-                lane=AUTOMATION_LANES.get(lane, ""),
-                chain=plan.chain,
-                token=plan.token,
+                opts=PublishOptions(
+                    bot=bot,
+                    role=role or plan.channel_role,
+                    gate=gate or GATE,
+                    lane=AUTOMATION_LANES.get(lane, ""),
+                    chain=plan.chain,
+                    token=plan.token,
+                ),
             )
             statuses.append(str(sent.get("status") or "unknown"))
             if sent.get("status") == "sent":

@@ -16,6 +16,7 @@ from ._catalog import (
     referral_for,
     referral_snapshot,
 )
+from ._gmgn import DEFAULT_GMGN_CODE, GMGN_CHAIN_SLUGS, gmgn_slug, gmgn_url
 from ._lanes import (
     ALPHA,
     AUTOMATION_LANES,
@@ -44,8 +45,10 @@ __all__ = [
     "ALPHA",
     "AUTOMATION_LANES",
     "CONTENT_TYPE_LANES",
+    "DEFAULT_GMGN_CODE",
     "DEFAULT_MAX_LINKS",
     "DEX_PARTNERS",
+    "GMGN_CHAIN_SLUGS",
     "LANE_PARTNERS",
     "MANUAL_PARTNERS",
     "NEWS",
@@ -57,6 +60,8 @@ __all__ = [
     "WHALES",
     "display_name",
     "footer_enabled",
+    "gmgn_slug",
+    "gmgn_url",
     "lane_for_content_type",
     "max_links",
     "normalize_lane",

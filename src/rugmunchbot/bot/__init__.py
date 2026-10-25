@@ -9,7 +9,8 @@ unchanged. Launch paths keep working:
   * ``from rugmunchbot.bot import main`` -> unchanged
 
 Layout:
-  * ``_commands.py`` — /help sections + BotFather command sync
+  * ``_commands.py`` — BotFather command sync + surface registration
+  * ``command_menu.py`` — the advertised menu sections (data, no bot import)
   * ``_jobs.py``     — core APScheduler jobs (metrics heartbeat, channels)
   * ``_gates.py``    — maintenance gate + ban gate
   * ``_profile.py``  — bot profile setup + daily scam-school tip
@@ -21,7 +22,6 @@ from __future__ import annotations
 
 from rugmunchbot.bot._commands import (
     _BOT_COMMANDS as _BOT_COMMANDS,
-    _COMMAND_SECTIONS as _COMMAND_SECTIONS,
     _reg as _reg,
 )
 from rugmunchbot.bot._entry import main as main
@@ -44,6 +44,7 @@ from rugmunchbot.bot._shutdown import (
     close_headless_on_shutdown as close_headless_on_shutdown,
     install_sigterm_shutdown as install_sigterm_shutdown,
 )
+from rugmunchbot.command_menu import ADVERTISED_SECTIONS as ADVERTISED_SECTIONS
 from rugmunchbot.config import (
     ALERT_CHECK_INTERVAL as ALERT_CHECK_INTERVAL,
 )

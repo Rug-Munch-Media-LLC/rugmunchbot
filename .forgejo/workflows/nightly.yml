@@ -1,0 +1,511 @@
+# Scheduled gates moved out of the per-push path 2026-10-25.
+# Identical job bodies; the schedule owns them so a push is not charged
+# their job-slots against the ~1.3 job-slot/run budget.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ── Commit convention ─────────────────────────────────────────
+  commitlint:
+    runs-on: docker-x64
+    container:
+      # Full node image: includes git. The slim image has no git, so
+      # checkout@v4 falls back to a REST download (no .git) and every
+      # git-based step fails.
+      image: node:22-bookworm
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Install commitlint
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          rm -rf /var/lib/apt/lists/*
+          # Retry: npm registry access can blip on the runner.
+          for i in 1 2 3; do
+            npm install -g @commitlint/cli @commitlint/config-conventional && break || { [ "$i" -eq 3 ] && exit 1; echo "npm attempt $i failed — retrying"; sleep 15; }
+          done
+      - name: Validate commits in PR
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git log --format="%H %s" origin/main..HEAD | while read hash msg; do
+              echo "$hash $msg" | commitlint --from="$hash^" --to="$hash" || exit 1
+            done
+          else
+            npx commitlint --from=HEAD~1 --to=HEAD
+          fi
+
+  # ── Dockerfile lint (hadolint) ────────────────────────────────
+  docker-lint:
+    runs-on: docker-x64
+    container:
+      # node image: checkout@v4 is a node20 action (hadolint image had no node).
+      image: node:22-bookworm-slim
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Hadolint Dockerfile
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+          curl -sSfL https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint && chmod +x /usr/local/bin/hadolint
+          hadolint --failure-threshold error Dockerfile
+
+  # ── Container scan (trivy) ────────────────────────────────────
+  container-scan:
+    runs-on: docker-x64
+    container:
+      # node image: checkout@v4 is a node20 action (trivy image had no node).
+      image: node:22-bookworm-slim
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Trivy scan Dockerfile
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy fs --severity CRITICAL,HIGH --exit-code 1 .
+
+  # ── Lint (ruff) ───────────────────────────────────────────────
+  # Vendor drift guard: vendored modules must match rmi-backend canon.
+  # Fails when a facade regrows or imports go stale (see scripts/refresh-vendors.sh).
+  vendor-drift-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Verify vendor invariants
+        run: bash scripts/refresh-vendors.sh --check
+
+  # ── Content quality lint (style-guide enforcement) ────────────
+  # Pulls the live feed store (posts.json — every main-channel post mirrors
+  # there) and runs the deterministic banned-phrase / double-link /
+  # bland-commentary lint over it. Catches regressions where generated
+  # content drifts from the style guide (or someone weakens it).
+  # Feed-store unavailability is NOT a CI failure (fail-open on fetch,
+  # fail-closed on violations).
+  content-lint:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Fetch feed store sample
+        run: |
+          if curl -fsSL --max-time 30 https://feed.rugmunch.io/data/posts.json -o /tmp/posts.json; then
+            echo "fetched $(python3 -c "import json;print(len(json.load(open('/tmp/posts.json'))))" 2>/dev/null || echo '?') posts"
+          else
+            echo "::warning::feed store unavailable — skipping content lint this run"
+            rm -f /tmp/posts.json
+          fi
+      - name: Run content lint on recent posts
+        run: |
+          if [ ! -s /tmp/posts.json ]; then
+            echo "no feed store sample — nothing to lint (fail-open on fetch)"
+            exit 0
+          fi
+          python -m rugmunchbot.tools.content_lint --posts /tmp/posts.json
+
+  # ── Type check (mypy) ─────────────────────────────────────────
+  typecheck:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+      # Fleet scanner checkout (OSS sibling repo; not on PyPI). Whitelisted
+      # in the runner config valid_volumes.
+      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install system deps
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl
+          rm -rf /var/lib/apt/lists/*
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Setup Python
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Install dev dependencies
+        run: uv pip install --python .venv/bin/python mypy
+      - name: MyPy type check (ratchet — no NEW errors)
+        # Backlog: 432 errors at first real run (2026-09-11; the gate was
+        # previously dead). This blocks REGRESSIONS only. Burn the baseline
+        # down and lower MYPY_BASELINE as errors are fixed.
+        run: |
+          source .venv/bin/activate
+          COUNT=$(mypy src/rugmunchbot/ --ignore-missing-imports 2>&1 | grep -cE "error:" || true)
+          echo "mypy errors: $COUNT (baseline: 432)"
+          if [ "$COUNT" -gt 432 ]; then
+            echo "❌ New type errors introduced (baseline 432)"
+            exit 1
+          fi
+          echo "✅ No new type errors"
+
+  # ── Architecture contracts + package-import smoke (fast lane) ──
+  # Runs in parallel with the test suite so layering violations fail in
+  # seconds instead of waiting for the full pytest+coverage run.
+  architecture:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+      # Fleet scanner checkout (OSS sibling repo; not on PyPI). Whitelisted
+      # in the runner config valid_volumes.
+      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install system deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+          rm -rf /var/lib/apt/lists/*
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Setup Python
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Cache uv wheels
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+      - name: Install dependencies
+        run: |
+          uv pip install --python .venv/bin/python import-linter httpx python-telegram-bot python-dotenv
+          # Fleet scanner (OSS sibling; not on PyPI) from the mounted checkout.
+          uv pip install --python .venv/bin/python /opt/rugmunch-scanner
+          if [ -f "requirements.txt" ]; then
+            uv pip install --python .venv/bin/python -r requirements.txt
+          fi
+          uv pip install --python .venv/bin/python -e .
+      - name: Verify package imports
+        # Post-modularization smoke test: the package tree imports cleanly
+        # and the lazy config machinery resolves fail-open (no secrets in CI).
+        run: |
+          source .venv/bin/activate
+          python3 -c "
+          import rugmunchbot.config as cfg
+          token = cfg.BOT_TOKEN  # lazy resolution; fail-open '' without secrets
+          assert isinstance(token, str), 'lazy config must resolve to str'
+          import rugmunchbot.keyboards
+          import rugmunchbot.channels.scheduler
+          import rugmunchbot.formatters
+          print('package imports OK')
+          "
+      - name: Policy checks (BLOCKING)
+        run: bash scripts/check-policy.sh
+      - name: Structure gate — ≤200 lines/file, shrink-only (BLOCKING)
+        run: python3 scripts/check-structure.py --repo .
+      - name: Monkeypatch gate — shrink-only (BLOCKING)
+        run: python3 scripts/check-monkeypatch.py --repo .
+      - name: Antipattern gate — shrink-only (BLOCKING)
+        run: python3 scripts/check-antipatterns.py --repo .
+      - name: Gate self-test — prove gates catch violations (BLOCKING)
+        run: bash scripts/ci-gate-selftest.sh
+      - name: Architecture contracts (lint-imports — BLOCKING)
+        # Locks in the god-file modularization layering: config/formatters/
+        # keyboards stay foundation packages; presentation never reaches into
+        # orchestration. Contracts live in pyproject.toml [tool.importlinter].
+        run: |
+          source .venv/bin/activate
+          lint-imports
+
+  # ── SAST (bandit + semgrep) ────────────────────────────────────
+  sast:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install scanners
+        run: pip install bandit semgrep
+      - name: Bandit security scan (BLOCKING on high)
+        run: bandit -r src/rugmunchbot/ --severity-level high --skip B101 -q --format json --output bandit-report.json || true
+      - name: Bandit summary
+        run: |
+          cat bandit-report.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Bandit: {len(d.get(\"results\",[]))} issues found')" || true
+      - name: Semgrep SAST scan (BLOCKING on ERROR)
+        run: |
+          semgrep --config=auto \
+            --error \
+            --severity=ERROR \
+            --exclude='tests/' \
+            --exclude='.venv/' \
+            --exclude='src/rugmunchbot/_vendor/' \
+            --sarif --output=semgrep.sarif \
+            src/rugmunchbot/
+      - uses: actions/upload-artifact@v5.0.0
+        with:
+          name: sast-reports
+          path: |
+            bandit-report.json
+            semgrep.sarif
+
+  # ── Docstring coverage ───────────────────────────────────────────────
+  docstring-coverage:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # setup-python cannot download builds on this runner; the job image
+      # already ships Python 3.12 (matching env.PYTHON_VERSION).
+      - name: Install interrogate
+        run: pip install interrogate
+      - name: Docstring coverage (BLOCKING at 60%)
+        run: interrogate src/rugmunchbot/ --fail-under=60
+
+# Append these jobs under `jobs:` in any repo's ci.yml. Self-contained.
+  supply-chain:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.11-nodejs22
+      options: --volume /srv/work/repos/standards:/workspace/RugMunchMedia/standards:ro
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Install scanners
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends curl git ca-certificates && rm -rf /var/lib/apt/lists/*
+          curl -sSfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 -o /usr/local/bin/osv-scanner && chmod +x /usr/local/bin/osv-scanner
+          curl -sSfL https://github.com/trufflesecurity/trufflehog/releases/download/v3.97.0/trufflehog_3.97.0_linux_amd64.tar.gz | tar xz -C /usr/local/bin trufflehog
+      - name: OSV dependency scan (hallucinated/vulnerable deps)
+        run: osv-scanner scan source --format table ./ || echo "::warning::OSV findings — triaged baseline, see log"
+      - name: Trufflehog verified-live secrets (all history)
+        run: trufflehog git file://. --only-verified --fail --no-update
+
+  nightly-deep-scan:
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.11-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Noseyparker full-history secret hunt
+        run: |
+          curl -sSfL https://github.com/praetorian-inc/noseyparker/releases/latest/download/noseyparker-v0.24.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          ./noseyparker-v0.24.0-x86_64-unknown-linux-gnu/noseyparker scan --git-history-format all . || true
+          ./noseyparker-v0.24.0-x86_64-unknown-linux-gnu/noseyparker report || true
+      - name: Grype vulnerability match on working tree
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+          grype dir:. --fail-on critical || echo "::warning::critical vulns in tree"
+
+  # ── k6 performance smoke (nightly, non-blocking) ─────────────
+  k6-smoke:
+    # k6 needs a RUNNING bot to test against. In PR CI the full bot runtime
+    # (Telegram client, Redis, backend API) would be required, and secrets
+    # are not available in PR context. Runs on schedule against the live
+    # deployment instead.
+    # To enable: set K6_TARGET_URL as a repo variable (vars) or secret
+    # pointing to the deployed bot's /healthz server (default port 9191).
+    #
+    # Non-blocking (continue-on-error) until the bot is available in CI.
+    # Graduate to blocking by removing continue-on-error once a test
+    # environment is provisioned.
+    if: github.event_name == 'schedule'
+    continue-on-error: true
+    runs-on: docker-x64
+    container:
+      # node image: checkout@v4 is a node20 action (k6 image had no node).
+      image: node:22-bookworm-slim
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install k6
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+          curl -sSfL https://github.com/grafana/k6/releases/download/v0.54.0/k6-v0.54.0-linux-amd64.tar.gz | tar xz -C /tmp
+          mv /tmp/k6-v0.54.0-linux-amd64/k6 /usr/local/bin/k6
+      - name: Create results directory
+        run: mkdir -p tests/k6/results
+      - name: Connectivity pre-check
+        run: |
+          echo "🔍 Checking bot reachability at ${{ vars.K6_TARGET_URL || 'http://localhost:9191' }} ..."
+          curl -sSf -o /dev/null -w "HTTP %{http_code}\n" \
+            "${{ vars.K6_TARGET_URL || 'http://localhost:9191' }}/healthz" \
+            --connect-timeout 10 --max-time 15 \
+            && echo "✅ Bot is reachable — proceeding with k6 smoke test" \
+            || echo "⚠️  Bot not reachable — k6 will report failures (non-blocking)"
+        continue-on-error: true
+      - name: Run k6 smoke test against live deployment
+        run: |
+          k6 run tests/k6/smoke.js \
+            -e BASE_URL=${{ vars.K6_TARGET_URL || 'http://localhost:9191' }} \
+            --summary-export=tests/k6/results/smoke-summary.json
+      - uses: actions/upload-artifact@v5.0.0
+        if: always()
+        with:
+          name: k6-smoke-report
+          path: tests/k6/results/
+
+  # ── Changelog (git-cliff) ─────────────────────────────────────
+  # Verify a changelog can be generated from conventional commits.
+  # Runs in the ephemeral CI workspace, so the committed CHANGELOG.md
+  # is never clobbered.
+  changelog:
+    runs-on: docker-x64
+    container:
+      # python+node: pip for git-cliff; git for fetch-depth: 0.
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Install git-cliff
+        run: pip install git-cliff
+      - name: Verify changelog generation
+        run: git-cliff --strip header -o CHANGELOG.md
+
+  # ── SBOM (CycloneDX) ─────────────────────────────────────────────
+  sbom:
+    runs-on: docker-x64
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Generate SBOM (CycloneDX)
+        # syft binary: sbom-action v0 resolves to node24 (runner max node20)
+        # and action clones are flaky on this runner.
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          syft dir:. --output cyclonedx-json=sbom.cyclonedx.json
+      - uses: actions/upload-artifact@v5.0.0
+        with:
+          name: sbom
+          path: sbom.cyclonedx.json
+
+  # ── Sign image — DISABLED 2026-09-12 ────────────────────────────
+  # registry.rugmunch.io does not exist; no CI registry creds; keyless cosign
+  # needs a Fulcio OIDC issuer Forgejo does not provide. Path back: deploy a
+  # registry + creds + key-based cosign, then restore from git history.
+#   # ── Keyless image signing (Cosign) ────────────────────────────────
+#   sign-image:
+#     runs-on: docker-x64
+#     needs: [test]
+#     if: github.ref == 'refs/heads/main'
+#     steps:
+#       - name: Install Cosign
+#         uses: sigstore/cosign-installer@v3
+#         with:
+#           cosign-release: 'v2.4.3'
+#       - name: Set up Docker BuildKit
+#         run: |
+#           echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
+#           echo "BUILDKIT_PROGRESS=plain" >> $GITHUB_ENV
+#       - name: Pull build cache
+#         run: docker pull registry.rugmunch.io/rugmunchbot:buildcache || echo "No cache image yet — building from scratch"
+#       - name: Build Docker image with cache
+#         run: |
+#           docker build \
+#             --cache-from registry.rugmunch.io/rugmunchbot:buildcache \
+#             --build-arg BUILDKIT_INLINE_CACHE=1 \
+#             -t registry.rugmunch.io/rugmunchbot:${{ github.sha }} \
+#             .
+#       - name: Push cache image
+#         run: |
+#           docker tag registry.rugmunch.io/rugmunchbot:${{ github.sha }} registry.rugmunch.io/rugmunchbot:buildcache
+#           docker push registry.rugmunch.io/rugmunchbot:buildcache
+#       - name: Push release image
+#         run: docker push registry.rugmunch.io/rugmunchbot:${{ github.sha }}
+#       - name: Sign image with keyless (OIDC)
+#         run: cosign sign --yes registry.rugmunch.io/rugmunchbot:${{ github.sha }}
+#         env:
+#           COSIGN_EXPERIMENTAL: "1"
+#       - name: Verify signature
+#         run: |
+#           cosign verify \
+#             --certificate-identity "https://git.rugmunch.io/RugMunchMedia/rugmunchbot/.forgejo/workflows/ci.yml@refs/heads/main" \
+#             --certificate-oidc-issuer "https://git.rugmunch.io" \
+#             registry.rugmunch.io/rugmunchbot:${{ github.sha }}
+#         env:
+#           COSIGN_EXPERIMENTAL: "1"
+
+#   # ── Dependency vulnerability audit (pip-audit) ─────────────────
+#   # Audits the DECLARED runtime surface (requirements.txt) without
+#   # installing the full tree — the bot's requirements drag in torch/
+#   # transformers via guardrails, so env-mode auditing is too heavy for CI.
+  pip-audit:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Run pip-audit on declared deps (blocking on HIGH/CRITICAL)
+        run: |
+          # Audit PyPI deps only: the private scanner is not on PyPI (pip-audit
+          # would try to install it and fail); its deps are covered by its own CI.
+          grep -v '^rugmunch-scanner' requirements.txt > /tmp/req-audit.txt
+          # PYSEC-2026-3740 (nltk, transitive): no patched version exists
+          # upstream yet — documented risk, re-check when a fix ships.
+          pip-audit -r /tmp/req-audit.txt --desc --ignore-vuln PYSEC-2026-3740
+
+  # ── Dependency freshness (informational) ───────────────────────
+  deps-freshness:
+    runs-on: docker-x64
+    continue-on-error: true  # informational only for now
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check dependency freshness
+        run: |
+          pip install libyear 2>/dev/null || true
+          libyear --file requirements.txt || echo "Dep freshness check noted (informational)"
+
+  # ── Mutation testing (informational) ───────────────────────────
+  mutation-test:
+    runs-on: docker-x64
+    continue-on-error: true  # informational only for now
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+      # Fleet scanner (OSS sibling; not on PyPI) from the host checkout.
+      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install system deps
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+          rm -rf /var/lib/apt/lists/*
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Setup Python
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Install dependencies + mutmut
+        run: |
+          # Fleet scanner (OSS sibling; not on PyPI) from the mounted checkout.
+          uv pip install --python .venv/bin/python /opt/rugmunch-scanner
+          uv pip install --python .venv/bin/python mutmut
+          if [ -f "requirements.txt" ]; then
+            uv pip install --python .venv/bin/python -r requirements.txt
+          fi
+          uv pip install --python .venv/bin/python -e .
+      - name: Mutation testing (scoped to formatters core)
+        run: |
+          source .venv/bin/activate
+          mutmut run --paths-to-mutate src/rugmunchbot/formatters/ --test-timeout 10 || echo "Mutation score noted (non-blocking)"
+      - uses: actions/upload-artifact@v5.0.0
+        if: always()
+        with:
+          name: mutation-report
+          path: |
+            .mutmut-cache/
+            html/
+          include-hidden-files: true
+

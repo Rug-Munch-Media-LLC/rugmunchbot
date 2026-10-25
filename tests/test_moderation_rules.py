@@ -1,131 +1,143 @@
-"""Per-chat rules — ``/rules``, ``/setrules``, ``/clearrules`` (offline)."""
+"""Unit tests for the moderation decision core (no network, no Telegram)."""
 
 from __future__ import annotations
 
-import json
-from types import SimpleNamespace
-
 import pytest
-from telegram.constants import ChatMemberStatus
 
-from rugmunchbot.moderation import audit, config, rules_cmd, store
-
-CHAT = -1001234567890
-ADMIN = 424242
-MEMBER = 777
-
-
-class FakeBot:
-    def __init__(self, *, admin: bool = True) -> None:
-        self.status = ChatMemberStatus.ADMINISTRATOR if admin else ChatMemberStatus.MEMBER
-
-    async def get_chat_member(self, chat_id: int, user_id: int):
-        return SimpleNamespace(status=self.status)
-
-
-class FakeMessage:
-    def __init__(self, text: str) -> None:
-        self.text = text
-        self.replies: list[str] = []
-
-    async def reply_text(self, text: str, **kwargs) -> None:
-        self.replies.append(text)
-
-
-def make_update(text: str, *, user_id: int = ADMIN):
-    return SimpleNamespace(
-        effective_message=FakeMessage(text),
-        effective_chat=SimpleNamespace(id=CHAT, title="Rug Munch", type="supergroup"),
-        effective_user=SimpleNamespace(id=user_id, username="admin"),
-    )
-
-
-def context(*, admin: bool = True):
-    return SimpleNamespace(bot=FakeBot(admin=admin))
+from rugmunchbot.moderation import addresses, config, links, state
+from rugmunchbot.moderation.decide import decide
+from rugmunchbot.moderation.models import AddressVerdict, MsgContext
 
 
 @pytest.fixture(autouse=True)
-def _isolated(tmp_path):
-    store.use_backend(None)
-    store.reset_memory()
-    audit.use_audit_path(tmp_path / "audit.jsonl")
-    cfg_file = tmp_path / "moderation.json"
-    cfg_file.write_text(json.dumps({"chats": {}}), encoding="utf-8")
-    config.use_config_path(cfg_file)
+def _clean_state():
+    state.reset()
     yield
-    store.reset_memory()
+    state.reset()
 
 
-def configure(tmp_path, **community) -> None:
-    cfg_file = tmp_path / "moderation.json"
-    cfg_file.write_text(
-        json.dumps({"chats": {str(CHAT): {"community": community}}}), encoding="utf-8"
+def _policy(**overrides):
+    return config.ChatPolicy.from_dict(-1001, overrides)
+
+
+def _ctx(text: str = "", **kw) -> MsgContext:
+    base = {
+        "chat_id": -1001,
+        "chat_title": "t",
+        "user_id": 7,
+        "username": "u",
+        "display_name": "n",
+        "text": text,
+    }
+    base.update(kw)
+    return MsgContext(**base)
+
+
+def test_defaults_are_dry_run_and_never_ban():
+    policy = _policy()
+    assert policy.dry_run is True
+    assert policy.user_velocity_action == "mute"
+    assert "ban" not in {
+        policy.link_action,
+        policy.promo_action,
+        policy.dup_action,
+        policy.nsfw_action,
+    }
+
+
+def test_unconfigured_chat_is_unguarded(tmp_path):
+    original = config.CONFIG_PATH
+    cfg = tmp_path / "m.json"
+    cfg.write_text('{"chats": {}}')
+    config.use_config_path(cfg)
+    try:
+        assert config.load_chat_policy(-1001) is None
+    finally:
+        config.use_config_path(original)
+
+
+def test_scam_link_wins_over_promo_and_allowlist():
+    ctx = _ctx(
+        "claim https://claim-airdrop.xyz/x 100x guaranteed", urls=("https://claim-airdrop.xyz/x",)
     )
-    config.use_config_path(cfg_file)
+    action = decide(ctx, _policy())
+    assert action is not None
+    assert action.rule == "scam_link"
+    assert action.action == "delete"
 
 
-def test_builtin_text_for_unguarded_chat():
-    text = rules_cmd.builtin_text(None)
-    assert "Chat rules" in text
-    # member-facing: no operator config path, no "enforcement is off" hint
-    assert "configs/moderation.json" not in text
-    assert "not guarded" not in text
+def test_allowlisted_docs_link_is_not_flagged():
+    ctx = _ctx("read https://docs.rugmunch.io/api", urls=("https://docs.rugmunch.io/api",))
+    assert decide(ctx, _policy()) is None
 
 
-def test_builtin_text_reflects_mode():
-    observing = SimpleNamespace(dry_run=True, dup_count=3)
-    live = SimpleNamespace(dry_run=False, dup_count=3)
-    assert "dry-run" in rules_cmd.builtin_text(observing)
-    assert "enforcing" in rules_cmd.builtin_text(live)
+def test_unlisted_link_warns_without_delete():
+    ctx = _ctx("see https://random.xyz/a", urls=("https://random.xyz/a",))
+    action = decide(ctx, _policy())
+    assert action is not None
+    assert action.rule == "unlisted_link"
+    assert action.action == "warn"
+    assert action.delete is False
 
 
-def test_rules_text_is_truncated_by_config():
-    from rugmunchbot.moderation.chatconf import MAX_TEXT, CommunityConfig
-
-    cfg = CommunityConfig.from_dict(CHAT, {"community": {"rules_text": "x" * (MAX_TEXT + 50)}})
-    assert len(cfg.rules_text) == MAX_TEXT
-
-
-async def test_rules_shows_builtin_when_no_override():
-    update = make_update("/rules")
-    await rules_cmd.cmd_rules(update, context())
-    assert "Chat rules" in update.effective_message.replies[0]
+def test_repeat_message_needs_configured_count():
+    policy = _policy(dup_count=3)
+    for _ in range(2):
+        assert decide(_ctx("same text"), policy) is None
+    action = decide(_ctx("same text"), policy)
+    assert action is not None
+    assert action.rule == "repeat_message"
 
 
-async def test_setrules_refused_until_operator_opts_in():
-    update = make_update("/setrules Be nice")
-    await rules_cmd.cmd_setrules(update, context())
-    assert "disabled for this chat" in update.effective_message.replies[0]
-    assert await store.all_fields(store.chat_key(CHAT, rules_cmd.KIND)) == {}
+def test_admin_exemption_is_opt_in_not_implicit():
+    for _ in range(5):
+        assert decide(_ctx("100x guaranteed", is_admin=True), _policy()) is not None
+    opted_in = _policy(exempt_admins=True)
+    for _ in range(5):
+        assert decide(_ctx("100x guaranteed", is_admin=True), opted_in) is None
 
 
-async def test_setrules_persists_and_rules_shows_it(tmp_path):
-    configure(tmp_path, rules_enabled=True)
-    written = make_update("/setrules No shilling. Report with /report.")
-    await rules_cmd.cmd_setrules(written, context())
-    assert written.effective_message.replies == ["✅ Rules saved."]
-    shown = make_update("/rules")
-    await rules_cmd.cmd_rules(shown, context())
-    assert shown.effective_message.replies[0] == "No shilling. Report with /report."
-    rows = [json.loads(x) for x in (tmp_path / "audit.jsonl").read_text().splitlines()]
-    assert rows[-1]["actor"] == f"admin:{ADMIN}"
-    assert rows[-1]["applied"] is True
+def test_exempt_user_is_never_actioned():
+    assert decide(_ctx("100x guaranteed", user_id=999), _policy(exempt_user_ids=[999])) is None
 
 
-async def test_setrules_needs_admin(tmp_path):
-    configure(tmp_path, rules_enabled=True)
-    update = make_update("/setrules pwn", user_id=MEMBER)
-    await rules_cmd.cmd_setrules(update, context(admin=False))
-    assert "admins only" in update.effective_message.replies[0].lower()
-    assert await store.all_fields(store.chat_key(CHAT, rules_cmd.KIND)) == {}
+def test_address_verdict_avoid_escalates_to_delete():
+    verdicts = {
+        "0x1": AddressVerdict(
+            address="0x1", chain="ethereum", risk_level="critical", safety_score=3, verdict="avoid"
+        )
+    }
+    action = decide(_ctx("buy 0x1"), _policy(), verdicts)
+    assert action is not None
+    assert action.rule == "address_risk"
+    assert action.delete is True
 
 
-async def test_clearrules_restores_builtin(tmp_path):
-    configure(tmp_path, rules_enabled=True)
-    await rules_cmd.cmd_setrules(make_update("/setrules Custom"), context())
-    cleared = make_update("/clearrules")
-    await rules_cmd.cmd_clearrules(cleared, context())
-    assert "removed" in cleared.effective_message.replies[0]
-    shown = make_update("/rules")
-    await rules_cmd.cmd_rules(shown, context())
-    assert "Chat rules" in shown.effective_message.replies[0]
+def test_clean_verdict_is_ignored():
+    verdicts = {"0x1": AddressVerdict(address="0x1", verdict="ok", safety_score=88)}
+    assert decide(_ctx("chart 0x1"), _policy(), verdicts) is None
+
+
+def test_address_extraction_validates_and_dedupes():
+    text = (
+        "0x1111111111111111111111111111111111111111 and 0x1111111111111111111111111111111111111111"
+    )
+    assert addresses.extract_addresses(text) == ["0x1111111111111111111111111111111111111111"]
+
+
+def test_verdict_mapping_thresholds():
+    assert addresses.verdict_from_payload("0x1", {"safety_score": 5}).verdict == "avoid"
+    assert addresses.verdict_from_payload("0x1", {"risk_level": "high"}).verdict == "caution"
+    assert addresses.verdict_from_payload("0x1", {"safety_score": 90}).verdict == "ok"
+    assert addresses.verdict_from_payload("0x1", None).verdict == "unknown"
+
+
+def test_extract_urls_includes_hidden_entity_targets():
+    urls = links.extract_urls("hello", ("https://t.me/+secret",))
+    assert urls == ("https://t.me/+secret",)
+
+
+def test_impostor_name_is_flagged_not_admin():
+    action = decide(_ctx("hi", display_name="RugMunch Support"), _policy())
+    assert action is not None
+    assert action.rule == "impersonation"

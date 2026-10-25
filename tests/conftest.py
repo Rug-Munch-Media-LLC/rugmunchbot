@@ -4,6 +4,7 @@ import os
 import sys
 
 import pytest
+from dotenv import load_dotenv
 
 # Ensure src is on path for all tests. Paths are relative to this conftest
 # file so the test suite runs against whichever checkout (canonical repo or
@@ -16,8 +17,6 @@ if os.path.isdir(_scanner):
     sys.path.insert(0, _scanner)
 
 # Load env for tests
-from dotenv import load_dotenv
-
 load_dotenv("/srv/secrets/rugmunchbot.env")
 
 # Tests must never publish. This file loads the REAL production env, which
@@ -75,3 +74,25 @@ def _isolate_publication_ledger(monkeypatch):
     from rugmunchbot.channels.telegram_news import _ledger
 
     monkeypatch.setattr(_ledger, "_get_client", lambda: None)
+
+
+@pytest.fixture
+def sqlite_db(tmp_path):
+    """Isolated SQLite DB with beta mode OFF so tier gates are enforced.
+
+    Restores the module-level DB path and beta flag on teardown with a plain
+    save/restore so the ratchet gate is unaffected.
+    """
+    import rugmunchbot.config as config
+    from rugmunchbot import db
+
+    original_path = db.DB_PATH
+    original_beta = bool(config.BETA_MODE)
+    db.DB_PATH = str(tmp_path / "bot_users.db")
+    config.BETA_MODE = False
+    try:
+        db.init_db()
+        yield db
+    finally:
+        db.DB_PATH = original_path
+        config.BETA_MODE = original_beta

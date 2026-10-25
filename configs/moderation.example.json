@@ -19,7 +19,21 @@
 				"notes_admins_only": true
 			},
 			"exempt_user_ids": [123456789],
-			"exempt_admins": true,
+			"exempt_admins": false,
+			"guard": {
+				"_readme": "Channel-entrance + anti-abuse knobs (see moderation/guard_settings.py). Omit any key to inherit the env/default. quarantine_score: risk at/above this holds the join instead of admitting it to the captcha. new_account_id_min: Telegram user-id watermark used as an account-age proxy (Bot API exposes no creation date). raid_*/flood_*: sliding-window burst detection; while a raid holds, unverified senders are contained and EVERYONE can /modraid off to release it. quarantine_channel_id: private admin channel that receives each hold + its action_id.",
+				"quarantine_score": 50,
+				"new_account_id_min": 7000000000,
+				"raid_joins": 8,
+				"raid_window_s": 30,
+				"raid_hold_s": 600,
+				"flood_msgs": 25,
+				"flood_window_s": 10,
+				"raid_message_action": "delete",
+				"quarantine_channel_id": 0,
+				"quarantine_mute_minutes": 1440,
+				"trusted_user_ids": []
+			},
 
 			"links_allow": [
 				"rugmunch.io",

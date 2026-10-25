@@ -32,6 +32,7 @@ from rugmunchbot.smart_money import (
     render_move,
     render_prediction,
 )
+from rugmunchbot.smart_money.poster import PublishOptions
 
 FIXTURES = Path(__file__).parent / "fixtures" / "smart_money"
 
@@ -131,7 +132,7 @@ async def test_dry_run_never_calls_telegram(monkeypatch):
         async def send_message(self, **_kw):  # pragma: no cover - must not run
             raise AssertionError("Telegram called in dry run")
 
-    result = await publish("post", key="dry-1", bot=Boom())
+    result = await publish("post", key="dry-1", opts=PublishOptions(bot=Boom()))
     assert result["status"] == "dry_run"
     assert result["dry_run"] is True
     assert result["role"] == "alpha"  # whale/alpha role, id resolved not hardcoded
