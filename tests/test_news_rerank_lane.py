@@ -10,11 +10,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from rugmunchbot.channels import _news_rerank as nr
+
 
 def _item(**over: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
@@ -29,7 +30,9 @@ def _item(**over: Any) -> dict[str, Any]:
     base.update(over)
     return base
 
+
 # ── window computation ──────────────────────────────────────────────
+
 
 class _Resp:
     def __init__(self, payload: dict[str, Any], status: int = 200) -> None:
@@ -38,6 +41,7 @@ class _Resp:
 
     def json(self) -> dict[str, Any]:
         return self._payload
+
 
 class _Client:
     def __init__(self, resp: _Resp) -> None:
@@ -54,6 +58,7 @@ class _Client:
     async def get(self, *a: Any, **k: Any) -> _Resp:
         return self._resp
 
+
 def _article(**over: Any) -> dict[str, Any]:
     """A raw ``/news/top`` article row (the backend's own shape)."""
     base: dict[str, Any] = {
@@ -67,6 +72,7 @@ def _article(**over: Any) -> dict[str, Any]:
     }
     base.update(over)
     return base
+
 
 class TestFetchTopRanked:
     @pytest.mark.asyncio
@@ -144,6 +150,7 @@ class TestFetchTopRanked:
         assert captured["url"] == "http://rag.test/api/v1/news/top"
         assert captured["headers"]["X-API-Key"] == "active"
 
+
 class TestPromptBlock:
     def test_serializes_items(self) -> None:
         block = nr.to_prompt_block([_item()], label="RANKED TOP STORIES")
@@ -154,7 +161,9 @@ class TestPromptBlock:
     def test_empty_items_empty_block(self) -> None:
         assert nr.to_prompt_block([], label="X") == ""
 
+
 # ── wiring into the flagship posts ──────────────────────────────────
+
 
 class TestPostWiring:
     @pytest.mark.asyncio
@@ -225,6 +234,7 @@ class TestPostWiring:
         ):
             assert await _fetch._fetch_ranked_stories() == []
 
+
 class TestBranding:
     def test_edition_names(self) -> None:
         from rugmunchbot.channels.daily_market_summary import _publish as ms
@@ -240,11 +250,10 @@ class TestBranding:
         assert "Midday Market Update" in msgs[1]["content"]
 
     def test_scheduler_job_names(self) -> None:
-        import inspect
 
-        from rugmunchbot.channels.scheduler import _register
+        from _registrars import registrar_sources
 
-        src = inspect.getsource(_register)
+        src = registrar_sources()
         assert 'name="channel_morning_rug"' in src
         assert 'name="channel_midday_update"' in src
         assert 'name="daily_market_summary"' not in src

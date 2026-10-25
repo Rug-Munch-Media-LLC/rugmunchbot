@@ -106,6 +106,7 @@ def _patch_env(
         table = dict.fromkeys(("main", "news", "alerts", "scans"), drafts)
     else:
         table = {ch: drafts.get(ch, []) for ch in ("main", "news", "alerts", "scans")}
+
     async def _no_rag_news(limit=5):
         return []
 
@@ -114,9 +115,7 @@ def _patch_env(
     monkeypatch.setattr(_posts_rag, "_safe_send", sender)
     # RugBrain news_v2 rail is the first fallback tier (fail-open → []).
     # Stub it so tests never hit the network when the RAG lane is empty.
-    monkeypatch.setattr(
-        "rugmunchbot.channels.content.fetch_rag_news_items", _no_rag_news
-    )
+    monkeypatch.setattr("rugmunchbot.channels.content.fetch_rag_news_items", _no_rag_news)
 
 
 def _fake_fetch(table: dict[str, list[dict[str, Any]]]):
@@ -290,8 +289,10 @@ async def test_main_mirror_writes_feed_json(monkeypatch, tmp_path):
 def test_social_spike_post_is_imported_into_registry():
     """Regression: _social_tick called build_social_spike_post without an
     import → NameError on every tick (live in prod 2026-08-24/25)."""
-    assert hasattr(reg, "build_social_spike_post")
-    assert callable(reg.build_social_spike_post)
+    from rugmunchbot.channels.scheduler import _register_alpha
+
+    assert hasattr(_register_alpha, "build_social_spike_post")
+    assert callable(_register_alpha.build_social_spike_post)
 
 
 def test_channel_rag_job_registered():
@@ -326,14 +327,17 @@ def test_channel_rag_job_registered():
         "PERSONAL_CHANNEL_ENABLED": False,
         "DAILY_MARKET_SUMMARY_ENABLED": False,
     }
-    originals = {k: getattr(reg, k) for k in monkey_flags}
+    from _registrars import flag_owner
+
+    owners = {k: flag_owner(k) for k in monkey_flags}
+    originals = {k: getattr(owners[k], k, None) for k in monkey_flags}
     try:
         for k, v in monkey_flags.items():
-            setattr(reg, k, v)
-            reg.register_channel_jobs(app)
+            setattr(owners[k], k, v)
+        reg.register_channel_jobs(app)
     finally:
         for k, v in originals.items():
-            setattr(reg, k, v)
+            setattr(owners[k], k, v)
     names = [j["name"] for j in app.job_queue.repeating]
     assert "channel_rag" in names
     # No no-op content_rotation jobs may come back.

@@ -6,6 +6,7 @@ registration seam lives here with the tests that exercise it.
 
 from __future__ import annotations
 
+import importlib
 import inspect
 from typing import Any
 
@@ -49,16 +50,43 @@ _OPT_IN_ENV = (
 )
 
 
+_REGISTER_MODULES = (
+    "_register",
+    "_register_intel",
+    "_register_daily",
+    "_register_lanes",
+    "_register_alpha",
+    "_register_alerts",
+    "_register_kol",
+    "_register_content",
+)
+
+
+def _owner(flag: str):
+    """The module that owns ``flag`` — registration was split, owners moved."""
+    from rugmunchbot.channels.scheduler import _core
+
+    for name in _REGISTER_MODULES:
+        mod = importlib.import_module(f"rugmunchbot.channels.scheduler.{name}")
+        if hasattr(mod, flag):
+            return mod
+    return _core
+
+
 def _configure_channels(monkeypatch, *, enabled=(), chat_ids=None, opt_in=()):
     """Apply the scheduler channel switches through one seam."""
-    from rugmunchbot.channels.scheduler import _register as reg
+    from rugmunchbot.channels.scheduler import _core, _register as reg
 
     flags = dict.fromkeys(_CHANNEL_FLAGS, False)
     flags["CHANNEL_JOBS_ENABLED"] = True
     flags.update(dict.fromkeys(enabled, True))
-    monkeypatch.setattr(reg, "_chat_id", (chat_ids or {}).get)
+    resolver = (chat_ids or {}).get
+    # ``_register`` keeps its own bound copy; the split siblings resolve the
+    # helper through ``_core`` at call time, so both need the fake.
+    monkeypatch.setattr(reg, "_chat_id", resolver)
+    monkeypatch.setattr(_core, "_chat_id", resolver)
     for flag, value in flags.items():
-        monkeypatch.setattr(reg, flag, value)
+        monkeypatch.setattr(_owner(flag), flag, value)
     for name in _OPT_IN_ENV:
         monkeypatch.delenv(name, raising=False)
     for name in opt_in:

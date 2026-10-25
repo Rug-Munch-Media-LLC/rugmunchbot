@@ -241,12 +241,15 @@ def test_channel_updates_job_registered():
         "DAILY_MARKET_SUMMARY_ENABLED": False,
         "UPDATES_CHANNEL_ENABLED": True,
     }
-    originals = {k: getattr(reg, k) for k in flags}
+    from _registrars import flag_owner
+
+    owners = {k: flag_owner(k) for k in flags}
+    originals = {k: getattr(owners[k], k, None) for k in flags}
     try:
         for k, v in flags.items():
-            setattr(reg, k, v)
+            setattr(owners[k], k, v)
         reg.register_channel_jobs(app)
     finally:
         for k, v in originals.items():
-            setattr(reg, k, v)
+            setattr(owners[k], k, v)
     assert "channel_updates" in [j["name"] for j in app.job_queue.daily]
