@@ -175,5 +175,5 @@ async def chart(
 
 
 def register_tool(reg: Any) -> None:
-    """Register this tool on the shared registry (see trend_algo for notes)."""
+    """Register this tool on the shared registry (see trending_engine for notes)."""
     reg.register("chart", chart, timeout=12.0, ttl=120.0)

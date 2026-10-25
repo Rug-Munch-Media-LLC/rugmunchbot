@@ -81,7 +81,7 @@ def _compact_list(value: list[object], cap: int = 10) -> str:
     projected onto its signal fields; non-dict items fall back to str().
 
     Signal fields mirror the ACTUAL payload keys produced by
-    ``tools/trend_algo.py``, ``tools/price.py`` and ``tools/security.py``
+    ``tools/trending_engine.py``, ``tools/price.py`` and ``tools/security.py``
     (both canonical and legacy spellings) so the 4B sees the concrete
     numbers it must quote: price, mcap, liquidity, holders, age, buy/sell
     split, risk score/flags — not just symbol + change. Numeric fields are

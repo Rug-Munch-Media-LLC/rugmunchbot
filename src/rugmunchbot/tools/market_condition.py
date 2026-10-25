@@ -85,7 +85,7 @@ async def _http_get_any(
     ``_client.http_get_json`` only returns dict bodies — DefiLlama and
     CoinGecko /coins/markets return arrays, so this budget-gated variant is
     needed. Returns None on any failure (never raises). Mirrors
-    ``trend_algo._http_get_any`` but goes through the shared budget gate.
+    ``trending_engine._http_get_any`` but goes through the shared budget gate.
     """
     bucket = provider_for_url(url)
     if not budget.acquire(bucket):

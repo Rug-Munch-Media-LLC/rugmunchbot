@@ -5,9 +5,12 @@ from __future__ import annotations
 import time
 
 from rugmunchbot.handlers._market_helpers import _render_trending_text
-from rugmunchbot.handlers._market_helpers._disclosure import PAID_BADGE, disclosure_footer
+from rugmunchbot.handlers._market_helpers._disclosure import (
+    PAID_BADGE,
+    TRENDING_UNAVAILABLE_SOURCE,
+    disclosure_footer,
+)
 from rugmunchbot.handlers._market_helpers._freshness import freshness_label
-from rugmunchbot.handlers._market_helpers._disclosure import TRENDING_UNAVAILABLE_SOURCE
 
 
 def _tok(i: int, *, paid: bool = False, fetched: float | None = None) -> dict:

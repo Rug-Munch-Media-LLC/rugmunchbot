@@ -369,5 +369,5 @@ async def prediction_markets(*, limit: int = 8, venue: str = "all") -> ToolResul
 
 
 def register_tool(reg: Any) -> None:
-    """Register this tool on the shared registry (see trend_algo for notes)."""
+    """Register this tool on the shared registry (see trending_engine for notes)."""
     reg.register("prediction_markets", prediction_markets, timeout=12.0, ttl=300.0)

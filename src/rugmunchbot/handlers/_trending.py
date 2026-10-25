@@ -18,6 +18,11 @@ from rugmunchbot.config import BACKEND_URL, DEXSCREENER, backend_headers
 from rugmunchbot.handlers._market_helpers import _merge_trending_sources
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.tools._client import get_shared_client, http_get_any, http_get_json
+from rugmunchbot.tools.trending_engine import (
+    TrendingEngineUnavailable,
+    fetch_trending,
+    ranked_tokens,
+)
 
 logger = get_logger("rmi_bot")
 
@@ -295,42 +300,21 @@ async def _fetch_dexscreener_fresh_launches(
 async def _fetch_fused_trending(
     chain: str = "solana", limit: int = 20
 ) -> list[dict[str, Any]] | None:
-    """Fetch and fuse trending from degen sources with enrichment.
+    """Fetch the canonical ranked list from ``rugbrain.trending_fusion/v1``.
 
-    Sources (no CoinGecko search-score — it has no contract addresses and is
-    dominated by CEX-listed infra tokens nobody trades):
-      1. RugCharts backend feed (our own data, real addresses).
-      2. DexScreener token-boosts (paid attention, real addresses).
-      3. DexScreener token-profiles — pump.fun / newly deployed, real addresses.
+    No local merge and no local score: the engine owns ranking, the paid flag
+    and the disclosures. Engine down -> ``None`` so the caller renders
+    ``unavailable (source)`` (no fallback algorithm by contract).
     """
-    # Fetch from all sources in parallel
-    rg_task = _fetch_rugcharts_trending(chain, limit)
-    ds_task = _fetch_dexscreener_trending(chain, limit)
-    fresh_task = _fetch_dexscreener_fresh_launches(chain, limit)
-
-    results = await asyncio.gather(rg_task, ds_task, fresh_task, return_exceptions=True)
-    rugcharts = results[0] if not isinstance(results[0], BaseException) else None
-    dexscreener = results[1] if not isinstance(results[1], BaseException) else None
-    fresh_launches = results[2] if not isinstance(results[2], BaseException) else None
-
-    # Handle exceptions
-    if isinstance(rugcharts, Exception):
-        rugcharts = None
-    if isinstance(dexscreener, Exception):
-        dexscreener = None
-    if isinstance(fresh_launches, Exception):
-        fresh_launches = None
-
-    # Merge sources (fresh launches = highest priority alongside rugcharts)
-    fused = _merge_trending_sources(rugcharts, dexscreener, fresh_launches, limit)
-
-    if not fused:
+    try:
+        payload = await fetch_trending(chain, limit)
+    except TrendingEngineUnavailable as exc:
+        logger.info("trending engine unavailable: %s (%s)", exc.source, exc.reason)
         return None
-
-    # Enrich with quick risk scans
-    enriched = await _enrich_with_quick_scan(fused, chain)
-
-    return enriched
+    tokens = ranked_tokens(payload)
+    if not tokens:
+        return None
+    return await _enrich_with_quick_scan(tokens, chain)
 
 
 async def _fetch_rugcharts_trending(
