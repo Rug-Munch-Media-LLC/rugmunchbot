@@ -154,6 +154,51 @@ def test_detect_min_thresholds_respected():
     assert len(detect_shill_campaigns(articles, min_accounts=2, min_mentions=2)) == 1
 
 
+def _patch_alerts_io(monkeypatch, safe_send, *, main=False):
+    """One seam for the runner's chat resolver + sender.
+
+    ``run_shill_watch`` resolves ``_chat_id``/``_safe_send`` from
+    ``scheduler._core`` at call time, so the fake belongs on the core module,
+    not on the shill_watch namespace. ``main=True`` also resolves the MAIN
+    channel, which is what the importance-gate escalation test needs.
+    """
+    from rugmunchbot.channels.scheduler import _core
+
+    def _chat(channel):
+        if main and channel == "main":
+            return "-100main"
+        return "-100alerts" if channel == "alerts" else None
+
+    monkeypatch.setattr(_core, "_chat_id", _chat)
+    monkeypatch.setattr(_core, "_safe_send", safe_send)
+
+
+def _patch_evidence(monkeypatch, *, capture=None, persist=None, screenshot=False, tg_capture=False):
+    """One seam for the screenshot/scan evidence lane's flags and I/O."""
+    if capture is not None:
+        monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", capture)
+    if persist is not None:
+        monkeypatch.setattr(
+            "rugmunchbot.channels.shill_watch._evidence._persist_shill_evidence", persist
+        )
+    monkeypatch.setattr(
+        "rugmunchbot.channels.shill_watch._evidence.SHILL_SCREENSHOT_ENABLED", screenshot
+    )
+    monkeypatch.setattr("rugmunchbot.channels.shill_watch._evidence.TG_CAPTURE_ENABLED", tg_capture)
+
+
+def _patch_scanner_lane(monkeypatch, *, v2=None, legacy=None):
+    """One seam for the scanner-evidence lane: the flag and the scan clients."""
+    import rugmunchbot.scanner
+    from rugmunchbot.channels import shill_watch
+
+    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", True)
+    if v2 is not None:
+        monkeypatch.setattr(rugmunchbot.scanner, "scan_token_v2", v2)
+    if legacy is not None:
+        monkeypatch.setattr(rugmunchbot.scanner, "scan_token", legacy)
+
+
 def _stub_runner(monkeypatch, *, importance=0.6):
     """Baseline shill runner env: dedupe store, fake scorer, capture/scan off.
 
@@ -181,7 +226,6 @@ def _stub_runner(monkeypatch, *, importance=0.6):
 async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
     """Runner: sweeps → detects → posts to alerts; per-day dedupe; release on fail."""
     from rugmunchbot.channels import shill_watch
-    from rugmunchbot.channels.scheduler import _core
 
     _stub_runner(monkeypatch, importance=0.6)
 
@@ -210,10 +254,7 @@ async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
     monkeypatch.setattr(
         "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
     )
-    # run_shill_watch imports _chat_id/_safe_send from scheduler._core at
-    # call time — patch the core module, not the shill_watch namespace.
-    monkeypatch.setattr(_core, "_chat_id", lambda ch: "-100alerts" if ch == "alerts" else None)
-    monkeypatch.setattr(_core, "_safe_send", _fake_send)
+    _patch_alerts_io(monkeypatch, _fake_send)
 
     posted = await shill_watch.run_shill_watch(_Ctx())
     assert posted == 1
@@ -230,7 +271,6 @@ async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_releases_mark_on_failed_send(monkeypatch):
     from rugmunchbot.channels import shill_watch
-    from rugmunchbot.channels.scheduler import _core
 
     _stub_runner(monkeypatch, importance=0.6)
 
@@ -259,8 +299,7 @@ async def test_run_releases_mark_on_failed_send(monkeypatch):
     monkeypatch.setattr(
         "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
     )
-    monkeypatch.setattr(_core, "_chat_id", lambda ch: "-100alerts" if ch == "alerts" else None)
-    monkeypatch.setattr(_core, "_safe_send", _fake_send)
+    _patch_alerts_io(monkeypatch, _fake_send)
 
     assert await shill_watch.run_shill_watch(_Ctx()) == 0  # send failed
     assert await shill_watch.run_shill_watch(_Ctx()) == 1  # retry delivers
@@ -319,7 +358,6 @@ def test_format_alert_includes_evidence():
 async def test_run_holds_below_importance_floor(monkeypatch):
     """A campaign scoring below the news floor (0.4) is held — never spammed."""
     from rugmunchbot.channels import shill_watch
-    from rugmunchbot.channels.scheduler import _core
 
     _stub_runner(monkeypatch, importance=0.2)
 
@@ -348,8 +386,7 @@ async def test_run_holds_below_importance_floor(monkeypatch):
     monkeypatch.setattr(
         "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
     )
-    monkeypatch.setattr(_core, "_chat_id", lambda ch: "-100alerts" if ch == "alerts" else None)
-    monkeypatch.setattr(_core, "_safe_send", _fake_send)
+    _patch_alerts_io(monkeypatch, _fake_send)
 
     assert await shill_watch.run_shill_watch(_Ctx()) == 0  # below floor → held
     assert len(sent) == 0
@@ -359,7 +396,6 @@ async def test_run_holds_below_importance_floor(monkeypatch):
 async def test_run_escalates_main_at_gate(monkeypatch):
     """A campaign at/above the main gate posts to BOTH alerts and main."""
     from rugmunchbot.channels import shill_watch
-    from rugmunchbot.channels.scheduler import _core
 
     _stub_runner(monkeypatch, importance=0.8)
 
@@ -388,12 +424,7 @@ async def test_run_escalates_main_at_gate(monkeypatch):
     monkeypatch.setattr(
         "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
     )
-    monkeypatch.setattr(
-        _core,
-        "_chat_id",
-        lambda ch: "-100main" if ch == "main" else ("-100alerts" if ch == "alerts" else None),
-    )
-    monkeypatch.setattr(_core, "_safe_send", _fake_send)
+    _patch_alerts_io(monkeypatch, _fake_send, main=True)
 
     posted = await shill_watch.run_shill_watch(_Ctx())
     assert posted == 1
@@ -476,14 +507,13 @@ async def test_build_scanner_evidence_off_for_ticker(monkeypatch):
     """Ticker-only shills never resolve a scanner run ({})."""
     from rugmunchbot.channels import shill_watch
 
-    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", True)
+    _patch_scanner_lane(monkeypatch)
     assert await shill_watch.build_scanner_evidence("$MEME", "ticker") == {}
 
 
 @pytest.mark.asyncio
 async def test_build_scanner_evidence_run_and_attach(monkeypatch):
     """An address-token campaign gets a scanner evidence dict attached."""
-    import rugmunchbot.scanner
     from rugmunchbot.channels import shill_watch
 
     async def _fake_scan_v2(address, chain):
@@ -497,11 +527,9 @@ async def test_build_scanner_evidence_run_and_attach(monkeypatch):
     async def _fake_scan_legacy(address, chain):
         return {}
 
-    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", True)
     # build_scanner_evidence does a lazy `from rugmunchbot.scanner import ...`
-    # at call time — patch the underlying module, not the shill_watch namespace.
-    monkeypatch.setattr(rugmunchbot.scanner, "scan_token_v2", _fake_scan_v2)
-    monkeypatch.setattr(rugmunchbot.scanner, "scan_token", _fake_scan_legacy)
+    # at call time — the seam patches the underlying module, not shill_watch.
+    _patch_scanner_lane(monkeypatch, v2=_fake_scan_v2, legacy=_fake_scan_legacy)
 
     ev = await shill_watch.build_scanner_evidence("0x" + "1" * 40, "ethereum")
     assert ev["scanned"] is True
@@ -564,11 +592,12 @@ async def test_capture_telegram_kol_posts_persists_with_source(monkeypatch):
         persisted.append({"token": campaign.token, "chain": campaign.chain, **shot})
         return True
 
-    monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", fake_capture_and_ocr)
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._evidence._persist_shill_evidence", fake_persist
+    _patch_evidence(
+        monkeypatch,
+        capture=fake_capture_and_ocr,
+        persist=fake_persist,
+        tg_capture=True,
     )
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._evidence.TG_CAPTURE_ENABLED", True)
 
     article = NewsArticle(
         title="PUMP $MOON now",
@@ -598,10 +627,9 @@ async def test_capture_telegram_kol_posts_disabled_and_budget_zero(monkeypatch):
         called["n"] += 1
         return {"url": url, "image_path": "", "text": "", "captured": "false"}
 
-    monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", fail_capture)
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._evidence.TG_CAPTURE_ENABLED", False)
+    _patch_evidence(monkeypatch, capture=fail_capture)
     assert await shill_watch.capture_telegram_kol_posts([_article("ch", "hi", ["$MOON"])]) == 0
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._evidence.TG_CAPTURE_ENABLED", True)
+    _patch_evidence(monkeypatch, tg_capture=True)
     assert await shill_watch.capture_telegram_kol_posts([_article("ch", "hi", [])], budget=0) == 0
     assert called["n"] == 0
 
@@ -622,11 +650,12 @@ async def test_campaign_capture_uses_tg_preview_for_telegram_mentions(monkeypatc
         sources.append(shot.get("source", ""))
         return True
 
-    monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", fake_capture_and_ocr)
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._evidence._persist_shill_evidence", fake_persist
+    _patch_evidence(
+        monkeypatch,
+        capture=fake_capture_and_ocr,
+        persist=fake_persist,
+        screenshot=True,
     )
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._evidence.SHILL_SCREENSHOT_ENABLED", True)
 
     campaign = ShillCampaign(
         token="$MOON",
