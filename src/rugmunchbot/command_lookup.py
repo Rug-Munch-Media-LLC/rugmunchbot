@@ -14,16 +14,23 @@ SLUG_ALIASES: dict[str, str] = {"all": "scans", "scan": "scans", "market": "mark
 
 
 def resolve_group(arg: str) -> str | None:
-    """Map a user argument (group slug OR command name) to a catalog slug."""
+    """Map a user argument (group slug, alias, or command name) to a slug.
+
+    Order matters: slug → alias → command. ``market`` is both a COMMAND in
+    ``scans`` and the singular ALIAS of ``markets``; the alias must win, or
+    ``/more market`` silently renders the scans group (2026-10-25 audit).
+    """
     wanted = (arg or "").strip().lstrip("/").lower()
     if not wanted:
         return None
     if wanted in CATALOG_GROUPS:
         return wanted
+    if wanted in SLUG_ALIASES:
+        return SLUG_ALIASES[wanted]
     for slug, (_title, _emoji, items) in CATALOG_GROUPS.items():
         if any(name == wanted for name, _desc in items):
             return slug
-    return SLUG_ALIASES.get(wanted)
+    return None
 
 
 def catalog_commands() -> frozenset[str]:

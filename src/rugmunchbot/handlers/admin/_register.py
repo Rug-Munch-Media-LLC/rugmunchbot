@@ -37,7 +37,7 @@ def register_admin_commands(app: Application[Any, Any, Any, Any, Any, Any]) -> N
 
     Uses the shared ``_reg`` helper so these commands get the same per-command
     activity tracking + flood gate as every other command, and so the
-    menu-drift guard sees them. They stay OUT of ``_COMMAND_SECTIONS``
+    menu-drift guard sees them. They stay OUT of the advertised menu
     (owner-only, hidden from BotFather) and are declared in
     ``bot._menu_guard.ADMIN_MENU_COMMANDS``.
     """
