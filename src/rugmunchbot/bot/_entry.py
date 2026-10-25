@@ -161,12 +161,9 @@ from rugmunchbot.handlers.watchlist import (
 )
 from rugmunchbot.handlers.webhook import cmd_webhook
 from rugmunchbot.handlers.whalewatch import register_whalewatch
+from rugmunchbot.metrics_http import start_server, stop_server
 from rugmunchbot.moderation import register_moderation
-from rugmunchbot.observability import (
-    set_scheduler_running,
-    start_server,
-    stop_server,
-)
+from rugmunchbot.observability import set_scheduler_running
 from rugmunchbot.support.logging import get_logger
 from rugmunchbot.support.system_alerts import send_system_alert
 

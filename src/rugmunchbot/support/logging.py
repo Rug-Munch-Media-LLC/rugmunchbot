@@ -30,6 +30,8 @@ from typing import Any, cast
 
 import structlog
 
+from rugmunchbot.support.redaction import RedactionProcessor, install as install_redaction
+
 __all__ = ["get_logger"]
 
 # ── Log sampler (mirror of app.core.logging.LogSampler) ──────────────
@@ -95,6 +97,9 @@ def setup_logging(level: str = "INFO") -> None:
     is_prod = level.upper() == "INFO"  # JSON in prod, coloured console in debug
 
     processors: list[Any] = [
+        # 0. Redaction FIRST — no downstream processor or handler may see a
+        #    token, invite link, email or private key (2026-10-16 token leak).
+        RedactionProcessor(),
         # 1. Sampling — drop sampled DEBUG before anything else
         LogSampler(),
         structlog.stdlib.filter_by_level,
@@ -126,6 +131,10 @@ def setup_logging(level: str = "INFO") -> None:
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
+
+    # Belt-and-braces: stdlib logging that bypasses structlog (libraries
+    # calling logging.getLogger().error directly) is scrubbed too.
+    install_redaction()
 
     # Set root logger level
     logging.basicConfig(
