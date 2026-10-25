@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from rugmunchbot.formatters._base import thin_sep
+from rugmunchbot.formatters._base import clip, thin_sep
 from rugmunchbot.formatters._vcard_funding import funding_detail_lines
 
 DASH = "\u2014"
@@ -61,9 +61,8 @@ def _reason(section: Any) -> str | None:
 
 
 def _clip(text: str, limit: int = 90) -> str:
-    """One-line, length-bounded reason text."""
-    flat = " ".join(text.split())
-    return flat if len(flat) <= limit else flat[: limit - 1] + "\u2026"
+    """One-line, length-bounded reason text (canonical truncation)."""
+    return clip(" ".join(text.split()), limit)
 
 
 def _cohort_line(name: str, block: Any) -> str:
@@ -151,15 +150,11 @@ def format_parity_section(r: dict[str, Any]) -> list[str]:
 TELEGRAM_LIMIT = 4096
 
 
-def fit_report(text: str, limit: int = TELEGRAM_LIMIT) -> str:
-    """Keep a rendered report inside Telegram's limit without breaking HTML.
+TRUNCATION_MARKER = "\n\n\u2026 <i>report truncated</i>"
 
-    The parity block is the only optional section added late, so drop it first.
-    If the report is still over, return the original: truncating an HTML string
-    mid-tag would make Telegram reject the whole message.
-    """
-    if len(text) <= limit:
-        return text
+
+def _drop_parity_block(text: str) -> str:
+    """Remove the optional parity block (heading + body) from *text*."""
     out: list[str] = []
     skipping = False
     for line in text.split("\n"):
@@ -172,5 +167,28 @@ def fit_report(text: str, limit: int = TELEGRAM_LIMIT) -> str:
         if skipping:
             continue
         out.append(line)
-    trimmed = "\n".join(out)
-    return trimmed if len(trimmed) <= limit else text
+    return "\n".join(out)
+
+
+def fit_report(text: str, limit: int = TELEGRAM_LIMIT) -> str:
+    """Return *text* guaranteed to fit Telegram's limit, HTML intact.
+
+    Ladder: (1) the report already fits; (2) drop the optional parity block
+    — the only section added late, so it goes first; (3) truncate at a safe
+    boundary and close the tags that are still open.
+
+    Step 3 used to be missing: the function returned the ORIGINAL over-limit
+    text, and Telegram rejects the whole message ("message is too long"), so a
+    verbose provider payload meant the user got no scan at all. A truncated
+    card that is honest about the cut beats no card.
+    """
+    if len(text) <= limit:
+        return text
+    trimmed = _drop_parity_block(text)
+    if len(trimmed) <= limit:
+        return trimmed
+    from rugmunchbot.content_style._split import split_html
+
+    marker = TRUNCATION_MARKER
+    part = split_html(trimmed, max(limit - len(marker), 200))[0].rstrip()
+    return part + marker

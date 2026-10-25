@@ -7,6 +7,8 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from rugmunchbot.formatters._base._primitives import esc
+
 _MAX_BODY_CHARS = 4090
 
 
@@ -120,8 +122,13 @@ def _graphic_for(post_type: str) -> str:
 
 
 def _esc(value: object) -> str:
-    """HTML-escape text for Telegram parse_mode=HTML (quotes left intact)."""
-    return html.escape(str(value), quote=False)
+    """HTML-escape text for Telegram parse_mode=HTML (canonical helper).
+
+    Delegates to ``formatters._base.esc`` so channel posts and card
+    formatters escape identically — and so ``None`` renders empty instead of
+    the literal ``"None"`` (the old local copy stringified it).
+    """
+    return esc(value)
 
 
 def _is_placeholder(value: object) -> bool:

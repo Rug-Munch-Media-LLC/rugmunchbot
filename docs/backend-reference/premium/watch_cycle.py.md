@@ -1,3 +1,20 @@
+<!-- SPDX-License-Identifier: MIT -->
+# Reference: rmi-backend `app/domains/premium/watch_cycle.py`
+
+**Not bot code, not importable from `rugmunchbot`.** Verbatim reference copy of the
+backend-side watch cycle (snapshot -> diff -> alert rows -> store).
+
+- Canonical source of truth: `rmi-backend`, `app/domains/premium/watch_cycle.py`.
+- Its only consumer was the backend router, which is likewise reference-only
+  (see `router.py.md`). Nothing in `src/` or `tests/` imported or scheduled it.
+- Why it is not in `src/rugmunchbot/premium/`: `_persist_alerts` imports
+  `app.domains.alerts.postgres_store`. That import was already function-level and the
+  `.importlinter` `api-consumer-only` contract still flagged it (line 44), because the
+  linter reads the AST, not the call path. The bot owns no `alerts` table.
+- Bot-side path today: `handlers/premium_watch/_api.py` -> backend HTTP API. If the
+  cycle is ever needed in-process, inject a persister callable; never import `app`. -->
+
+```python
 """One scan cycle for one watched token.
 
 Order matters and is the whole point of this module:
@@ -135,3 +152,4 @@ async def run_watch_cycle(
         "queued": queued,
         "watchers": watchers,
     }
+```
