@@ -10,6 +10,8 @@ from telegram.constants import ParseMode
 from rugmunchbot.bot.variants import render_variant
 from rugmunchbot.handlers._market_helpers import _resolve_chain
 
+from rugmunchbot.handlers._market_helpers._disclosure import TRENDING_UNAVAILABLE_SOURCE
+
 from ._render import render_trending
 
 if TYPE_CHECKING:
@@ -31,7 +33,9 @@ async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     text, trending_kb = await render_trending(chain, limit=20, window="24h")
     if text is None or trending_kb is None:
         await msg.edit_text(
-            "❌ <b>Trending Unavailable</b>\n\nCould not fetch trending tokens right now.\nPlease try again in a moment.",
+            f"❌ <b>Trending {TRENDING_UNAVAILABLE_SOURCE}</b>\n\n"
+            "The fused feed did not answer (backend + DexScreener).\n"
+            "This is a source outage, not an empty list. Try again shortly.",
             parse_mode=ParseMode.HTML,
         )
         return
