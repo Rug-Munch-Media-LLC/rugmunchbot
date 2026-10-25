@@ -15,7 +15,7 @@ import pytest
 
 from rugmunchbot.config import TIERS
 from rugmunchbot.handlers.premium_watch import _limits
-from rugmunchbot.premium import watch_alerts
+from rugmunchbot.premium import gating, watch_alerts
 
 
 def _tier(name: str):
@@ -23,27 +23,10 @@ def _tier(name: str):
     return lambda _user_id: name
 
 
-class _Clock:
-    """Monotonic test clock — the gate takes ``clock`` as a seam."""
-
-    def __init__(self, at: float = 0.0) -> None:
-        self.at = at
-
-    def __call__(self) -> float:
-        return self.at
+# ── the feature table itself ────────────────────────────────────────────────
 
 
-def _open_gate(tier: str = "pro", clock=None) -> watch_alerts.AlertGate:
-    return watch_alerts.AlertGate(
-        quiet=watch_alerts.QuietHours(start=0, end=0),  # window disabled
-        tier=tier,
-        clock=clock or _Clock(),
-    )
-
-
-# ── alert gate internals ────────────────────────────────────────────────────
-
-
+@pytest.mark.parametrize("feature", sorted(gating.FEATURES))
 def test_dedupe_memory_is_bounded_by_the_window() -> None:
     clock = _Clock()
     gate = _open_gate(clock=clock)

@@ -97,3 +97,5 @@ def test_a_second_scan_supersedes_the_first_and_the_first_ignores_late_steps() -
     assert first.stage != "verdict"  # a cancelled job never advances
     registry.finish(second.job_id)
     assert registry.active(1) is None
+
+
