@@ -111,11 +111,6 @@ class TestLiveHandlerImports:
 
         assert holders is not None
 
-    def test_import_hlwhales(self):
-        from rugmunchbot.handlers import hlwhales
-
-        assert hlwhales is not None
-
     def test_import_liqmap(self):
         from rugmunchbot.handlers import liqmap
 

@@ -94,7 +94,6 @@ from rugmunchbot.handlers.groups import (
     cmd_mygroup,
     cmd_voicechat,
 )
-from rugmunchbot.handlers.hlwhales import register_hlwhales
 from rugmunchbot.handlers.holders import cmd_holders
 from rugmunchbot.handlers.inline import handle_inline
 from rugmunchbot.handlers.integrity_handlers import register_integrity
@@ -210,7 +209,6 @@ def _register_all_handlers(app: Application[Any, Any, Any, Any, Any, Any]) -> No
     register_market(app)  # /market /trending /movers /launches /whales
     register_integrity(app)  # /volume /exchangeaudit /dune
     register_liqmap(app)  # /liqmap
-    register_hlwhales(app)  # /hlwhales
     register_whalewatch(app)  # /whalewatch — premium whale-wallet deep-dive
     register_dislocation(app)  # /dislocation
     register_status(app)  # /status
