@@ -2,12 +2,15 @@
 """Portfolio-risk and watchlist alerts: quiet hours, a per-user cap, no repeats.
 
 Three gates stand between a detected delta and a message, in this order —
-quiet hours, per-user rate limit, dedupe. The order matters: a delta held by
-quiet hours is retried later, but a delta dropped by dedupe is never retried,
-so dedupe must only ever see a delta that is *about to be sent*.
+dedupe, quiet hours, per-user rate limit. The order matters: only a delta that
+is not a repeat may consume a rate-limit slot, and a delta held by quiet hours
+is retried later without being counted as sent. Dedupe remembers a key for the
+trailing hour only, so a token that spikes again tomorrow can alert again.
 
 The limiter is a sliding window, not a bucket, because "5 alerts per hour" is
-what the product promises and a bucket lets 9 through around a refill.
+what the product promises and a bucket lets 9 through around a refill. That
+number is per tier and comes from :func:`cap_for` — the same figure the alert
+card advertises, so the promise and the enforcement cannot drift.
 
 Everything is injectable (clock, ledger) so the tests are pure and this module
 never monkeypatches time.
@@ -24,6 +27,9 @@ if TYPE_CHECKING:
 
 #: Alerts per hour, per user, by tier rank band (see ``gating.RANK``).
 HOURLY_CAP: dict[str, int] = {"free": 5, "paid": 20}
+
+#: Sliding window for both the rate limit and the dedupe memory, in seconds.
+WINDOW_S = 3600
 
 #: Risk bands, high to low: (floor score, label, emoji).
 BANDS: tuple[tuple[int, str, str], ...] = (
@@ -57,7 +63,9 @@ class UserState:
 
     sent: list[float] = field(default_factory=list)
     held: dict[str, int] = field(default_factory=dict)
-    seen: set[str] = field(default_factory=set)
+    #: alert key -> when it was sent. A timestamp (not a bare set) so the
+    #: dedupe window can expire; a set here grows without bound per user.
+    seen: dict[str, float] = field(default_factory=dict)
 
 
 class AlertGate:
@@ -71,11 +79,14 @@ class AlertGate:
         self,
         *,
         quiet: QuietHours | None = None,
-        cap: int = HOURLY_CAP["paid"],
+        tier: str | None = None,
+        cap: int | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.quiet = quiet or QuietHours()
-        self.cap = cap
+        # An explicit cap wins; otherwise the tier decides, and an unknown tier
+        # is priced as free — the gate fails closed, never open.
+        self.cap = cap if cap is not None else cap_for(tier or "free")
         self._clock = clock
         self._users: dict[int, UserState] = {}
 
@@ -84,8 +95,12 @@ class AlertGate:
 
     def _recent(self, state: UserState, now: float) -> int:
         """Sends inside the trailing hour, pruning older entries in place."""
-        state.sent = [at for at in state.sent if now - at < 3600]
+        state.sent = [at for at in state.sent if now - at < WINDOW_S]
         return len(state.sent)
+
+    def _prune(self, state: UserState, now: float) -> None:
+        """Expire dedupe keys outside the window — bounded memory, re-alertable."""
+        state.seen = {key: at for key, at in state.seen.items() if now - at < WINDOW_S}
 
     def admit(self, user_id: int, alert_key: str) -> str:
         """Decide one alert: ``send`` / ``hold`` / ``drop``.
@@ -95,15 +110,16 @@ class AlertGate:
         for this key, so a retry loop cannot turn into a spam loop.
         """
         state = self._state(user_id)
+        now = self._clock()
+        self._prune(state, now)
         if alert_key in state.seen:
             return "drop"
-        now = self._clock()
         if self.quiet.covers(time.gmtime(now).tm_hour):
             state.held[alert_key] = state.held.get(alert_key, 0) + 1
             return "hold"
         if self._recent(state, now) >= self.cap:
             return "drop"
-        state.seen.add(alert_key)
+        state.seen[alert_key] = now
         state.sent.append(now)
         return "send"
 
@@ -121,6 +137,17 @@ class AlertGate:
     def reset(self, user_id: int) -> None:
         """Forget a user's state (opt-out, or a test pretending a new hour)."""
         self._users.pop(user_id, None)
+
+
+def cap_for(tier: str | None) -> int:
+    """Alerts per hour a tier is entitled to — the number the card advertises.
+
+    ``gating`` owns entitlement (``FEATURES["watch_alerts"]``); this only turns
+    that yes/no into the hourly number, so free is capped and paid is not.
+    """
+    from rugmunchbot.premium.gating import allows
+
+    return HOURLY_CAP["paid"] if allows(tier, "watch_alerts") else HOURLY_CAP["free"]
 
 
 def band(score: float) -> tuple[str, str]:
