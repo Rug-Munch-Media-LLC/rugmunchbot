@@ -2,116 +2,26 @@
 """User management and user-account data for the rugmunchbot DB layer.
 
 Holds every user-keyed / account-level helper that is not tier, watchlist,
-stars or alert specific: user CRUD, API tokens (hashed at rest), scan history,
+stars or alert specific: user CRUD, scan history,
 user stats, bot-state toggles, admin audit log, daily activity stats, AI chat
 history and scam reports.
 """
 
 from __future__ import annotations
 
-import contextlib
-import hashlib
-import hmac
-import sqlite3
 import time
 from datetime import UTC, datetime
 from typing import Any
 
 from ._base import get_db
-from .tiers import get_weekly_usage
-
-# ── API tokens (hashed at rest) ──
-
-API_TOKEN_PREFIX_LEN = 12
-
-
-def hash_api_token(raw_token: str) -> str:
-    """Return the hex sha256 digest of a raw API token — the value stored at rest."""
-    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
-
-
-def token_prefix(raw_token: str, length: int = API_TOKEN_PREFIX_LEN) -> str:
-    """Non-sensitive display prefix (first ``length`` chars) for /api list.
-
-    Never used for authentication — only to keep the list UX working without
-    exposing the raw secret.
-    """
-    return raw_token[:length]
-
-
-def _is_hashed_token(stored: str) -> bool:
-    """True when ``stored`` is a 64-char lowercase hex sha256 digest (not plaintext)."""
-    return len(stored) == 64 and all(c in "0123456789abcdef" for c in stored)
-
-
-def verify_api_token(raw_token: str) -> dict[str, Any] | None:
-    """Verify a presented raw token against stored sha256 digests.
-
-    Hashes the presented token and compares against every active stored digest
-    with hmac.compare_digest (constant time). Returns the matching token row
-    dict, or None when no active token matches. Non-hashed (legacy plaintext)
-    rows are never matched — run migrate_plaintext_api_tokens() first.
-    """
-    if not raw_token:
-        return None
-    presented_hash = hash_api_token(raw_token)
-    conn = get_db()
-    try:
-        rows = conn.execute("SELECT * FROM api_tokens WHERE is_active = 1").fetchall()
-    finally:
-        conn.close()
-    for row in rows:
-        stored = row["token"]
-        if stored and _is_hashed_token(stored) and hmac.compare_digest(stored, presented_hash):
-            return dict(row)
-    return None
-
-
-def migrate_plaintext_api_tokens() -> int:
-    """One-shot upgrade: hash any plaintext api_tokens.token values.
-
-    Detects rows whose stored token is NOT a 64-char hex digest (i.e. the old
-    ``rmi_*`` plaintext format), replaces the value with sha256(token) and
-    stores the first ``API_TOKEN_PREFIX_LEN`` chars as a non-sensitive
-    ``token_prefix``. Returns the number of rows migrated.
-
-    Idempotent: once a row is hashed it is left untouched on later runs, so
-    this is safe to call on every bot start.
-    """
-    conn = get_db()
-    try:
-        cols = [r["name"] for r in conn.execute("PRAGMA table_info(api_tokens)").fetchall()]
-        if "token_prefix" not in cols:
-            with contextlib.suppress(sqlite3.OperationalError):
-                conn.execute("ALTER TABLE api_tokens ADD COLUMN token_prefix TEXT DEFAULT ''")
-                conn.commit()
-        rows = conn.execute("SELECT id, token FROM api_tokens WHERE token IS NOT NULL AND token != ''").fetchall()
-    except sqlite3.OperationalError:
-        conn.close()
-        return 0  # api_tokens table doesn't exist yet
-
-    migrated = 0
-    for row in rows:
-        stored = row["token"]
-        if _is_hashed_token(stored):
-            continue
-        # Legacy plaintext — capture a prefix before overwriting the raw secret.
-        prefix = token_prefix(stored)
-        conn.execute(
-            "UPDATE api_tokens SET token = ?, token_prefix = ? WHERE id = ?",
-            (hash_api_token(stored), prefix, row["id"]),
-        )
-        migrated += 1
-    if migrated:
-        conn.commit()
-    conn.close()
-    return migrated
-
+from .quota import get_weekly_usage
 
 # ── User Management ──
 
 
-def get_or_create_user(user_id: int, username: str | None = None, first_name: str | None = None) -> dict[str, Any]:
+def get_or_create_user(
+    user_id: int, username: str | None = None, first_name: str | None = None
+) -> dict[str, Any]:
     conn = get_db()
     row = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
     if row:
@@ -148,7 +58,9 @@ def get_user_by_id(user_id: int) -> dict[str, Any] | None:
 def set_banned(user_id: int, banned: bool) -> bool:
     """Ban/unban a user. Returns True when the user exists."""
     conn = get_db()
-    cur = conn.execute("UPDATE users SET is_banned = ? WHERE user_id = ?", (1 if banned else 0, user_id))
+    cur = conn.execute(
+        "UPDATE users SET is_banned = ? WHERE user_id = ?", (1 if banned else 0, user_id)
+    )
     conn.commit()
     ok = cur.rowcount > 0
     conn.close()
@@ -172,7 +84,9 @@ def is_user_banned(user_id: int) -> bool:
 # ── Scan History ──
 
 
-def log_scan(user_id: int, token_address: str, chain: str, scan_type: str, risk_score: float) -> None:
+def log_scan(
+    user_id: int, token_address: str, chain: str, scan_type: str, risk_score: float
+) -> None:
     conn = get_db()
     conn.execute(
         "INSERT INTO scan_history (user_id, token_address, chain, scan_type, risk_score, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -243,7 +157,9 @@ def log_admin_action(admin_id: int, action: str, details: str = "") -> None:
 
 def get_admin_logs(limit: int = 20) -> list[dict[str, Any]]:
     conn = get_db()
-    rows = conn.execute("SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+    rows = conn.execute(
+        "SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT ?", (limit,)
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -293,9 +209,13 @@ def get_daily_stats(date: str | None = None) -> dict[str, Any]:
 
 def count_active_today() -> int:
     """Number of users active since the start of today (UTC)."""
-    start_of_day = int(datetime.combine(datetime.now(UTC).date(), datetime.min.time(), tzinfo=UTC).timestamp())
+    start_of_day = int(
+        datetime.combine(datetime.now(UTC).date(), datetime.min.time(), tzinfo=UTC).timestamp()
+    )
     conn = get_db()
-    c = conn.execute("SELECT COUNT(*) as c FROM users WHERE last_active >= ?", (start_of_day,)).fetchone()["c"]
+    c = conn.execute(
+        "SELECT COUNT(*) as c FROM users WHERE last_active >= ?", (start_of_day,)
+    ).fetchone()["c"]
     conn.close()
     return c
 
@@ -346,7 +266,9 @@ def clear_chat_history(user_id: int) -> None:
 # ── Scam reports (v6) ──
 
 
-def report_scam(user_id: int, token_address: str, chain: str | None = None, reason: str = "") -> bool:
+def report_scam(
+    user_id: int, token_address: str, chain: str | None = None, reason: str = ""
+) -> bool:
     """Record a user-submitted scam report (feeds the known-scam denylist).
 
     Returns True when the report was stored. The address becomes a known
