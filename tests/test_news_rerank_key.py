@@ -19,8 +19,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
-import rugmunchbot.channels._news_rerank as nr
 
+import rugmunchbot.channels._news_rerank as nr
 from rugmunchbot.channels import _news_rerank
 from rugmunchbot.tools import rag_lookup
 
@@ -83,5 +83,6 @@ class TestWindow:
             "rugmunchbot.channels.scheduler_state.get_state", side_effect=RuntimeError("boom")
         ):
             assert nr.window_hours_since(("x",)) == 12.0
+
 
 # ── HTTP lane ───────────────────────────────────────────────────────

@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING, Any
 import fakeredis
 import fakeredis.aioredis
 import pytest
+from rugmunchbot.premium.watch_cycle import run_watch_cycle
 
 from rugmunchbot.premium import watch_cycle
 from rugmunchbot.premium.bot_queue import QUEUE_KEY
-from rugmunchbot.premium.watch_cycle import run_watch_cycle
 from rugmunchbot.premium.watch_store import (
     add_watch,
     list_watches,
