@@ -32,6 +32,7 @@ def _token(**over: object) -> dict[str, object]:
         "volume_24h": 1_200_000,
         "liquidity_usd": 50_000,
         "created_at": 1_699_999_999_000,
+        "score": 0.73,
     }
     base.update(over)
     return base
@@ -57,17 +58,30 @@ def test_icon_slot_falls_back_without_a_usable_url() -> None:
 # ── score reason ────────────────────────────────────────────────────────────
 
 
-def test_score_line_reports_score_and_drivers() -> None:
-    line = _score_line(_token())
-    assert "Score <b>" in line
-    assert "driver:" in line
-    for component in ("vol", "liq", "grw", "mom", "age"):
-        assert f"{component} " in line
+def test_score_line_reports_engine_score_and_drivers() -> None:
+    line = _score_line(
+        _token(
+            score=0.73,
+            evidence=[
+                {"source": "dexscreener", "signal": "volume_24h", "value": 1},
+                {"source": "gmgn", "signal": "holder_growth", "value": 2},
+                {"source": "rugbrain", "signal": "sentiment", "value": 3},
+                {"source": "extra", "signal": "dropped", "value": 4},
+            ],
+        )
+    )
+    assert "score 0.73" in line  # the engine's number, rendered verbatim
+    assert "dexscreener:volume_24h" in line
+    assert "gmgn:holder_growth" in line
+    assert "extra:dropped" not in line  # three drivers maximum, engine order kept
 
 
-def test_score_line_notes_the_risk_penalty() -> None:
-    line = _score_line(_token(risk_score=90))
-    assert "risk \u2212" in line
+def test_score_line_invents_no_penalty_and_marks_paid() -> None:
+    line = _score_line(_token(score=0.5, paid=True, risk_score=90))
+    assert line == "score 0.50 \u00b7 paid"  # engine score + paid flag, nothing else
+    assert "risk" not in line  # no local risk penalty arithmetic survives
+    assert "\u2212" not in line  # no subtraction rendered on the card
+    assert _score_line(_token(score=None)) == "score \u2014"  # unpublished -> em dash
 
 
 # ── paid placement is not ranked ────────────────────────────────────────────
@@ -102,7 +116,7 @@ def test_card_shows_rank_symbol_price_change_volume_liquidity() -> None:
     assert "12.50%" in card
     assert "Vol: $1.20M" in card
     assert "Liq: $50.0K" in card
-    assert "Score <b>" in card  # score reason
+    assert "score 0.73" in card  # engine score, no local formula
     assert "<code>0xAAAABBBBCCCCDDDD</code>" in card
 
 

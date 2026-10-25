@@ -271,7 +271,7 @@ async def fetch_suspect_scan_notes(limit: int = 4) -> list[dict[str, Any]]:
     if limit < 1:
         return []
     try:
-        from rugmunchbot.tools.trend_algo._candidates import _scanner_candidates
+        from rugmunchbot.tools.trending import _scanner_candidates
 
         candidates = await _scanner_candidates()
     except Exception as exc:  # fail-open by contract

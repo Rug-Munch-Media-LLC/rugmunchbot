@@ -57,7 +57,7 @@ def route_tools(text: str) -> list[str]:
 
     # Trending: chain-filtered feed; when a chain is named OR the question
     # asks for risk-first picks ("riskiest/sketchiest"), also run the
-    # per-chain trend_algo (transparent scoring over our data). risk_rank
+    # per-chain trending_engine (transparent scoring over our data). risk_rank
     # makes that tool rank by RISK instead of momentum (rank kwarg below).
     # A bare risk-rank ask ("riskiest picks of the day") is an implicit
     # trending question when it names picks/tokens/coins.

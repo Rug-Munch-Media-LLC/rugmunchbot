@@ -21,7 +21,7 @@ _GECKO_NETWORKS: dict[str, str] = {
     "optimism": "optimism",
 }
 
-# Chain aliases -> canonical chain id — subset of ``tools/trend_algo._CHAIN_ALIASES``
+# Chain aliases -> canonical chain id — subset of ``tools/trending_engine._CHAIN_ALIASES``
 # and ``tools/ta.py._CHAIN_ALIASES`` (kept local; keep in sync).
 _CHAIN_ALIASES: dict[str, str] = {
     "eth": "ethereum",

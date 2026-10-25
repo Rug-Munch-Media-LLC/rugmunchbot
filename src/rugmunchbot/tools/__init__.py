@@ -79,7 +79,6 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     from rugmunchbot.tools.security import security_scan, wallet_analysis
     from rugmunchbot.tools.story_fetch import story_fetch
     from rugmunchbot.tools.ta import register_tool as _register_ta
-    from rugmunchbot.tools.trend_algo import register_tool as _register_trend_algo
     from rugmunchbot.tools.trending import news_headlines, trending
     from rugmunchbot.tools.web import web_search
 
@@ -151,7 +150,7 @@ def _register_defaults(registry_: ToolRegistry) -> None:
     # so the backend auto-RAG stays authoritative on tier-1.
     registry_.register("rag_lookup", rag_lookup, timeout=20.0, ttl=300.0)
 
-    _register_trend_algo(registry_)
+    _register_trending_engine(registry_)
     _register_prediction_markets(registry_)
     _register_ta(registry_)
     _register_charting(registry_)

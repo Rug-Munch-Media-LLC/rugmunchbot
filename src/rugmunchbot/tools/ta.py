@@ -62,7 +62,7 @@ _GECKO_NETWORKS: dict[str, str] = {
 }
 
 # Chain aliases -> canonical chain id — subset of
-# ``tools/trend_algo._CHAIN_ALIASES`` (kept local to avoid a private
+# ``tools/trending_engine._CHAIN_ALIASES`` (kept local to avoid a private
 # cross-tool import; add aliases here when new chains are supported).
 _CHAIN_ALIASES: dict[str, str] = {
     "eth": "ethereum",
@@ -661,5 +661,5 @@ async def technical_analysis(*, address: str = "", symbol: str = "", chain: str 
 
 
 def register_tool(reg: Any) -> None:
-    """Register this tool on the shared registry (see trend_algo for notes)."""
+    """Register this tool on the shared registry (see trending_engine for notes)."""
     reg.register("technical_analysis", technical_analysis, timeout=12.0, ttl=120.0)

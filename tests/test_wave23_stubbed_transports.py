@@ -11,8 +11,9 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
-from rugmunchbot.tools._client import BackendApiError
 from rugmunchbot.tools.trend_algo import _candidates as cand
+
+from rugmunchbot.tools._client import BackendApiError
 
 if TYPE_CHECKING:
     import pytest

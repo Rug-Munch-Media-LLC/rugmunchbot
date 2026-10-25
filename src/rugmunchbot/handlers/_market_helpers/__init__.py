@@ -16,7 +16,7 @@ re-export shim so every existing import path keeps working:
   * ``_render.py`` — HTML trending list + trending keyboard
   * ``_card.py``   — one numbered token card (icon, fields, score reason)
   * ``_icons.py``  — logo-URL extraction + safe icon slot
-  * ``_score.py``  — trend_algo score line + driver breakdown
+  * ``_score.py``  — trending_engine score line + driver breakdown
   * ``_boosted.py`` — disclosed, unranked paid-placement block
 """
 
