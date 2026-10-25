@@ -431,9 +431,7 @@ async def post_alpha_update(ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     gate = _decide("rmialpha", "whale", "high")
     if launch_keep:
-        logger.info(
-            "channels:alpha_launch_redirected", dest="rmiscans", count=len(launch_keep)
-        )
+        logger.info("channels:alpha_launch_redirected", dest="rmiscans", count=len(launch_keep))
         launch_keep = []
     smart_keep, kol_keep = [], []
     if not gate.live:

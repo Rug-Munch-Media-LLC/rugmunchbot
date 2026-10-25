@@ -64,6 +64,46 @@ def first_buyers(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _funding_edges(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """``funding_analysis.edges`` plus the ``shared_funder`` map, as edge rows."""
+    funding = payload.get("funding_analysis") or {}
+    found = _rows(funding.get("edges"))
+    shared = funding.get("shared_funder") or {}
+    if isinstance(shared, dict):
+        found.extend(
+            {"from": str(funder), "to": str(wallet), "kind": "shared_funder"}
+            for wallet, funder in shared.items()
+            if wallet and funder
+        )
+    return found
+
+
+def _bundle_edges(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every per-bundle ``edges`` list, flattened."""
+    return [
+        row
+        for bundle in _rows((payload.get("bundle_analysis") or {}).get("bundles"))
+        for row in _rows(bundle.get("edges"))
+    ]
+
+
+def _edge_ends(row: dict[str, Any]) -> tuple[str, str]:
+    """The two endpoints an edge names, in every shape our engines emit."""
+    source = str(row.get("from") or row.get("funder") or "")
+    target = str(row.get("to") or row.get("wallet") or "")
+    return source, target
+
+
+def _edge_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    """One normalised edge, or ``None`` when it cannot name two distinct ends."""
+    source, target = _edge_ends(row)
+    if not source or not target or source == target:
+        return None
+    kind = row.get("kind") or "funding"
+    evidence = row.get("evidence_tx") or row.get("tx") or row.get("signature")
+    return {"from": source, "to": target, "kind": kind, "evidence_tx": evidence}
+
+
 def edges(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Typed edges that the scanner actually evidenced.
 
@@ -72,32 +112,8 @@ def edges(payload: dict[str, Any]) -> list[dict[str, Any]]:
     edge without an ``evidence_tx`` is still returned — the graph builder
     counts it against confidence instead of dropping it silently.
     """
-    found: list[dict[str, Any]] = []
-    funding = payload.get("funding_analysis") or {}
-    for row in _rows(funding.get("edges")):
-        found.append(row)
-    shared = funding.get("shared_funder") or {}
-    if isinstance(shared, dict):
-        for wallet, funder in shared.items():
-            if wallet and funder:
-                found.append({"from": str(funder), "to": str(wallet), "kind": "shared_funder"})
-    for bundle in _rows((payload.get("bundle_analysis") or {}).get("bundles")):
-        for row in _rows(bundle.get("edges")):
-            found.append(row)
-    out: list[dict[str, Any]] = []
-    for row in found:
-        source = str(row.get("from") or row.get("funder") or "")
-        target = str(row.get("to") or row.get("wallet") or "")
-        if source and target and source != target:
-            out.append(
-                {
-                    "from": source,
-                    "to": target,
-                    "kind": row.get("kind") or "funding",
-                    "evidence_tx": row.get("evidence_tx") or row.get("tx") or row.get("signature"),
-                }
-            )
-    return out
+    rows = [*_funding_edges(payload), *_bundle_edges(payload)]
+    return [edge for edge in map(_edge_row, rows) if edge is not None]
 
 
 def holdings(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:

@@ -31,6 +31,40 @@ REQUIRED_KEYS = (
 )
 
 
+def _risk_block(scan: dict[str, Any]) -> dict[str, Any]:
+    """Safety verdict plus the flags that produced it."""
+    return {
+        "safety_score": scan.get("safety_score"),
+        "confidence": scan.get("confidence"),
+        "risk_level": scan.get("risk_level"),
+        "risk_flags": scan.get("risk_flags") or [],
+        "green_flags": scan.get("green_flags") or [],
+    }
+
+
+def _market_block(scan: dict[str, Any]) -> dict[str, Any]:
+    """Price/liquidity/holder numbers exactly as the scanner reported them."""
+    return {
+        "price_usd": scan.get("price_usd"),
+        "market_cap_usd": scan.get("market_cap_usd"),
+        "liquidity_usd": scan.get("liquidity_usd"),
+        "volume_24h_usd": scan.get("volume_24h_usd"),
+        "holder_count": scan.get("holder_count"),
+        "dev_holdings_pct": scan.get("dev_holdings_pct"),
+    }
+
+
+def _scanner_block(scan: dict[str, Any]) -> dict[str, Any]:
+    """Provenance: which modules ran, which were skipped, which sources fed them."""
+    return {
+        "deployer_address": scan.get("deployer_address"),
+        "scanned_at": scan.get("scanned_at"),
+        "modules_run": scan.get("modules_run") or [],
+        "modules_skipped": scan.get("modules_skipped") or [],
+        "data_sources": scan.get("data_sources") or [],
+    }
+
+
 def export_payload(
     scan: dict[str, Any],
     *,
@@ -57,33 +91,14 @@ def export_payload(
         "generated_at": datetime.now(UTC).isoformat(),
         "token": str(scan.get("token") or snapshot.get("token") or ""),
         "chain": str(scan.get("chain") or snapshot.get("chain") or ""),
-        "risk": {
-            "safety_score": scan.get("safety_score"),
-            "confidence": scan.get("confidence"),
-            "risk_level": scan.get("risk_level"),
-            "risk_flags": scan.get("risk_flags") or [],
-            "green_flags": scan.get("green_flags") or [],
-        },
-        "market": {
-            "price_usd": scan.get("price_usd"),
-            "market_cap_usd": scan.get("market_cap_usd"),
-            "liquidity_usd": scan.get("liquidity_usd"),
-            "volume_24h_usd": scan.get("volume_24h_usd"),
-            "holder_count": scan.get("holder_count"),
-            "dev_holdings_pct": scan.get("dev_holdings_pct"),
-        },
+        "risk": _risk_block(scan),
+        "market": _market_block(scan),
         "bundle_graph": bundle_graph,
         "cohorts": rollup.get("cohorts") or {},
         "kol": rollup.get("kol") or [],
         "watch": {"watchers_n": watchers_n},
         "snapshot": snapshot,
-        "scanner": {
-            "deployer_address": scan.get("deployer_address"),
-            "scanned_at": scan.get("scanned_at"),
-            "modules_run": scan.get("modules_run") or [],
-            "modules_skipped": scan.get("modules_skipped") or [],
-            "data_sources": scan.get("data_sources") or [],
-        },
+        "scanner": _scanner_block(scan),
     }
 
 

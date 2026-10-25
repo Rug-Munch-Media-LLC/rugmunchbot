@@ -15,6 +15,7 @@ a card never says "changed" without saying "from what to what".
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -34,6 +35,15 @@ _LEAD = {
     "new_bundle_wallet": "New bundled wallet",
     "authority_changed": "Token authority changed",
 }
+
+
+@dataclass(frozen=True, slots=True)
+class WatchTarget:
+    """The token a watch is on — the three fields every alert card carries."""
+
+    token: str
+    chain: str
+    symbol: str = ""
 
 
 def _short(value: Any) -> str:
@@ -71,11 +81,32 @@ def _fingerprint(token: str, events: Iterable[dict[str, Any]]) -> str:
     return f"premium:{token}:{'|'.join(marks)}"[:240]
 
 
+def _item(
+    target: WatchTarget, events: list[dict[str, Any]], snapshot: dict[str, Any]
+) -> dict[str, Any]:
+    """The queue item shared by every watching chat (``user_id`` added per chat)."""
+    changes: list[str] = []
+    for event in events:
+        changes.extend(_evidence(event, snapshot))
+    return {
+        "type": ITEM_TYPE,
+        "event_id": _fingerprint(target.token, events),
+        "payload": {
+            "token_address": target.token,
+            "token_symbol": target.symbol or "",
+            "chain": target.chain,
+            "changes": changes,
+            "captured_at": snapshot.get("captured_at"),
+            "holder_count": (snapshot.get("holders") or {}).get("count"),
+            "liquidity_usd": (snapshot.get("lp") or {}).get("liquidity_usd"),
+        },
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
 async def enqueue_watch_alerts(
     redis: Any,
-    token: str,
-    chain: str,
-    symbol: str,
+    target: WatchTarget,
     events: list[dict[str, Any]],
     snapshot: dict[str, Any],
     watchers: Iterable[str],
@@ -84,12 +115,10 @@ async def enqueue_watch_alerts(
 
     Args:
         redis: async Redis client (the same one holding watches/snapshots).
-        token: mint or contract address the watch is on.
-        chain: chain the token lives on.
-        symbol: ticker for the card header; empty renders as the address.
+        target: the token watch (mint/contract, chain, ticker for the header).
         events: non-empty ``diff_snapshots`` output for this cycle.
         snapshot: the current snapshot, used for evidence context.
-        watchers: chat ids watching ``token`` at cycle time.
+        watchers: chat ids watching the token at cycle time.
 
     Returns:
         How many queue items were pushed. Non-numeric chat ids (web users)
@@ -100,25 +129,7 @@ async def enqueue_watch_alerts(
     chats = [str(chat) for chat in watchers if str(chat).isdigit()]
     if not chats:
         return 0
-    changes: list[str] = []
-    for event in events:
-        changes.extend(_evidence(event, snapshot))
-    item = {
-        "type": ITEM_TYPE,
-        "event_id": _fingerprint(token, events),
-        "payload": {
-            "token_address": token,
-            "token_symbol": symbol or "",
-            "chain": chain,
-            "changes": changes,
-            "captured_at": snapshot.get("captured_at"),
-            "holder_count": (snapshot.get("holders") or {}).get("count"),
-            "liquidity_usd": (snapshot.get("lp") or {}).get("liquidity_usd"),
-        },
-        "created_at": datetime.now(UTC).isoformat(),
-    }
-    pushed = 0
+    item = _item(target, events, snapshot)
     for chat in chats:
         await redis.lpush(QUEUE_KEY, json.dumps({**item, "user_id": int(chat)}))
-        pushed += 1
-    return pushed
+    return len(chats)

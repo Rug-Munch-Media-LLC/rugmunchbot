@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from rugmunchbot.premium.bot_queue import enqueue_watch_alerts
+from rugmunchbot.premium.bot_queue import WatchTarget, enqueue_watch_alerts
 from rugmunchbot.premium.snapshot import snapshot_from_scan
 from rugmunchbot.premium.watch_events import diff_snapshots
 from rugmunchbot.premium.watch_rows import rows_for_events
@@ -46,6 +46,48 @@ async def _persist_alerts(session: Any, rows: list[dict[str, Any]]) -> int:
         logger.warning("premium_watch_cycle persist_unavailable rows=%d", len(rows))
         return 0
     return await save_alerts(session, rows)
+
+
+def _target(token: str, chain: str, payload: dict[str, Any]) -> WatchTarget:
+    """The token identity the alert card carries (ticker falls back to blank)."""
+    return WatchTarget(
+        token=token,
+        chain=chain,
+        symbol=str(payload.get("token_symbol") or payload.get("symbol") or ""),
+    )
+
+
+async def _deliver(
+    redis: Any,
+    target: WatchTarget,
+    events: list[dict[str, Any]],
+    snapshot: dict[str, Any],
+    inserted: int,
+) -> tuple[int, list[str]]:
+    """Queue the alerts only when the store actually inserted new rows.
+
+    The store dedupes, so re-running the same cycle must not page the same
+    chat twice. Returns the queued count with the watcher list it used.
+    """
+    watchers = await watchers_for(redis, target.token, target.chain)
+    if not inserted:
+        return 0, watchers
+    queued = await enqueue_watch_alerts(redis, target, events, snapshot, watchers)
+    return queued, watchers
+
+
+def _log_cycle(token: str, chain: str, watchers_n: int, events_n: int, inserted: int) -> None:
+    """One line per cycle that actually saw a change; silent when quiet."""
+    if not events_n:
+        return
+    logger.info(
+        "premium_watch_cycle token=%s chain=%s watchers=%d events=%d inserted=%d",
+        token[:12],
+        chain,
+        watchers_n,
+        events_n,
+        inserted,
+    )
 
 
 async def run_watch_cycle(
@@ -77,33 +119,11 @@ async def run_watch_cycle(
         rows_for_events(token, chain, events, watchers_n, snapshot) if watchers_n and events else []
     )
     inserted = await _persist_alerts(session, rows) if rows else 0
-    watchers = await watchers_for(redis, token, chain)
-    # Only a genuinely new alert is delivered: the store dedupes, so re-running
-    # the same cycle must not page the same chat twice.
-    queued = (
-        await enqueue_watch_alerts(
-            redis,
-            token,
-            chain,
-            str(payload.get("token_symbol") or payload.get("symbol") or ""),
-            events,
-            snapshot,
-            watchers,
-        )
-        if inserted
-        else 0
-    )
+    target = _target(token, chain, payload)
+    queued, watchers = await _deliver(redis, target, events, snapshot, inserted)
 
     await save_snapshot(redis, token, chain, snapshot)
-    if events:
-        logger.info(
-            "premium_watch_cycle token=%s chain=%s watchers=%d events=%d inserted=%d",
-            token[:12],
-            chain,
-            watchers_n,
-            len(events),
-            inserted,
-        )
+    _log_cycle(token, chain, watchers_n, len(events), inserted)
     return {
         "token": token,
         "chain": chain,

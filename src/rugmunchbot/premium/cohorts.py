@@ -32,13 +32,8 @@ def _row(members: list[dict[str, Any]], known: bool) -> dict[str, Any]:
     }
 
 
-def _classify(
-    wallet: str,
-    labels: dict[str, Any],
-    first_buyers: dict[str, dict[str, Any]],
-) -> str | None:
-    """Cohort for one wallet: explicit label first, behaviour second."""
-    label = labels.get(wallet) or {}
+def _label_cohort(label: dict[str, Any]) -> str | None:
+    """Explicit cohort label, if the label store carries one."""
     cohort = str(label.get("cohort") or "").lower()
     if cohort in COHORTS:
         return cohort
@@ -46,13 +41,86 @@ def _classify(
         return "team"
     if label.get("is_insider") or cohort in ("insider", "dev", "deployer"):
         return "insiders"
-    buyer = first_buyers.get(wallet) or {}
+    return None
+
+
+def _buyer_cohort(buyer: dict[str, Any], label: dict[str, Any]) -> str | None:
+    """Behavioural cohort: launch position or an explicit sniper flag."""
     rank = buyer.get("rank")
     if isinstance(rank, int) and rank <= SNIPER_MAX_RANK:
         return "snipers"
     if buyer.get("sniper") or label.get("is_sniper"):
         return "snipers"
     return None
+
+
+def _classify(
+    wallet: str,
+    labels: dict[str, Any],
+    first_buyers: dict[str, dict[str, Any]],
+) -> str | None:
+    """Cohort for one wallet: explicit label first, behaviour second."""
+    label = labels.get(wallet) or {}
+    return _label_cohort(label) or _buyer_cohort(first_buyers.get(wallet) or {}, label)
+
+
+def _buyer_index(first_buyers: list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
+    """Normalise first-buyer rows: rank (or slot) plus initial share."""
+    return {
+        str(b.get("wallet") or b.get("address") or ""): {
+            "rank": b.get("rank") if isinstance(b.get("rank"), int) else b.get("slot"),
+            "initial_pct": b.get("initial_pct")
+            if b.get("initial_pct") is not None
+            else b.get("pct"),
+            "sniper": b.get("sniper"),
+        }
+        for b in (first_buyers or [])
+        if b.get("wallet") or b.get("address")
+    }
+
+
+def _member_row(wallet: str, holder: dict[str, Any], buyer: dict[str, Any]) -> dict[str, Any]:
+    """One member with the five comparable fields, preferring the live holder."""
+    initial = buyer.get("initial_pct")
+    current = holder.get("pct")
+    return {
+        "wallet": wallet,
+        "bundled": bool(holder.get("bundled") or holder.get("in_bundle")),
+        "initial_pct": initial if initial is not None else holder.get("initial_pct"),
+        "current_pct": current if current is not None else holder.get("current_pct"),
+        "realized_sol": holder.get("realized_sol"),
+    }
+
+
+def _member_rows(
+    holders: list[dict[str, Any]],
+    label_map: dict[str, Any],
+    buyers: dict[str, dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Group holders into their cohorts, keeping the comparable five fields."""
+    members: dict[str, list[dict[str, Any]]] = {cohort: [] for cohort in COHORTS}
+    for holder in holders:
+        wallet = str(holder.get("wallet") or holder.get("address") or "")
+        if not wallet:
+            continue
+        cohort = _classify(wallet, label_map, buyers)
+        if cohort is not None:
+            members[cohort].append(_member_row(wallet, holder, buyers.get(wallet) or {}))
+    return members
+
+
+def _kol_rows(label_map: dict[str, Any]) -> list[dict[str, Any]]:
+    """Known KOLs with a profile link and their realised SOL, name-sorted."""
+    return [
+        {
+            "handle": str(label.get("handle") or wallet),
+            "x_url": label.get("x_url")
+            or (f"https://x.com/{label['handle']}" if label.get("handle") else None),
+            "pnl_sol": label.get("pnl_sol"),
+        }
+        for wallet, label in sorted(label_map.items())
+        if isinstance(label, dict) and (label.get("handle") or label.get("cohort") == "kol")
+    ]
 
 
 def cohort_rollup(
@@ -74,54 +142,11 @@ def cohort_rollup(
         ``current_pct`` and ``realized_sol``.
     """
     label_map = labels or {}
-    buyers = {
-        str(b.get("wallet") or b.get("address") or ""): {
-            "rank": b.get("rank") if isinstance(b.get("rank"), int) else b.get("slot"),
-            "initial_pct": b.get("initial_pct")
-            if b.get("initial_pct") is not None
-            else b.get("pct"),
-            "sniper": b.get("sniper"),
-        }
-        for b in (first_buyers or [])
-        if b.get("wallet") or b.get("address")
-    }
-
-    members: dict[str, list[dict[str, Any]]] = {cohort: [] for cohort in COHORTS}
-    for holder in holders:
-        wallet = str(holder.get("wallet") or holder.get("address") or "")
-        if not wallet:
-            continue
-        cohort = _classify(wallet, label_map, buyers)
-        if cohort is None:
-            continue
-        buyer = buyers.get(wallet) or {}
-        members[cohort].append(
-            {
-                "wallet": wallet,
-                "bundled": bool(holder.get("bundled") or holder.get("in_bundle")),
-                "initial_pct": buyer.get("initial_pct")
-                if buyer.get("initial_pct") is not None
-                else holder.get("initial_pct"),
-                "current_pct": holder.get("pct")
-                if holder.get("pct") is not None
-                else holder.get("current_pct"),
-                "realized_sol": holder.get("realized_sol"),
-            }
-        )
-
-    kol = [
-        {
-            "handle": str(label.get("handle") or wallet),
-            "x_url": label.get("x_url")
-            or (f"https://x.com/{label['handle']}" if label.get("handle") else None),
-            "pnl_sol": label.get("pnl_sol"),
-        }
-        for wallet, label in sorted(label_map.items())
-        if isinstance(label, dict) and (label.get("handle") or label.get("cohort") == "kol")
-    ]
+    buyers = _buyer_index(first_buyers)
+    members = _member_rows(holders, label_map, buyers)
     return {
         "cohorts": {
             cohort: _row(members[cohort], known=bool(members[cohort])) for cohort in COHORTS
         },
-        "kol": kol,
+        "kol": _kol_rows(label_map),
     }

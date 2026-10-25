@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from rugmunchbot.premium import payload_facts
-from rugmunchbot.premium.bundle_graph import build_bundle_graph
+from rugmunchbot.premium.bundle_graph import BuildRequest, build_bundle_graph
 from rugmunchbot.premium.cohorts import cohort_rollup
 from rugmunchbot.premium.snapshot import snapshot_from_scan
 
@@ -54,12 +54,14 @@ def derive(scan: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[s
     buyers = payload_facts.first_buyers(scan)
     wallets = {row["wallet"] for row in [*holders, *buyers]}
     graph = build_bundle_graph(
-        token=snapshot["token"],
-        chain=snapshot["chain"],
-        wallets=sorted(wallets),
-        edges=payload_facts.edges(scan),
-        holdings=payload_facts.holdings(scan),
-        total_supply=scan.get("total_supply"),
+        BuildRequest(
+            token=snapshot["token"],
+            chain=snapshot["chain"],
+            wallets=sorted(wallets),
+            edges=payload_facts.edges(scan),
+            holdings=payload_facts.holdings(scan),
+            total_supply=scan.get("total_supply"),
+        )
     )
     return snapshot, graph, cohort_rollup(holders, buyers, labels_for(wallets))
 

@@ -1,9 +1,8 @@
 """Repeating news lanes — one registration step, split from ``_register``.
 
-Extracted verbatim out of ``register_channel_jobs``. These are ``run_repeating``
-fast lanes rather than daily editions, which is why they are their own module:
-each cadence is env-tunable (``0`` disables) and shares the global dedupe so a
-story never double-posts across lanes.
+These are ``run_repeating`` fast lanes rather than daily editions, which is why
+they are their own module: each cadence is env-tunable (``0`` disables) and
+shares the global dedupe so a story never double-posts across lanes.
 """
 
 from __future__ import annotations
@@ -16,17 +15,12 @@ from rugmunchbot.channels.scheduler._tick import _tick_wrapper
 from rugmunchbot.config import ALERTS_CHANNEL_ENABLED
 
 
-def register_lane_jobs(job_queue: Any) -> None:
-    """Register the roundup / fast-lane / security-escalation rails."""
+def _register_roundup(job_queue: Any) -> None:
+    """Weekly recap generator — RETIRED by default (2026-10-17 doctrine).
 
-    # Channel roundup — RETIRED by default (2026-10-17, operator doctrine).
-    # The standalone 3x-daily roundup duplicated the flagship "The Daily Rug
-    # — Morning Market Brief" (channels/daily_rug), which already carries
-    # "the day's best stories, ranked" every morning. Two link-list posts a
-    # day read as filler. The module survives as the WEEKLY recap generator
-    # (a 7-day arc the Daily Rug does not cover); re-enable with
-    # RMI_ROUNDUP_INTERVAL_MIN > 0 (e.g. 10080 = weekly). See
-    # ``scheduler/_posts_roundup.py`` for the fold decision.
+    The 3x-daily roundup duplicated the flagship Daily Rug; the module survives
+    as the weekly arc (set ``RMI_ROUNDUP_INTERVAL_MIN`` > 0, e.g. 10080).
+    """
     from rugmunchbot.channels.scheduler._posts_roundup import post_roundup
 
     roundup_min = int(os.getenv("RMI_ROUNDUP_INTERVAL_MIN", "0"))
@@ -37,8 +31,10 @@ def register_lane_jobs(job_queue: Any) -> None:
             first=_core._FIRST_RUN_SECONDS["news"] + 30,
             name="channel_roundup",
         )
-    # Breaking-news fast lane (strategy v2): critical+fresh intel on a short
-    # tick. 0 disables; shares dedupe with the slow lane so no double-post.
+
+
+def _register_fast_lane(job_queue: Any) -> None:
+    """Breaking-news fast lane: critical+fresh intel on a short tick."""
     from rugmunchbot.channels.scheduler._posts_rag import post_rag_fast_lane
 
     fast_lane_min = int(os.getenv("RMI_RAG_FAST_LANE_MIN", "10"))
@@ -49,10 +45,10 @@ def register_lane_jobs(job_queue: Any) -> None:
             first=20,
             name="channel_rag_fast",
         )
-    # Security-tweet breaking-news escalation (2026-09-03): high-engagement
-    # security tweets from monitored accounts post to main immediately — they
-    # must not wait for the daily roundup. 0 disables; shares the global
-    # dedupe so a tweet never double-posts.
+
+
+def _register_security_escalation(job_queue: Any) -> None:
+    """High-engagement security tweets post to main immediately."""
     from rugmunchbot.channels.scheduler._posts_rag import (
         SECURITY_TWEET_ESCALATION_MIN,
         post_security_tweet_escalation,
@@ -69,3 +65,10 @@ def register_lane_jobs(job_queue: Any) -> None:
             first=30,
             name="channel_security_tweet_escalation",
         )
+
+
+def register_lane_jobs(job_queue: Any) -> None:
+    """Register the roundup / fast-lane / security-escalation rails."""
+    _register_roundup(job_queue)
+    _register_fast_lane(job_queue)
+    _register_security_escalation(job_queue)

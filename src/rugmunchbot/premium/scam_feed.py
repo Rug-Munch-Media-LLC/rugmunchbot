@@ -86,19 +86,31 @@ def eligible(callout: Callout) -> bool:
     return len(callout.failing) >= MIN_CHECKS
 
 
-def build(
-    address: str,
-    chain: str,
-    symbol: str,
-    score: float,
-    checks: list[Check],
-    sources: tuple[str, ...] = (),
-) -> Callout:
+@dataclass(frozen=True, slots=True)
+class CalloutFacts:
+    """Raw inputs for one callout, so ``build`` takes a single argument."""
+
+    address: str
+    chain: str
+    symbol: str
+    score: float
+    checks: list[Check]
+    sources: tuple[str, ...] = ()
+
+
+def build(facts: CalloutFacts) -> Callout:
     """Assemble a callout, deduping checks by id (one id is one observation)."""
     seen: dict[str, Check] = {}
-    for check in checks:
+    for check in facts.checks:
         seen.setdefault(check.check_id, check)
-    return Callout(address, chain, symbol, float(score), tuple(seen.values()), sources)
+    return Callout(
+        facts.address,
+        facts.chain,
+        facts.symbol,
+        float(facts.score),
+        tuple(seen.values()),
+        facts.sources,
+    )
 
 
 def evidence_lines(callout: Callout) -> list[str]:

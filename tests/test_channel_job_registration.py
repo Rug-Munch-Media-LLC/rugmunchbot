@@ -55,6 +55,10 @@ _REGISTER_MODULES = (
     "_register_intel",
     "_register_daily",
     "_register_lanes",
+    "_register_alpha",
+    "_register_alerts",
+    "_register_kol",
+    "_register_content",
 )
 
 

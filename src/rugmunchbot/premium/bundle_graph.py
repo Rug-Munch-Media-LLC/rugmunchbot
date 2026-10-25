@@ -21,11 +21,24 @@ Design rules:
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 #: A cluster this small is not evidence of coordination.
 MIN_CLUSTER_SIZE = 3
 EDGE_KINDS = ("funding", "co_buy", "shared_funder", "transfer")
+
+
+@dataclass(frozen=True, slots=True)
+class BuildRequest:
+    """Everything the graph builder needs for one token."""
+
+    token: str
+    chain: str
+    wallets: list[str] = field(default_factory=list)
+    edges: list[dict[str, Any]] = field(default_factory=list)
+    holdings: dict[str, Any] = field(default_factory=dict)
+    total_supply: float | None = None
 
 
 def _clusters(wallets: list[str], edges: list[dict[str, Any]]) -> list[list[str]]:
@@ -52,8 +65,8 @@ def _clusters(wallets: list[str], edges: list[dict[str, Any]]) -> list[list[str]
 
 def _balance(holdings: dict[str, Any], wallet: str, *fields: str) -> float:
     entry = holdings.get(wallet) or {}
-    for field in fields:
-        value = entry.get(field)
+    for field_name in fields:
+        value = entry.get(field_name)
         if isinstance(value, (int, float)):
             return float(value)
     return 0.0
@@ -87,29 +100,10 @@ def _confidence(edges: list[dict[str, Any]], clusters: list[dict[str, Any]]) -> 
     return round(0.4 * evidenced + 0.3 * diversity + 0.3 * size_factor, 3)
 
 
-def build_bundle_graph(
-    token: str,
-    chain: str,
-    wallets: list[str],
-    edges: list[dict[str, Any]],
-    holdings: dict[str, Any] | None = None,
-    total_supply: float | None = None,
-) -> dict[str, Any]:
-    """Build the bundle graph for one token.
-
-    Args:
-        token: mint/contract address.
-        chain: chain the token lives on.
-        wallets: addresses that took part (holders, first buyers, bundlers).
-        edges: ``{"from", "to", "kind", "evidence_tx"}`` rows. Unknown kinds are
-            kept but labelled ``unknown`` so a bad caller is visible, not lost.
-        holdings: ``wallet -> {"balance"|"current_amount", "realized_sol"}``.
-        total_supply: token supply, for ``supply_pct``.
-
-    Returns:
-        ``token``, ``chain``, ``wallets``, ``wallet_count``, ``edges``,
-        ``clusters``, ``confidence`` and ``bundle_pct_of_supply``.
-    """
+def _normalise(
+    wallets: list[str], edges: list[dict[str, Any]]
+) -> tuple[set[str], list[dict[str, Any]]]:
+    """Keep only edges that name two distinct wallets; unknown kinds are labelled."""
     known = {str(wallet) for wallet in wallets if wallet}
     normalised: list[dict[str, Any]] = []
     for edge in edges:
@@ -126,19 +120,35 @@ def build_bundle_graph(
                 "evidence_tx": edge.get("evidence_tx"),
             }
         )
+    return known, normalised
 
+
+def build_bundle_graph(request: BuildRequest) -> dict[str, Any]:
+    """Build the bundle graph for one token.
+
+    Args:
+        request: token, chain, participating wallets, typed edges, per-wallet
+            holdings and the token supply. Unknown edge kinds are kept but
+            labelled ``unknown`` so a bad caller is visible, not lost.
+
+    Returns:
+        ``token``, ``chain``, ``wallets``, ``wallet_count``, ``edges``,
+        ``clusters``, ``confidence`` and ``bundle_pct_of_supply``.
+    """
+    known, normalised = _normalise(request.wallets, request.edges)
     ordered = sorted(known)
-    balances = holdings or {}
+    balances = request.holdings or {}
     clusters = [
-        _cluster_row(group, balances, total_supply) for group in _clusters(ordered, normalised)
+        _cluster_row(group, balances, request.total_supply)
+        for group in _clusters(ordered, normalised)
     ]
     clusters.sort(key=lambda cluster: (-cluster["size"], -(cluster["supply_pct"] or 0.0)))
     bundled_pct = sum(
         cluster["supply_pct"] or 0.0 for cluster in clusters if cluster["size"] >= MIN_CLUSTER_SIZE
     )
     return {
-        "token": token,
-        "chain": chain,
+        "token": request.token,
+        "chain": request.chain,
         "wallets": ordered,
         "wallet_count": len(ordered),
         "edges": normalised,

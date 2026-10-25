@@ -32,25 +32,32 @@ CASHD_OUT_RATIO = 0.2
 LP_DROP_RATIO = 0.5
 
 
+def _holder_pcts(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """wallet -> reported share for the top holders of one snapshot."""
+    top = (snapshot.get("holders") or {}).get("top") or []
+    return {h["wallet"]: h.get("pct") for h in top}
+
+
+def _cash_out_event(wallet: str, pct: Any, now: Any) -> dict[str, Any] | None:
+    """One ``cashed_out`` event, or ``None`` when the holder is still there."""
+    if pct is None or pct < MIN_HOLDER_PCT:
+        return None
+    if now is not None and now > pct * CASHD_OUT_RATIO:
+        return None
+    return {
+        "kind": "cashed_out",
+        "wallet": wallet,
+        "before_pct": pct,
+        "after_pct": now,
+        "detail": "holder gone from top holders" if now is None else "share collapsed",
+    }
+
+
 def _cashed_out(previous: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
-    before = {h["wallet"]: h.get("pct") for h in (previous.get("holders") or {}).get("top") or []}
-    after = {h["wallet"]: h.get("pct") for h in (current.get("holders") or {}).get("top") or []}
-    events: list[dict[str, Any]] = []
-    for wallet, pct in before.items():
-        if pct is None or pct < MIN_HOLDER_PCT:
-            continue
-        now = after.get(wallet)
-        if now is None or (now is not None and now <= pct * CASHD_OUT_RATIO):
-            events.append(
-                {
-                    "kind": "cashed_out",
-                    "wallet": wallet,
-                    "before_pct": pct,
-                    "after_pct": now,
-                    "detail": "holder gone from top holders" if now is None else "share collapsed",
-                }
-            )
-    return events
+    before = _holder_pcts(previous)
+    after = _holder_pcts(current)
+    events = [_cash_out_event(wallet, pct, after.get(wallet)) for wallet, pct in before.items()]
+    return [event for event in events if event is not None]
 
 
 def _lp_unlocked(previous: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
