@@ -8,7 +8,7 @@ catalog in ``bot/_catalog.py``) and ``/help``.
 
 Three rules this module enforces:
 
-* ``_COMMAND_SECTIONS`` — the advertised 20. The BotFather menu is pushed
+* ``command_menu.ADVERTISED_SECTIONS`` — the advertised 20. The menu is pushed
   from exactly this list (``_BOT_COMMANDS``), so menu and code cannot drift.
 * ``_MENU_COMMANDS`` — the advertised set, used by the startup guard.
 * Everything registered but not advertised is *intentional* progressive
@@ -136,7 +136,7 @@ def _check_help_text_coverage(registered: set[str]) -> None:
     """Every ``/cmd`` mentioned in /help or /more text must be registered.
 
     Both texts are GENERATED from the registry (``bot/_catalog.py`` +
-    ``_COMMAND_SECTIONS``), so this is a belt-and-suspenders check that a
+    ``command_menu.ADVERTISED_SECTIONS``), so this is a belt-and-suspenders check that a
     hand-written line never sneaks back in.
     """
     from rugmunchbot.handlers._help_text import HELP_TEXT, MENU_TEXT

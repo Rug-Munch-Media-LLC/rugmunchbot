@@ -86,19 +86,21 @@ from rugmunchbot.handlers._core_handlers import (  # re-exported
     cmd_menu,
     cmd_start,
 )
+from rugmunchbot.handlers._help_channels import (  # split out 2026-10-25
+    CHANNEL_LABELS,
+    _channel_url,
+    _channels_section,
+)
 from rugmunchbot.handlers._help_text import (  # re-exported for callers/tests
     _HELP_EMOJI,
     _HELP_SECTIONS,
     _MENU_EMOJI,
     _MENU_SECTIONS,
-    CHANNEL_LABELS,
     HELP_TEXT,
     MENU_TEXT,
     OPEN_SOURCE_REPOS,
     _build_help_text,
     _build_menu_text,
-    _channel_url,
-    _channels_section,
     build_in_public_section,
     project_links_section,
 )

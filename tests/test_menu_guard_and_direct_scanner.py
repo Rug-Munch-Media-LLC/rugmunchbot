@@ -3,8 +3,8 @@
 Covers the two batch-1 fixes:
 
 * ``bot/_menu_guard.py`` — the hard startup drift check. The 24 commands
-  from the audit must be either advertised in the menu or declared
-  admin-hidden; anything else is drift and must raise.
+  from the audit must be documented somewhere (menu, /more, /help, chat-admin
+  or owner-only); anything else is drift and must raise.
 * ``tools/scanner/_scanner_direct.py`` — the feature-flagged adapter stub.
   With ``SCANNER_DIRECT`` unset (default) every entry point returns ``None``
   so callers keep their existing fallback chain (zero behaviour change).
@@ -66,10 +66,17 @@ async def _noop(update, ctx) -> None:  # pragma: no cover - never invoked
 
 
 def test_audit_drift_commands_are_all_declared_or_advertised():
-    """Every audit command is either in the menu or declared admin-hidden."""
-    from rugmunchbot.bot._commands import _MENU_COMMANDS
+    """Every audit command is documented somewhere the user can find it.
 
-    unresolved = AUDIT_DRIFT_COMMANDS - _MENU_COMMANDS - ADMIN_MENU_COMMANDS
+    Since progressive disclosure (2026-10-23) "documented" is not "in the
+    BotFather menu": it is the menu, ``/more`` (the catalog), ``/help``, the
+    chat-admin block, or the owner-only set. ``/menu`` (alias of /more) and
+    ``/whalewatch`` (premium tier) are public — they belong to the first three,
+    not to ``ADMIN_MENU_COMMANDS``.
+    """
+    from command_surface_helpers import documented
+
+    unresolved = AUDIT_DRIFT_COMMANDS - documented()
     assert not unresolved, f"audit commands still unresolved: {sorted(unresolved)}"
 
 
