@@ -11,6 +11,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
+from rugmunchbot.formatters._base._primitives import clip as _clip_canonical
 from rugmunchbot.formatters._scan_report_common._engines import _engine_metrics_rows
 from rugmunchbot.formatters._scan_report_riskreport._constants import (
     _MIDDOT,
@@ -180,7 +181,8 @@ def _headline_lines(rep: dict[str, Any]) -> list[str]:
 
 
 def _clip(text: str, limit: int) -> str:
-    return text if len(text) <= limit else text[: limit - 1].rstrip() + "\u2026"
+    """Truncate to *limit* chars (canonical helper)."""
+    return _clip_canonical(text, limit)
 
 
 def _top_factor_lines(rep: dict[str, Any], limit: int = 4) -> list[str]:

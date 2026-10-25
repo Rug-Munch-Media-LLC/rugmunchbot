@@ -18,9 +18,8 @@ from telegram.ext import (
 )
 from telegram.request import HTTPXRequest
 
-from rugmunchbot.bot._commands import (  # noqa: F401
+from rugmunchbot.bot._commands import (
     _BOT_COMMANDS,
-    _COMMAND_SECTIONS,
     _reg,
     cmd_channels,
     cmd_feed,

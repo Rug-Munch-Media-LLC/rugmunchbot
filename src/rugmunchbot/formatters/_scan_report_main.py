@@ -22,7 +22,13 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from rugmunchbot.config import _risk_gauge, fmt_chain, fmt_pct, risk_bar, threat_indicator
-from rugmunchbot.formatters._base import footer_links, scan_shill_footer, sep, thin_sep
+from rugmunchbot.formatters._base import (
+    esc,
+    footer_links,
+    scan_shill_footer,
+    sep,
+    thin_sep,
+)
 from rugmunchbot.formatters._scan_report_common import (
     _clip,
     _collapse_blank_lines,
@@ -178,8 +184,8 @@ def _format_scan_report(
     lines = [
         "\U0001f6e1\ufe0f <b>Rug Munch Token Scan</b>",
         s,
-        f"<b>{r['name']}</b> ({r['symbol']}) {chain_str}{age_str}",
-        f"<code>{r['address']}</code>",
+        f"<b>{esc(r.get('name'))}</b> ({esc(r.get('symbol'))}) {esc(chain_str)}{age_str}",
+        f"<code>{esc(r.get('address'))}</code>",
     ]
     verdict_rendered = False
     if format_verdict_header is not None:

@@ -18,7 +18,6 @@ from rugmunchbot.moderation import (
     gban,
     notes,
     quarantine,
-    raidmode,
     schedule,
     settings_cmd,
     state,
@@ -31,6 +30,7 @@ from rugmunchbot.moderation.commands import (
     cmd_modstatus,
 )
 from rugmunchbot.moderation.gate import moderation_gate
+from rugmunchbot.moderation.raid_cmd import cmd_modraid
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.moderation.register")
@@ -56,7 +56,7 @@ COMMANDS: dict[str, Any] = {
     "setwelcome": settings_cmd.cmd_setwelcome,
     "setgoodbye": settings_cmd.cmd_setgoodbye,
     "modconfig": settings_cmd.cmd_modconfig,
-    "modraid": raidmode.cmd_modraid,
+    "modraid": cmd_modraid,
     "modrelease": cmd_modrelease,
 }
 

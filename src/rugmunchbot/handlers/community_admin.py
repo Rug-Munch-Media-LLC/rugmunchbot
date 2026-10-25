@@ -1,8 +1,9 @@
 """``/setup`` — channel-owner settings for the current chat.
 
-Owner/admin only: a fleet owner, an id in the chat's explicit admin list, or a
+Chat-admin only: a fleet owner, an id in the chat's explicit admin list, or a
 real Telegram administrator of the chat. The command is deliberately NOT in the
-BotFather menu — it is declared in ``bot._menu_guard.ADMIN_MENU_COMMANDS``.
+BotFather menu — it is declared in ``command_menu.GROUP_ADMIN_SECTIONS`` (the
+chat-admin surface), not in the owner-only ``ADMIN_MENU_COMMANDS``.
 
 The command grammar lives in :mod:`rugmunchbot.community.commands`; this module
 only resolves the chat and the Redis client, gates the caller, and replies.

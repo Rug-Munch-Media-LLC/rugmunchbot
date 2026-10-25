@@ -1,3 +1,20 @@
+<!-- SPDX-License-Identifier: MIT -->
+# Reference: rmi-backend `app/domains/premium/router.py`
+
+**Not bot code, not importable from `rugmunchbot`.** Verbatim reference copy of the
+backend premium HTTP layer, kept for provenance only.
+
+- Canonical source of truth: `rmi-backend`, `app/domains/premium/router.py` (mounted by
+  `app.routers.v1` under `/api/v1`). The bot reaches these routes over HTTP through
+  `src/rugmunchbot/handlers/premium_watch/_api.py`.
+- Why it is not in `src/rugmunchbot/premium/`: it imports `app.core.dependencies`,
+  `app.core.internal_key` and `app.core.rate_limiter`, which do not exist bot-side. The
+  `.importlinter` `api-consumer-only` contract forbids `rugmunchbot -> app`, and it
+  inspects imports at *every* nesting level (grimp records function-level imports too),
+  so moving those imports inside functions cannot satisfy the gate.
+- Reinstating it as bot code is a contract violation; call the HTTP endpoint instead. -->
+
+```python
 """Premium endpoints — per-token watches, cycle, export and webhook contract.
 
 PORT NOTE (rugmunchbot copy): this is the rmi-backend *API layer*, restored
@@ -174,3 +191,4 @@ async def export_scan_json(
 async def webhook_contract_route() -> dict[str, Any]:
     """Describe the schema and signing rules a webhook subscriber implements."""
     return webhook_contract()
+```

@@ -1,9 +1,17 @@
-"""Formatter primitives — chain detection, addresses, separators."""
+"""Formatter primitives — escaping, truncation, addresses, separators.
 
+``esc`` and ``clip`` are the single canonical helpers for user-controlled
+text in a Telegram-HTML card. Every card formatter uses these instead of
+its own copy: a rendered value that is not escaped can break the whole
+message (Telegram rejects unbalanced/unknown tags), and a value that is not
+clipped can push the card past the 4096-character ceiling.
+"""
 
 from __future__ import annotations
 
 import re
+
+from rugmunchbot.content_style._escape import esc as _esc
 
 BETA_BANNER = (
     "\U0001f680 <b>FREE PUBLIC BETA</b> \u2014 all premium features "
@@ -31,6 +39,29 @@ EVM_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
 
 SOL_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+
+
+def esc(value: object) -> str:
+    """Escape *value* for a Telegram HTML text node (canonical helper).
+
+    ``None`` renders as an empty string, never the literal ``"None"``.
+    """
+    return _esc("" if value is None else value)
+
+
+def clip(value: object, limit: int) -> str:
+    """Truncate *value* to *limit* characters with a single ellipsis.
+
+    Only marks the cut when content was actually dropped, and never splits
+    a word mid-way without the marker.
+    """
+    text = "" if value is None else str(value)
+    text = text.strip()
+    if limit <= 0:
+        return ""
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "\u2026"
 
 
 def is_evm(addr: str) -> bool:
