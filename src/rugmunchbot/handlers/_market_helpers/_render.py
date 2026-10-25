@@ -23,6 +23,8 @@ from rugmunchbot.handlers._market_helpers._boosted import (
     _split_paid,
 )
 from rugmunchbot.handlers._market_helpers._card import _render_token_card
+from rugmunchbot.handlers._market_helpers._disclosure import disclosure_footer
+from rugmunchbot.handlers._market_helpers._freshness import freshness_label
 from rugmunchbot.handlers._market_helpers._names import _trending_display
 from rugmunchbot.handlers._market_helpers._rank import _sort_trending, _window_note
 from rugmunchbot.handlers._market_helpers._tokens import TRENDING_WINDOWS
@@ -71,6 +73,14 @@ def _render_trending_text(tokens: list[dict[str, Any]], chain: str, window: str)
         lines.append("")
         lines.append(f"<i>{note}</i>")
     lines.extend(_render_boosted_lines(paid, chain, window))
+    # Paid disclosure is unconditional: the count is stated even at zero,
+    # so "organic" is an explicit claim rather than a reader inference.
+    lines.append("")
+    lines.append(f"<i>{disclosure_footer(len(ranked) + len(paid), len(paid))}</i>")
+    if tokens:
+        fresh = freshness_label(tokens[0].get("fetched_at"))
+        if fresh:
+            lines.append(f"<i>\u26a0\ufe0f {fresh}</i>")
     lines.append(f"\n<i>Chains: {TRENDING_CHAINS}</i>")
     lines.append(footer_links())
     return "\n".join(lines)

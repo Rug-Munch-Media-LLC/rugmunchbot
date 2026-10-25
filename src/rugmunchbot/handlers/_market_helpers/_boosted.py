@@ -13,6 +13,7 @@ from typing import Any
 
 from rugmunchbot.config import fmt_number, fmt_pct
 from rugmunchbot.handlers._market_helpers._badges import _chain_badge, _fmt_price
+from rugmunchbot.handlers._market_helpers._disclosure import PAID_BADGE
 from rugmunchbot.handlers._market_helpers._names import _trending_display
 from rugmunchbot.handlers._market_helpers._tokens import _window_change
 
@@ -52,7 +53,7 @@ def _boosted_entry(token: dict[str, Any], chain: str, window: str) -> str:
     label = f"<b>{html.escape(display_name)}</b> ({html.escape(display_symbol.upper())})"
     if addr:
         label = f'<a href="https://dexscreener.com/{chain}/{addr}">{label}</a>'
-    return f"\u2022 {label}\n   {body}"
+    return f"\u2022 {label}{PAID_BADGE}\n   {body}"
 
 
 def _render_boosted_lines(paid: list[dict[str, Any]], chain: str, window: str) -> list[str]:
