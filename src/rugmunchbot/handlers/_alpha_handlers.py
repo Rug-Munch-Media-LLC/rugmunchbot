@@ -26,7 +26,6 @@ from telegram.constants import ParseMode
 from rugmunchbot import db
 from rugmunchbot.config import fmt_chain
 from rugmunchbot.formatters import footer_links, sep, thin_sep
-from rugmunchbot.handlers.market import _fetch_market_intel, _fmt_usd
 from rugmunchbot.states import is_owner
 from rugmunchbot.support.logging import get_logger
 
@@ -86,6 +85,8 @@ def _risk_label(item: dict[str, Any]) -> str:
 
 
 def _render_early(items: list[dict[str, Any]]) -> list[str]:
+    from rugmunchbot.handlers.market._render import _fmt_usd
+
     lines: list[str] = []
     for i, item in enumerate(items, 1):
         symbol = (item.get("symbol") or "???").upper()[:12]
@@ -100,6 +101,8 @@ def _render_early(items: list[dict[str, Any]]) -> list[str]:
 
 
 def _render_smart(items: list[dict[str, Any]]) -> list[str]:
+    from rugmunchbot.handlers.market._render import _fmt_usd
+
     lines: list[str] = []
     for i, item in enumerate(items, 1):
         symbol = (item.get("token_symbol") or "???").upper()[:12]
@@ -124,6 +127,8 @@ def _build_signals(
     whales: list[dict[str, Any]], launches: list[dict[str, Any]]
 ) -> list[tuple[str, str]]:
     """Curated alpha signals from whale moves + fresh launches."""
+    from rugmunchbot.handlers.market._render import _fmt_usd
+
     signals: list[tuple[str, str]] = []
     for w in whales:
         symbol = (w.get("token_symbol") or "???").upper()[:12]
@@ -144,6 +149,8 @@ def _build_signals(
 
 async def cmd_alpha(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/alpha — Premium alpha signals feed (early detection, smart money, curated signals)."""
+    from rugmunchbot.handlers.market._data import _fetch_market_intel
+
     user = update.effective_user
     if user is None:
         return
