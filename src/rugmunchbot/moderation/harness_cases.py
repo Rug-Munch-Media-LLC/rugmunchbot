@@ -69,6 +69,7 @@ async def _join(rig: Any) -> tuple[str, str, str]:
 
 async def _captcha_pass(rig: Any) -> tuple[str, str, str]:
     user = FakeUser(555, "newbie", "Newbie")
+    captcha.register_pending(CHAT_ID, user.id, 300)
     query = FakeQuery(captcha.callback_data(CHAT_ID, user.id), user)
     update = FakeUpdate(chat=rig.chat, user=user, callback_query=query)
     await captcha_verify.handle_captcha_callback(update, rig_context(rig.bot, rig.queue))
@@ -79,6 +80,7 @@ async def _captcha_fail(rig: Any) -> tuple[str, str, str]:
     from rugmunchbot.moderation.harness_fakes import MATH_CHAT_ID
 
     user = FakeUser(556, "bot", "Bot")
+    captcha.register_pending(MATH_CHAT_ID, user.id, 300)
     query = FakeQuery(captcha.callback_data(MATH_CHAT_ID, user.id, 999), user)
     update = FakeUpdate(
         chat=FakeChat(MATH_CHAT_ID, "RugMunch Math"), user=user, callback_query=query

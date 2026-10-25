@@ -16,8 +16,12 @@ logger = get_logger("rmi_bot.moderation.timeout")
 
 
 async def _close_gate(bot: Any, chat_id: int, user_id: int, policy: Any) -> dict[str, Any]:
+    from rugmunchbot.moderation import captcha as _captcha
+
     if state.is_verified(chat_id, user_id):
+        _captcha.forget_pending(chat_id, user_id)
         return {}
+    _captcha.forget_pending(chat_id, user_id)
     if policy.dry_run:
         entry = audit.build_entry(
             action_id=audit.new_action_id(),
@@ -84,8 +88,10 @@ async def _close_gate(bot: Any, chat_id: int, user_id: int, policy: Any) -> dict
     return entry
 
 
-def schedule(context: Any, chat_id: int, user_id: int, policy: Any) -> bool:
-    """Schedule the gate timeout. False when the captcha is off or no queue."""
+def schedule(
+    context: Any, chat_id: int, user_id: int, policy: Any, *, delay: float | None = None
+) -> bool:
+    """Schedule the gate timeout (``delay`` overrides the policy timeout)."""
     if not policy.new_member_captcha:
         return False
     queue = getattr(context, "job_queue", None)
@@ -97,7 +103,8 @@ def schedule(context: Any, chat_id: int, user_id: int, policy: Any) -> bool:
         bot = getattr(job_context, "bot", None) or context.bot
         await _close_gate(bot, chat_id, user_id, policy)
 
-    queue.run_once(_expire, when=policy.captcha_timeout_s, name=f"modcap:{chat_id}:{user_id}")
+    when = policy.captcha_timeout_s if delay is None else max(1.0, delay)
+    queue.run_once(_expire, when=when, name=f"modcap:{chat_id}:{user_id}")
     return True
 
 
