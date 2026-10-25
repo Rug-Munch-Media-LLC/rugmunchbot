@@ -188,6 +188,29 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "premium never imports presentation, bot or integration layers"
+type = "forbidden"
+source_modules = ["rugmunchbot.premium"]
+forbidden_modules = [
+    "rugmunchbot.handlers",
+    "rugmunchbot.bot",
+    "rugmunchbot.commands",
+    "rugmunchbot.tools",
+    "rugmunchbot.channels",
+]
+
+[[tool.importlinter.contracts]]
+name = "command registry is data-only (no telegram, handlers or bot)"
+type = "forbidden"
+source_modules = ["rugmunchbot.command_registry", "rugmunchbot._command_registry_data"]
+forbidden_modules = [
+    "telegram",
+    "rugmunchbot.handlers",
+    "rugmunchbot.bot",
+    "rugmunchbot.commands",
+]
+
+[[tool.importlinter.contracts]]
 name = "handlers never import bot or channel jobs"
 type = "forbidden"
 source_modules = ["rugmunchbot.handlers"]

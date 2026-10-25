@@ -14,14 +14,16 @@ disclosure and pushed the menu to 95 rows nobody reads.
 
 Registered-but-unadvertised is the DESIGN now: those commands live under
 ``/more`` (``bot/_catalog.py``) and still work. They are counted, not failed.
-``ADMIN_MENU_COMMANDS`` is kept as the declared owner/admin set so the
-catalog never has to advertise server-management commands.
+``ADMIN_MENU_COMMANDS`` is DERIVED from ``command_registry`` (audience ==
+"owner") — it used to be a hand-maintained frozenset here, the second of two
+registries. Deleted 2026-10-25: one row per command, one audience, one owner.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from rugmunchbot.command_registry import REGISTRY
 from rugmunchbot.support.logging import get_logger
 
 if TYPE_CHECKING:
@@ -41,33 +43,7 @@ logger = get_logger("rmi_bot")
 #: owner-only. Chat-admin commands live in
 #: ``command_menu.GROUP_ADMIN_SECTIONS`` instead.
 ADMIN_MENU_COMMANDS: frozenset[str] = frozenset(
-    {
-        "modpardon",
-        "modactions",
-        "modstatus",
-        "accuracy",
-        "admin",
-        "admin_ban",
-        "admin_broadcast",
-        "admin_logs",
-        "admin_set_tier",
-        "admin_stats",
-        "admin_toggle",
-        "admin_toggle_chat",
-        "admin_unban",
-        "admin_user",
-        "backtest",
-        "backup",
-        "banuser",
-        "budget",
-        "credits",
-        "deploy",
-        "logs",
-        "restart",
-        "services",
-        "sources",
-        "users",
-    }
+    entry.name for entry in REGISTRY if entry.audience == "owner"
 )
 
 
