@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pytest
+if TYPE_CHECKING:
+    import pytest
 
 from rugmunchbot import db
 from rugmunchbot.alert_worker import _format_alert
@@ -56,12 +57,18 @@ def _run(coro: Any) -> None:
     asyncio.run(coro)
 
 
-def test_free_tier_gets_two_and_paid_gets_twenty_five() -> None:
+def test_quota_follows_the_pricing_table() -> None:
+    """Enforcement equals the advertised copy: 2 free, 10 scout, 50 hunter, pro ∞."""
     assert _limits.watch_limit("free") == 2
-    assert _limits.watch_limit("pro") == 25
     assert _limits.watch_limit("anything-unknown") == 2
+    assert _limits.watch_limit("scout") == 10
+    assert _limits.watch_limit("hunter") == 50
+    assert _limits.watch_limit("pro") == _limits.UNLIMITED
+    assert _limits.limit_text("pro") == "∞"
     refusal = _limits.limit_refusal(2, 2)
-    assert "2/2" in refusal and "25" in refusal and "/pricing" in refusal
+    assert "2/2" in refusal
+    assert "50" in refusal
+    assert "/pricing" in refusal
 
 
 def test_watch_refuses_past_the_free_quota(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -104,10 +111,14 @@ def test_watch_infers_chain_and_confirms_a_resubscribe(monkeypatch: pytest.Monke
 
     assert seen == {"token": SOL, "chain": "solana", "chat_id": "4242"}
     text = update.effective_message.texts[0]
-    assert "3 watching" in text and "authority_changed" in text and "/unwatch" in text
+    assert "3 watching" in text
+    assert "authority_changed" in text
+    assert "/unwatch" in text
 
 
-def test_watch_rejects_an_address_that_is_neither_solana_nor_evm(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_watch_rejects_an_address_that_is_neither_solana_nor_evm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def boom(*args: Any) -> Any:
         raise AssertionError("no backend call for an unusable address")
 
@@ -142,7 +153,9 @@ def test_watchlist_shows_quota_and_per_row_unwatch(monkeypatch: pytest.MonkeyPat
     _run(_commands.cmd_watchlist(update, _ctx()))
 
     text = update.effective_message.texts[0]
-    assert "1/25 (pro)" in text and "4 watching" in text and f"/unwatch <code>{SOL}</code>" in text
+    assert "1/∞ (pro)" in text
+    assert "4 watching" in text
+    assert f"/unwatch <code>{SOL}</code>" in text
 
 
 def test_export_sends_the_canonical_bytes(monkeypatch: pytest.MonkeyPatch) -> None:

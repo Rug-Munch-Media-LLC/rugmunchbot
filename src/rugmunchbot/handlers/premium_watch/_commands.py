@@ -36,7 +36,7 @@ _EVENTS = (
 def _target(args: list[str]) -> tuple[str, str] | None:
     """Address and chain, or ``None`` when the address is unusable."""
     address = args[0].strip()
-    chain = (args[1].strip().lower() if len(args) > 1 else detect_chain(address))
+    chain = args[1].strip().lower() if len(args) > 1 else detect_chain(address)
     return None if chain in ("", "unknown") else (address, chain)
 
 
@@ -55,15 +55,17 @@ async def cmd_watch(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
     address, chain = target
-    symbol = (ctx.args[2].upper() if len(ctx.args or []) > 2 else "")
+    symbol = ctx.args[2].upper() if len(ctx.args or []) > 2 else ""
     chat_id = str(user.id)
     tier = db.get_user_tier(user.id)
-    limit = _limits.watch_limit(tier)
     try:
         existing = await _api.list_watches(chat_id)
         watched = any(row.get("token") == address and row.get("chain") == chain for row in existing)
-        if not watched and len(existing) >= limit:
-            await message.reply_text(_limits.limit_refusal(len(existing), limit), parse_mode=ParseMode.HTML)
+        if not watched and not _limits.has_room(len(existing), tier):
+            await message.reply_text(
+                _limits.limit_refusal(len(existing), _limits.watch_limit(tier)),
+                parse_mode=ParseMode.HTML,
+            )
             return
         result = await _api.watch_token(address, chain, chat_id)
     except _api.PremiumWatchError as exc:
@@ -124,7 +126,7 @@ async def cmd_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await message.reply_text(f"❌ Could not load your watchlist: {exc}")
         return
     tier = db.get_user_tier(user.id)
-    limit = _limits.watch_limit(tier)
+    limit = _limits.limit_text(tier)
     if not rows:
         await message.reply_text(
             f"👀 <b>No watches yet</b> — 0/{limit} on {tier}.\n\n"
@@ -142,7 +144,9 @@ async def cmd_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f"  /unwatch <code>{token}</code>"
         )
     lines.append("\n/export <code>address</code> for the full JSON dump.")
-    await message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    await message.reply_text(
+        "\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True
+    )
 
 
 async def cmd_export(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

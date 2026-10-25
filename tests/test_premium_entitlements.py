@@ -9,11 +9,13 @@ must never unlock anything.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 
 import pytest
 
 from rugmunchbot.config import TIERS
+from rugmunchbot.handlers.premium_watch import _limits
 from rugmunchbot.premium import deepscan_job, gating, quota, scam_feed, watch_alerts
 
 
@@ -214,3 +216,40 @@ def test_dedupe_memory_is_bounded_by_the_window() -> None:
 def test_free_alert_card_states_the_enforced_number() -> None:
     card = watch_alerts.render_alert({"symbol": "WIF", "score": 90}, tier="free")
     assert f"{watch_alerts.HOURLY_CAP['free']} alerts/hour" in card
+
+
+# ── watchlist quota: the pricing table is the promise ───────────────────────
+
+_WATCH_COPY = re.compile(r"Watchlist \((\d+) tokens?\)")
+
+
+@pytest.mark.parametrize("tier", sorted(TIERS))
+def test_watchlist_quota_equals_the_number_the_pricing_table_advertises(tier: str) -> None:
+    """Every tier that names a watchlist size must actually get that many.
+
+    This is the claim-vs-enforcement gate: if marketing says 50 and the quota
+    says 25, this test fails before a paying user can notice.
+    """
+    for line in TIERS[tier].get("features", []):
+        found = _WATCH_COPY.search(line)
+        if found:
+            assert _limits.watch_limit(tier) == int(found.group(1))
+
+
+def test_legacy_billing_names_inherit_the_top_quota() -> None:
+    assert {_limits.watch_limit(n) for n in ("pro", "elite", "whale", "beta")} == {
+        _limits.UNLIMITED
+    }
+
+
+def test_unknown_tier_gets_the_free_quota_not_the_paid_one() -> None:
+    assert _limits.watch_limit(None) == _limits.WATCH_LIMITS["free"]
+    assert _limits.watch_limit("nonsense") == _limits.WATCH_LIMITS["free"]
+
+
+def test_refusal_quotes_the_enforced_numbers() -> None:
+    card = _limits.limit_refusal(2, 2)
+    assert f"<b>{_limits.WATCH_LIMITS['free']}</b>" in card
+    assert f"<b>{_limits.WATCH_LIMITS['scout']}</b>" in card
+    assert f"<b>{_limits.WATCH_LIMITS['hunter']}</b>" in card
+    assert "unlimited" in card
