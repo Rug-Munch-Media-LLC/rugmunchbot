@@ -104,32 +104,3 @@ def _item(
     }
 
 
-async def enqueue_watch_alerts(
-    redis: Any,
-    target: WatchTarget,
-    events: list[dict[str, Any]],
-    snapshot: dict[str, Any],
-    watchers: Iterable[str],
-) -> int:
-    """Queue one alert per watching chat for this cycle's events.
-
-    Args:
-        redis: async Redis client (the same one holding watches/snapshots).
-        target: the token watch (mint/contract, chain, ticker for the header).
-        events: non-empty ``diff_snapshots`` output for this cycle.
-        snapshot: the current snapshot, used for evidence context.
-        watchers: chat ids watching the token at cycle time.
-
-    Returns:
-        How many queue items were pushed. Non-numeric chat ids (web users)
-        are skipped: the bot's queue addresses Telegram chats only.
-    """
-    if not events:
-        return 0
-    chats = [str(chat) for chat in watchers if str(chat).isdigit()]
-    if not chats:
-        return 0
-    item = _item(target, events, snapshot)
-    for chat in chats:
-        await redis.lpush(QUEUE_KEY, json.dumps({**item, "user_id": int(chat)}))
-    return len(chats)

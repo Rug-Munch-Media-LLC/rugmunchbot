@@ -1,0 +1,15 @@
+{
+  "note": "Every entry needs a reason. Counts may only shrink: delete the entry when the symbol goes away.",
+  "suppressions": [
+    {
+      "path": "src/rugmunchbot/__init__.py",
+      "symbol": "__getattr__",
+      "reason": "PEP 562 module hook: invoked by the import system for lazy attributes, never called by name (tests/test_lazy_init.py exercises it via `from rugmunchbot import main`)."
+    },
+    {
+      "path": "src/rugmunchbot/llm_config.py",
+      "symbol": "vision_chat",
+      "reason": "[REVIEW] referenced only by the module docstring as the intended vision entry point; kept pending owner confirmation, delete if still unused by 2026-11."
+    }
+  ]
+}

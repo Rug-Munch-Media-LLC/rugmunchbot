@@ -156,37 +156,6 @@ async def backend_get_json(
 # ── Reusable resolvers ───────────────────────────────────────────────────
 
 
-async def resolve_token_price(
-    address: str,
-    chain: str,
-    fallback_fn: Callable[[], Awaitable[T]],
-    *,
-    timeout_secs: float = 4.0,
-) -> T:
-    """Resolve token price: scanner cache first, external API fallback.
-
-    Primary: backend scanner cache ``/api/v2/scanner/token/price/{chain}/{address}``
-    (populated by our own scanners from ClickHouse/DataBus).
-    """
-
-    async def _primary() -> dict[str, Any] | None:
-        body = await backend_get_json(
-            f"/api/v2/scanner/token/price/{chain}/{address}",
-            timeout_secs=timeout_secs,
-        )
-        if not body or not body.get("cached") or not body.get("data"):
-            return None
-        return body["data"]
-
-    return await resolve_with_fallback(
-        f"token_price:{chain}:{address[:10]}",
-        _primary,
-        fallback_fn,
-        timeout_secs=timeout_secs,
-        is_valid=lambda d: bool(d and d.get("price_usd")),
-    )
-
-
 async def resolve_market_global(
     fallback_fn: Callable[[], Awaitable[T]],
     *,
@@ -234,37 +203,6 @@ async def resolve_fear_greed(
         fallback_fn,
         timeout_secs=timeout_secs,
         is_valid=lambda d: bool(d and d.get("value")),
-    )
-
-
-async def resolve_news(
-    fallback_fn: Callable[[], Awaitable[T]],
-    *,
-    timeout_secs: float = 4.0,
-) -> T:
-    """Resolve news/trending items: own news network first, external fallback.
-
-    Primary: backend news feed (RAG-scored, bias/sentiment rated). The
-    backend also caches trending stories, so this is our own data pipeline.
-    """
-
-    async def _primary() -> list[dict[str, Any]] | None:
-        body = await backend_get_json(
-            "/api/v1/news/trending",
-            params={"window_hours": 168, "limit": 5},
-            timeout_secs=timeout_secs,
-        )
-        if not body:
-            return None
-        items = body.get("items") or body.get("articles") or []
-        return items if items else None
-
-    return await resolve_with_fallback(
-        "news_trending",
-        _primary,
-        fallback_fn,
-        timeout_secs=timeout_secs,
-        is_valid=lambda d: bool(d),
     )
 
 

@@ -65,43 +65,6 @@ def _scanner_block(scan: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def export_payload(
-    scan: dict[str, Any],
-    *,
-    bundle_graph: dict[str, Any],
-    rollup: dict[str, Any],
-    snapshot: dict[str, Any],
-    watchers_n: int = 0,
-) -> dict[str, Any]:
-    """Build the canonical export/webhook payload.
-
-    Args:
-        scan: unified scanner response (already formatted to dict).
-        bundle_graph: output of :func:`app.domains.premium.bundle_graph.build_bundle_graph`.
-        rollup: output of :func:`app.domains.premium.cohorts.cohort_rollup`.
-        snapshot: output of :func:`app.domains.premium.snapshot.snapshot_from_scan`.
-        watchers_n: chats watching this token, as of this export.
-
-    Returns:
-        JSON-ready payload with ``schema_version`` first so a reader sees the
-        contract before the data.
-    """
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "generated_at": datetime.now(UTC).isoformat(),
-        "token": str(scan.get("token") or snapshot.get("token") or ""),
-        "chain": str(scan.get("chain") or snapshot.get("chain") or ""),
-        "risk": _risk_block(scan),
-        "market": _market_block(scan),
-        "bundle_graph": bundle_graph,
-        "cohorts": rollup.get("cohorts") or {},
-        "kol": rollup.get("kol") or [],
-        "watch": {"watchers_n": watchers_n},
-        "snapshot": snapshot,
-        "scanner": _scanner_block(scan),
-    }
-
-
 def webhook_contract() -> dict[str, Any]:
     """The webhook half of the contract: transport, auth, delivery, schema."""
     return {
