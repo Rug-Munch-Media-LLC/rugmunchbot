@@ -1,26 +1,28 @@
-"""New-member gate: entrance risk → quarantine → captcha (button or math).
+"""Entrance gate: score the join, then hold it or send it a captcha.
 
-Order matters. A join is first scored by :mod:entrance (account-age proxy,
-profile/name heuristics, bots). A risky join is quarantined and held for a human
-(see :mod:quarantine) instead of being admitted to the captcha flow — a raid bot
-that never taps a button still occupies the room. Everyone else gets the normal
-captcha, and the join itself feeds the raid detector.
+Order matters. A join is scored by :mod:entrance first; a risky join is
+quarantined for a human (:mod:quarantine) instead of entering the captcha
+flow — a raid bot that never taps a button still occupies the room.
+Everyone else gets the captcha from :mod:contain, and the join feeds the
+raid detector.
 
-Dry-run behaviour: the join/risk/captcha event is audited and NOTHING is sent
-and nobody is muted. Live behaviour: restrict, post the challenge, schedule the
-timeout (see :mod:timeout), greet on success.
+A captcha is a *pending challenge*: a (chat, user) entry with a deadline,
+mirrored into the durable snapshot. A callback is only honoured while that
+entry is live, so a forged or stale button cannot unmute anybody. Entries
+are restored and re-armed on restart (:func:`recover`, called by register).
 """
 
 from __future__ import annotations
 
+import time
+from types import SimpleNamespace
 from typing import Any
 
 from rugmunchbot.moderation import (
-    audit,
-    challenge,
+    contain,
     entrance,
     guard_settings,
-    messages,
+    persist,
     quarantine,
     raidmode,
     state,
@@ -28,46 +30,79 @@ from rugmunchbot.moderation import (
     trust,
 )
 from rugmunchbot.moderation.config import load_chat_policy
+from rugmunchbot.moderation.contain import CAPTCHA_PREFIX, callback_data, parse_callback
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.moderation.captcha")
 
-CAPTCHA_PREFIX = "modcap"
+_pending: dict[tuple[int, int], float] = {}
 
 
-def callback_data(chat_id: int, user_id: int, answer: int | None = None) -> str:
-    base = f"{CAPTCHA_PREFIX}:{chat_id}:{user_id}"
-    return base if answer is None else f"{base}:{answer}"
+def _key(chat_id: int, user_id: int) -> str:
+    return f"{chat_id}:{user_id}"
 
 
-def parse_callback(data: str) -> tuple[int, int, int | None] | None:
-    parts = (data or "").split(":")
-    if len(parts) not in {3, 4} or parts[0] != CAPTCHA_PREFIX:
-        return None
-    try:
-        answer = int(parts[3]) if len(parts) == 4 else None
-        return int(parts[1]), int(parts[2]), answer
-    except ValueError:
-        return None
-
-
-def _audit(chat_id: int, user_id: int, rule: str, action: str, reason: str, dry: bool) -> None:
-    audit.record(
-        audit.build_entry(
-            action_id=audit.new_action_id(),
-            chat_id=chat_id,
-            chat_title="",
-            user_id=user_id,
-            username="",
-            rule=rule,
-            action=action,
-            reason=reason,
-            matched="",
-            dry_run=dry,
-            applied=False,
-            actor="auto:entrance",
-        )
+def _save() -> None:
+    persist.save(
+        "gate", {_key(chat_id, user_id): at for (chat_id, user_id), at in _pending.items()}
     )
+
+
+def register_pending(
+    chat_id: int, user_id: int, timeout_s: float, *, now: float | None = None
+) -> float:
+    """Mark this member as awaiting a captcha until ``now + timeout_s``."""
+    deadline = (time.time() if now is None else now) + float(timeout_s)
+    _pending[(chat_id, user_id)] = deadline
+    _save()
+    return deadline
+
+
+def has_pending(chat_id: int, user_id: int, *, now: float | None = None) -> bool:
+    """True while a challenge is live for this member (deadline not passed)."""
+    deadline = _pending.get((chat_id, user_id))
+    if deadline is None:
+        return False
+    return deadline > (time.time() if now is None else now)
+
+
+def forget_pending(chat_id: int, user_id: int) -> None:
+    if _pending.pop((chat_id, user_id), None) is not None:
+        _save()
+
+
+def reset() -> None:
+    _pending.clear()
+
+
+def recover(app: Any) -> int:
+    """Restore unexpired gate pendings after a restart and re-arm timeouts.
+
+    An expired entry is dropped, not enforced: the mute already carries a
+    Telegram ``until_date`` backstop, so the gate closed itself while the
+    process was down. Returns the number of pendings re-armed.
+    """
+    raw = persist.load().get("gate") or {}
+    now = time.time()
+    queue = getattr(app, "job_queue", None)
+    bot = getattr(app, "bot", None)
+    restored = 0
+    for key, deadline in raw.items():
+        try:
+            chat_id, user_id = (int(part) for part in str(key).split(":", 1))
+            remaining = float(deadline) - now
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if remaining <= 0:
+            continue
+        _pending[(chat_id, user_id)] = float(deadline)
+        policy = load_chat_policy(chat_id)
+        if queue is not None and policy is not None and policy.new_member_captcha:
+            timeout.schedule(
+                SimpleNamespace(bot=bot, job_queue=queue), chat_id, user_id, policy, delay=remaining
+            )
+        restored += 1
+    return restored
 
 
 async def _gate_one(update: Any, context: Any, member: Any, chat: Any, policy: Any) -> None:
@@ -90,7 +125,7 @@ async def _gate_one(update: Any, context: Any, member: Any, chat: Any, policy: A
         return
     if getattr(member, "is_bot", False):
         return
-    _audit(
+    contain.record(
         chat.id,
         member.id,
         "new_member_gate",
@@ -101,8 +136,23 @@ async def _gate_one(update: Any, context: Any, member: Any, chat: Any, policy: A
         policy.dry_run,
     )
     if not policy.dry_run:
-        await _gate_member(context.bot, chat, member, policy)
+        await _gate_member(context, chat.id, member.id, policy)
     timeout.schedule(context, chat.id, member.id, policy)
+
+
+async def _gate_member(context: Any, chat_id: int, user_id: int, policy: Any) -> None:
+    """Mute, register the pending challenge, then show the prompt."""
+    error = await contain.mute(context.bot, chat_id, user_id)
+    if error:
+        contain.record(
+            chat_id, user_id, "captcha_mute_failed", "escalate", f"restrict: {error}", False
+        )
+        return
+    register_pending(chat_id, user_id, policy.captcha_timeout_s)
+    if not await contain.prompt(context.bot, chat_id, user_id, policy):
+        contain.record(
+            chat_id, user_id, "captcha_prompt_failed", "escalate", "challenge not delivered", False
+        )
 
 
 async def handle_new_members(update: Any, context: Any) -> bool:
@@ -117,7 +167,7 @@ async def handle_new_members(update: Any, context: Any) -> bool:
     settings = guard_settings.for_chat(chat.id)
     signal = raidmode.note_join(chat.id, settings, dry_run=policy.dry_run)
     if signal.triggered:
-        _audit(chat.id, 0, "raid_detected", "lockdown", signal.reason, policy.dry_run)
+        contain.record(chat.id, 0, "raid_detected", "lockdown", signal.reason, policy.dry_run)
     for member in message.new_chat_members:
         if trust.is_trusted(chat.id, member.id):
             state.mark_verified(chat.id, member.id)
@@ -125,44 +175,14 @@ async def handle_new_members(update: Any, context: Any) -> bool:
     return True
 
 
-async def _gate_member(bot: Any, chat: Any, member: Any, policy: Any) -> None:
-    from telegram import ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
-
-    try:
-        await bot.restrict_chat_member(
-            chat_id=chat.id,
-            user_id=member.id,
-            permissions=ChatPermissions(can_send_messages=False),
-            use_independent_chat_permissions=True,
-        )
-    except Exception:
-        logger.info("captcha mute failed (bot may lack rights)", exc_info=True)
-    if policy.captcha_type == "math":
-        question, options, _ = challenge.challenge(chat.id, member.id)
-        text = messages.captcha_math(question, max(1, policy.captcha_timeout_s // 60 or 1))
-        row = [
-            InlineKeyboardButton(str(opt), callback_data=callback_data(chat.id, member.id, opt))
-            for opt in options
-        ]
-    else:
-        text = messages.captcha_prompt(max(1, policy.captcha_timeout_s // 60 or 1))
-        row = [
-            InlineKeyboardButton("I'm human ✅", callback_data=callback_data(chat.id, member.id))
-        ]
-    try:
-        await bot.send_message(
-            chat_id=chat.id,
-            text=text,
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup([row]),
-        )
-    except Exception:
-        logger.warning("captcha prompt send failed", exc_info=True)
-
-
 __all__ = [
     "CAPTCHA_PREFIX",
     "callback_data",
+    "forget_pending",
     "handle_new_members",
+    "has_pending",
     "parse_callback",
+    "recover",
+    "register_pending",
+    "reset",
 ]

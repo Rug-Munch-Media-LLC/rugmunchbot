@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from telegram import Update
 from telegram.constants import ParseMode
 
+from rugmunchbot.bot.variants import render_variant
 from rugmunchbot.handlers._market_helpers import _resolve_chain
 
 from ._render import render_trending
@@ -19,7 +20,13 @@ async def cmd_trending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /trending [chain] — hot tokens from fused multi-source data."""
     chain = _resolve_chain(ctx.args[0]) if ctx.args else "all"
     msg = await update.message.reply_text(
-        "🔥 <b>Fetching trending tokens...</b>", parse_mode=ParseMode.HTML
+        render_variant(
+            "market.loading",
+            getattr(getattr(update, "effective_chat", None), "id", None),
+            getattr(getattr(update, "effective_message", None), "message_id", None),
+            subject="trending tokens",
+        ),
+        parse_mode=ParseMode.HTML,
     )  # type: ignore[union-attr]  # PTB None-able fields
     text, trending_kb = await render_trending(chain, limit=20, window="24h")
     if text is None or trending_kb is None:

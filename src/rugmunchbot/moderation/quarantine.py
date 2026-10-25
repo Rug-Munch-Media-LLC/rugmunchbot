@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
-from rugmunchbot.moderation import audit
+from rugmunchbot.moderation import audit, contain, persist
 from rugmunchbot.moderation.config import load_chat_policy
 from rugmunchbot.support.logging import get_logger
 
@@ -65,7 +65,7 @@ async def hold(
     action_id = audit.new_action_id()
     entry = _entry(action_id, chat_id, user_id, risk, dry_run)
     entry["username"] = username
-    audit.record(entry)
+    contain.write(entry)
 
     bucket = _pending.setdefault(chat_id, {})
     if len(bucket) >= MAX_PENDING:
@@ -78,22 +78,23 @@ async def hold(
         "reasons": list(risk.reasons),
         "until": until.isoformat(timespec="seconds"),
     }
+    _save()
     if dry_run:
         return entry
 
     errors: list[str] = []
-    try:
-        from telegram import ChatPermissions
-
-        await bot.restrict_chat_member(
-            chat_id=chat_id,
-            user_id=user_id,
-            permissions=ChatPermissions(can_send_messages=False),
-            until_date=until,
-            use_independent_chat_permissions=True,
+    error = await contain.mute(bot, chat_id, user_id, until=until)
+    if error:
+        errors.append(f"restrict: {error}")
+        await contain.escalate(
+            bot,
+            chat_id,
+            user_id,
+            "entrance_quarantine_failed",
+            f"quarantine could not mute: {error}",
+            action_id=action_id,
+            target=settings.quarantine_channel_id,
         )
-    except Exception as exc:
-        errors.append(f"restrict: {type(exc).__name__}")
     if settings.quarantine_channel_id:
         text = (
             f"🛡️ Quarantined user {user_id} ({username or 'no username'})\n"
@@ -153,8 +154,22 @@ async def release(
         error="; ".join(errors) or None,
         extra={"held_action_id": row["action_id"], "score": row["score"]},
     )
-    audit.record(entry)
+    _save()
+    contain.write(entry)
     return entry
+
+
+def _save() -> None:
+    """Mirror the pending holds into the durable snapshot (best-effort)."""
+    persist.save_ids("quarantine", _pending)
+
+
+def recover() -> int:
+    """Restore holds recorded before a restart. Returns the number of chats."""
+    rows = persist.restore_ids("quarantine")
+    _pending.clear()
+    _pending.update(rows)
+    return len(rows)
 
 
 def pending(chat_id: int) -> list[dict[str, Any]]:
@@ -166,31 +181,4 @@ def reset() -> None:
     _pending.clear()
 
 
-async def cmd_modrelease(update: Any, context: Any) -> None:
-    """Admin: /modrelease <user_id> [reason] — reversible by design."""
-    from rugmunchbot.moderation.commands import _allowed
-
-    chat = update.effective_chat
-    if chat is None or not await _allowed(update, context):
-        await update.effective_message.reply_text("⛔ Chat admins only.")
-        return
-    args = context.args or []
-    if not args or not args[0].lstrip("-").isdigit():
-        await update.effective_message.reply_text("Usage: /modrelease <user_id> [reason]")
-        return
-    policy = load_chat_policy(chat.id)
-    entry = await release(
-        context.bot,
-        chat.id,
-        int(args[0]),
-        actor=f"admin:{update.effective_user.id}",
-        reason=" ".join(args[1:])[:120] or "admin release",
-        dry_run=True if policy is None else policy.dry_run,
-    )
-    if entry is None:
-        await update.effective_message.reply_text("No quarantine record for that user.")
-        return
-    await update.effective_message.reply_text(f"🔓 Released {args[0]} · {entry['action_id']}")
-
-
-__all__ = ["cmd_modrelease", "hold", "pending", "release", "reset"]
+__all__ = ["hold", "pending", "recover", "release", "reset"]

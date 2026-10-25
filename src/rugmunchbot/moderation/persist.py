@@ -87,6 +87,36 @@ def save(section: str, payload: Any) -> bool:
     return True
 
 
+def section(name: str) -> dict[str, Any]:
+    """One section of the snapshot, or an empty dict when absent/corrupt."""
+    value = load().get(name)
+    return value if isinstance(value, dict) else {}
+
+
+def save_ids(name: str, mapping: dict[int, dict[int, Any]]) -> bool:
+    """Persist a chat → user → row mapping (JSON turns the integer keys into text)."""
+    return save(
+        name,
+        {
+            str(chat): {str(user): row for user, row in rows.items()}
+            for chat, rows in mapping.items()
+        },
+    )
+
+
+def restore_ids(name: str) -> dict[int, dict[int, Any]]:
+    """Load a chat → user → row section with integer keys; junk is dropped."""
+    out: dict[int, dict[int, Any]] = {}
+    for chat, rows in section(name).items():
+        if not isinstance(rows, dict):
+            continue
+        try:
+            out[int(chat)] = {int(user): row for user, row in rows.items() if isinstance(row, dict)}
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 def reset() -> None:
     """Forget the snapshot on disk and in memory (tests, operator reset)."""
     global _cache
@@ -97,4 +127,14 @@ def reset() -> None:
         logger.warning("moderation state reset failed", exc_info=True)
 
 
-__all__ = ["MAX_BYTES", "PATH", "load", "reset", "save", "use_path"]
+__all__ = [
+    "MAX_BYTES",
+    "PATH",
+    "load",
+    "reset",
+    "restore_ids",
+    "save",
+    "save_ids",
+    "section",
+    "use_path",
+]

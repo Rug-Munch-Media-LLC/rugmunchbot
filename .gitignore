@@ -70,3 +70,8 @@ src/rugmunchbot/data/kol/ct_cursor.json
 
 # verified CEX address intel — PRIVATE corpus, never commit (see src/rugmunchbot/tools/README.md)
 src/rugmunchbot/tools/cex_addresses_verified.json
+
+# ── Moderation runtime snapshot (durable containment state) ────
+data/moderation_state.json
+# Moderation audit trail is runtime data (created on demand by JsonlAudit)
+data/moderation/audit.jsonl

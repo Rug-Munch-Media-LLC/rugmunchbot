@@ -10,7 +10,10 @@ the RugMunch Intelligence logo.
 
 from __future__ import annotations
 
-import pytest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pytest
 
 from rugmunchbot.channels.telegram_news import _ledger as ledger
 

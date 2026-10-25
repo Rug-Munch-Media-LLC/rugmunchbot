@@ -10,11 +10,11 @@ from telegram.error import TelegramError
 
 from rugmunchbot.bot._commands import (
     _BOT_COMMANDS,
-    _COMMAND_SECTIONS,
     check_menu_coverage,
     register_surface_commands,
 )
 from rugmunchbot.bot._menu_guard import assert_menu_coverage
+from rugmunchbot.command_menu import ADVERTISED_SECTIONS
 from rugmunchbot.config import (
     BOT_DESCRIPTION,
     BOT_SHORT_DESCRIPTION,
@@ -71,7 +71,9 @@ async def setup_bot_profile(app: Application[Any, Any, Any, Any, Any, Any]) -> N
         commands = _BOT_COMMANDS
         await bot.set_my_commands(commands)
         logger.info(
-            "Bot commands registered (%d across %d sections)", len(commands), len(_COMMAND_SECTIONS)
+            "Bot commands registered (%d across %d sections)",
+            len(commands),
+            len(ADVERTISED_SECTIONS),
         )
     except (ValueError, TypeError, KeyError, OSError) as e:
         logger.debug("unknown_error", exc_info=True)

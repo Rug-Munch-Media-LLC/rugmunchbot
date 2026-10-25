@@ -1,0 +1,130 @@
+{
+	"manifest_version": 1,
+	"corpus": "competitor-parity",
+	"owner": "rugmunchbot",
+	"policy": {
+		"public_only": true,
+		"no_code_copied": true,
+		"facts_only": true,
+		"redistribute": false,
+		"note": "Competitor material is ingested for internal comparison only. Do not republish excerpts; cite the vendor URL."
+	},
+	"sources": [
+		{
+			"id": "phanes-docs-commands",
+			"vendor": "Phanes",
+			"url": "https://docs.phanes.bot/phanes/commands",
+			"kind": "docs",
+			"accessed": "2026-10-25",
+			"license": "vendor docs, all rights reserved; facts-only use",
+			"refresh_days": 30,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "phanes-docs-alerts",
+			"vendor": "Phanes",
+			"url": "https://docs.phanes.bot/phanes/alerts",
+			"kind": "docs",
+			"accessed": "2026-10-25",
+			"license": "vendor docs, all rights reserved; facts-only use",
+			"refresh_days": 30,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "phanes-docs-leaderboard",
+			"vendor": "Phanes",
+			"url": "https://docs.phanes.bot/phanes/leaderboard",
+			"kind": "docs",
+			"accessed": "2026-10-25",
+			"license": "vendor docs, all rights reserved; facts-only use",
+			"refresh_days": 30,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "phanes-home",
+			"vendor": "Phanes",
+			"url": "https://phanes.bot/",
+			"kind": "marketing",
+			"accessed": "2026-10-25",
+			"license": "site terms; facts-only use",
+			"refresh_days": 30,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "mugetsu-gitbook",
+			"vendor": "Mugetsu",
+			"url": "https://mugetsu.gitbook.io/mugetsu",
+			"kind": "docs",
+			"accessed": "2026-10-25",
+			"license": "vendor docs, all rights reserved; facts-only use",
+			"refresh_days": 30,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "mugetsu-telegram",
+			"vendor": "Mugetsu",
+			"url": "https://t.me/the_mugetsu_bot",
+			"kind": "bot-page",
+			"accessed": "2026-10-25",
+			"license": "public page; facts-only use",
+			"refresh_days": 60,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "trench-bot",
+			"vendor": "TrenchRadar",
+			"url": "https://trench.bot",
+			"kind": "marketing",
+			"accessed": "2026-10-25",
+			"license": "site terms; facts-only use",
+			"refresh_days": 30,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "trench-x",
+			"vendor": "TrenchRadar",
+			"url": "https://x.com/TrenchRadar",
+			"kind": "public-posts",
+			"accessed": "2026-10-25",
+			"license": "X terms; facts-only use",
+			"refresh_days": 30,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "devsnightmare-channel",
+			"vendor": "DevsNightmare",
+			"url": "https://t.me/s/soldevnightmarebot",
+			"kind": "public-posts",
+			"accessed": "2026-10-25",
+			"license": "public channel; facts-only use",
+			"refresh_days": 30,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "devsnightmare-telemetrio",
+			"vendor": "DevsNightmare",
+			"url": "https://telemetr.io/en/bot/8FraE4",
+			"kind": "analytics",
+			"accessed": "2026-10-25",
+			"license": "third-party analytics; facts-only use",
+			"refresh_days": 90,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "skeleton-pirb-heimdall",
+			"vendor": "Skeleton/PIRBView/Heimdall",
+			"url": "docs/competitors/bot-parity.md",
+			"kind": "internal-digest",
+			"accessed": "2026-10-24",
+			"license": "our own digest of vendor docs; facts-only use",
+			"refresh_days": 60,
+			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		}
+	],
+	"refresh": {
+		"command": "scripts/competitors_refresh.py",
+		"cadence_days": 30,
+		"stale_after_days": 60,
+		"on_stale": "re-read the URL, update the row + accessed date, never keep a stale claim"
+	}
+}

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
+from rugmunchbot.bot.variants import render_variant
 from rugmunchbot.formatters import footer_links, sep
 from rugmunchbot.handlers._site_links import with_site_link
 from rugmunchbot.services.pricing import resolve
@@ -49,7 +50,14 @@ async def _show_user_portfolio(update: Update) -> None:
     user = update.effective_user
     if user is None or update.message is None:
         return
-    wait = await update.message.reply_text("📊 Loading your portfolio...")
+    wait = await update.message.reply_text(
+        render_variant(
+            "market.loading",
+            getattr(getattr(update, "effective_chat", None), "id", None),
+            getattr(getattr(update, "effective_message", None), "message_id", None),
+            subject="your portfolio",
+        )
+    )
     try:
         data = await backend_user.get_portfolio(
             user.id, username=user.username, first_name=user.first_name
@@ -62,7 +70,11 @@ async def _show_user_portfolio(update: Update) -> None:
     entries = data.get("entries") or []
     if not entries:
         await wait.edit_text(
-            "📭 Your portfolio is empty. Use /add to add tokens.",
+            render_variant(
+                "portfolio.empty_portfolio",
+                getattr(getattr(update, "effective_chat", None), "id", None),
+                getattr(getattr(update, "effective_message", None), "message_id", None),
+            ),
             parse_mode=ParseMode.HTML,
             reply_markup=with_site_link("portfolio"),
         )

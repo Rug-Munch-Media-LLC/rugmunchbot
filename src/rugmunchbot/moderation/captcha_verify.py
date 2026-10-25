@@ -5,39 +5,22 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from rugmunchbot.moderation import audit, challenge, messages, state
-from rugmunchbot.moderation.captcha import CAPTCHA_PREFIX, parse_callback
+from rugmunchbot.moderation import captcha as gate, challenge, contain, messages, state
 from rugmunchbot.moderation.config import load_chat_policy
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.moderation.captcha_verify")
 
 
-def _audit(chat_id: int, user_id: int, rule: str, action: str, reason: str, dry: bool) -> None:
-    audit.record(
-        audit.build_entry(
-            action_id=audit.new_action_id(),
-            chat_id=chat_id,
-            chat_title="",
-            user_id=user_id,
-            username="",
-            rule=rule,
-            action=action,
-            reason=reason,
-            matched="",
-            dry_run=dry,
-            applied=False,
-            actor="auto:entrance",
-        )
-    )
+_audit = contain.record
 
 
 async def handle_captcha_callback(update: Any, context: Any) -> bool:
     """Verify the tapping user, unmute, greet. Returns True when consumed."""
     query = update.callback_query
-    if query is None or not (query.data or "").startswith(f"{CAPTCHA_PREFIX}:"):
+    if query is None or not (query.data or "").startswith(f"{gate.CAPTCHA_PREFIX}:"):
         return False
-    parsed = parse_callback(query.data)
+    parsed = gate.parse_callback(query.data)
     if parsed is None:
         await query.answer("Stale button.", show_alert=False)
         return True
@@ -49,17 +32,23 @@ async def handle_captcha_callback(update: Any, context: Any) -> bool:
     if policy is None:
         await query.answer()
         return True
+    if not gate.has_pending(chat_id, user_id):
+        _audit(chat_id, user_id, "captcha_stale", "ignore", "no live challenge", policy.dry_run)
+        await query.answer("This challenge expired. Ask an admin to release you.", show_alert=True)
+        return True
     if answer is not None and not challenge.accepts(chat_id, user_id, answer):
         _audit(chat_id, user_id, "captcha_fail", "kick", "wrong answer", policy.dry_run)
         if policy.dry_run:
             await query.answer("Dry-run: would fail the captcha.")
             return True
+        gate.forget_pending(chat_id, user_id)
         await _fail_member(context.bot, query, chat_id, user_id, policy)
         return True
     _audit(chat_id, user_id, "captcha_pass", "unmute", "captcha solved", policy.dry_run)
     if policy.dry_run:
         await query.answer("Dry-run: verified (no action).")
         return True
+    gate.forget_pending(chat_id, user_id)
     state.mark_verified(chat_id, user_id)
     await _pass_captcha(context.bot, query, chat_id, user_id, policy)
     return True

@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from rugmunchbot.config import OWNER_IDS
-from rugmunchbot.moderation import audit, messages
+from rugmunchbot.moderation import audit, messages, quarantine
 from rugmunchbot.moderation.actions import lift
 from rugmunchbot.moderation.config import load_chat_policy
 from rugmunchbot.support.logging import get_logger
@@ -166,4 +166,29 @@ async def cmd_appeal(update: Any, context: Any) -> None:
     )
 
 
-__all__ = ["cmd_appeal", "cmd_modactions", "cmd_modpardon", "cmd_modstatus"]
+async def cmd_modrelease(update: Any, context: Any) -> None:
+    """Admin: /modrelease <user_id> [reason] — every hold is reversible."""
+    chat = update.effective_chat
+    if chat is None or not await _allowed(update, context):
+        await update.effective_message.reply_text("⛔ Chat admins only.")
+        return
+    args = context.args or []
+    if not args or not args[0].lstrip("-").isdigit():
+        await update.effective_message.reply_text("Usage: /modrelease <user_id> [reason]")
+        return
+    policy = load_chat_policy(chat.id)
+    entry = await quarantine.release(
+        context.bot,
+        chat.id,
+        int(args[0]),
+        actor=f"admin:{update.effective_user.id}",
+        reason=" ".join(args[1:])[:120] or "admin release",
+        dry_run=True if policy is None else policy.dry_run,
+    )
+    if entry is None:
+        await update.effective_message.reply_text("No quarantine record for that user.")
+        return
+    await update.effective_message.reply_text(f"🔓 Released {args[0]} · {entry['action_id']}")
+
+
+__all__ = ["cmd_appeal", "cmd_modactions", "cmd_modpardon", "cmd_modrelease", "cmd_modstatus"]

@@ -1,7 +1,7 @@
 """Menu-drift guard — the advertised menu must be real, small, and honest.
 
 History. The 2026-09-20 audit found 24 registered commands missing from
-``_COMMAND_SECTIONS``; the guard then failed the boot on ANY registered-but-
+``command_menu.ADVERTISED_SECTIONS``; the guard then failed the boot on ANY registered-but-
 unadvertised command. That rule was right for its time (the menu was meant to
 be the whole surface) and wrong as a product: it blocked progressive
 disclosure and pushed the menu to 95 rows nobody reads.
@@ -32,9 +32,16 @@ logger = get_logger("rmi_bot")
 #: Owner/admin commands registered by ``handlers.admin.register_admin_commands``
 #: and the owner panel. Deliberately NOT advertised anywhere public — they are
 #: server-management / owner-only. The guard keeps them out of the catalog.
+#:
+#: 2026-10-25 audit corrections: ``menu`` (a public alias of /more),
+#: ``whalewatch`` (premium-tier, not admin) and ``appeal`` (a MEMBER command —
+#: anyone may appeal a moderation action) were listed here wrongly. ``setup``
+#: and the five ``buybot*`` commands were listed here too, but they gate on
+#: :func:`rugmunchbot.community.auth.require_chat_admin` — chat-admin, not
+#: owner-only. Chat-admin commands live in
+#: ``command_menu.GROUP_ADMIN_SECTIONS`` instead.
 ADMIN_MENU_COMMANDS: frozenset[str] = frozenset(
     {
-        "appeal",
         "modpardon",
         "modactions",
         "modstatus",
@@ -53,21 +60,13 @@ ADMIN_MENU_COMMANDS: frozenset[str] = frozenset(
         "backup",
         "banuser",
         "budget",
-        "buybot",
-        "buybot_off",
-        "buybot_on",
-        "buybot_preview",
-        "buybot_template",
         "credits",
         "deploy",
         "logs",
-        "menu",
         "restart",
         "services",
-        "setup",
         "sources",
         "users",
-        "whalewatch",
     }
 )
 

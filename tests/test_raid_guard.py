@@ -8,7 +8,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from rugmunchbot.moderation import audit, decide, guard_settings, quarantine, raidmode, state, trust
+from rugmunchbot.moderation import (
+    audit,
+    decide,
+    guard_settings,
+    quarantine,
+    raid_cmd,
+    raidmode,
+    state,
+    trust,
+)
 from rugmunchbot.moderation.guard_settings import GuardSettings
 from rugmunchbot.moderation.harness_fakes import (
     CHAT_ID,
@@ -90,7 +99,7 @@ def test_modraid_requires_admin():
         chat=FakeChat(CHAT_ID), user=FakeUser(7), message=FakeMessage(text="/modraid off")
     )
     context = SimpleNamespace(bot=FakeBot(), args=["off"])
-    asyncio.run(raidmode.cmd_modraid(update, context))
+    asyncio.run(raid_cmd.cmd_modraid(update, context))
     assert update.message.replies == ["⛔ Chat admins only."]
     assert raidmode.is_active(CHAT_ID) is False
 

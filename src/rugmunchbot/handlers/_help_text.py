@@ -5,7 +5,7 @@
 surfaces are BUILT from the same data the bot registers:
 
   * ``/help``  (``HELP_TEXT``)  — guided tour. One line per ADVERTISED command
-    (``bot/_commands._COMMAND_SECTIONS``, ≤ 20) grouped by intent, then the
+    (``command_menu.ADVERTISED_SECTIONS``, ≤ 20) grouped by intent, then the
     pointer to ``/more``. A command cannot be advertised without appearing
     here, and a typo cannot invent a command: both lists come from the same
     registry object.
@@ -24,8 +24,9 @@ import html
 
 from rugmunchbot.command_catalog import CATALOG
 from rugmunchbot.command_menu import ADVERTISED_SECTIONS
-from rugmunchbot.config import CHANNELS, TELEGRAM_CHANNEL
 from rugmunchbot.formatters import footer_links, sep, thin_sep
+from rugmunchbot.handlers._help_admin import group_admin_block
+from rugmunchbot.handlers._help_channels import _channels_section as channels_section
 
 #: One-line plain-English pitch per advertised group. Copy lives here (it is
 #: presentation), never the command lists (those are generated).
@@ -114,50 +115,6 @@ def build_in_public_section() -> str:
     )
 
 
-# ── Community channels surfaced in /help (config.CHANNELS-backed) ──────────
-
-CHANNEL_LABELS: dict[str, str] = {
-    "main": "Main",
-    "news": "News",
-    "alerts": "Alerts",
-    "alpha": "Alpha",
-    "scans": "Scans",
-    "whale": "Whale",
-}
-
-
-def _channel_url(key: str, chat_id: object) -> str | None:
-    """Resolve one ``config.CHANNELS`` entry to a Telegram link.
-
-    ``alerts`` uses the verified public handle (``TELEGRAM_CHANNEL``);
-    ``alpha`` is the ``@rmialpha`` public handle. Remaining channels fall
-    back to the ``https://t.me/c/<id>`` deep link derived from their numeric
-    chat id. Returns ``None`` when no link can be resolved.
-    """
-    if key == "alerts" and TELEGRAM_CHANNEL:
-        return TELEGRAM_CHANNEL
-    if key == "alpha":
-        return "https://t.me/rmialpha"
-    numeric = str(chat_id or "").strip()
-    if numeric.startswith("-100") and numeric[4:].isdigit():
-        return f"https://t.me/c/{numeric[4:]}"
-    return None
-
-
-def _channels_section() -> str:
-    """Render the community-channels block for /help (HTML-safe)."""
-    entries: list[str] = []
-    for key, chat_id in CHANNELS.items():
-        url = _channel_url(key, chat_id)
-        if url is None:
-            continue
-        label = CHANNEL_LABELS.get(key, key.capitalize())
-        entries.append(f'\u2022 <a href="{html.escape(url, quote=True)}">{html.escape(label)}</a>')
-    if not entries:
-        return ""
-    return f"\U0001f4e2 <b>Channels</b>\n{thin_sep()}\n" + "\n".join(entries)
-
-
 def _build_help_text() -> str:
     """Render /help: what the bot is, then every ADVERTISED command once."""
     advertised = sum(len(cmds) for _h, cmds in ADVERTISED_SECTIONS)
@@ -182,7 +139,8 @@ def _build_help_text() -> str:
         "\U0001f510 <b>Honest pricing</b> \u2014 /plans says exactly what is "
         "free today and what Pro will cost"
     )
-    channels = _channels_section()
+    parts.append(group_admin_block())
+    channels = channels_section()
     if channels:
         parts.append(f"\n{channels}")
     parts.append(

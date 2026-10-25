@@ -1,3 +1,20 @@
+<!-- SPDX-License-Identifier: MIT -->
+# Reference: rmi-backend `app/domains/premium/watch_cycle.py`
+
+**Not bot code, not importable from `rugmunchbot`.** Verbatim reference copy of the
+backend-side watch cycle (snapshot -> diff -> alert rows -> store).
+
+- Canonical source of truth: `rmi-backend`, `app/domains/premium/watch_cycle.py`.
+- Its only consumer was the backend router, which is likewise reference-only
+  (see `router.py.md`). Nothing in `src/` or `tests/` imported or scheduled it.
+- Why it is not in `src/rugmunchbot/premium/`: `_persist_alerts` imports
+  `app.domains.alerts.postgres_store`. That import was already function-level and the
+  `.importlinter` `api-consumer-only` contract still flagged it (line 44), because the
+  linter reads the AST, not the call path. The bot owns no `alerts` table.
+- Bot-side path today: `handlers/premium_watch/_api.py` -> backend HTTP API. If the
+  cycle is ever needed in-process, inject a persister callable; never import `app`. -->
+
+```python
 """One scan cycle for one watched token.
 
 Order matters and is the whole point of this module:
@@ -32,6 +49,16 @@ from rugmunchbot.support.logging import get_logger
 logger = get_logger(__name__)
 
 
+#: Alert-store writer seam: ``set_writer`` in tests, backend import in prod.
+_WRITER: Any = None
+
+
+def set_writer(write: Any = None) -> None:
+    """Install the alert-store writer (tests); ``None`` restores the backend."""
+    global _WRITER
+    _WRITER = write
+
+
 async def _persist_alerts(session: Any, rows: list[dict[str, Any]]) -> int:
     """Insert alert rows through the canonical backend store, fail-closed.
 
@@ -40,6 +67,8 @@ async def _persist_alerts(session: Any, rows: list[dict[str, Any]]) -> int:
     that store is absent this returns 0 — and 0 inserted means nothing is queued
     for delivery, never a phantom page.
     """
+    if _WRITER is not None:
+        return await _WRITER(session, rows)
     try:
         from app.domains.alerts.postgres_store import save_alerts
     except ImportError:  # bot runtime: no backend alert store installed
@@ -135,3 +164,4 @@ async def run_watch_cycle(
         "queued": queued,
         "watchers": watchers,
     }
+```

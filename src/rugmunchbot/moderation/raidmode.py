@@ -12,10 +12,13 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from rugmunchbot.moderation import raid_state
-from rugmunchbot.moderation.guard_settings import GuardSettings
 from rugmunchbot.moderation.raid_state import engage, is_active, recover, release, status
+
+if TYPE_CHECKING:
+    from rugmunchbot.moderation.guard_settings import GuardSettings
 
 MAX_CHATS = 5_000
 MAX_EVENTS = 256

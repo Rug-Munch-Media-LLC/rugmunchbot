@@ -85,12 +85,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
+          key: uv-${{ runner.os }}-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'pyproject.toml') }}
           restore-keys: |
             uv-${{ runner.os }}-
       - name: Install dependencies
         run: |
-          uv pip install --python .venv/bin/python pytest pytest-asyncio pytest-cov respx httpx python-telegram-bot python-dotenv diff-cover import-linter
+          uv pip install --python .venv/bin/python -r requirements-dev.txt
+          uv pip install --python .venv/bin/python httpx python-telegram-bot
           # Fleet scanner (OSS sibling; not on PyPI) from the mounted checkout.
           uv pip install --python .venv/bin/python /opt/rugmunch-scanner
           if [ -f "requirements.txt" ]; then

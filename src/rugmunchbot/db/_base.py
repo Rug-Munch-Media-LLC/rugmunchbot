@@ -371,7 +371,7 @@ def init_db() -> None:
     conn.close()
     # One-shot upgrade: hash any legacy plaintext api_tokens.token values.
     try:
-        from .users import migrate_plaintext_api_tokens
+        from .api_tokens import migrate_plaintext_api_tokens
 
         migrated = migrate_plaintext_api_tokens()
         if migrated:
