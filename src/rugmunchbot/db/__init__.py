@@ -15,6 +15,14 @@ from __future__ import annotations
 
 from ._base import _resolve_db_path, get_db, init_db, logger
 from .alerts import get_active_alerts, mark_alert_triggered
+from .api_tokens import (
+    API_TOKEN_PREFIX_LEN,
+    _is_hashed_token,
+    hash_api_token,
+    migrate_plaintext_api_tokens,
+    token_prefix,
+    verify_api_token,
+)
 from .kol import (
     attach_kol_wallet,
     cluster_kols_by_wallet,
@@ -49,30 +57,22 @@ from .kol import (
     wallet_clusters,
     wallet_kb_by_source,
 )
+from .monitor_reads import get_active_monitors, get_monitors
 from .monitors import (
     MONITOR_DEFAULT_DAYS,
+    MonitorSpec,
     add_monitor,
+    claim_monitor_slot,
     expire_monitors,
-    get_active_monitors,
-    get_monitors,
     remove_monitor,
     update_monitor_baseline,
 )
+from .quota import _current_week_start, check_rate_limit, get_weekly_usage, increment_usage
 from .stars import add_stars, apply_top_up, spend_stars
-from .tiers import (
-    _current_week_start,
-    activate_tier,
-    check_rate_limit,
-    get_user_tier,
-    get_weekly_usage,
-    increment_usage,
-    set_user_tier,
-)
+from .tiers import activate_tier, get_user_tier, set_user_tier
 from .users import (
-    API_TOKEN_PREFIX_LEN,
     CHAT_HISTORY_CONTEXT,
     CHAT_HISTORY_KEEP,
-    _is_hashed_token,
     _today_str,
     add_chat_message,
     clear_chat_history,
@@ -85,18 +85,14 @@ from .users import (
     get_or_create_user,
     get_user_by_id,
     get_user_stats,
-    hash_api_token,
     is_user_banned,
     list_scam_reports,
     log_admin_action,
     log_scan,
-    migrate_plaintext_api_tokens,
     record_activity,
     report_scam,
     set_banned,
     set_bot_state,
-    token_prefix,
-    verify_api_token,
 )
 from .watchlist import (
     add_watchlist,
@@ -116,6 +112,7 @@ __all__ = [
     "CHAT_HISTORY_KEEP",
     "DB_PATH",
     "MONITOR_DEFAULT_DAYS",
+    "MonitorSpec",
     "_current_week_start",
     "_is_hashed_token",
     "_resolve_db_path",
@@ -128,6 +125,7 @@ __all__ = [
     "apply_top_up",
     "attach_kol_wallet",
     "check_rate_limit",
+    "claim_monitor_slot",
     "clear_chat_history",
     "cluster_kols_by_wallet",
     "count_active_today",
