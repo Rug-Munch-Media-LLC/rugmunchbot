@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from rugmunchbot.premium import payload_facts
+from rugmunchbot.premium import payload_facts, scan_port
 from rugmunchbot.premium.bundle_graph import BuildRequest, build_bundle_graph
 from rugmunchbot.premium.cohorts import cohort_rollup
 from rugmunchbot.premium.snapshot import snapshot_from_scan
@@ -66,11 +66,19 @@ def derive(scan: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[s
     return snapshot, graph, cohort_rollup(holders, buyers, labels_for(wallets))
 
 
-async def scan_payload(token: str, chain: str) -> dict[str, Any]:
-    """Run the scanner and return it in the dict shape the exporters expect."""
-    from rugmunchbot.tools.scanner import scan_token_v2
+async def scan_payload(
+    token: str,
+    chain: str,
+    *,
+    scanner: scan_port.ScanProvider | None = None,
+) -> dict[str, Any]:
+    """Run the scanner and return it in the dict shape the exporters expect.
 
+    *scanner* is the injected port (the composition root registers the real one
+    once). Callers may pass their own for a test or a backtest; premium never
+    imports ``rugmunchbot.scanner`` / ``rugmunchbot.tools`` itself.
+    """
     # The bot's canonical scan client already returns the unified payload dict;
     # ``None`` means the backend refused, and an empty dict keeps the exporters
     # honest about having no facts rather than inventing a shape.
-    return await scan_token_v2(token, chain) or {}
+    return await scan_port.resolve(scanner)(token, chain) or {}

@@ -1,66 +1,58 @@
-"""Advertised command menu — the 20 commands in the BotFather menu.
+"""Advertised command menu — derived views over ``command_registry``.
 
-Data only (no Telegram API, no bot import) so both the registration wiring
-(``bot/_commands.py``) and the rendered help (``handlers/_help_text.py``) read
-the SAME list without a circular import. Progressive disclosure: everything
-else stays registered and lives under ``/more`` (``command_catalog.py``).
+Data only (no Telegram API, no bot import) so registration wiring
+(``bot/_commands.py``), the ``/help`` renderer (``handlers/_help_text.py``) and
+the menu guard all read the SAME rows. The menu names/descriptions live in
+``command_registry``; this module only holds the presentation ORDER of the
+groups, because Telegram shows a flat list and order is not data about a
+command.
 """
 
 from __future__ import annotations
+
+from rugmunchbot.command_registry import REGISTRY, entries
 
 #: Hard ceiling for the advertised BotFather menu. 20 is the most a human
 #: scans in one screen; the rest live under /more.
 MAX_ADVERTISED = 20
 
-#: (group header, [(command, one-line purpose)]). Groups are presentation
-#: only — Telegram shows a flat list — but they keep /help readable.
-ADVERTISED_SECTIONS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
-    (
-        "Start here",
-        (
-            ("start", "Welcome & 5-command quickstart"),
-            ("scan", "Scan a token for scams & risks"),
-            ("desk", "Latest write-ups from the desk"),
-            ("plans", "Free vs Pro — stated honestly"),
-            ("help", "How the bot works"),
-        ),
-    ),
-    (
-        "Scan & safety",
-        (
-            ("deepscan", "Deep scan — full forensic audit"),
-            ("wallet", "Wallet forensics & analysis"),
-            ("holders", "Holder distribution analysis"),
-            ("trace", "Cross-chain fund trace"),
-        ),
-    ),
-    (
-        "Markets",
-        (
-            ("price", "Token price by address"),
-            ("chart", "Chart & technical analysis"),
-            ("trending", "Hot tokens right now"),
-            ("market", "Market overview & trends"),
-        ),
-    ),
-    (
-        "Intel",
-        (
-            ("news", "Latest crypto news"),
-            ("research", "Deep research report on a token"),
-            ("alerts", "Manage price alerts"),
-            ("portfolio", "Your portfolio: value, P&L, 24h"),
-        ),
-    ),
-    (
-        "Account",
-        (
-            ("account", "Your account, tier & usage"),
-            ("report", "Report a scam / rug"),
-            ("more", "All commands, grouped by category"),
-        ),
-    ),
+#: Presentation order for the advertised groups (names/descriptions come from
+#: the registry; only the sequence lives here).
+MENU_GROUP_ORDER: tuple[str, ...] = (
+    "Start here",
+    "Scan & safety",
+    "Markets",
+    "Intel",
+    "Account",
 )
+
+
+def _advertised_sections() -> tuple[tuple[str, tuple[tuple[str, str], ...]], ...]:
+    groups: list[tuple[str, tuple[tuple[str, str], ...]]] = []
+    for group in MENU_GROUP_ORDER:
+        rows = tuple(
+            (entry.name, entry.menu_description or entry.description)
+            for entry in REGISTRY
+            if entry.menu_group == group
+        )
+        if rows:
+            groups.append((group, rows))
+    return tuple(groups)
+
+
+def _group_admin_sections() -> tuple[tuple[str, tuple[tuple[str, str], ...]], ...]:
+    groups: list[tuple[str, tuple[tuple[str, str], ...]]] = []
+    for section in dict.fromkeys(entry.section for entry in entries("group_admin")):
+        rows = tuple(
+            (entry.name, entry.description)
+            for entry in entries("group_admin")
+            if entry.section == section
+        )
+        groups.append((section, rows))
+    return tuple(groups)
+
+
+ADVERTISED_SECTIONS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = _advertised_sections()
 
 #: Advertised command names, in menu order (duplicates preserved for the
 #: guard to detect; do not dedupe here).
@@ -68,58 +60,9 @@ ADVERTISED_COMMANDS: tuple[str, ...] = tuple(
     command for _header, commands in ADVERTISED_SECTIONS for command, _desc in commands
 )
 
-
-#: The group-admin / moderation surface. Registered for every chat, but not
-#: public: a DM user has no use for /gban, and advertising a chat-admin command
-#: in the public catalogue is a lie (a non-admin gets "⛔ Chat admins only").
-#: /help renders this as a one-line block for group admins, and the surface
-#: test treats it as documented (so it is never "dead but unexplained").
-GROUP_ADMIN_SECTIONS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
-    (
-        "Moderation",
-        (
-            ("modstatus", "This chat's moderation policy"),
-            ("modraid", "Show, engage or lift a raid lockdown"),
-            ("modrelease", "Release a quarantined member"),
-            ("modactions", "Recent audited moderation actions"),
-            ("modpardon", "Pardon an audited action"),
-            ("modrules", "The rules this chat enforces"),
-            ("warn", "Warn a member"),
-            ("mute", "Mute a member"),
-            ("ban", "Ban a member"),
-            ("trust", "Mark a member trusted"),
-            ("untrust", "Remove trusted status"),
-            ("appeal", "Appeal a moderation action"),
-            ("filter", "Add a word/domain filter"),
-            ("filters", "List this chat's filters"),
-            ("stopfilter", "Remove a filter"),
-            ("gban", "Global ban (network-wide)"),
-            ("ungban", "Lift a global ban"),
-            ("gbans", "List global bans"),
-        ),
-    ),
-    (
-        "Chat setup",
-        (
-            ("setup", "Token, amounts, emoji & config for this chat"),
-            ("buybot", "Configure the buy popup for this chat"),
-            ("buybot_on", "Start posting buy cards here"),
-            ("buybot_off", "Stop posting buy cards"),
-            ("buybot_preview", "Preview the buy card"),
-            ("buybot_template", "Show the buy-card template"),
-            ("setwelcome", "Set the welcome message"),
-            ("setgoodbye", "Set the goodbye message"),
-            ("modconfig", "Show moderation config"),
-            ("save", "Save a note"),
-            ("get", "Read a note"),
-            ("notes", "List notes"),
-            ("clear", "Delete a note"),
-            ("schedule", "Schedule a recurring post"),
-            ("schedules", "List scheduled posts"),
-            ("unschedule", "Cancel a scheduled post"),
-        ),
-    ),
-)
+#: The group-admin / moderation surface: registered everywhere, meaningful only
+#: to a chat admin, so never advertised in the public catalogue.
+GROUP_ADMIN_SECTIONS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = _group_admin_sections()
 
 #: Every documented group-admin command (flattened, one source).
 GROUP_ADMIN_COMMANDS: frozenset[str] = frozenset(
@@ -145,6 +88,7 @@ __all__ = [
     "GROUP_ADMIN_COMMANDS",
     "GROUP_ADMIN_SECTIONS",
     "MAX_ADVERTISED",
+    "MENU_GROUP_ORDER",
     "advertised_set",
     "menu_rows",
 ]

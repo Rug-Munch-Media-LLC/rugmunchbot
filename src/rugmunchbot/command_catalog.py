@@ -1,187 +1,46 @@
-"""Full public command catalog for /more (one source of truth).
+"""Full public command catalog for /more — derived from ``command_registry``.
 
 Every entry is a REGISTERED command that works today. The BotFather menu
-advertises only the 20 highest-value commands (``command_menu.py``); this
-catalog is the complete public surface rendered by ``/more`` and its group
-drill-downs (``/more scans``). Descriptions live here ONCE — ``/help``,
-``/more`` and the menu guard all read from this module, so a command cannot
-be described in two places and drift. No bot/Telegram imports: the data is
-importable before the application exists (no circular import).
+advertises only the top ``command_menu.MAX_ADVERTISED``; this catalog is the
+complete public surface rendered by ``/more`` and its drill-downs. Descriptions
+live in ``command_registry`` ONCE, so ``/help``, ``/more`` and the menu guard
+cannot describe the same command differently. Presentation (section order and
+icons) lives here — it is not data about a command.
 """
 
 from __future__ import annotations
 
-CATALOG: tuple[tuple[str, str, str, tuple[tuple[str, str], ...]], ...] = (
-    (
-        "desk",
-        "The Desk",
-        "\U0001f4f0",
-        (
-            ("desk", "Latest write-ups from the desk \u2014 source + timestamp"),
-            ("plans", "What is free, what is Pro \u2014 stated honestly"),
-            ("more", "This catalog \u2014 every command, grouped"),
-        ),
-    ),
-    (
-        "channels",
-        "Channels & Community",
-        "📢",
-        (
-            ("channels", "All RugMunch channels & what they serve"),
-            ("feed", "feed.rugmunch.io — the written digest"),
-            ("site", "rugmunch.io — full scanner platform"),
-            ("docs", "Documentation hub — guides, API, pricing, FAQ"),
-            ("mcpdocs", "MCP & developer docs — tools, x402, auth"),
-        ),
-    ),
-    (
-        "scans",
-        "Scan & Safety",
-        "🛡️",
-        (
-            ("scan", "Scan a token for scams & risks"),
-            ("deepscan", "Deep token scan — full forensic audit"),
-            ("wallet", "Wallet forensics & analysis"),
-            ("price", "Token price by address"),
-            ("chart", "Chart & technical analysis"),
-            ("trace", "Cross-chain fund trace"),
-            ("market", "Market overview & trends"),
-            ("news", "Latest crypto news"),
-            ("tweet", "Read an X post by URL, id, or @handle (via ApiPass)"),
-            ("tweets", "Recent X posts from an account"),
-            ("alerts", "Manage price alerts"),
-            ("chat", "Freestyle AI chat"),
-            ("help", "Full command guide"),
-            ("menu", "Alias of /more \u2014 the full atlas"),
-            ("start", "Welcome & quick start"),
-        ),
-    ),
-    (
-        "forensics",
-        "Security Forensics",
-        "🔬",
-        (
-            ("volume", "Wash-trading / fake-volume check on a token"),
-            ("exchangeaudit", "Rank exchanges by wash-trading risk"),
-            ("liqmap", "Cross-exchange liquidation pressure map (7 venues)"),
-            ("hlwhales", "Hyperliquid whale flow + squeeze watch"),
-            ("dislocation", "Cross-venue funding dislocation monitor"),
-            ("dune", "On-chain analytics from Dune"),
-            ("status", "Live data-source tier health"),
-        ),
-    ),
-    (
-        "markets",
-        "Markets & Discovery",
-        "📈",
-        (
-            ("trending", "Hot tokens right now"),
-            ("alpha", "Premium alpha signals — early detection, smart money, curated feeds"),
-            ("movers", "Biggest 24h gainers & losers"),
-            ("launches", "New token launch feed"),
-            ("whales", "Recent whale moves feed"),
-            ("yield", "DeFi yield opportunities"),
-            ("defi", "DeFi protocol analytics"),
-            ("polymarket", "Prediction market odds"),
-            ("predictions", "Live prediction-market books \u2014 aggregate odds"),
-            ("election", "Election odds markets"),
-            ("odds", "Sports & event odds"),
-            ("tokeninfo", "Token DNA fingerprint"),
-            ("cascadewatch", "Liquidation cascade risk for a token"),
-            ("portfolio", "Your portfolio: value, P&L, 24h change"),
-            ("lpcheck", "LP health & lock check"),
-            ("export", "Scan export as JSON \u2014 same payload webhooks get"),
-        ),
-    ),
-    (
-        "power",
-        "Power Tools",
-        "🧰",
-        (
-            ("rugcheck", "Quick rug-pull risk check"),
-            ("honeypot", "Honeypot simulation — can you sell?"),
-            ("deployer", "Deployer fingerprint & history"),
-            ("holders", "Holder distribution analysis"),
-            ("smartmoney", "Smart-money wallet tracking"),
-            ("sentinelscan", "SENTINEL deep forensic scan"),
-            ("investigate", "Full token investigation dossier"),
-            ("whale", "Single whale wallet deep-dive"),
-            ("mev", "MEV & sandwich exposure check"),
-            ("compare", "Compare two tokens side-by-side"),
-            ("simulate", "Simulate a buy/sell before you trade"),
-            ("research", "Deep research report on a token"),
-            ("sentiment", "Social sentiment breakdown"),
-            ("dex", "DEX pair & liquidity lookup"),
-        ),
-    ),
-    (
-        "intel",
-        "Pro Intel",
-        "🎯",
-        (
-            ("impersonation", "Impersonation & fake-account check"),
-            ("deathclock", "Token death-clock survival estimate"),
-            ("cluster", "Wallet cluster / link analysis"),
-            ("laundry", "Mixer & laundering exposure check"),
-            ("lphealth", "Liquidity-pool health & lock status"),
-            ("dumps", "Historical dump events for a token"),
-            ("flow", "Token flow visualization"),
-            ("ta", "Technical analysis snapshot"),
-            ("rugmap", "Token bubble map — holder network"),
-        ),
-    ),
-    (
-        "osint",
-        "OSINT & Identity",
-        "🕵️",
-        (
-            ("osint", "OSINT lookup — address, domain, identity"),
-            ("osintall", "Full OSINT sweep across all sources"),
-            ("track", "Track a wallet or entity across chains"),
-            ("email", "Email breach & exposure check"),
-            ("phone", "Phone number intelligence"),
-            ("face", "Face-match search (PimEyes-style)"),
-        ),
-    ),
-    (
-        "alerts",
-        "Watch & Alerts",
-        "🔔",
-        (
-            ("watchlist", "Watchlist: list/add/remove/alert"),
-            ("whalewatch", "Whale-wallet deep-dive: holdings, trades, PnL"),
-            ("watch", "Watch a token for changes"),
-            ("unwatch", "Stop watching a token"),
-            ("monitor", "List your active monitors"),
-            ("monitors", "Monitor management"),
-            ("unmonitor", "Remove a monitor"),
-            ("alert", "Set an instant price/risk alert"),
-            ("events", "Recent on-chain events feed"),
-        ),
-    ),
-    (
-        "account",
-        "Account & Settings",
-        "👤",
-        (
-            ("account", "Your account, tier & usage"),
-            ("dashboard", "Web dashboard — portfolio, watches, history"),
-            ("pricing", "Plans & pricing"),
-            ("topup", "Top up credits"),
-            ("buystars", "Buy Telegram Stars"),
-            ("refer", "Referral program — earn credits"),
-            ("scamschool", "Scam School — learn the tricks"),
-            ("report", "Report a scam / rug"),
-            ("ask", "Ask the intel desk anything"),
-            ("quick", "Quick scan — one-liner verdict"),
-            ("hype", "Hype vs. substance check"),
-            ("faq", "Frequently asked questions"),
-            ("api", "API access & keys"),
-            ("webhook", "Webhook delivery setup"),
-            ("rpcstats", "RPC endpoint health stats"),
-            ("groupinfo", "Group protection status"),
-            ("mygroup", "Your protected group settings"),
-            ("voicechat", "Voice-chat scam radar"),
-        ),
-    ),
+from rugmunchbot.command_registry import entries
+
+#: ``(key, title, icon)`` in /more display order. Titles must match the
+#: ``section`` recorded on each public registry entry.
+_SECTIONS: tuple[tuple[str, str, str], ...] = (
+    ("desk", "The Desk", "\U0001f4f0"),
+    ("channels", "Channels & Community", "\U0001f4e2"),
+    ("scans", "Scan & Safety", "\U0001f6e1\ufe0f"),
+    ("forensics", "Security Forensics", "\U0001f52c"),
+    ("markets", "Markets & Discovery", "\U0001f4c8"),
+    ("power", "Power Tools", "\U0001f9f0"),
+    ("intel", "Pro Intel", "\U0001f3af"),
+    ("osint", "OSINT & Identity", "\U0001f575\ufe0f"),
+    ("alerts", "Watch & Alerts", "\U0001f514"),
+    ("account", "Account & Settings", "\U0001f464"),
 )
+
+
+def _catalog() -> tuple[tuple[str, str, str, tuple[tuple[str, str], ...]], ...]:
+    public = entries("public")
+    return tuple(
+        (
+            key,
+            title,
+            icon,
+            tuple((entry.name, entry.description) for entry in public if entry.section == title),
+        )
+        for key, title, icon in _SECTIONS
+    )
+
+
+CATALOG: tuple[tuple[str, str, str, tuple[tuple[str, str], ...]], ...] = _catalog()
+
+__all__ = ["CATALOG"]
