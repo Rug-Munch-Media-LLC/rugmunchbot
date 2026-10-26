@@ -21,7 +21,7 @@ dnspython>=2.6
 email-validator>=2.1
 base58>=0.3.0
 clickhouse-driver>=0.2.9
-fastapi==0.141.1
+fastapi==0.162.0
 
 # Canonical scanner (single source of truth for all on-chain engines).
 # Installed editable from the fleet checkout (rugmunch-scanner repo) or from
