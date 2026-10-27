@@ -190,7 +190,6 @@ CAPABILITY_EXEMPLARS: dict[str, list[str]] = {
 }
 
 _cap_centroids: dict[str, list[float]] | None = None
-
 #: Cheap keyword fallback if the local embedder is unavailable (still no network).
 _KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
     (
@@ -238,6 +237,7 @@ _KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
     ),
     ("factual", ("what is", "who is", "how many", "when did", "define", "price of", "meaning of")),
 ]
+
 
 def _cosine(a: list[float], b: list[float]) -> float:
     s = sum(x * y for x, y in zip(a, b, strict=False))
