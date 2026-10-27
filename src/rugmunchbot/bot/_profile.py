@@ -22,6 +22,7 @@ from rugmunchbot.config import (
     SCAM_SCHOOL_TOPICS,
     WEBSITE_URL,
 )
+from rugmunchbot.config._branding import BOT_NAME
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot")
@@ -55,6 +56,12 @@ async def setup_bot_profile(app: Application[Any, Any, Any, Any, Any, Any]) -> N
         logger.info("Bot identity resolved: @%s", bot.username)
     except Exception as e:
         logger.warning(f"Could not resolve bot identity (mention gate disabled): {e}")
+    try:
+        await bot.set_my_name(name=BOT_NAME)
+        logger.info("Bot name set: %s", BOT_NAME)
+    except (ValueError, TypeError, KeyError, OSError, TelegramError) as e:
+        logger.debug("setup_bot_profile_error", exc_info=True)
+        logger.warning(f"Could not set name: {e}")
     try:
         await bot.set_my_description(description=BOT_DESCRIPTION)
         logger.info("Bot description set")

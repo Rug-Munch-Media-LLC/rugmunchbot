@@ -12,6 +12,9 @@ TELEGRAM_CHANNEL = "https://t.me/rmialerts"
 TELEGRAM_GROUP = "https://t.me/RugMunchChat"
 SUPPORT_EMAIL = "biz@rugmunch.io"
 
+# BotFather registration name (set_my_name at startup; <=64 bytes).
+BOT_NAME = "Rug Munch Intelligence"
+
 # Bot profile (set via BotFather API on startup)
 BOT_DESCRIPTION = (
     "🛡️ Rug Munch Intelligence - The Bloomberg Terminal of Shitcoins\n\n"
