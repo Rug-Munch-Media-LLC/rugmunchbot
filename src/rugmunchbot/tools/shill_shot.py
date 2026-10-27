@@ -47,7 +47,6 @@ _KEY_FILE = os.getenv("DEEPINFRA_KEY_FILE") or os.path.join(
     os.getenv("RMI_SECRETS_DIR", "/srv/secrets"), "deepinfra_api_key"
 )
 
-
 def _load_key() -> str:
     key = os.getenv("DEEPINFRA_API_KEY", "").strip()
     if key:

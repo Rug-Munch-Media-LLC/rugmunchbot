@@ -18,20 +18,17 @@ from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.channels.tg_scraper")
 
-
 def _env_bool(name: str, default: bool = True) -> bool:
     raw = os.getenv(name)
     if raw is None:
         return default
     return raw.strip().lower() in ("true", "1", "yes", "on")
 
-
 def _env_int(name: str, default: int) -> int:
     try:
         return int(os.getenv(name, "").strip() or default)
     except (TypeError, ValueError):
         return default
-
 
 def _env_float(name: str, default: float) -> float:
     try:

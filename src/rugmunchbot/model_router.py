@@ -239,7 +239,6 @@ _KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
     ("factual", ("what is", "who is", "how many", "when did", "define", "price of", "meaning of")),
 ]
 
-
 def _cosine(a: list[float], b: list[float]) -> float:
     s = sum(x * y for x, y in zip(a, b, strict=False))
     na = math.sqrt(sum(x * x for x in a))
