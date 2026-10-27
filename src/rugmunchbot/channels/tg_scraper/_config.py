@@ -71,10 +71,9 @@ TG_SCRAPER_DOWNLOAD_MEDIA: bool = _env_bool("RMI_TG_SCRAPER_DOWNLOAD_MEDIA", Tru
 TG_SCRAPER_MEDIA_BUDGET: int = max(0, _env_int("RMI_TG_SCRAPER_MEDIA_BUDGET", 20))
 
 #: Where downloaded media lands (screenshots attached to scam evidence).
-TG_SCRAPER_MEDIA_DIR: str = os.getenv(
-    "RMI_TG_SCRAPER_MEDIA_DIR",
-    os.path.join(tempfile.gettempdir(), "rugmunchbot", "tg_media"),
-)  # env-overridable evidence dir (platform temp root, not a hardcoded /tmp)
+_TMP_ROOT = tempfile.gettempdir()  # platform temp root, not a hardcoded /tmp
+_DEFAULT_MEDIA = os.path.join(_TMP_ROOT, "rugmunchbot", "tg_media")
+TG_SCRAPER_MEDIA_DIR: str = os.getenv("RMI_TG_SCRAPER_MEDIA_DIR", _DEFAULT_MEDIA)
 
 #: RAG collection for ALL scraped messages (total social awareness).
 TG_SCRAPER_RAG_COLLECTION: str = os.getenv("RMI_TG_SCRAPER_RAG_COLLECTION", "telegram_social")

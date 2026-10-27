@@ -170,11 +170,9 @@ async def vision_ocr(image_path: str, prompt: str | None = None) -> str:
         return ""
 
 
-#: Ephemeral screenshot path (platform temp root, never a hardcoded /tmp).
-_DEFAULT_SHOT = os.path.join(tempfile.gettempdir(), "opencode", "shill_shot.png")
-
-
-async def capture_and_ocr(url: str, *, out_path: str = _DEFAULT_SHOT) -> dict[str, str]:
+async def capture_and_ocr(
+    url: str, *, out_path: str = os.path.join(tempfile.gettempdir(), "opencode", "shill_shot.png")
+) -> dict[str, str]:
     """Convenience: capture a URL then OCR it. Returns {url, image_path, text}.
 
     Fail-quiet on Cloudflare/login walls: if the captured PNG OCRs to a

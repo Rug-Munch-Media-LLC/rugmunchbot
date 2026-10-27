@@ -31,10 +31,7 @@ from html.parser import HTMLParser
 from typing import Any, Final
 
 import httpx
-
-# Untrusted RSS/Atom feed XML: stdlib ET expands entities (XXE/billion
-# laughs) — defusedxml refuses them. Aliased to ET: single call site.
-from defusedxml import ElementTree as SafeET
+from defusedxml import ElementTree as SafeET  # XXE-safe: stdlib ET expands entities
 
 from rugmunchbot._vendor.dedup import content_hash, url_hash
 from rugmunchbot._vendor.logging_shim import get_logger

@@ -251,17 +251,14 @@ def _embed(texts: list[str]) -> list[list[float]] | None:
     """Local embeddings (free, on-box). Returns None if the embedder is down.
 
     NOTE: EMBED_URL comes from our own env config (a loopback llama.cpp server),
-    never from user input. HTTP goes through httpx, whose transport only speaks
-    http(s) — there is no ``file://``/``ftp://`` handler to reach (B310-safe).
+    never from user input. httpx speaks http(s) only — no file:// handler (B310).
     """
     try:
         body = json.dumps({"input": texts, "model": EMBED_MODEL})
-        with httpx.Client(timeout=30) as client:
-            resp = client.post(
-                EMBED_URL, content=body, headers={"Content-Type": "application/json"}
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        resp = httpx.post(
+            EMBED_URL, content=body, headers={"Content-Type": "application/json"}, timeout=30
+        )
+        data = resp.raise_for_status().json()
         return [d["embedding"] for d in data["data"]]
     except Exception as exc:  # router must never raise
         logger.warning("embed_unavailable", extra={"err": str(exc)[:120]})
