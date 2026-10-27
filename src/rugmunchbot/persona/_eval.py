@@ -12,10 +12,10 @@ from __future__ import annotations
 import json
 import statistics
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
+
+import httpx
 
 from rugmunchbot.persona._audit import audit_answer, is_cited
 from rugmunchbot.persona._rules import UNKNOWN_PHRASES
@@ -106,20 +106,18 @@ def summarise(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def ask_live(endpoint: str, prompt: str, *, timeout: float = 30.0) -> tuple[str, float]:
     """POST one prompt to the knowledge desk; returns ``(answer, latency_ms)``."""
-    body = json.dumps({"message": prompt, "tier": "T1", "max_tokens": 500}).encode()
+    # Scheme allowlist first (refuses file:// outright), then httpx — its
+    # transport speaks http(s) only, so B310 has no variable-urlopen sink.
     if not endpoint.startswith(("http://", "https://")):
         return "[desk error: invalid endpoint]", 0.0
-    request = urllib.request.Request(  # noqa: S310 — scheme checked above
-        endpoint, data=body, headers={"content-type": "application/json"}
-    )
     started = time.monotonic()
     try:
-        opened = urllib.request.urlopen(  # noqa: S310 — scheme checked above
-            request, timeout=timeout
-        )
-        with opened as response:
-            payload = json.loads(response.read().decode() or "{}")
-    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(
+                endpoint, json={"message": prompt, "tier": "T1", "max_tokens": 500}
+            )
+            payload = response.json()
+    except (httpx.HTTPError, TimeoutError, ValueError) as exc:
         return f"[desk error: {type(exc).__name__}]", (time.monotonic() - started) * 1000
     elapsed = (time.monotonic() - started) * 1000
     return str(payload.get("message") or payload.get("answer") or ""), elapsed

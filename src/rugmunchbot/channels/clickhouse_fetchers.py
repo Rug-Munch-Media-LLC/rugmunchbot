@@ -216,7 +216,8 @@ async def fetch_whale_moves(
           {chain_clause}
         ORDER BY value_decimal DESC
         LIMIT %(limit)s
-        """,  # noqa: S608 — chain_clause is code-literal; values bound via %(name)s
+        """,  # noqa: S608  # nosec B608 — interpolates only _chain_filter()'s code-literal
+        # "AND <column> = %(chain)s" fragment; every value is a bound parameter.
         params,
     )
     if rows:
@@ -257,7 +258,8 @@ async def _fetch_whale_moves_evm(
           {chain_clause}
         ORDER BY value_decimal DESC
         LIMIT %(limit)s
-        """,  # noqa: S608 — chain_clause is code-literal; values bound via %(name)s
+        """,  # noqa: S608  # nosec B608 — interpolates only _chain_filter()'s code-literal
+        # "AND <column> = %(chain)s" fragment; every value is a bound parameter.
         params,
     )
     return _rows_to_whale_moves(rows, chain, limit)
@@ -353,7 +355,8 @@ async def fetch_early_whale_entries(
           {chain_clause}
         ORDER BY block_number DESC
         LIMIT %(tokens)s
-        """,  # noqa: S608 — chain_clause is code-literal; values bound via %(name)s
+        """,  # noqa: S608  # nosec B608 — interpolates only _chain_filter()'s code-literal
+        # "AND <column> = %(chain)s" fragment; every value is a bound parameter.
         params,
     )
 
@@ -387,7 +390,8 @@ async def fetch_early_whale_entries(
               {token_clause}
             ORDER BY block_number ASC
             LIMIT %(wallets)s
-            """,  # noqa: S608 — token_clause is code-literal; values bound via %(name)s
+            """,  # noqa: S608  # nosec B608 — interpolates only _chain_filter()'s code-literal
+            # "AND <column> = %(chain)s" fragment; every value is a bound parameter.
             row_params,
         )
         per_token[token_addr] = rows

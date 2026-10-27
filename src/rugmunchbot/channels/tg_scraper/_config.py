@@ -12,6 +12,7 @@ message reads, bounded media downloads).
 from __future__ import annotations
 
 import os
+import tempfile
 
 from rugmunchbot.support.logging import get_logger
 
@@ -70,7 +71,10 @@ TG_SCRAPER_DOWNLOAD_MEDIA: bool = _env_bool("RMI_TG_SCRAPER_DOWNLOAD_MEDIA", Tru
 TG_SCRAPER_MEDIA_BUDGET: int = max(0, _env_int("RMI_TG_SCRAPER_MEDIA_BUDGET", 20))
 
 #: Where downloaded media lands (screenshots attached to scam evidence).
-TG_SCRAPER_MEDIA_DIR: str = os.getenv("RMI_TG_SCRAPER_MEDIA_DIR", "/tmp/rugmunchbot/tg_media")  # noqa: S108 — env-configurable evidence dir
+TG_SCRAPER_MEDIA_DIR: str = os.getenv(
+    "RMI_TG_SCRAPER_MEDIA_DIR",
+    os.path.join(tempfile.gettempdir(), "rugmunchbot", "tg_media"),
+)  # env-overridable evidence dir (platform temp root, not a hardcoded /tmp)
 
 #: RAG collection for ALL scraped messages (total social awareness).
 TG_SCRAPER_RAG_COLLECTION: str = os.getenv("RMI_TG_SCRAPER_RAG_COLLECTION", "telegram_social")
