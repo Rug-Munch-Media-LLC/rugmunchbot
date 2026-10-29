@@ -16,8 +16,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import metrics  # noqa: E402
-import rules  # noqa: E402
+import metrics
+import rules
 
 GOLD = Path(__file__).resolve().parent / "gold.json"
 
@@ -81,8 +81,13 @@ def score_sample(sample: dict) -> dict:
         reg = 1.0
 
     subs = {
-        "banned": banned, "cliche": cliche, "spread": spread_s, "emoji": emoji_s,
-        "hedge": hedge_s, "structure": struct, "register": reg,
+        "banned": banned,
+        "cliche": cliche,
+        "spread": spread_s,
+        "emoji": emoji_s,
+        "hedge": hedge_s,
+        "structure": struct,
+        "register": reg,
     }
     total = sum(rules.WEIGHTS[k] * v for k, v in subs.items())
     if reg == 0.0:
@@ -90,9 +95,12 @@ def score_sample(sample: dict) -> dict:
         # defect no amount of good structure can offset.
         total = 0.0
     return {
-        "id": sample["id"], "category": sample["category"],
+        "id": sample["id"],
+        "category": sample["category"],
         "serious": bool(sample.get("serious")),
-        "score": round(total, 4), "subs": subs, "notes": notes,
+        "score": round(total, 4),
+        "subs": subs,
+        "notes": notes,
     }
 
 
@@ -110,12 +118,23 @@ def main(argv: list[str] | None = None) -> int:
     worst = sorted(results, key=lambda r: r["score"])[: args.top]
 
     if args.json:
-        print(json.dumps(
-            {"aggregate": round(aggregate, 4), "n": len(results),
-             "min": args.min, "worst": worst, "results": results}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "aggregate": round(aggregate, 4),
+                    "n": len(results),
+                    "min": args.min,
+                    "worst": worst,
+                    "results": results,
+                },
+                indent=2,
+            )
+        )
     else:
-        print(f"voice eval · {len(results)} samples · aggregate {aggregate:.4f} "
-              f"· gate {args.min:.2f} · {'PASS' if aggregate >= args.min else 'FAIL'}")
+        print(
+            f"voice eval · {len(results)} samples · aggregate {aggregate:.4f} "
+            f"· gate {args.min:.2f} · {'PASS' if aggregate >= args.min else 'FAIL'}"
+        )
         print(f"\nworst {len(worst)}:")
         for r in worst:
             print(f"  {r['score']:.3f}  {r['id']:<26} {'; '.join(r['notes'][:2])}")

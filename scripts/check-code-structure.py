@@ -93,13 +93,13 @@ def scan():
             m = DEF_RE.match(line)
             indent = len(m.group(1)) if m else None
             while stack and (m is None or stack[-1][0] >= indent):
-                d_indent, d_name, d_start = stack.pop()
+                _d_indent, d_name, d_start = stack.pop()
                 length = i - d_start
                 if length > MAX_FUNC_LINES:
                     long_funcs.append(f"{rel}:{d_start + 1} {d_name} ({length} lines)")
             if m and not line.lstrip().startswith("#"):
                 stack.append((indent, m.group(2), i))
-        for d_indent, d_name, d_start in stack:
+        for _d_indent, d_name, d_start in stack:
             length = len(lines) - d_start
             if length > MAX_FUNC_LINES:
                 long_funcs.append(f"{rel}:{d_start + 1} {d_name} ({length} lines)")

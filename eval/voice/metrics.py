@@ -12,9 +12,7 @@ _SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 _WORD = re.compile(r"[A-Za-z][A-Za-z'\-]*")
 _FACT = re.compile(r"\d+[.,]?\d*\s?%|\$\s?\d|\b\d+/\d+\b|\b\d+(?:\.\d+)?[KMB]\b")
 _URL = re.compile(r"https?://\S+")
-_EMOJI = re.compile(
-    "[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\u2139\u2049\u203C]"
-)
+_EMOJI = re.compile("[\U0001f000-\U0001faff\u2600-\u27bf\u2b00-\u2bff\u2139\u2049\u203c]")
 _HEDGE = re.compile(r"\b(" + "|".join(re.escape(h) for h in rules.HEDGES) + r")\b")
 
 
