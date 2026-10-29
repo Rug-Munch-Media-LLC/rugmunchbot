@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""check-antipatterns.py — per-repo anti-pattern ratchet gate (self-contained).
+"""check-antipatterns.py — per-repo anti-pattern ratchet gate.
 
-Scans THIS repo for the house anti-pattern list and fails CI when any rule's
-count exceeds the committed baseline. Ratchet semantics: counts may only go
-DOWN; lower them deliberately with --update-baseline.
+Scans THIS repo for the house list; fails CI when any rule count exceeds the committed
+baseline. Counts may only go DOWN — the baseline is a MEASUREMENT, not a target.
 
-Rules: monkeypatch, bare-except, fstring-logging, sync-io-async, eval-exec,
-god-file (>500 — MODULARITY.md), long-function (>80), too-many-params (>5),
-wildcard-import, mutable-default, slop-markers, ts-ignore.
+  --update-baseline      lower it to the current counts (refuses any growth)
+  --rebaseline --reason  re-measure (writer: scripts/antipattern_baseline.py):
+                         no headroom; records reason+date+commit; needs --reason (rc 2)
 
-Usage:
-  python3 check-antipatterns.py --repo .                     # gate
-  python3 check-antipatterns.py --repo . --update-baseline   # lower the bar (shrink only)
+Rules: monkeypatch, bare-except, fstring-logging, sync-io-async, eval-exec, god-file,
+long-function, too-many-params, wildcard-import, mutable-default, slop-markers, ts-ignore.
+
+Usage: check-antipatterns.py [--repo .] [--update-baseline | --rebaseline --reason W]
 """
 
 from __future__ import annotations
@@ -22,6 +22,8 @@ import json
 import re
 import sys
 from pathlib import Path
+
+from antipattern_baseline import write_rebaseline
 
 SKIP_DIRS = {
     ".git",
@@ -139,6 +141,8 @@ def main() -> int:
     ap.add_argument("--repo", default=".")
     ap.add_argument("--baseline", default="scripts/antipattern-baseline.json")
     ap.add_argument("--update-baseline", action="store_true")
+    ap.add_argument("--rebaseline", action="store_true", help="re-measure; needs --reason")
+    ap.add_argument("--reason", default="", help="audit note, required by --rebaseline")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
 
@@ -146,15 +150,23 @@ def main() -> int:
     counts = scan(root)
     total = sum(counts.values())
     baseline_path = root / args.baseline
+    baseline: dict[str, int] = {}
+    if baseline_path.exists() and not args.rebaseline:
+        try:
+            baseline = json.loads(baseline_path.read_text()).get("rules", {})
+        except Exception:
+            baseline = {}
+
+    if args.rebaseline:
+        if not args.reason.strip():
+            print(
+                "--rebaseline requires --reason (a re-measurement is never silent)", file=sys.stderr
+            )
+            return 2
+        return write_rebaseline(baseline_path, counts, args.reason.strip(), root)
 
     if args.update_baseline:
-        old = {}
-        if baseline_path.exists():
-            try:
-                old = json.loads(baseline_path.read_text()).get("rules", {})
-            except Exception:
-                old = {}
-        grown = {r: (old.get(r, 0), n) for r, n in counts.items() if n > old.get(r, 0)}
+        grown = {r: (baseline.get(r, 0), n) for r, n in counts.items() if n > baseline.get(r, 0)}
         if grown and baseline_path.exists():
             print("REFUSING to raise the baseline (ratchet is shrink-only):")
             for r, (o, n) in grown.items():
@@ -163,13 +175,6 @@ def main() -> int:
         baseline_path.write_text(json.dumps({"rules": counts, "total": total}, indent=1) + "\n")
         print(f"baseline updated: {baseline_path} (total {total})")
         return 0
-
-    baseline = {}
-    if baseline_path.exists():
-        try:
-            baseline = json.loads(baseline_path.read_text()).get("rules", {})
-        except Exception:
-            baseline = {}
 
     failures = []
     for rule, n in sorted(counts.items()):
