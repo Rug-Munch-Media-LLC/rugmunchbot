@@ -75,8 +75,6 @@ src/rugmunchbot/handlers/market/_cmd_movers.py::🚀
 src/rugmunchbot/handlers/market/_cmd_news.py::!
 src/rugmunchbot/handlers/market/_cmd_news.py::🔥
 src/rugmunchbot/handlers/market/_cmd_rugcheck.py::!
-src/rugmunchbot/handlers/market/_cmd_trending.py::please try again in a moment
-src/rugmunchbot/handlers/market/_cmd_trending.py::🔥
 src/rugmunchbot/handlers/market/_cmd_whales.py::💎
 src/rugmunchbot/handlers/market/_constants.py::please try again in a moment
 src/rugmunchbot/handlers/market/_render.py::🚀

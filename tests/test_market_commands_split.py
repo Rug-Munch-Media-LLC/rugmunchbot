@@ -295,4 +295,8 @@ async def test_cmd_trending_unavailable_path():
     respx.route().mock(return_value=httpx.Response(503))
     update = _update()
     await market.cmd_trending(update, SimpleNamespace(args=[]))
-    assert "Trending Unavailable" in update.message.texts[-1]
+    # Copy discloses WHICH source failed (TRENDING_UNAVAILABLE_SOURCE) —
+    # "unavailable (source)", not the old bare "Trending Unavailable".
+    text = update.message.texts[-1].lower()
+    assert "trending unavailable (source)" in text
+    assert "source outage" in text, "an outage must not read as an empty list"

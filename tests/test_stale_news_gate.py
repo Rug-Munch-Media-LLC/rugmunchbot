@@ -194,19 +194,36 @@ def test_recent_stories_drops_threat_intel_collection():
     ``content_candidates.recent_stories`` (rugbrain 5175b3d, 2026-09-28); the
     selection loop now iterates the ``CANDIDATE_COLLECTIONS`` constant.
     """
+    import ast
     import inspect
 
     from rugbrain import content_candidates
 
-    src = inspect.getsource(content_candidates.recent_stories)
-    # the selection LOOP must reference only news_v2 (comments may explain
-    # WHY threat_intel_v2 was dropped — that's fine, code is not)
-    loop_lines = [ln for ln in src.split("\n") if "for collection in" in ln]
-    assert len(loop_lines) == 1
-    assert "CANDIDATE_COLLECTIONS" in loop_lines[0]
-    assert "threat_intel_v2" not in loop_lines[0]
-    # and the constant itself must not carry the undated KB
-    assert content_candidates.CANDIDATE_COLLECTIONS == ("news_v2",)
+    # The invariant is "the undated KB is never probed", not "the loop lives in
+    # recent_stories": upstream moved the collection fan-out behind
+    # ``_collect`` and later added dated collections (social_intel,
+    # research_v2, news_articles) to CANDIDATE_COLLECTIONS. Assert what still
+    # has to hold, in code only — comments may explain the removal.
+    assert "threat_intel_v2" not in content_candidates.CANDIDATE_COLLECTIONS
+    assert "news_v2" in content_candidates.CANDIDATE_COLLECTIONS
+    tree = ast.parse(inspect.getsource(content_candidates))
+    docs = set()
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if isinstance(body, list) and body:
+            first = body[0]
+            value = getattr(first, "value", None)
+            if isinstance(first, ast.Expr) and isinstance(value, ast.Constant):
+                docs.add(id(value))
+    refs = [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and id(node) not in docs
+        and "threat_intel_v2" in node.value
+    ]
+    assert refs == [], f"threat_intel_v2 is back in content_candidates: {refs}"
 
 
 def test_draft_payload_carries_ts():

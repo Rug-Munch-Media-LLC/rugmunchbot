@@ -4,6 +4,7 @@ from rugmunchbot.channels.routing.gate import (
     Decision,
     decide,
     is_live,
+    release_slot,
     reset_buckets,
 )
 from rugmunchbot.channels.routing.table import (
@@ -22,6 +23,7 @@ __all__ = [
     "Decision",
     "decide",
     "is_live",
+    "release_slot",
     "policy_for",
     "reset_buckets",
 ]

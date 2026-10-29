@@ -28,14 +28,14 @@ def log_section_fallback(
     ``to_src`` may be ``"none"`` when every leg failed and the card will
     render the honest-missing marker instead of data.
     """
+    line = f"scan_section_fallback section={section} from={from_src} to={to_src}"
+    if reason:
+        line = f"{line} reason={reason}"
     try:
-        logger.info(
-            "scan_section_fallback section=%s from=%s to=%s%s",
-            section,
-            from_src,
-            to_src,
-            f" reason={reason}" if reason else "",
-        )
+        # Pre-rendered event, not ``%s`` + positional args: structlog keeps the
+        # raw template and stashes the args in ``positional_args``, so the
+        # audit line landed in the log as literal "%s" and was ungreppable.
+        logger.info(line)
     except Exception as exc:
         logger.debug("section_fallback_log_failed err=%s", str(exc)[:80])
 
