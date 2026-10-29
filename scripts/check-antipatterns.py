@@ -151,11 +151,10 @@ def main() -> int:
     total = sum(counts.values())
     baseline_path = root / args.baseline
     baseline: dict[str, int] = {}
-    if baseline_path.exists() and not args.rebaseline:
-        try:
-            baseline = json.loads(baseline_path.read_text()).get("rules", {})
-        except Exception:
-            baseline = {}
+    try:  # an absent or unreadable baseline is simply empty
+        baseline = json.loads(baseline_path.read_text()).get("rules", {})
+    except (OSError, ValueError):
+        baseline = {}
 
     if args.rebaseline:
         if not args.reason.strip():

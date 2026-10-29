@@ -14,6 +14,7 @@ import datetime
 import json
 import shutil
 import subprocess
+import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -21,7 +22,10 @@ if TYPE_CHECKING:
 
 
 def write_rebaseline(path: Path, counts: dict[str, int], reason: str, root: Path) -> int:
-    """Record a fresh measured baseline with its audit trail; returns rc 0."""
+    """Record a fresh measured baseline with its audit trail (rc 0, or 2 = no reason)."""
+    if not reason.strip():
+        print("--rebaseline requires --reason (a re-measurement is never silent)", file=sys.stderr)
+        return 2
     # fixed argv, no shell; the binary is resolved, not taken from PATH blindly
     head = subprocess.run(  # noqa: S603
         [shutil.which("git") or "git", "-C", str(root), "rev-parse", "--short=12", "HEAD"],
