@@ -93,6 +93,13 @@ async def test_chat_with_fallback_http_error_then_fallback_retry(respx_mock, mon
     monkeypatch.setattr(llm_config, "DEEPINFRA_API_KEY", "sk-test-deepinfra")
     monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-test-kilocode")
     monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "sk-test")
+    # Lane keys are read with os.getenv at import. On a dev host conftest.py
+    # loads the real env file, so these legs fired; in CI no env file exists,
+    # both legs were skipped for a blank key, and the chain fell through to the
+    # unmocked KiloCode leg. Pin the keys this test needs instead of inheriting
+    # the host's provisioning.
+    monkeypatch.setattr(llm_config, "GROQ_API_KEY", "sk-test-groq")
+    monkeypatch.setattr(llm_config, "GEMINI_API_KEY", "sk-test-gemini")
     snappy = llm_config.get_snappy_config()
     import httpx
 
@@ -113,6 +120,8 @@ async def test_chat_with_fallback_http_error_then_fallback_retry(respx_mock, mon
 async def test_chat_with_fallback_snappy_direct_hit(respx_mock, monkeypatch):
     monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "sk-test")
     monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-test-kilocode")
+    # The primary leg only fires when its key is set (see _chat_once).
+    monkeypatch.setattr(llm_config, "GROQ_API_KEY", "sk-test-groq")
     snappy = llm_config.get_snappy_config()
     import httpx
 
@@ -130,6 +139,8 @@ async def test_chat_completion_wrapper_ai_router_shape(respx_mock, monkeypatch):
     """briefing calls chat_completion(messages, model, task_type, temperature, max_tokens) -> dict."""
     monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "sk-test")
     monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-test-kilocode")
+    # The primary leg only fires when its key is set (see _chat_once).
+    monkeypatch.setattr(llm_config, "GROQ_API_KEY", "sk-test-groq")
     long_cfg = llm_config.get_long_config()
     import httpx
 

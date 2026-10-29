@@ -33,14 +33,31 @@ def test_rag_api_url_delegates_to_rag_lookup():
     assert _news_rerank._rag_api_url() == rag_lookup._rag_api_url()
 
 
-def test_rag_api_key_resolves_without_the_env_var():
+def test_rag_api_key_resolves_without_the_env_var(monkeypatch, tmp_path):
     """The lane must stay alive in a context that does not source the bot env.
 
     The bug: no ``RMI_RAG_API_KEY`` in the unit's ``Environment=`` and no
-    secret-file fallback → empty key → the whole ranked lane skipped. Both
-    resolvers must therefore produce a non-empty key from the secret chain
-    (on-disk secret file → secrets manager), never only from the env var.
+    secret-file fallback → empty key → the whole ranked lane skipped. The
+    resolver must therefore reach a non-empty key from the secret-file chain,
+    never only from the env var.
+
+    Hermetic: the secret file is injected here. Reading the HOST's
+    ``/srv/secrets/*`` made the assertion depend on machine provisioning — CI
+    has no such file and failed with ``assert ''`` while the code was correct.
     """
+    from rugmunchbot.config import _secrets
+
+    secret = tmp_path / "rugbrain.env"
+    secret.write_text("RMI_RAG_API_KEY=sk-test-rag-key\n")
+    monkeypatch.delenv("RMI_RAG_API_KEY", raising=False)
+    monkeypatch.setattr(_secrets, "_RAG_SECRET_FILES", (str(secret),))
+
+    # The file chain itself yields the key with the env var absent.
+    resolved = _secrets._get_rag_api_key()
+    assert resolved == "sk-test-rag-key"
+
+    # And both lane resolvers return exactly that (delegation contract).
+    monkeypatch.setattr("rugmunchbot.config.RAG_API_KEY", resolved)
     key = _news_rerank._rag_api_key()
     assert key
     assert key == rag_lookup._rag_api_key()
