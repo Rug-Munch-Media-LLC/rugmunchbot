@@ -90,16 +90,16 @@ async def test_chat_with_fallback_missing_key_fails_open(env):
 @pytest.mark.asyncio
 async def test_chat_with_fallback_http_error_then_fallback_retry(respx_mock, env):
     """Primary (DeepInfra) 500 -> KiloCode StepFlash fallback succeeds."""
-    env["DEEPINFRA_API_KEY"] = "sk-test-deepinfra"
-    env["KILOCODE_API_KEY"] = "sk-test-kilocode"
-    env["OPENROUTER_BACKUP_API_KEY"] = "sk-test"
+    env["DEEPINFRA_API_KEY"] = "lane-test-deepinfra"
+    env["KILOCODE_API_KEY"] = "lane-test-kilocode"
+    env["OPENROUTER_BACKUP_API_KEY"] = "lane-test"
     # Lane keys are read with os.getenv at import. On a dev host conftest.py
     # loads the real env file, so these legs fired; in CI no env file exists,
     # both legs were skipped for a blank key, and the chain fell through to the
     # unmocked KiloCode leg. Pin the keys this test needs instead of inheriting
     # the host's provisioning.
-    env["GROQ_API_KEY"] = "sk-test-groq"
-    env["GEMINI_API_KEY"] = "sk-test-gemini"
+    env["GROQ_API_KEY"] = "lane-test-groq"
+    env["GEMINI_API_KEY"] = "lane-test-gemini"
     snappy = llm_config.get_snappy_config()
     import httpx
 
@@ -118,10 +118,10 @@ async def test_chat_with_fallback_http_error_then_fallback_retry(respx_mock, env
 
 @pytest.mark.asyncio
 async def test_chat_with_fallback_snappy_direct_hit(respx_mock, env):
-    env["OPENROUTER_BACKUP_API_KEY"] = "sk-test"
-    env["KILOCODE_API_KEY"] = "sk-test-kilocode"
+    env["OPENROUTER_BACKUP_API_KEY"] = "lane-test"
+    env["KILOCODE_API_KEY"] = "lane-test-kilocode"
     # The primary leg only fires when its key is set (see _chat_once).
-    env["GROQ_API_KEY"] = "sk-test-groq"
+    env["GROQ_API_KEY"] = "lane-test-groq"
     snappy = llm_config.get_snappy_config()
     import httpx
 
@@ -137,10 +137,10 @@ async def test_chat_with_fallback_snappy_direct_hit(respx_mock, env):
 @pytest.mark.asyncio
 async def test_chat_completion_wrapper_ai_router_shape(respx_mock, env):
     """briefing calls chat_completion(messages, model, task_type, temperature, max_tokens) -> dict."""
-    env["OPENROUTER_BACKUP_API_KEY"] = "sk-test"
-    env["KILOCODE_API_KEY"] = "sk-test-kilocode"
+    env["OPENROUTER_BACKUP_API_KEY"] = "lane-test"
+    env["KILOCODE_API_KEY"] = "lane-test-kilocode"
     # The primary leg only fires when its key is set (see _chat_once).
-    env["GROQ_API_KEY"] = "sk-test-groq"
+    env["GROQ_API_KEY"] = "lane-test-groq"
     long_cfg = llm_config.get_long_config()
     import httpx
 
@@ -179,9 +179,9 @@ def _mock_groq_gemini_kilo(respx_mock, env, kilo_router):
     """
     import httpx
 
-    env["GROQ_API_KEY"] = "sk-groq"
-    env["GEMINI_API_KEY"] = "sk-gemini"
-    env["KILOCODE_API_KEY"] = "sk-kilo"
+    env["GROQ_API_KEY"] = "lane-groq"
+    env["GEMINI_API_KEY"] = "lane-gemini"
+    env["KILOCODE_API_KEY"] = "lane-kilo"
     long_cfg = llm_config.get_long_config()
     respx_mock.post(long_cfg["base_url"]).mock(return_value=httpx.Response(500))
     respx_mock.post(long_cfg["fallback_base_url"]).mock(return_value=httpx.Response(429))
