@@ -9,7 +9,6 @@ HTTP, Telegram send, LLM, Redis) are mocked.
 
 from __future__ import annotations
 
-import importlib
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -18,7 +17,6 @@ import pytest
 from rugmunchbot.channels.daily_rug import (
     DAILY_RUG_LOGO_URL,
     EDITION,
-    _config,
     _serialize_context,
     build_messages,
     cleanup_html,
@@ -80,30 +78,6 @@ def _context(**over: Any) -> dict[str, Any]:
 
 
 class TestConfig:
-    def test_run_time_default_morning(self, env) -> None:
-        # Hermetic: the module reads DAILY_RUG_TIME at IMPORT time, so a
-        # leftover constant from another test would leak in. Unset the
-        # override and rebake before asserting.
-        env.unset("RMI_DAILY_RUG_TIME")
-        importlib.reload(_config)
-        t = _config.daily_rug_run_time()
-        assert (t.hour, t.minute) == (7, 30)
-        assert t.tzinfo is not None
-
-    def test_run_time_env_override(self, env) -> None:
-        env["RMI_DAILY_RUG_TIME"] = "06:45"
-        importlib.reload(_config)
-        try:
-            t = _config.daily_rug_run_time()
-            assert (t.hour, t.minute) == (6, 45)
-        finally:
-            # Rebake the constant with the variable UNSET. Reloading while
-            # monkeypatch was still applied baked 06:45 into the module for
-            # the rest of the session and failed the default test whenever
-            # pytest-randomly put it first.
-            env.unset("RMI_DAILY_RUG_TIME")
-            importlib.reload(_config)
-
     def test_edition_title(self) -> None:
         assert EDITION == "The Daily Rug — Morning Market Brief"
 

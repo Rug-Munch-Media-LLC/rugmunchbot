@@ -99,14 +99,7 @@ def _clean_answer(answer: str) -> str:
 
 
 def _lane_key(name: str) -> str:
-    """Resolve a lane credential at CALL time, from the process environment.
-
-    Credentials used to be frozen into module constants at import. A process
-    that exports the variable later (a supervisor, a dry-run harness, a test)
-    had no effect, and the only way to exercise a lane was to patch the module
-    object. Resolution per call makes the environment the single configuration
-    seam — the same one the systemd unit and the secrets env file use.
-    """
+    """Resolve a lane credential at CALL time (the environment is the seam)."""
     return os.getenv(name, "")
 
 
@@ -126,12 +119,8 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 # Free fallback #1/#2: Gemini (openai-compatible shim), then the OpenRouter free ids.
 GEMINI_BASE = os.getenv("GEMINI_BASE", "https://generativelanguage.googleapis.com/v1beta/openai")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-# 2026-09-18: OpenCode Zen lane RETIRED. Its free tier is session-locked to the
-# opencode app — calling it from the bot (a non-opencode client) returns
-# "free tier can only be used in opencode". The last free rung is now KiloCode,
-# which is a real open gateway with no client restriction.
-# See get_kilo_final_fallback_config().
-# (The OPENCODE_ZEN_* secrets are now unused by this module and can be retired.)
+# 2026-09-18: OpenCode Zen lane RETIRED — its free tier is session-locked to
+# the opencode app. The last free rung is KiloCode (get_kilo_final_fallback_config).
 # 2026-08-29: DeepInfra — cheap primary chat (Qwen3.5-9B ~$0.08/Mtok). The
 # reasoning model must be called with reasoning.enabled=false (see _chat_once).
 DEEPINFRA_BASE = os.getenv("DEEPINFRA_BASE", "https://api.deepinfra.com/v1/openai")

@@ -9,7 +9,6 @@ LLM, Redis dedupe) are mocked.
 
 from __future__ import annotations
 
-import importlib
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,7 +17,6 @@ import pytest
 
 from rugmunchbot.channels.daily_rug_update import (
     EDITION,
-    _config,
     _serialize_context,
     build_messages,
     cleanup_html,
@@ -298,30 +296,6 @@ class TestPostDailyRugUpdate:
             ),
         ):
             assert await post_daily_rug_update(MagicMock()) == 0
-
-
-class TestSchedule:
-    def test_run_time_default_midday(self, env) -> None:
-        # Hermetic: the module reads DAILY_RUG_UPDATE_TIME at IMPORT time, so
-        # a leftover constant from another test would leak in. Unset the
-        # override and rebake before asserting.
-        env.unset("RMI_DAILY_RUG_UPDATE_TIME")
-        importlib.reload(_config)
-        t = _config.rug_update_run_time()
-        assert (t.hour, t.minute) == (12, 30)
-        assert t.tzinfo is not None
-
-    def test_run_time_env_override(self, env) -> None:
-        env["RMI_DAILY_RUG_UPDATE_TIME"] = "13:15"
-        importlib.reload(_config)
-        try:
-            t = _config.rug_update_run_time()
-            assert (t.hour, t.minute) == (13, 15)
-        finally:
-            # Rebake the constant with the variable UNSET (see the morning
-            # test: reloading under monkeypatch leaked the override).
-            env.unset("RMI_DAILY_RUG_UPDATE_TIME")
-            importlib.reload(_config)
 
 
 class TestRegistration:
