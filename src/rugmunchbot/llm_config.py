@@ -98,21 +98,34 @@ def _clean_answer(answer: str) -> str:
     return _egress_guard(out)
 
 
+def _lane_key(name: str) -> str:
+    """Resolve a lane credential at CALL time, from the process environment.
+
+    Credentials used to be frozen into module constants at import. A process
+    that exports the variable later (a supervisor, a dry-run harness, a test)
+    had no effect, and the only way to exercise a lane was to patch the module
+    object. Resolution per call makes the environment the single configuration
+    seam — the same one the systemd unit and the secrets env file use.
+    """
+    return os.getenv(name, "")
+
+
+def _lane_flag(name: str, default: str = "true") -> bool:
+    """Boolean feature flag resolved at CALL time (same seam as ``_lane_key``)."""
+    return os.getenv(name, default).lower() in ("1", "true", "yes")
+
+
 OPENROUTER_BASE = os.getenv("OPENROUTER_BASE", "https://openrouter.ai/api/v1")
-OPENROUTER_BACKUP_API_KEY = os.getenv("OPENROUTER_BACKUP_API_KEY", "")
 KILOCODE_BASE = os.getenv("KILOCODE_BASE", "http://127.0.0.1:18091/api/gateway")
 # 2026-10-15: hosted FREE primary lane (owner decision) — one model for chat AND
 # content writing, vision-capable, ~320 tok/s. Replaces the local Qwythos lane
 # entirely (see RMI_LOCAL_LLM_ENABLED, which now defaults off) and the local
 # KiloCode gateway as the snappy primary.
 GROQ_BASE = os.getenv("GROQ_BASE", "https://api.groq.com/openai/v1")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 # Free fallback #1/#2: Gemini (openai-compatible shim), then the OpenRouter free ids.
 GEMINI_BASE = os.getenv("GEMINI_BASE", "https://generativelanguage.googleapis.com/v1beta/openai")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-KILOCODE_API_KEY = os.getenv("KILOCODE_API_KEY", "")
 # 2026-09-18: OpenCode Zen lane RETIRED. Its free tier is session-locked to the
 # opencode app — calling it from the bot (a non-opencode client) returns
 # "free tier can only be used in opencode". The last free rung is now KiloCode,
@@ -122,7 +135,6 @@ KILOCODE_API_KEY = os.getenv("KILOCODE_API_KEY", "")
 # 2026-08-29: DeepInfra — cheap primary chat (Qwen3.5-9B ~$0.08/Mtok). The
 # reasoning model must be called with reasoning.enabled=false (see _chat_once).
 DEEPINFRA_BASE = os.getenv("DEEPINFRA_BASE", "https://api.deepinfra.com/v1/openai")
-DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY", "")
 # 2026-08-30: DeepInfra vision — Qwen3-VL (multimodal). The task target was
 # "Qwen3-VL-4B", but DeepInfra does NOT host a 4B VL checkpoint (verified
 # against /v1/models 2026-08-30: only Qwen/Qwen3-VL-30B-A3B-Instruct and
@@ -161,7 +173,6 @@ LOCAL_CHAT_TIMEOUT_S = float(os.getenv("RMI_LOCAL_CHAT_TIMEOUT_S", "15"))
 #: ~300-490 ms, free) and walks that capability's LOCKED model ladder. Falls
 #: through to the tier chain below if the router is unavailable or every rung
 #: fails. Set RMI_CAPABILITY_ROUTER=false to force the legacy tier chain.
-RMI_CAPABILITY_ROUTER = os.getenv("RMI_CAPABILITY_ROUTER", "true").lower() in ("1", "true", "yes")
 #: Max rungs to try from the capability ladder — bounds worst-case latency
 #: (a deep rung can take 120s; five of them would be unusable).
 CAPABILITY_MAX_ATTEMPTS = int(os.getenv("RMI_CAPABILITY_MAX_ATTEMPTS", "4"))
@@ -228,10 +239,10 @@ def get_snappy_config() -> dict[str, Any]:
     return {
         "model": GROQ_MODEL,
         "base_url": f"{GROQ_BASE}/chat/completions",
-        "api_key": GROQ_API_KEY,
+        "api_key": _lane_key("GROQ_API_KEY"),
         "fallback_model": GEMINI_MODEL,
         "fallback_base_url": f"{GEMINI_BASE}/chat/completions",
-        "fallback_api_key": GEMINI_API_KEY,
+        "fallback_api_key": _lane_key("GEMINI_API_KEY"),
         # 2026-10-15: 6000 (was 3000). The local 9B managed ~9 tok/s, so a long
         # answer meant a long wait; hosted Qwen does ~320 tok/s, so output length
         # is no longer the thing that makes a reply feel slow.
@@ -258,10 +269,10 @@ def get_long_config() -> dict[str, Any]:
     return {
         "model": GROQ_MODEL,
         "base_url": f"{GROQ_BASE}/chat/completions",
-        "api_key": GROQ_API_KEY,
+        "api_key": _lane_key("GROQ_API_KEY"),
         "fallback_model": GEMINI_MODEL,
         "fallback_base_url": f"{GEMINI_BASE}/chat/completions",
-        "fallback_api_key": GEMINI_API_KEY,
+        "fallback_api_key": _lane_key("GEMINI_API_KEY"),
         # Same model as snappy on purpose: ONE lane for chat and content writing
         # (no second setup). 8000 tokens of headroom for long/analysis answers.
         "max_tokens": 8000,
@@ -281,7 +292,7 @@ def get_paid_final_config(tier: str) -> dict[str, Any]:
     return {
         "model": "Qwen/Qwen3.5-9B",
         "base_url": f"{DEEPINFRA_BASE}/chat/completions",
-        "api_key": DEEPINFRA_API_KEY,
+        "api_key": _lane_key("DEEPINFRA_API_KEY"),
         "max_tokens": 2000 if tier == "snappy" else 3000,
         "temperature": 0.3 if tier == "snappy" else 0.7,
         "reasoning_toggle": True,  # DeepInfra supports the CoT-suppression field
@@ -310,7 +321,7 @@ def get_kilo_nemotron_fallback_config(tier: str) -> dict[str, Any]:
     return {
         "model": model,
         "base_url": f"{KILOCODE_BASE}/chat/completions",
-        "api_key": KILOCODE_API_KEY,
+        "api_key": _lane_key("KILOCODE_API_KEY"),
         "max_tokens": 3000 if tier == "long" else 2000,
         "temperature": 0.5,
         "timeout": 90.0,
@@ -343,7 +354,7 @@ def get_kilo_final_fallback_config(tier: str) -> dict[str, Any]:
     return {
         "model": "kilo-auto/free",
         "base_url": f"{KILOCODE_BASE}/chat/completions",
-        "api_key": KILOCODE_API_KEY,
+        "api_key": _lane_key("KILOCODE_API_KEY"),
         "max_tokens": 3000,
         "temperature": 0.5,
         "timeout": 90.0,
@@ -361,7 +372,7 @@ def get_cheap_fallback_config() -> dict[str, Any]:
     return {
         "model": "nvidia/nemotron-3-super-120b-a12b:free",
         "base_url": f"{OPENROUTER_BASE}/chat/completions",
-        "api_key": OPENROUTER_BACKUP_API_KEY,
+        "api_key": _lane_key("OPENROUTER_BACKUP_API_KEY"),
         "max_tokens": 2000,
         "temperature": 0.5,
         "timeout": 30.0,
@@ -509,7 +520,7 @@ async def chat_with_fallback(
     # walk the locked ladder for that capability. No reranker call, no API call
     # to decide. If the router is unavailable (embedder down) or every rung
     # fails, we fall through to the tier chain below — degrade, never break.
-    if RMI_CAPABILITY_ROUTER:
+    if _lane_flag("RMI_CAPABILITY_ROUTER"):
         user_text = ""
         for msg in reversed(messages):
             if msg.get("role") == "user":
@@ -607,10 +618,10 @@ def get_vision_config() -> dict[str, Any]:
     return {
         "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         "base_url": f"{OPENROUTER_BASE}/chat/completions",
-        "api_key": OPENROUTER_BACKUP_API_KEY,
+        "api_key": _lane_key("OPENROUTER_BACKUP_API_KEY"),
         "fallback_model": DEEPINFRA_VISION_MODEL,
         "fallback_base_url": f"{DEEPINFRA_BASE}/chat/completions",
-        "fallback_api_key": DEEPINFRA_API_KEY,
+        "fallback_api_key": _lane_key("DEEPINFRA_API_KEY"),
         "max_tokens": 1024,
         "temperature": 0.3,
         "timeout": 90.0,

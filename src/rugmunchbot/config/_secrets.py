@@ -10,6 +10,10 @@ from __future__ import annotations
 
 import os
 import subprocess
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 # ══════════════════════════════════════════════
 # BOT TOKEN (gopass → env fallback)
@@ -137,13 +141,17 @@ def _read_env_file_key(path: str, key: str) -> str:
     return ""
 
 
-def _get_rag_api_key() -> str:
+def _get_rag_api_key(secret_files: Sequence[str] | None = None) -> str:
     """Resolve the rugbrain X-API-Key: secret file → env var → gopass.
 
     UNCACHED primitive: process-wide memoization lives on the
     ``_resolve_rag_api_key`` wrapper in the package ``__init__``.
+
+    ``secret_files`` is the injection seam: a caller that is not the host
+    process (a test, a restore harness) passes its own search path instead of
+    patching the module-level tuple.
     """
-    for secret_file in _RAG_SECRET_FILES:
+    for secret_file in _RAG_SECRET_FILES if secret_files is None else secret_files:
         key = _read_env_file_key(secret_file, "RMI_RAG_API_KEY")
         if key:
             return key

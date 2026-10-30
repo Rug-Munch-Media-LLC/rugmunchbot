@@ -45,9 +45,9 @@ async def fetch_openrouter_credit() -> dict[str, Any]:
     keys); ``usage`` is the cumulative USD spend.
     """
     try:
-        from rugmunchbot.llm_config import OPENROUTER_BACKUP_API_KEY
+        from rugmunchbot.llm_config import _lane_key
 
-        api_key = (OPENROUTER_BACKUP_API_KEY or "").strip()
+        api_key = (_lane_key("OPENROUTER_BACKUP_API_KEY") or "").strip()
     except Exception as exc:  # pragma: no cover - import-time guard
         logger.debug("openrouter key config unavailable: %s", exc)
         return {"ok": False, "error": "key_not_configured"}

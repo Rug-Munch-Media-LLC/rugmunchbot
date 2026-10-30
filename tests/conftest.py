@@ -96,3 +96,39 @@ def sqlite_db(tmp_path):
     finally:
         db.DB_PATH = original_path
         config.BETA_MODE = original_beta
+
+
+class _EnvSeam:
+    """Set/unset process environment variables for one test, then restore.
+
+    The environment is the product's configuration seam: lane credentials and
+    feature flags resolve at CALL time (``llm_config._lane_key``), so a test
+    configures a lane exactly the way the systemd unit does. Nothing in the
+    product is patched, and the result never depends on the host's own env.
+    """
+
+    def __init__(self) -> None:
+        self._saved = dict(os.environ)
+
+    def __setitem__(self, name: str, value: str) -> None:
+        os.environ[name] = value
+
+    def __getitem__(self, name: str) -> str:
+        return os.environ[name]
+
+    def unset(self, name: str) -> None:
+        os.environ.pop(name, None)
+
+    def restore(self) -> None:
+        os.environ.clear()
+        os.environ.update(self._saved)
+
+
+@pytest.fixture
+def env():
+    """Environment-variable DI seam (see ``_EnvSeam``)."""
+    seam = _EnvSeam()
+    try:
+        yield seam
+    finally:
+        seam.restore()
