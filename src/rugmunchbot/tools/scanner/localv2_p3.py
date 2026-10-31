@@ -1,10 +1,15 @@
 """_local_v2.py split part: install_import_bridge, _to_v2_payload."""
+
 from __future__ import annotations
-from typing import Any
+
 import sys
 import types
-from .localv2_p1 import _INSTALLED, _best_pair, _local_dexscreener_price, _stub_module  # noqa: F401
-from .localv2_p2 import _databus_fetch  # noqa: F401
+from typing import Any
+
+from . import localv2_p1
+from .localv2_p1 import _best_pair, _local_dexscreener_price, _stub_module
+from .localv2_p2 import _databus_fetch
+
 
 def install_import_bridge() -> None:
     """Register backend-only module stubs required to import the vendored scanner.
@@ -31,10 +36,9 @@ def install_import_bridge() -> None:
     Idempotent. Safe in tests: registered only when the real modules are
     absent, and the bot never ships an ``app``/``sqlalchemy`` package.
     """
-    global _INSTALLED
-    if _INSTALLED:
+    if localv2_p1._INSTALLED:
         return
-    _INSTALLED = True
+    localv2_p1._INSTALLED = True
 
     # ── sqlalchemy (persistence.py imports sqlalchemy.exc at module scope) ──
     if "sqlalchemy" not in sys.modules:
@@ -106,6 +110,7 @@ def install_import_bridge() -> None:
         return None
 
     labeler.auto_label_deployer = _noop_auto_label
+
 
 def _to_v2_payload(result: Any, address: str, chain: str) -> dict[str, Any] | None:
     """Convert the vendored ``ScanResult`` into the bot's v2 payload dict.
