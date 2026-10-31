@@ -1,0 +1,93 @@
+name: TIA pilot
+
+# pytest-testmon pilot — MEASUREMENT ONLY.
+#
+# What this is: on demand (or when a PR carries the `tia` label) run the suite
+# through testmon and print how many tests a diff actually needed, plus wall
+# clock, next to the full collected count.
+#
+# What this is NOT:
+#   * not a merge gate — it is not a required status context, and the blocking
+#     verdict for every PR is still ci.yml:test (full suite, coverage gate);
+#   * not a coverage source — a selected run never imports the deselected
+#     tests, so --cov over it and diff-cover over that cov are both misleading.
+#     Coverage truth lives in nightly.yml:test-full (schedule '17 3 * * *'),
+#     which runs the COMPLETE suite with --cov-fail-under=42 nightly.
+#
+# FAIL-OPEN: without a .testmondata map (cold cache, new branch, first run)
+# scripts/ci/tia-pilot.sh runs the complete suite. A missing map can only make
+# the run bigger.
+#
+# Trigger choice: `pull_request: types [labeled]` keeps this at zero job-slots
+# for normal PR traffic (the fleet runs ~1.3 job-slots/run on 2 slots — see the
+# budget note in ci.yml). Add the `tia` label to a PR to measure it.
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+    branches: [main]
+
+concurrency:
+  group: tia-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  tia-pilot:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # testmon's diff is computed against the merge base, not a shallow
+          # HEAD~1, and diff-cover-style selection needs full history.
+          fetch-depth: 0
+      - name: Install system deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+          rm -rf /var/lib/apt/lists/*
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Setup Python
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Cache uv wheels
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'pyproject.toml') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+      - name: Cache testmon map
+        # Keyed on branch + sha so every commit gets its own entry while the
+        # restore-key still finds the branch's most recent map. A miss is a
+        # full run (fail-open), never a skip.
+        uses: actions/cache@v4
+        with:
+          path: .testmondata
+          key: testmon-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            testmon-${{ github.ref_name }}-
+            testmon-
+      - name: Install dependencies
+        run: |
+          uv pip install --python .venv/bin/python -r requirements-dev.txt
+          uv pip install --python .venv/bin/python httpx python-telegram-bot pytest-testmon
+          uv pip install --python .venv/bin/python /opt/rugmunch-scanner
+          if [ -f "requirements.txt" ]; then
+            uv pip install --python .venv/bin/python -r requirements.txt
+          fi
+          uv pip install --python .venv/bin/python -e .
+      - name: Measure selection (fail-open, no coverage gate)
+        run: |
+          source .venv/bin/activate
+          bash scripts/ci/tia-pilot.sh

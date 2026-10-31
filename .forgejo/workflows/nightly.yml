@@ -10,6 +10,11 @@ concurrency:
   group: nightly-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # Workflow-level on purpose: typecheck (and now test-full) reference it.
+  # Without it `uv venv --python ` renders an empty argument.
+  PYTHON_VERSION: "3.12"
+
 jobs:
   # ── Commit convention ─────────────────────────────────────────
   commitlint:
@@ -145,6 +150,71 @@ jobs:
             exit 1
           fi
           echo "✅ No new type errors"
+
+  # ── Full test suite + coverage (COVERAGE TRUTH) ────────────────
+  # The guarantee behind every test-impact selection: the COMPLETE suite,
+  # every night, with the same --cov-fail-under=42 as the per-push gate.
+  # No selection, no testmon, no --lf. If this job disappears, a TIA pilot
+  # stops being honest within weeks (see .forgejo/workflows/tia-pilot.yml).
+  # Cron lives in on.schedule above - Forgejo runs it natively, so there is
+  # no fleet-infra timer that can drift out of sync with the workflow.
+  test-full:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+      options: --volume /srv/work/repos/rugmunch-scanner:/opt/rugmunch-scanner:ro
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Install system deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+          rm -rf /var/lib/apt/lists/*
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Setup Python
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+      - name: Cache uv wheels
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'pyproject.toml') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+      - name: Install dependencies
+        run: |
+          uv pip install --python .venv/bin/python -r requirements-dev.txt
+          uv pip install --python .venv/bin/python httpx python-telegram-bot
+          uv pip install --python .venv/bin/python /opt/rugmunch-scanner
+          if [ -f "requirements.txt" ]; then
+            uv pip install --python .venv/bin/python -r requirements.txt
+          fi
+          uv pip install --python .venv/bin/python -e .
+      - name: Full suite with coverage (BLOCKING - coverage truth)
+        env:
+          COVERAGE_CORE: sysmon
+        run: |
+          source .venv/bin/activate
+          python -m pytest tests/ -q --tb=short \
+            -n 4 --dist loadscope \
+            --cov=src/rugmunchbot \
+            --cov-report=term \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=42
+      - name: Upload coverage
+        uses: actions/upload-artifact@v3
+        if: always()
+        continue-on-error: true
+        with:
+          name: nightly-coverage
+          path: coverage.xml
 
   # ── Architecture contracts + package-import smoke (fast lane) ──
   # Runs in parallel with the test suite so layering violations fail in
