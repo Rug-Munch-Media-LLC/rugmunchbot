@@ -100,19 +100,6 @@ class _SteppedClock:
         self.now += seconds
 
 
-class _SteppedClock:
-    """Manual clock: the test decides when the 24h window moves."""
-
-    def __init__(self, start: float = 1_000_000.0) -> None:
-        self.now = start
-
-    def __call__(self) -> float:
-        return self.now
-
-    def advance(self, seconds: float) -> None:
-        self.now += seconds
-
-
 @pytest.fixture
 def local_cap():
     """Cap with Redis unavailable → in-process enforcement only.
