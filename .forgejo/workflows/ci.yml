@@ -22,6 +22,38 @@ env:
   PYTHON_VERSION: "3.12"
 
 jobs:
+  # ── Change classification (standards fleet/CI-RUNNER.md §8) ────
+  # One question: did this diff touch anything a gate executes? A docs-only
+  # answer lets the expensive job report SUCCESS without re-running a suite a
+  # markdown file cannot affect. It removes no check: `security` (gitleaks),
+  # `lint` and `structure-gate` stay unconditional — a token pasted into a .md
+  # is still a leak. `on.pull_request.paths:` is NOT used: Forgejo documents
+  # `paths` under on.push only, and a workflow that never fires publishes no
+  # status for a required context, which blocks the PR forever.
+  changes:
+    runs-on: docker-x64
+    container:
+      image: nikolaik/python-nodejs:python3.12-nodejs22
+      options: >-
+        --volume /srv/work/repos/standards:/workspace/RugMunchMedia/standards:ro
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Classify changed paths
+        id: classify
+        run: |
+          set -eu
+          script=/workspace/RugMunchMedia/standards/scripts/ci/changed-paths.sh
+          if [ ! -f "$script" ]; then
+            echo "::warning::classifier missing at $script — running the full pipeline"
+            echo "code=true" >> "${GITHUB_OUTPUT:-/dev/null}"
+            exit 0
+          fi
+          bash "$script"
+
   lint:
     runs-on: docker-x64
     container:
@@ -56,6 +88,7 @@ jobs:
   # ── Tests ─────────────────────────────────────────────────────
   test:
     runs-on: docker-x64
+    needs: [changes]
     container:
       image: nikolaik/python-nodejs:python3.12-nodejs22
       # Fleet scanner (OSS sibling; not on PyPI) from the host checkout,
@@ -67,21 +100,35 @@ jobs:
           # Full history: the per-diff coverage gate (diff-cover) needs
           # origin/main as the diff base.
           fetch-depth: 0
+      # Always runs, always prints the decision, so a green job cannot hide a
+      # skip. The guard is `!= 'false'`: an unset output runs the suite.
+      - name: Change classification
+        env: {CODE_CHANGED: "${{ needs.changes.outputs.code }}"}
+        run: |
+          set -eu
+          echo "code_changed=${CODE_CHANGED:-true}"
+          if [ "${CODE_CHANGED:-true}" = "false" ]; then
+            echo "docs-only change: no path this gate executes was touched — green without running the suite"
+          fi
       - name: Install system deps
+        if: needs.changes.outputs.code != 'false'
         run: |
           apt-get update
           apt-get install -y --no-install-recommends git build-essential curl ca-certificates
           rm -rf /var/lib/apt/lists/*
       - name: Install uv
+        if: needs.changes.outputs.code != 'false'
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: Setup Python
+        if: needs.changes.outputs.code != 'false'
         run: |
           uv python install ${{ env.PYTHON_VERSION }}
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
       - name: Cache uv wheels
+        if: needs.changes.outputs.code != 'false'
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
@@ -89,6 +136,7 @@ jobs:
           restore-keys: |
             uv-${{ runner.os }}-
       - name: Install dependencies
+        if: needs.changes.outputs.code != 'false'
         run: |
           uv pip install --python .venv/bin/python -r requirements-dev.txt
           uv pip install --python .venv/bin/python httpx python-telegram-bot
@@ -101,6 +149,7 @@ jobs:
           # --cov=src/rugmunchbot resolve deterministically in CI.
           uv pip install --python .venv/bin/python -e .
       - name: Run unit tests with coverage (BLOCKING)
+        if: needs.changes.outputs.code != 'false'
         # Tests MUST pass and coverage must meet the ratchet floor on the
         # live package tree (src/rugmunchbot). Floor re-based 2026-08-21:
         # the de-godding waves added ~2k lines of package scaffolding which
@@ -116,11 +165,13 @@ jobs:
             --cov-report=lcov:coverage.lcov \
             --cov-fail-under=42
       - name: Upload coverage to Codecov
+        if: needs.changes.outputs.code != 'false'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
       - name: Per-diff coverage gate (diff-cover — BLOCKING)
+        if: needs.changes.outputs.code != 'false'
         # Ratchet: lines CHANGED vs origin/main must be >=46% covered
         # (measured 51% after wave21, 2026-08-22).
         # On pushes to main the diff is empty and this passes trivially.
@@ -136,7 +187,7 @@ jobs:
         # Pin the v1-API major, and keep a report upload non-gating: its
         # failure must never decide the test verdict.
         uses: actions/upload-artifact@v3
-        if: always()
+        if: always() && needs.changes.outputs.code != 'false'
         continue-on-error: true
         with:
           name: coverage-report
