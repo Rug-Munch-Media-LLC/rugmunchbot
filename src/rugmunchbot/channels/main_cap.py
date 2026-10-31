@@ -55,8 +55,9 @@ __all__ = [
 class MainChannelCap:
     """24h sliding-window counter with Redis durability + local mirror."""
 
-    def __init__(self, cap: int = MAIN_DAILY_CAP) -> None:
+    def __init__(self, cap: int = MAIN_DAILY_CAP, clock: Any = time.time) -> None:
         self._cap = max(1, cap)
+        self._clock = clock  # injectable time source: same window math, testable
         self._local: deque[float] = deque()
         self._redis: Any | None = None
         self._redis_down = False
@@ -88,7 +89,7 @@ class MainChannelCap:
 
     async def count(self) -> int:
         """Posts recorded inside the window. Redis authoritative when up."""
-        now = time.time()
+        now = self._clock()
         self._prune_local(now)
         r = self._acquire()
         if r is None:
@@ -119,7 +120,7 @@ class MainChannelCap:
 
     async def record(self) -> None:
         """Count one successful main-channel post (call AFTER send ok)."""
-        now = time.time()
+        now = self._clock()
         self._local.append(now)
         r = self._acquire()
         if r is None:

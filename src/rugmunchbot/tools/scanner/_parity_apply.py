@@ -30,13 +30,18 @@ UNAVAILABLE = "unavailable"
 OK = "ok"
 
 
-async def apply_parity(data: dict[str, Any], address: str, chain: str) -> dict[str, Any]:
+async def apply_parity(
+    data: dict[str, Any], address: str, chain: str, *, timeout: float | None = None
+) -> dict[str, Any]:
     """Add the three parity sections to ``data`` without ever failing the scan.
 
     Args:
         data: Scan payload already produced by the vendored enrichment chain.
         address: Token address / mint.
         chain: Chain name as the scanner service spells it (``solana``).
+        timeout: Budget in seconds; ``None`` keeps :data:`PARITY_TIMEOUT`.
+            Injectable so a wedged leg can be proved cancelled without a
+            wall-clock assertion.
 
     Returns:
         The same payload, plus ``cohorts`` / ``kol`` / ``impact`` and a
@@ -46,10 +51,11 @@ async def apply_parity(data: dict[str, Any], address: str, chain: str) -> dict[s
     if not parity_enabled():
         data["parity_status"] = UNAVAILABLE
         return data
+    budget = PARITY_TIMEOUT if timeout is None else timeout
     try:
-        sections = await asyncio.wait_for(fetch_parity(address, chain), timeout=PARITY_TIMEOUT)
+        sections = await asyncio.wait_for(fetch_parity(address, chain), timeout=budget)
     except TimeoutError:
-        logger.warning("parity_budget_exceeded token=%s budget=%.0fs", address[:8], PARITY_TIMEOUT)
+        logger.warning("parity_budget_exceeded token=%s budget=%.0fs", address[:8], budget)
         data["parity_status"] = UNAVAILABLE
         return data
     except Exception as exc:  # parity must never fail a user scan

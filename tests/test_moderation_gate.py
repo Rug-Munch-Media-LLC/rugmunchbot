@@ -6,6 +6,7 @@ import asyncio
 import json
 
 import pytest
+from _di import _setattr
 from telegram.ext import ApplicationHandlerStop
 
 from rugmunchbot.moderation import (
@@ -112,14 +113,20 @@ def test_captcha_button_is_not_yours(cfg):
 def test_math_captcha_wrong_answer_fails_and_right_answer_passes(cfg, tmp_path):
     from rugmunchbot.moderation import audit
 
+    # Freeze the 300s answer bucket: the real clock could cross a bucket
+    # boundary between building the challenge and tapping it, which made
+    # `right` stale (same seam as flood_control's clock, bcb52f6).
+    frozen = 1_000_000.0
+    _setattr(captcha_verify, "clock", lambda: frozen)
+
     original = audit.AUDIT_PATH
     audit.use_audit_path(tmp_path / "a.jsonl")
     captcha.register_pending(MATH_CHAT_ID, 556, 300)
     user = FakeUser(556)
-    right = challenge.challenge(MATH_CHAT_ID, 556)[2]
-    prev = challenge.challenge(MATH_CHAT_ID, 556, now=challenge.time.time() - challenge.BUCKET_S)[2]
+    right = challenge.challenge(MATH_CHAT_ID, 556, now=frozen)[2]
+    prev = challenge.challenge(MATH_CHAT_ID, 556, now=frozen - challenge.BUCKET_S)[2]
     bad = max(right, prev) + 7
-    assert not challenge.accepts(MATH_CHAT_ID, 556, bad)
+    assert not challenge.accepts(MATH_CHAT_ID, 556, bad, now=frozen)
 
     wrong = FakeQuery(captcha.callback_data(MATH_CHAT_ID, 556, bad), user)
     asyncio.run(
