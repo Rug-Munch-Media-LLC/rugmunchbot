@@ -85,3 +85,5 @@ Command reference lives in `COMMANDS.md`.
 ## Licence
 
 Rug Munch Intelligence Source Available License 1.0. See [LICENSE](LICENSE).
+
+<!-- speed probe -->

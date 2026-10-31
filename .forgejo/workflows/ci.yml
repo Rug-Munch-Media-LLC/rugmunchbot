@@ -55,6 +55,13 @@ jobs:
           bash "$script"
 
   lint:
+    needs: [changes]
+    # Per-STEP guard, never a job-level `if:`. A job skipped by its own
+    # condition reports `skipped`, which branch protection does not count
+    # as success: guarding the whole job would leave every docs-only PR
+    # forever waiting on CI / lint and CI / structure-gate (the deadlock
+    # class that froze standards#140 once a required context stopped
+    # reporting). Guard the expensive steps; let the job report green.
     runs-on: docker-x64
     container:
       image: nikolaik/python-nodejs:python3.12-nodejs22
@@ -67,22 +74,28 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system deps
+        if: needs.changes.outputs.code != 'false'
         run: |
           apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl
           rm -rf /var/lib/apt/lists/*
       - name: Install uv
+        if: needs.changes.outputs.code != 'false'
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Setup Python
+        if: needs.changes.outputs.code != 'false'
         run: |
           uv python install ${{ env.PYTHON_VERSION }}
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
       - name: Install dev dependencies
+        if: needs.changes.outputs.code != 'false'
         run: uv pip install --python .venv/bin/python ruff
       - name: Ruff check
+        if: needs.changes.outputs.code != 'false'
         run: source .venv/bin/activate && ruff check . --exit-non-zero-on-fix
       - name: Ruff format check
+        if: needs.changes.outputs.code != 'false'
         run: source .venv/bin/activate && ruff format --check .
 
   # ── Tests ─────────────────────────────────────────────────────
@@ -230,12 +243,16 @@ jobs:
     # Anti-god-module + anti-monkeypatch ratchet (baseline:
     # scripts/structure-baseline.json). Shrink freely; growth or NEW
     # offenders fail the build. Regenerate deliberately: --update-baseline.
+    needs: [changes]
+    # Same per-step contract as `lint` above: the job must report green.
     runs-on: docker-x64
     container:
       image: nikolaik/python-nodejs:python3.11-nodejs22
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Structure gate
+        if: needs.changes.outputs.code != 'false'
         run: python3 scripts/check-code-structure.py
       - name: Antipattern gate (per-repo ratchet)
+        if: needs.changes.outputs.code != 'false'
         run: python3 scripts/check-antipatterns.py --repo .
