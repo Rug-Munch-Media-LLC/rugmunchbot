@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 
+from _di import _setattr
+
 from rugmunchbot import model_router
 from rugmunchbot._vendor.news_ingest.ingest import parse_rss_feed
 
@@ -44,9 +46,9 @@ def test_parse_rss_feed_still_reads_plain_feeds() -> None:
     assert [i["title"] for i in parse_rss_feed(plain)] == ["t"]
 
 
-def test_embed_refuses_file_url(tmp_path, monkeypatch) -> None:
+def test_embed_refuses_file_url(tmp_path) -> None:
     """A file:// embed URL is a local-file read on urlopen; httpx fails closed."""
     local = tmp_path / "embed.json"
     local.write_text(json.dumps({"data": [{"embedding": [1.0]}]}))
-    monkeypatch.setattr(model_router, "EMBED_URL", local.as_uri())
+    _setattr(model_router, "EMBED_URL", local.as_uri())
     assert model_router._embed(["probe"]) is None
