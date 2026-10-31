@@ -1,0 +1,138 @@
+---
+# AI provenance + risk-routed review. Rule source of truth: scripts/ci/ai-provenance.py
+# 1. Every PR gets a provenance block: AI-AUTHORED, model(s), agent/tool, files
+#    touched, diff size, risk score (path class  x  diff size  x  test-change ratio).
+#    Trailers come from the commit hook; no prompt content is read or posted.
+# 2. Code-review text is ADVISORY (continue-on-error). Only the risk gate can fail.
+# 3. BLOCKING rule: a high-risk path (money|auth|payment|x402|billing) is touched
+#    AND risk >= 70 AND no test file changed. Docs-only and tests-only diffs are
+#    always advisory (risk 0 by construction).
+# Permissions: contents read, pull-requests write. No secret is echoed; only the
+# model's review text is posted back, never the prompt or the diff.
+# Cost cap: ONE model call per PR, diff truncated to 60 KB, 1200 output tokens
+# (~US$0.002 at deepseek-chat pricing), hard timeout 10 min, stale runs cancelled
+# by concurrency. Missing API key => provenance only, no spend.
+name: AI Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - '**/*.lock'
+      - '**/*.map'
+      - '**/node_modules/**'
+      - '**/__pycache__/**'
+      - '**/.venv/**'
+      - '**/dist/**'
+      - '**/build/**'
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      risk: ${{ steps.prov.outputs.risk_score }}
+      level: ${{ steps.prov.outputs.risk_level }}
+      blocking: ${{ steps.prov.outputs.blocking }}
+      review: ${{ steps.prov.outputs.review_needed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Score provenance and risk
+        id: prov
+        continue-on-error: true
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/ci/ai-provenance.py --base "$BASE" --head "$HEAD" --out provenance.md
+
+      - name: Fail closed if scoring produced nothing
+        if: steps.prov.outputs.risk_score == ''
+        run: |
+          echo "::error::provenance scoring produced no output - refusing to pass silently"
+          exit 1
+
+      - name: Post provenance block
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- ai-provenance -->';
+            const body = fs.existsSync('provenance.md')
+              ? fs.readFileSync('provenance.md', 'utf8')
+              : marker + '\nAI provenance unavailable (see job log).';
+            const { owner, repo } = context.repo;
+            const list = await github.rest.issues.listComments({ owner, repo, issue_number: context.issue.number });
+            const prior = list.data.find(c => c.body && c.body.includes(marker));
+            if (prior) await github.rest.issues.updateComment({ owner, repo, comment_id: prior.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number: context.issue.number, body });
+
+      - name: Risk gate (blocking)
+        if: steps.prov.outputs.blocking == 'true'
+        run: |
+          echo "::error::AI risk gate: high-risk path (money|auth|payment|x402|billing) changed, risk ${{ steps.prov.outputs.risk }}/100, and no test file changed. Add or update a test, or have a human apply the ai-review:override label."
+          exit 1
+
+  review:
+    needs: provenance
+    if: needs.provenance.outputs.review == 'true' && needs.provenance.outputs.blocking != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: One capped review call
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENROUTER_API_KEY:-}" ] && [ -z "${DEEPSEEK_API_KEY:-}" ]; then
+            echo "No AI review key configured - provenance only, no spend."
+            exit 0
+          fi
+          if [ -n "${DEEPSEEK_API_KEY:-}" ]; then
+            API_URL="https://api.deepseek.com/chat/completions"; MODEL="deepseek-chat"; TOKEN="$DEEPSEEK_API_KEY"
+          else
+            API_URL="https://openrouter.ai/api/v1/chat/completions"; MODEL="deepseek/deepseek-chat"; TOKEN="$OPENROUTER_API_KEY"
+          fi
+          git diff "$BASE"..."$HEAD" -- . ':(exclude)*.lock' ':(exclude)*.map' ':(exclude)*.min.js' > /tmp/pr.full || true
+          head -c 60000 /tmp/pr.full > pr.diff
+          if [ ! -s pr.diff ]; then echo "Empty diff - skipping."; exit 0; fi
+          jq -Rs --arg m "$MODEL" --arg s "Review this PR diff. Report concrete bugs, security issues and missing tests with file:line. Be brief." \
+            '{model:$m, max_tokens:1200, temperature:0.2, messages:[{role:"system",content:$s},{role:"user",content:.}]}' \
+            pr.diff > payload.json
+          curl -sS --max-time 120 -X POST "$API_URL" -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" -d @payload.json > review.json || true
+          jq -r '.choices[0].message.content // empty' review.json > review.md || true
+          rm -f payload.json
+
+      - name: Post review (advisory)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('review.md')) return;
+            const text = fs.readFileSync('review.md', 'utf8').trim();
+            if (!text) return;
+            const marker = '<!-- ai-review-advisory -->';
+            const body = marker + '\n### AI review (advisory)\n\n' + text.slice(0, 12000);
+            const { owner, repo } = context.repo;
+            const list = await github.rest.issues.listComments({ owner, repo, issue_number: context.issue.number });
+            const prior = list.data.find(c => c.body && c.body.includes(marker));
+            if (prior) await github.rest.issues.updateComment({ owner, repo, comment_id: prior.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number: context.issue.number, body });
