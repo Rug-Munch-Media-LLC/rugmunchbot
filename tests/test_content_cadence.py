@@ -1,15 +1,4 @@
-"""The 3-unique-posts/day contract + image-per-story-type (2026-10-17).
-
-Operator doctrine: exactly THREE unique anchor posts per day on
-@cryptorugmuncher and the feed (morning Daily Rug / midday market report /
-evening wrap), each a different facet, no story in two of the three; PLUS
-major news as breaking throughout the day, deduped against the anchor.
-Every post type resolves to its correct brand image.
-
-Oracle note (AI-TEST-ORACLE-POLICY): each test drives the real resolver /
-real anchor contract and asserts exact outcomes — no tautological smoke
-checks. Redis is faked; no live services.
-"""
+"""The 3-unique-posts/day contract + image-per-story-type (2026-10-17)."""
 
 from __future__ import annotations
 

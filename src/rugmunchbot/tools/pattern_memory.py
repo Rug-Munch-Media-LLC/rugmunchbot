@@ -46,9 +46,21 @@ from typing import Any
 
 from rugmunchbot._vendor.redis_client import get_redis_async
 from rugmunchbot.support.logging import get_logger
+from rugmunchbot.tools._pattern_scoring import (
+    _clean_signals,
+    _similarity,
+    _to_float,
+    clamp_params,
+    empty_recall_result,
+    recall_summary,
+    score_patterns,
+)
 from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.tools.pattern_memory")
+
+# Re-exported for callers/tests that score signals through this module.
+__all__ = ["_clean_signals", "_similarity", "_to_float", "pattern_recall", "remember_pattern"]
 
 # Redis namespace (shared "bot:" prefix with scam_watch / scheduler_state).
 _PATTERNS_HASH = "bot:pattern_memory:patterns"
@@ -67,49 +79,6 @@ _SNAPSHOT_SIGNAL_KEYS = ("change_24h", "change_6h", "change_1h", "volume_24h", "
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
-
-
-def _to_float(value: Any) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _clean_signals(signals: Any) -> dict[str, float]:
-    """Keep only finite numeric values (never None/NaN/inf into the store)."""
-    out: dict[str, float] = {}
-    if not isinstance(signals, dict):
-        return out
-    for key, value in signals.items():
-        f = _to_float(value)
-        if f is not None and math.isfinite(f):
-            out[str(key)] = f
-    return out
-
-
-def _similarity(query: dict[str, float], stored: dict[str, float]) -> float:
-    """Fuzzy numeric-signal match over the intersection of signal keys.
-
-    Per overlapping key the score is ``1 - relative_error`` (relative to the
-    larger magnitude), so +200% vs -85% scores 0 (opposite directions) and
-    +200% vs +210% scores ~0.95. 0.0 when no keys overlap.
-    """
-    keys = set(query) & set(stored)
-    if not keys:
-        return 0.0
-    scores: list[float] = []
-    for key in keys:
-        a = query[key]
-        b = stored[key]
-        denom = max(abs(a), abs(b))
-        if denom < 1e-9:
-            scores.append(1.0 if abs(a - b) < 1e-9 else 0.0)
-        else:
-            scores.append(max(0.0, 1.0 - abs(a - b) / denom))
-    return sum(scores) / len(scores)
 
 
 # ── Redis layer (fail-open, never raises) ─────────────────────────────────
@@ -296,27 +265,12 @@ async def pattern_recall(query: PatternRecallQuery | None = None, **overrides: A
     Args live on ``query`` (a :class:`PatternRecallQuery`); ``overrides`` are
     applied on top for tool-registry compatibility.
 
-    Fuzzy-matches the query (explicit ``signals``, or a real DexScreener
-    snapshot derived from ``address``/``symbol``) against every pattern stored
-    in Redis and returns the top matches with their historical outcomes plus
-    an outcome distribution. Zero fabrication: only patterns actually stored
-    are returned; when nothing is similar the tool returns an empty match
-    list (never an invented history).
-
-    Args:
-        address: Token contract address (used to derive signals when
-            ``signals`` is not given).
-        symbol: ``$SYMBOL`` (used when no address is given).
-        chain: Optional chain filter for signal derivation.
-        signals: Explicit numeric scan signals (overrides derivation).
-        top_k: Max matches to return (1-20).
-        min_similarity: Similarity floor (0.0-1.0); lower = looser recall.
-
-    Returns:
-        ToolResult with ``matches`` (stored records + similarity), an
-        ``outcome_distribution`` across matched patterns and a chat-friendly
-        ``summary_text``. ``ok=False`` only when Redis is down or there is
-        no token / no comparable signals.
+    Fuzzy-matches explicit ``signals`` (or a REAL DexScreener snapshot derived
+    from ``address``/``symbol``) against every pattern stored in Redis and
+    returns the top matches with their historical outcomes plus an outcome
+    distribution. Zero fabrication: only stored patterns are returned, and an
+    empty match list is a real answer, never an invented history. ``ok=False``
+    only when Redis is down or there is no token / no comparable signals.
     """
     query = query or PatternRecallQuery()
     for k, v in overrides.items():
@@ -326,9 +280,6 @@ async def pattern_recall(query: PatternRecallQuery | None = None, **overrides: A
     address = query.address
     symbol = query.symbol
     chain = query.chain
-    signals = query.signals
-    top_k = query.top_k
-    min_similarity = query.min_similarity
     patterns = await _all_patterns()
     if patterns is None:
         return ToolResult(
@@ -337,93 +288,30 @@ async def pattern_recall(query: PatternRecallQuery | None = None, **overrides: A
             error="pattern memory unavailable (Redis down)",
         )
 
-    query = _clean_signals(signals)
+    signals = _clean_signals(query.signals)
     snapshot: dict[str, Any] = {}
-    if not query and (address or symbol):
+    if not signals and (address or symbol):
         snapshot_signals = await _snapshot_signals(address, symbol)
         if snapshot_signals:
-            query.update(snapshot_signals)
+            signals.update(snapshot_signals)
             if symbol:
                 snapshot["symbol"] = symbol.strip().upper()
-            elif address:
+            else:
                 snapshot["address"] = address
-    if not query:
+    if not signals:
         if not (address or symbol):
             return ToolResult(
                 tool="pattern_recall",
                 ok=False,
-                error="need a token address/symbol or explicit signals to recall similar patterns",
+                error=(
+                    "need a token address/symbol or explicit signals to recall similar patterns"
+                ),
             )
         # Token resolved but no numeric signals derivable -> honest empty recall.
-        return ToolResult(
-            tool="pattern_recall",
-            ok=True,
-            data={
-                "query": {"address": address, "symbol": symbol, "chain": chain},
-                "store_available": True,
-                "stored_count": len(patterns),
-                "matches": [],
-                "outcome_distribution": {},
-                "summary_text": f"No comparable scan signals could be derived ({len(patterns)} pattern(s) stored, nothing compared).",
-                "note": "pair resolved but no numeric snapshot signals; nothing compared",
-            },
-            symbols=[snapshot["symbol"]] if snapshot.get("symbol") else [],
-            addresses=[snapshot["address"]] if snapshot.get("address") else [],
-            source="pattern_memory:redis",
-        )
+        return empty_recall_result(address, symbol, chain, snapshot, len(patterns))
 
-    try:
-        top_k_i = max(1, min(int(top_k), 20))
-        min_sim = max(0.0, min(float(min_similarity), 1.0))
-    except (TypeError, ValueError):
-        top_k_i = _DEFAULT_TOP_K
-        min_sim = _DEFAULT_MIN_SIMILARITY
-
-    scored: list[tuple[float, dict[str, Any]]] = []
-    for rec in patterns:
-        stored_signals = _clean_signals(rec.get("signals"))
-        if not stored_signals:
-            continue
-        score = _similarity(query, stored_signals)
-        if score >= min_sim:
-            scored.append((score, rec))
-    scored.sort(key=lambda pair: pair[0], reverse=True)
-
-    matches: list[dict[str, Any]] = []
-    outcome_counts: dict[str, int] = {}
-    for score, rec in scored[:top_k_i]:
-        outcome = rec.get("outcome")
-        label = ""
-        if isinstance(outcome, dict):
-            label = str(outcome.get("label") or "unknown")
-        elif isinstance(outcome, str):
-            label = outcome or "unknown"
-        key = label or "unknown"
-        outcome_counts[key] = outcome_counts.get(key, 0) + 1
-        matches.append(
-            {
-                "token": rec.get("token"),
-                "pattern": rec.get("pattern"),
-                "signals": rec.get("signals"),
-                "outcome": outcome,
-                "detected_at": rec.get("detected_at"),
-                "similarity": round(score, 3),
-            }
-        )
-
-    if matches:
-        parts = [
-            f"{count}x {label}"
-            for label, count in sorted(outcome_counts.items(), key=lambda kv: (-kv[1], kv[0]))
-        ]
-        plural = "s" if len(matches) != 1 else ""
-        summary = f"{len(matches)} similar pattern{plural} seen before (of {len(patterns)} in memory): {', '.join(parts)}"
-    else:
-        plural = "s" if len(patterns) != 1 else ""
-        summary = (
-            f"No similar patterns in memory ({len(patterns)} pattern{plural} stored, none matched)."
-        )
-
+    top_k_i, min_sim = clamp_params(query.top_k, query.min_similarity)
+    matches, outcome_counts = score_patterns(patterns, signals, top_k_i, min_sim)
     return ToolResult(
         tool="pattern_recall",
         ok=True,
@@ -433,7 +321,7 @@ async def pattern_recall(query: PatternRecallQuery | None = None, **overrides: A
             "stored_count": len(patterns),
             "matches": matches,
             "outcome_distribution": outcome_counts,
-            "summary_text": summary,
+            "summary_text": recall_summary(matches, outcome_counts, len(patterns)),
         },
         symbols=[snapshot["symbol"]] if snapshot.get("symbol") else [],
         addresses=[snapshot["address"]] if snapshot.get("address") else [],

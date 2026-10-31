@@ -1,9 +1,4 @@
-"""Wave 10 — daily_market_summary._assemble: context serialization + gather.
-
-All expectations probed against the implementation before asserting (oracle
-policy). ``_serialize_context`` is pure; ``gather_summary_data`` is tested with
-monkeypatched fetchers (it must never raise and must degrade per-block).
-"""
+"""Wave 10 — daily_market_summary._assemble: context serialization + gather."""
 
 from __future__ import annotations
 

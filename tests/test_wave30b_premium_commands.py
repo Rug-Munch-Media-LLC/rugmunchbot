@@ -1,9 +1,4 @@
-"""Test wave 30b — /mev /impersonation /deathclock /launches /cluster commands.
-
-Behavior probed via .venv/bin/python before asserting (2026-08-23).
-Backend seams (http_get_json/http_post_json) monkeypatched at the premium
-module namespace; Telegram fakes duck-typed per wave29/portfolio pattern.
-"""
+"""Test wave 30b — /mev /impersonation /deathclock /launches /cluster commands."""
 
 from __future__ import annotations
 

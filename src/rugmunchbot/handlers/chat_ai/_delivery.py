@@ -26,6 +26,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
 from rugmunchbot.handlers.chat_ai._classify import _is_deep_question
+from rugmunchbot.handlers.chat_ai._delivery_footer import grounding_footer
 from rugmunchbot.handlers.chat_ai._format import _render_bridge_actions
 from rugmunchbot.handlers.chat_ai._helpers import _STILL_DIGGING
 from rugmunchbot.handlers.chat_ai._llm._sources import (
@@ -347,47 +348,16 @@ async def _send_answer(
     grounding_count: int,
     extras: AnswerExtras | None = None,
 ) -> int:
-    """Reply with the answer, split into Telegram-sized parts. Returns the
-    number of parts actually sent (0 when there is nothing to send).
+    """Reply with the answer, split into Telegram-sized parts.
 
-    Args live on ``extras`` (an :class:`AnswerExtras`).
+    Returns the number of parts sent (0 when there is nothing to send); args
+    live on ``extras`` (an :class:`AnswerExtras`).
 
-    v10 pipeline (all on the RAW text first, then escape):
-      1. ``_normalize_llm_markup`` converts any RAW HTML the model emitted
-         anyway (``<b>`` → ``**``, ``&amp;`` → ``&``) into markdown —
-         defense-in-depth so escape() can never turn a real tag into
-         literal garbage or unbalanced HTML.
-      2. ``strip_think_blocks`` removes any leaked ``<think>`` reasoning
-         chains (defense in depth — ``chat_ai_response`` already strips).
-      3. ``_tables_to_lists`` converts markdown pipe tables to compact
-         bullet lists (Telegram HTML has no table element).
-      4. ``_beautify_answer`` normalizes emoji section headers and inserts
-         thin separators beneath them.
-      5. ``split_in_parts`` (``handlers/chat_ai/_parts.py``) splits at
-         paragraph / section-header boundaries, never mid-sentence, never
-         mid-link, never mid-``**bold**`` span, and never mid-code-block.
-      6. Each part is HTML-escaped (LLM output is not trusted HTML).
-      7. ``_markdown_to_html`` converts the markdown the persona / tool
-         answers emit — ``**bold**``, `` `code` ``, ``*italic*``, plus block
-         constructs (``##`` headers, ``---`` separators, ``1.`` lists, pipe
-         tables) — into real ``<b>...</b>`` / ``<code>...</code>`` /
-         ``<i>...</i>``, safe because the content was already escaped in
-         step 6.
-      8. ``send_in_parts`` delivers each part as its own message (keyboard on
-         the last part; plain-text degrade on parse rejection).
-    A short "⚡ Grounded in N sources: <names> | Rug Munch Bot" footer is
-    appended to the last chunk when the answer had real grounding.
-    ``grounding_count`` is the number of DISTINCT intelligence sources that
-    actually fed the answer (see ``_grounding_source_labels`` — the same
-    function produces ``source_labels``, the real named sources: external
-    providers like DexScreener/CoinGecko plus our own intel, RMI-branded).
-    When ``source_labels`` is omitted (direct callers) the count-only
-    "intelligence sources" wording is kept. Counts above 100 with no names
-    are shown as "hundreds of sources". Names are HTML-escaped here — the
-    footer is appended AFTER the escape pass, so untrusted bridge metadata
-    can never inject markup. Zero sources → no footer at all.
-    ``actions`` (bridge-suggested buttons) are rendered as an inline
-    keyboard on the last chunk when present; otherwise the back menu is used.
+    Order matters: the RAW text is normalized (LLM markup, leaked ``<think>``
+    blocks, pipe tables, emoji headers), capped, split on paragraph/link/bold
+    boundaries (``split_in_parts``), then HTML-escaped, then markdown is turned
+    into Telegram HTML. A short grounding footer naming the real sources and
+    any bridge-suggested keyboard ride on the last part.
     """
     extras = extras or AnswerExtras()
     source_labels = extras.source_labels
@@ -409,26 +379,8 @@ async def _send_answer(
         return 0
     escaped = [escape(c) for c in chunks]
     html = [_markdown_to_html(c) for c in escaped]
-    if grounding_count > 0:
-        if source_labels:
-            # Real named sources: external providers plain, our own intel
-            # already RMI-branded (e.g. "RMI knowledge base"). Names are
-            # untrusted bridge metadata — scrub internal API refs then escape
-            # AFTER the answer escape pass so they can never inject HTML into
-            # the footer.
-            names = ", ".join(
-                escape(_scrub_internal_api_refs(name)) for name, _is_ours in source_labels
-            )
-            if distinct_sources is not None and distinct_sources > len(source_labels):
-                names += f", \u2026 +{distinct_sources - len(source_labels)} more"
-            count_word = "source" if grounding_count == 1 else "sources"
-            footer = f"Grounded in {grounding_count} {count_word}: {names}"
-        elif grounding_count > 100:
-            footer = "Grounded in hundreds of intelligence sources"
-        elif grounding_count == 1:
-            footer = "Grounded in 1 intelligence source"
-        else:
-            footer = f"Grounded in {grounding_count} intelligence sources"
+    footer = grounding_footer(grounding_count, source_labels, distinct_sources)
+    if footer:
         html[-1] = f"{html[-1]}\n\n<i>\u26a1 {footer} | Rug Munch Bot</i>"
 
     kb = _render_bridge_actions(actions) or back_kb()

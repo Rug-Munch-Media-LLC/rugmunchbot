@@ -1,17 +1,4 @@
-"""Telegram user → backend user linking + user-scoped API client.
-
-The backend keeps a per-Telegram-user account (``tg:<id>``) in Redis
-(``rmi:users:telegram``) and mints a per-user JWT through
-``POST /api/v1/auth/telegram`` (app/domains/auth/routes_telegram.py). That
-route validates Telegram WebApp-style auth data — HMAC-SHA256 over the
-sorted ``data_check`` string keyed with ``sha256(BOT_TOKEN)`` — which the
-bot can mint itself because it owns BOT_TOKEN. No browser handshake needed.
-
-JWTs are cached in-process for ~6 days (backend expiry is 7 days) so each
-command does at most one auth round-trip. All user-scoped calls send BOTH
-the per-user ``Authorization: Bearer`` (satisfies ``verify_session``) and
-the bot's ``X-API-Key`` (satisfies the auth middleware).
-"""
+"""Telegram user → backend user linking + user-scoped API client."""
 
 from __future__ import annotations
 

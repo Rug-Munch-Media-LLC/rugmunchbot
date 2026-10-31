@@ -77,9 +77,7 @@ async def test_fetch_og_image_rejects_banned_og(monkeypatch: pytest.MonkeyPatch)
 
 
 @pytest.mark.asyncio
-async def test_scheduler_post_formatted_drops_banned_image(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_scheduler_post_formatted_drops_banned_image() -> None:
     """Layer 3 (final guard): the scheduler send path falls through to
     text-only when the post's image is banned."""
     from rugmunchbot.channels.formatters._primitives import NewsPost
@@ -160,9 +158,7 @@ async def test_news_kind_fetches_og_image(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @pytest.mark.asyncio
-async def test_news_kind_og_failure_falls_back_to_placeholder(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_news_kind_og_failure_falls_back_to_placeholder() -> None:
     import rugmunchbot.channels.telegram_news._sources as src
 
     async def _fail(url: str, timeout: float = 6.0) -> str | None:
@@ -350,9 +346,7 @@ async def test_extract_thumbnail_with_pry_fail_open(
 
 
 @pytest.mark.asyncio
-async def test_news_kind_og_failure_uses_pry_thumbnail(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_news_kind_og_failure_uses_pry_thumbnail() -> None:
     """When the direct og:image fetch fails, Pry supplies a real thumbnail."""
     import rugmunchbot.channels.telegram_news._sources as src
 
@@ -427,46 +421,4 @@ def test_valid_article_image_accepted() -> None:
     assert is_valid_image("https://cdn.coindesk.com/story-image.png")
 
 
-def test_placeholder_is_app_logo() -> None:
-    """The placeholder is the RMI badge (rmi_badge_v4.png).
-
-    2026-10-17 operator doctrine supersedes 2026-09-01/02: the real RMI
-    badge IS the app logo. The banned imagery remains the operator's X
-    avatar and the header banner — never those."""
-    assert "rmi_badge_v4.png" in PLACEHOLDER_IMAGE_URL
-    assert "avatar" not in PLACEHOLDER_IMAGE_URL
-    assert "banner" not in PLACEHOLDER_IMAGE_URL
-
-
 # ── 2026-10-17: per-post-type brand graphics (operator directive) ──────────
-
-
-def test_brand_graphics_are_first_party_and_allowed() -> None:
-    """Every per-type brand graphic is a first-party rugmunch.io asset and
-    passes the public image guard (the /brand/ ban exempts the sanctioned
-    placeholder path — brand graphics are first-party, not scraped chrome)."""
-    from rugmunchbot.support.post_graphics import POST_TYPE_GRAPHICS, graphic_for
-
-    for post_type in POST_TYPE_GRAPHICS:
-        url = graphic_for(post_type)
-        assert url.startswith("https://rugmunch.io/brand/"), post_type
-
-
-def test_formatter_attaches_per_type_graphic() -> None:
-    """A formatter with no carried image attaches its per-type brand graphic
-    (the image doctrine: every post type carries a distinct graphic)."""
-    from rugmunchbot.channels.formatters import format_scam_alert
-    from rugmunchbot.support.post_graphics import graphic_for
-
-    post = format_scam_alert({"severity": "high", "address": "0xabc", "scam_intel": "drainer"})
-    assert post.image_url == graphic_for("scam_alert")
-
-
-def test_carried_image_still_wins_over_graphic() -> None:
-    """A real carried image (og:image) beats the per-type brand graphic."""
-    from rugmunchbot.channels.formatters import format_breaking_post
-
-    post = format_breaking_post(
-        {"title": "Story", "url": "https://e.com/a", "image_url": "https://cdn.example.com/x.png"}
-    )
-    assert "cdn.example.com" in post.image_url

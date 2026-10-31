@@ -1,18 +1,4 @@
-"""Daily quality schedule — 10-post budget, dedup, rerank (2026-08-29).
-
-Covers the channel-quality overhaul deliverable 3 contract:
-
-* Budget — exactly 2 market slots + up to 8 quality slots (10/day); fewer
-  candidates → unfilled slots rendered honestly; ``posted_today`` shrinks
-  the remaining quality budget.
-* No double-post — the same story_ref/URL can never occupy two slots
-  (stable-key dedup), near-duplicate copy collapses via embed-dedup
-  (qwen3-4B), and already-posted keys (``seen_keys``) are excluded.
-* Rerank — best-first via the 4B cross-encoder when reachable; fail-open
-  to the item's existing score when not (never invents content).
-
-All model calls are monkeypatched — these tests are offline and fast.
-"""
+"""Daily quality schedule — 10-post budget, dedup, rerank (2026-08-29)."""
 
 from __future__ import annotations
 

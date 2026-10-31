@@ -1,9 +1,4 @@
-"""Tests for the bot-native Solana on-chain resolver + token-scoped smart money.
-
-Covers tools/scanner/_solana_onchain.py and tools/scanner/_smart_money_token.py.
-All RPC/HTTP boundaries are mocked — no network anywhere. Payload shapes were
-probed against the implementation before asserting (oracle policy).
-"""
+"""Tests for the bot-native Solana on-chain resolver + token-scoped smart money."""
 
 from __future__ import annotations
 

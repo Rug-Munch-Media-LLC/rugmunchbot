@@ -1,15 +1,4 @@
-"""Portfolio command — honest backend contract (audit 2026-08-21 §F).
-
-The backend answers genuine no-data with 200+``{"data": null,
-"reason": "no_data"}`` and real failures with non-200. The command must:
-
-* render the no-data contract as a GRACEFUL empty state (not an error),
-* surface non-200 / network failures LOUDLY (never "$0.00 / no holdings"),
-* parse the enriched shape (``balance_usd`` / ``top_tokens``) AND generic
-  ``{"tokens": [...]}`` / ``{"balances": [...]}`` shapes,
-* report raw provider passthroughs (Alchemy ``result.tokenBalances`` —
-  no USD prices) as unvalued holdings instead of a fabricated $0.00.
-"""
+"""Portfolio command — honest backend contract (audit 2026-08-21 §F)."""
 
 from __future__ import annotations
 

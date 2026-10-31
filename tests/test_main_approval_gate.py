@@ -1,22 +1,4 @@
-"""Main-channel human-in-the-loop approval gate (2026-09-04).
-
-Covers the opt-in ``RMI_MAIN_APPROVAL_GATE``:
-
-* Disabled (default) → posts directly, no approval request to @rmi_admin_bot.
-* Enabled + admin chat set → sends the draft to the admin bot for approval and
-  does NOT post to main in the same tick.
-* Approve callback → posts the draft to main.
-* Reject callback → discards (no post) and keeps the dedupe mark.
-* No response (auto-post) → posts to main (fail-open).
-* Enabled but admin chat unset → fails open and posts directly.
-
-The actual photo/quality-gate send path is stubbed (``_post_photo_aware``) so
-these tests exercise the gate ROUTING logic in isolation — the image/quality
-gate has its own dedicated tests.
-
-NOTE: the dedupe ``_remember`` persists to a live Redis in this environment,
-so every test uses a UNIQUE story ref to stay deterministic across runs.
-"""
+"""Main-channel human-in-the-loop approval gate (2026-09-04)."""
 
 from __future__ import annotations
 

@@ -1,13 +1,4 @@
-"""DataBus client + scanner security-fallback rung tests.
-
-Offline: HTTP stubbed at the httpx boundary. Contracts:
-
-* databus_price / databus_wallet / databus_token_scan parse happy paths
-* every call is fail-open (None on non-200, bad payload, transport error)
-* short-TTL memoization prevents repeat backend hits within TTL
-* security chain: DataBus rung fires only when GoPlus+honeypot.is came up
-  empty, lifts honeypot/verified flags and caps its risk contribution
-"""
+"""DataBus client + scanner security-fallback rung tests."""
 
 from __future__ import annotations
 

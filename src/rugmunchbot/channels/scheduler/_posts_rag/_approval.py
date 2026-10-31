@@ -1,26 +1,4 @@
-"""Main-channel human-in-the-loop approval gate.
-
-When ``RMI_MAIN_APPROVAL_GATE`` is enabled, main-channel drafts
-(@cryptorugmuncher) are NOT posted directly. Instead each draft is sent to
-@rmi_admin_bot with Approve / Reject / Edit inline buttons:
-
-* **Approve** → the draft is posted to the main channel (and mirrored to the
-  feed when ``mirror: true``, exactly like the direct path).
-* **Reject** → the draft is logged and discarded (its dedupe mark is kept so
-  it is never re-requested every tick).
-* **Edit** → the operator replies to the approval message with corrected text;
-  the draft is updated and re-sent for approval.
-* **No response within ``RMI_MAIN_APPROVAL_TIMEOUT_S``** → the draft
-  AUTO-POSTS (fail-open — the gate shapes rhythm, never blocks content).
-
-The gate is opt-in (default OFF). When disabled, ``post_rag_drafts`` posts
-directly exactly as before. When enabled but the admin chat id is unset, the
-gate degrades to fail-open (posts directly) rather than dropping content.
-
-State is in-memory by design: a restart clears pending approvals (the drafts
-were already marked seen, so they are not re-requested — acceptable for an
-opt-in operator-facing gate).
-"""
+"""Main-channel human-in-the-loop approval gate."""
 
 from __future__ import annotations
 

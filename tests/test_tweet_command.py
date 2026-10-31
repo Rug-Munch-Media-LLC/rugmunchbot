@@ -1,14 +1,4 @@
-"""/tweet + /tweets command and read_tweet/story_fetch X wiring tests.
-
-X ingestion is owned by rugbrain (RAG); the bot no longer fetches X posts.
-Covers the retired contract:
-
-* ``tools.read_tweet.parse_target`` — URL / numeric id / @handle classification
-* ``commands.tweet.format_tweet`` / ``format_tweet_list`` — safe HTML cards
-* ``cmd_tweet`` — usage + "moved to rugbrain" notice; NEVER scrapes/fabricates
-* ``read_tweet`` tool — always fails open with the moved notice
-* ``story_fetch`` X guard — x.com URLs refused, never the crawler
-"""
+"""/tweet + /tweets command and read_tweet/story_fetch X wiring tests."""
 
 from __future__ import annotations
 

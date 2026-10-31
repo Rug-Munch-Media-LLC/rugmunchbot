@@ -1,18 +1,4 @@
-"""Scammer-warning posts + solana_syndicate group seeding.
-
-Covers the 2026-08-29 ZachXBT Solana-syndicate deliverable:
-
-* seed integrity: the ``solana_syndicate`` group exists in SCAMMER_GROUPS,
-  the 10 verified handles map to it, and Ansem (``blknoiz06``) is excluded
-* warning formatter: HTML card cites ZachXBT, names the shilled token, and
-  carries the "reason not to buy anything they post" doctrine
-* collection: recorded calls whose identity resolves into a warning group
-  are surfaced (window-gated)
-* high-signal routing: shill/rug calls escalate to main, plain buys stay on
-  alerts
-* runner: posts to alerts (+ main/feed for high signal), deduped per
-  handle+token per day
-"""
+"""Scammer-warning posts + solana_syndicate group seeding."""
 
 from __future__ import annotations
 

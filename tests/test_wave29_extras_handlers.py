@@ -1,10 +1,4 @@
-"""Test wave 29 — scan-family command handlers (_scan_handlers/_extras.py).
-
-Behavior probed via .venv/bin/python before asserting (2026-08-23).
-FakeUpdate/FakeCtx pattern from tests/test_portfolio_command.py; transports
-and scanner seams monkeypatched at the _extras module namespace (top-level
-imports).
-"""
+"""Test wave 29 — scan-family command handlers (_scan_handlers/_extras.py)."""
 
 from __future__ import annotations
 

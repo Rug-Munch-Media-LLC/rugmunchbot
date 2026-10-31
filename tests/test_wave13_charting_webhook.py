@@ -215,9 +215,7 @@ def test_assert_safe_target_rejects_invalid_url_before_dns() -> None:
         _assert_safe_target("https://user:pass@example.com")
 
 
-def test_assert_safe_target_reports_unresolvable_host(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_assert_safe_target_reports_unresolvable_host() -> None:
     def boom(*args: object, **kwargs: object) -> None:
         raise socket.gaierror(-2, "Name or service not known")
 
@@ -226,9 +224,7 @@ def test_assert_safe_target_reports_unresolvable_host(
         _assert_safe_target("https://no-such-host.invalid/hook")
 
 
-def test_assert_safe_target_blocks_private_resolution(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_assert_safe_target_blocks_private_resolution() -> None:
     def private(*args: object, **kwargs: object) -> list[tuple[object, ...]]:
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.9", 0))]
 
@@ -237,9 +233,7 @@ def test_assert_safe_target_blocks_private_resolution(
         _assert_safe_target("https://internal.example.com/hook")
 
 
-def test_assert_safe_target_allows_public_resolution(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_assert_safe_target_allows_public_resolution() -> None:
     def public(*args: object, **kwargs: object) -> list[tuple[object, ...]]:
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
 

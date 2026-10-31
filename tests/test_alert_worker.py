@@ -86,9 +86,7 @@ async def test_pop_alert_parses_valid_item(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 @pytest.mark.asyncio
-async def test_pop_alert_malformed_json_logs_and_returns_none(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_pop_alert_malformed_json_logs_and_returns_none() -> None:
     fake = FakeRedis(["{not-json!!"])
     _setattr(alert_worker, "get_redis_async", lambda: fake)
     # Must not raise — a poison message cannot kill the tick.
@@ -240,9 +238,7 @@ def test_item_identity_stable_across_retry_metadata() -> None:
 
 
 @pytest.mark.asyncio
-async def test_requeue_increments_retry_and_deadletters_at_budget(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_requeue_increments_retry_and_deadletters_at_budget() -> None:
     fake = FakeRedis()
     _setattr(alert_worker, "get_redis_async", lambda: fake)
 
@@ -259,9 +255,7 @@ async def test_requeue_increments_retry_and_deadletters_at_budget(
 
 
 @pytest.mark.asyncio
-async def test_deliver_pending_alerts_drains_queue_and_requeues_failures(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_deliver_pending_alerts_drains_queue_and_requeues_failures() -> None:
     good = _item(event_id="evt-ok", user_id=1)
     failing = _item(event_id="evt-nope", user_id=2)
     fake = FakeRedis([json.dumps(good), json.dumps(failing)])

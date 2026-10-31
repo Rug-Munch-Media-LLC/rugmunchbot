@@ -1,9 +1,4 @@
-"""/rugmap — cluster summary caption, PNG metadata strip, handler wiring.
-
-Every backend call is a fake client and every render is either the real
-(single) map engine with a synthetic graph or a stub PNG, so the tests cover
-the contract without network, Telegram or a live RugMaps index.
-"""
+"""/rugmap — cluster summary caption, PNG metadata strip, handler wiring."""
 
 from __future__ import annotations
 

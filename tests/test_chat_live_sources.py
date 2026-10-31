@@ -1,11 +1,4 @@
-"""Live-source citations, no-source refusal, and long-history compression.
-
-Covers the three guarantees the chat pipeline must keep:
-  1. every live number is attributed to the provider that fetched it,
-  2. a live-data question with no live source is REFUSED deterministically,
-  3. a long conversation is compressed (not blindly truncated) with its
-     addresses/tickers preserved.
-"""
+"""Live-source citations, no-source refusal, and long-history compression."""
 
 from __future__ import annotations
 

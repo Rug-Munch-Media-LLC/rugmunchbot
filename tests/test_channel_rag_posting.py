@@ -1,16 +1,4 @@
-"""RAG-drafts posting contract (2026-08-25 audit regressions).
-
-Covers the P0 fixes from the 2026-08-25 rugmunchbot audit:
-
-* Ordering — a draft whose send fails or whose channel has no chat id must
-  NOT be consumed by the dedupe mark (the old code remembered BEFORE
-  sending, permanently black-holing those drafts).
-* Wiring — ``build_social_spike_post`` must be imported into the scheduler
-  registry (the old code called it without importing → NameError every
-  social-spike tick).
-* Observability — ``channel_rag`` must be registered with ``envelope=True``
-  so successful ticks emit a channels:tick line.
-"""
+"""RAG-drafts posting contract (2026-08-25 audit regressions)."""
 
 from __future__ import annotations
 

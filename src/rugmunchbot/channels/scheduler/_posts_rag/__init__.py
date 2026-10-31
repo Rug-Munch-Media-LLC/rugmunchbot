@@ -1,27 +1,4 @@
-"""RAG-drafts posting — intelligence-ranked stories to all channels.
-
-Pulls ready-to-post drafts from rugbrain's content-distribution API
-(``channels/content.py::fetch_rag_drafts``) and routes them:
-
-* alerts  → @rmialerts          (critical/high intel only)
-* news    → @rmicryptonews      (solid news-value items)
-* main    → @cryptorugmuncher   (top stories, full analysis) — every main
-  post with ``mirror: true`` is ALSO written to the feed.rugmunch.io
-  static site (same machine; atomic file append under /var/www).
-* scans   → @rmiscans           (real scanner-feedback reports with ref
-  links; wired 2026-08-26 — rugbrain generated these drafts but the bot
-  never consumed the lane).
-
-Dedup via ``_remember("rag", story_ref)`` — a story never posts twice.
-Fail-open everywhere: RAG outage = zero posts, never a crash.
-
-Layout (modularized 2026-09-04 from the former single-module ``_posts_rag.py``):
-  * ``__init__``  — shared config, mutable state, patchable imports + re-exports
-  * ``_gates``    — quality / recency / source / news-content-type gates
-  * ``_feed``     — feed.rugmunch.io posts.json + Ghost CMS mirror
-  * ``_main``     — main gather → score → gate → post path
-  * ``_fast_lane``— breaking-news fast lane + security-tweet escalation
-"""
+"""RAG-drafts posting — intelligence-ranked stories to all channels."""
 
 from __future__ import annotations
 

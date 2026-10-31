@@ -1,15 +1,4 @@
-"""WO-3 universal format law (2026-08-25).
-
-Covers /root/.knowledge/CONTENT-POSTING-SPEC.md:
-
-* ``enforce_format_law`` — the mandatory pre-send pass: wall-of-text
-  splitting, repeated-block dedupe, emoji-spam caps, ≤80-char bold
-  headlines, mid-text truncation artifacts, HTML-tag preservation,
-  idempotency.
-* ``_safe_send`` wiring — every send passes through the law.
-* ``_quality_gate`` — RAG drafts: template-fallback output is NEVER posted;
-  drafts scoring under ``RMI_RAG_POST_MIN_SCORE`` are discarded.
-"""
+"""WO-3 universal format law (2026-08-25)."""
 
 from __future__ import annotations
 
