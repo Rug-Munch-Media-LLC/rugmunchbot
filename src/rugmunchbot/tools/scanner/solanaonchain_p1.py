@@ -165,32 +165,6 @@ def _parse_mint_layout(data: bytes) -> dict[str, Any]:
     return facts
 
 
-_CACHE_TTL_S = 120.0
-
-_cache: dict[str, tuple[float, Any]] = {}
-
-
-def _cache_get(key: str) -> Any | None:
-    import time
-
-    hit = _cache.get(key)
-    if not hit:
-        return None
-    ts, val = hit
-    if time.monotonic() - ts > _CACHE_TTL_S:
-        _cache.pop(key, None)
-        return None
-    return val
-
-
-def _cache_set(key: str, val: Any) -> None:
-    import time
-
-    if len(_cache) > 512:  # bounded
-        _cache.clear()
-    _cache[key] = (time.monotonic(), val)
-
-
 async def resolve_mint_facts(mint: str) -> dict[str, Any] | None:
     """Resolve mint authority / freeze authority / program / tax from RPC.
 
