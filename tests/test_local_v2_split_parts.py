@@ -13,21 +13,34 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.tools.scanner import _local_v2 as v2
 
 
-def _install_engine(monkeypatch: pytest.MonkeyPatch, module: str, attr: str, result: Any) -> None:
-    """Install a stand-in vendored engine module exposing one coroutine."""
-    stub = type(sys)(module)
+@pytest.fixture
+def install_engine():
+    """Install a stand-in vendored engine module and restore sys.modules after."""
+    saved: dict[str, Any] = {}
 
-    async def _call(*_args: Any, **_kwargs: Any) -> Any:
-        if isinstance(result, Exception):
-            raise result
-        return result
+    def _install(module: str, attr: str, result: Any) -> None:
+        stub = type(sys)(module)
 
-    setattr(stub, attr, _call)
-    monkeypatch.setitem(sys.modules, module, stub)
+        async def _call(*_args: Any, **_kwargs: Any) -> Any:
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        setattr(stub, attr, _call)
+        saved.setdefault(module, sys.modules.get(module))
+        sys.modules[module] = stub
+
+    yield _install
+    for name, mod in saved.items():
+        if mod is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = mod
 
 
 # ── _to_goplus_checks ────────────────────────────────────────────────────
@@ -104,9 +117,9 @@ DISPATCH = [
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("fn_name", "module", "attr", "source"), DISPATCH)
 async def test_engine_dispatch_wraps_envelope(
-    monkeypatch: pytest.MonkeyPatch, fn_name: str, module: str, attr: str, source: str
+    install_engine, fn_name: str, module: str, attr: str, source: str
 ) -> None:
-    _install_engine(monkeypatch, module, attr, {"holders": 3})
+    install_engine(module, attr, {"holders": 3})
     out = await getattr(v2, fn_name)("tok", "solana")
     assert out["source"] == source
     assert out["data"]["holders"] == 3
@@ -117,19 +130,19 @@ async def test_engine_dispatch_wraps_envelope(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("fn_name", "module", "attr", "source"), DISPATCH)
 async def test_engine_dispatch_misses_are_honest(
-    monkeypatch: pytest.MonkeyPatch, fn_name: str, module: str, attr: str, source: str
+    install_engine, fn_name: str, module: str, attr: str, source: str
 ) -> None:
     fn = getattr(v2, fn_name)
     assert await fn("", "solana") is v2._MISS
-    _install_engine(monkeypatch, module, attr, {"result": "unavailable"})
+    install_engine(module, attr, {"result": "unavailable"})
     assert await fn("tok", "solana") is v2._MISS
-    _install_engine(monkeypatch, module, attr, RuntimeError("engine down"))
+    install_engine(module, attr, RuntimeError("engine down"))
     assert await fn("tok", "solana") is v2._MISS
 
 
 @pytest.mark.asyncio
-async def test_databus_dispatch_and_unknown_chain(monkeypatch: pytest.MonkeyPatch) -> None:
-    _install_engine(monkeypatch, SECURITY_MOD, "get_own_security", {"is_honeypot": False})
+async def test_databus_dispatch_and_unknown_chain(install_engine) -> None:
+    install_engine(SECURITY_MOD, "get_own_security", {"is_honeypot": False})
     out = await v2._databus_fetch("token_security", address="tok", chain="solana")
     assert out["source"] == "local:own_security"
     assert out["data"]["checks"]["HP01"]["status"] == "pass"
@@ -137,8 +150,8 @@ async def test_databus_dispatch_and_unknown_chain(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.asyncio
-async def test_databus_dispatch_never_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    _install_engine(monkeypatch, HOLDER_MOD, "get_own_holder_analysis", RuntimeError("boom"))
+async def test_databus_dispatch_never_raises(install_engine) -> None:
+    install_engine(HOLDER_MOD, "get_own_holder_analysis", RuntimeError("boom"))
     assert await v2._databus_fetch("holder_data", token_address="tok") is v2._MISS
 
 
@@ -163,13 +176,13 @@ def _result(**over: Any) -> SimpleNamespace:
     return SimpleNamespace(**base)
 
 
-def _legacy(monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]) -> None:
+def _legacy(payload: dict[str, Any]) -> None:
     module = importlib.import_module("rugmunch_scanner.unified.unified._legacy")
-    monkeypatch.setattr(module, "_to_legacy_dict", lambda _result: dict(payload))
+    _setattr(module, "_to_legacy_dict", lambda _result: dict(payload))
 
 
-def test_payload_aliases_and_risk(monkeypatch: pytest.MonkeyPatch) -> None:
-    _legacy(monkeypatch, {"safety_score": 70.0, "flags": ["f"], "modules_run": ["security"]})
+def test_payload_aliases_and_risk() -> None:
+    _legacy({"safety_score": 70.0, "flags": ["f"], "modules_run": ["security"]})
     out = v2._to_v2_payload(_result(), "0xtok", "solana")
     assert out is not None
     assert out["status"] == "ok"
@@ -181,15 +194,15 @@ def test_payload_aliases_and_risk(monkeypatch: pytest.MonkeyPatch) -> None:
     assert out["deployer_address"] == "0xdev"
 
 
-def test_payload_market_fields(monkeypatch: pytest.MonkeyPatch) -> None:
-    _legacy(monkeypatch, {"safety_score": 70.0, "flags": ["f"], "modules_run": ["security"]})
+def test_payload_market_fields() -> None:
+    _legacy({"safety_score": 70.0, "flags": ["f"], "modules_run": ["security"]})
     out = v2._to_v2_payload(_result(), "0xtok", "solana")
     assert out is not None
     assert out["market"]["price_usd"] == 1.5
     assert out["market"]["price_change"]["h1"] == 1
 
 
-def test_payload_without_scan_data_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    _legacy(monkeypatch, {})
+def test_payload_without_scan_data_is_none() -> None:
+    _legacy({})
     out = v2._to_v2_payload(_result(name="", symbol=""), "0xtok", "solana")
     assert out is None
