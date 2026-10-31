@@ -1,26 +1,9 @@
-"""Quality-bar invariant tests — the enterprise output contract, as code.
-
-These tests LOCK the reporting standards established in the 2026-08-23
-quality campaign. Any change that violates them fails CI:
-
-  Q1. HONEST DATA — a value that was never reported never renders as a
-      fabricated number (no "Holders 0" when holders are unknown, no "$0"
-      when a value is missing). Unknown is "N/A"/"—", zero is zero.
-  Q2. SIGNAL DENSITY — the scam matrix leads with flagged findings WITH
-      evidence, collapses clean checks to a count, and never claims a check
-      ran clean without data.
-  Q3. VERDICT SPECIFICITY — when evidence exists the verdict names it;
-      when nothing fired but checks passed, the verdict confirms what
-      passed. Generic filler only as last resort.
-  Q4. AUTHORITY GROUND TRUTH — on-chain mint/freeze authority facts
-      override provider guesses, and renounce is reported as such.
-  Q5. SMART MONEY HONESTY — per-wallet rows that cancel to zero keep
-      net=0; aggregate buy_pressure never masks real row data.
-"""
+"""Quality-bar invariant tests — the enterprise output contract, as code."""
 
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.formatters import format_scan_report
 from rugmunchbot.formatters._base._risk import _verdict_sentence
@@ -192,10 +175,10 @@ async def test_q4_rpc_authority_overrides_provider_guess(monkeypatch: pytest.Mon
     async def none(*a: object, **k: object) -> None:
         return None
 
-    monkeypatch.setattr(so, "resolve_mint_facts", facts)
-    monkeypatch.setattr(so, "resolve_holder_stats", none)
-    monkeypatch.setattr(so, "resolve_deployer", none)
-    monkeypatch.setattr(so, "detect_same_slot_bundle", none)
+    _setattr(so, "resolve_mint_facts", facts)
+    _setattr(so, "resolve_holder_stats", none)
+    _setattr(so, "resolve_deployer", none)
+    _setattr(so, "detect_same_slot_bundle", none)
 
     # Provider GUESSED mintable=True; on-chain says renounced — RPC wins.
     result = {"chain": "solana", "mintable": True}

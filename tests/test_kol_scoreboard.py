@@ -1,24 +1,11 @@
-"""KOL Scoreboard — report-card model, identity/name-change, store round-trip.
-
-Covers the 2026-08-29 KOL Scoreboard deliverable (renamed from KOL Hall of
-Shame; the Hall is now the repeat-scammer SUBSET):
-
-* call classification + token/wallet extraction (pure)
-* report-card aggregation: deletions >> shilling >> scam-token calls,
-  win/loss from resolved outcomes
-* repeat-scammer gate (Hall of Shame membership) + scoreboard ranking
-* HTML formatters (Telegram parse_mode=html)
-* 100%-correct identification: identity registry, alias resolution, and
-  screen-name CHANGE handling (old handle resolves to the same card)
-* SQLite store round-trip (record → list → delete → export JSONL)
-* seed registry integrity: ≥500 real rows, no dup handles, real sources
-"""
+"""KOL Scoreboard — report-card model, identity/name-change, store round-trip."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.kol_scoreboard import (
     KolCall,
@@ -259,7 +246,7 @@ def test_format_hall_of_shame_post_subset_only():
 def tmp_db(monkeypatch, tmp_path):
     from rugmunchbot import db as db_pkg
 
-    monkeypatch.setattr(db_pkg, "DB_PATH", str(tmp_path / "test_bot.db"))
+    _setattr(db_pkg, "DB_PATH", str(tmp_path / "test_bot.db"))
     from rugmunchbot.db._base import init_db
 
     init_db()

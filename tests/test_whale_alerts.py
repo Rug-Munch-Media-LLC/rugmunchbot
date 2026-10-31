@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.scheduler._posts_whales import (
     _fmt_amount,
@@ -95,7 +96,7 @@ async def test_build_post_fail_open(monkeypatch):
         async def post(self, *a, **kw):
             raise httpx.ConnectError("down")
 
-    monkeypatch.setattr(httpx, "AsyncClient", Dead)
+    _setattr(httpx, "AsyncClient", Dead)
     assert await build_whale_post() is None
 
 

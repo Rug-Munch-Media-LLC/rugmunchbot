@@ -20,6 +20,7 @@ from typing import Any
 
 import httpx
 import pytest
+from _di import _setattr
 
 from rugmunchbot.tools import _client, budget
 
@@ -75,11 +76,11 @@ class FakeClient:
 @pytest.fixture
 def fake_http(monkeypatch: pytest.MonkeyPatch):
     """Install the fake client class + unlimited budget; yield the class to configure."""
-    monkeypatch.setattr(_client.httpx, "AsyncClient", FakeClient)
+    _setattr(_client.httpx, "AsyncClient", FakeClient)
     _client._shared_clients.clear()
     FakeClient.response = FakeResponse(200, {})
     FakeClient.raise_on_call = None
-    monkeypatch.setattr(budget.budget, "acquire", lambda provider: True)
+    _setattr(budget.budget, "acquire", lambda provider: True)
     yield FakeClient
     _client._shared_clients.clear()
     FakeClient.response = FakeResponse(200, {})
@@ -123,7 +124,7 @@ async def test_backend_json_get_network_error_raises_not_none(fake_http) -> None
 async def test_backend_json_get_budget_exhausted_is_loud(
     monkeypatch: pytest.MonkeyPatch, fake_http
 ) -> None:
-    monkeypatch.setattr(budget.budget, "acquire", lambda provider: False)
+    _setattr(budget.budget, "acquire", lambda provider: False)
     with pytest.raises(_client.BackendApiError) as excinfo:
         await registry.backend_json_get("/api/v1/x")
     assert excinfo.value.status_code == 429  # rate-limit sentinel — never a silent None
@@ -171,8 +172,8 @@ async def test_wallet_analysis_error_names_http_status_when_backend_down(
     async def _boom(path: str, **kw: Any) -> dict[str, Any]:
         raise _client.BackendApiError(f"HTTP 502 for {path}", status_code=502, url=path)
 
-    monkeypatch.setattr(security, "backend_json_get", _boom)
-    monkeypatch.setattr(security, "backend_json_post", _boom)
+    _setattr(security, "backend_json_get", _boom)
+    _setattr(security, "backend_json_post", _boom)
 
     reg = registry.ToolRegistry()
     reg.register("wallet_analysis", security.wallet_analysis, timeout=5.0, ttl=0)

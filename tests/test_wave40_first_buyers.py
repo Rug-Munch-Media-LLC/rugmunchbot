@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.formatters._scan_report_common._fields import _holders_count
 from rugmunchbot.formatters._scan_report_main import (
@@ -211,7 +212,7 @@ async def test_poll_returns_payload_once_complete(monkeypatch: pytest.MonkeyPatc
             {"background_status": "complete", "first_buyers": {"ok": 1}},
         ]
     )
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.handlers._scan_handlers._scan.get_shared_client",
         lambda _t: client,
     )
@@ -251,7 +252,7 @@ async def test_poll_accepts_backend_nested_status_shape(
             nested_done,
         ]
     )
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.handlers._scan_handlers._scan.get_shared_client",
         lambda _t: client,
     )
@@ -286,7 +287,7 @@ async def test_poll_accepts_result_cache_shape(monkeypatch: pytest.MonkeyPatch) 
             }
         ]
     )
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.handlers._scan_handlers._scan.get_shared_client",
         lambda _t: client,
     )
@@ -348,10 +349,8 @@ async def test_churn_scan_merges_deep_data_into_note(monkeypatch: pytest.MonkeyP
             "liquidity_usd": 18_000.0,
         }
 
-    monkeypatch.setattr("rugmunchbot.tools.scanner._scans.scan_token_v2", _fake_scan_token_v2)
-    monkeypatch.setattr(
-        "rugmunchbot.handlers._scan_handlers._scan._poll_v2_scan_completion", _fake_poll
-    )
+    _setattr("rugmunchbot.tools.scanner._scans.scan_token_v2", _fake_scan_token_v2)
+    _setattr("rugmunchbot.handlers._scan_handlers._scan._poll_v2_scan_completion", _fake_poll)
 
     note = await content._churn_one_scan(
         {"address": "0xabc", "chain": "ethereum", "name": "Fast", "symbol": "FST"}
@@ -395,10 +394,8 @@ async def test_churn_scan_falls_back_when_poll_misses(monkeypatch: pytest.Monkey
     async def _fake_poll(address: str, chain: str, **_: Any) -> dict[str, Any] | None:
         return None
 
-    monkeypatch.setattr("rugmunchbot.tools.scanner._scans.scan_token_v2", _fake_scan_token_v2)
-    monkeypatch.setattr(
-        "rugmunchbot.handlers._scan_handlers._scan._poll_v2_scan_completion", _fake_poll
-    )
+    _setattr("rugmunchbot.tools.scanner._scans.scan_token_v2", _fake_scan_token_v2)
+    _setattr("rugmunchbot.handlers._scan_handlers._scan._poll_v2_scan_completion", _fake_poll)
 
     note = await content._churn_one_scan(
         {"address": "0xabc", "chain": "ethereum", "name": "Fast", "symbol": "FST"}
@@ -415,7 +412,7 @@ async def test_churn_scan_falls_back_when_poll_misses(monkeypatch: pytest.Monkey
 async def test_poll_times_out_fail_open(monkeypatch: pytest.MonkeyPatch) -> None:
     """Status never completes → None within the bounded budget (fail-open)."""
     client = _FakeClient([{"background_status": "running"}])
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.handlers._scan_handlers._scan.get_shared_client",
         lambda _t: client,
     )
@@ -434,7 +431,7 @@ async def test_poll_survives_client_errors(monkeypatch: pytest.MonkeyPatch) -> N
         async def get(self, url: str, **_: Any) -> _FakeResponse:
             raise ConnectionError("backend hiccup")
 
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.handlers._scan_handlers._scan.get_shared_client",
         lambda _t: _ExplodingClient(),
     )

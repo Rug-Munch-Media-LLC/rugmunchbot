@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.bot import _channels_setup as cs
 
@@ -18,7 +19,7 @@ from rugmunchbot.bot import _channels_setup as cs
 @pytest.fixture(autouse=True)
 def _fake_channel_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """Deterministic role→chat-id resolution (no gopass/env in tests)."""
-    monkeypatch.setattr(cs, "_channel_id", lambda role: role)
+    _setattr(cs, "_channel_id", lambda role: role)
 
 
 def _app() -> MagicMock:
@@ -60,7 +61,7 @@ class TestDescriptions:
         app = _app()
         descs = _channels_setup_descriptions()
         first_role = next(iter(descs))
-        monkeypatch.setattr(cs, "_channel_id", lambda role: role)
+        _setattr(cs, "_channel_id", lambda role: role)
         app.bot.get_chat.side_effect = lambda chat_id: _Chat(
             description="" if chat_id == first_role else descs[chat_id]
         )

@@ -1,16 +1,4 @@
-"""RAG-drafts posting contract (2026-08-25 audit regressions).
-
-Covers the P0 fixes from the 2026-08-25 rugmunchbot audit:
-
-* Ordering — a draft whose send fails or whose channel has no chat id must
-  NOT be consumed by the dedupe mark (the old code remembered BEFORE
-  sending, permanently black-holing those drafts).
-* Wiring — ``build_social_spike_post`` must be imported into the scheduler
-  registry (the old code called it without importing → NameError every
-  social-spike tick).
-* Observability — ``channel_rag`` must be registered with ``envelope=True``
-  so successful ticks emit a channels:tick line.
-"""
+"""RAG-drafts posting contract (2026-08-25 audit regressions)."""
 
 from __future__ import annotations
 
@@ -19,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.scheduler import _core, _posts_rag, _register as reg
 
@@ -26,7 +15,7 @@ from rugmunchbot.channels.scheduler import _core, _posts_rag, _register as reg
 @pytest.fixture(autouse=True)
 def _fresh_dedupe(monkeypatch):
     """Isolate the global dedupe set per test."""
-    monkeypatch.setattr(_core, "_posted_keys", {})
+    _setattr(_core, "_posted_keys", {})
     return
 
 
@@ -42,7 +31,7 @@ def _isolate_feed_data(monkeypatch, tmp_path):
     structurally impossible for any ``mirror=True`` draft in this module to
     reach the live mirror.
     """
-    monkeypatch.setattr(_posts_rag, "FEED_DATA", str(tmp_path))
+    _setattr(_posts_rag, "FEED_DATA", str(tmp_path))
     return
 
 
@@ -110,12 +99,12 @@ def _patch_env(
     async def _no_rag_news(limit=5):
         return []
 
-    monkeypatch.setattr(_posts_rag, "fetch_rag_drafts", _fake_fetch(table))
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: chat_id)
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
+    _setattr(_posts_rag, "fetch_rag_drafts", _fake_fetch(table))
+    _setattr(_posts_rag, "_chat_id", lambda ch: chat_id)
+    _setattr(_posts_rag, "_safe_send", sender)
     # RugBrain news_v2 rail is the first fallback tier (fail-open → []).
     # Stub it so tests never hit the network when the RAG lane is empty.
-    monkeypatch.setattr("rugmunchbot.channels.content.fetch_rag_news_items", _no_rag_news)
+    _setattr("rugmunchbot.channels.content.fetch_rag_news_items", _no_rag_news)
 
 
 def _fake_fetch(table: dict[str, list[dict[str, Any]]]):
@@ -215,8 +204,8 @@ async def test_missing_chat_id_does_not_consume_drafts(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_per_tick_cap_and_mirror_only_on_main(monkeypatch, tmp_path):
-    monkeypatch.setattr(_posts_rag, "MAX_PER_CHANNEL_PER_TICK", 1)
-    monkeypatch.setattr(
+    _setattr(_posts_rag, "MAX_PER_CHANNEL_PER_TICK", 1)
+    _setattr(
         _posts_rag,
         "FEED_DATA",
         str(tmp_path),
@@ -268,7 +257,7 @@ async def test_cross_channel_duplicate_posts_once_main_wins(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_main_mirror_writes_feed_json(monkeypatch, tmp_path):
-    monkeypatch.setattr(_posts_rag, "FEED_DATA", str(tmp_path))
+    _setattr(_posts_rag, "FEED_DATA", str(tmp_path))
     sender = _Recorder(succeed=True)
     _patch_env(
         monkeypatch,
@@ -404,7 +393,7 @@ async def test_scans_lane_posts_scanner_drafts(monkeypatch):
     async def _no_news(limit=5):
         return []
 
-    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _no_news)
+    _setattr("rugmunchbot.channels.content.fetch_trending_news", _no_news)
     _patch_env(
         monkeypatch,
         chat_id="-100scans",
@@ -497,8 +486,8 @@ async def test_news_lane_blocks_non_news_kinds(monkeypatch):
     async def _no_main_drafts(limit=8):
         return []
 
-    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _no_news)
-    monkeypatch.setattr(_posts_rag, "gather_main_drafts", _no_main_drafts)
+    _setattr("rugmunchbot.channels.content.fetch_trending_news", _no_news)
+    _setattr(_posts_rag, "gather_main_drafts", _no_main_drafts)
     _patch_env(
         monkeypatch,
         chat_id="-100news",
@@ -567,8 +556,8 @@ async def test_main_empty_falls_back_scored_and_warns(monkeypatch, caplog):
             it["importance"] = 0.66
         return sorted(items, key=lambda i: i.get("importance", 0.0), reverse=True)
 
-    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
-    monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
+    _setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
+    _setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
 
     async def _long_llm(messages, tier):
         # 2026-09-04 main-channel doctrine: >200 chars AND >=3 source links.
@@ -581,7 +570,7 @@ async def test_main_empty_falls_back_scored_and_warns(monkeypatch, caplog):
             "https://rekt.news/bridge-190m-postmortem"
         )
 
-    monkeypatch.setattr("rugmunchbot.llm_config.chat_with_fallback", _long_llm, raising=False)
+    _setattr("rugmunchbot.llm_config.chat_with_fallback", _long_llm, raising=False)
 
     sender = _Recorder(succeed=True)
     _patch_env(
@@ -625,8 +614,8 @@ async def test_main_empty_and_fallback_all_below_floor_posts_nothing(monkeypatch
             it["importance"] = 0.04  # below every floor
         return sorted(items, key=lambda i: i.get("importance", 0.0), reverse=True)
 
-    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
-    monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
+    _setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
+    _setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
     sender = _Recorder(succeed=True)
     _patch_env(
         monkeypatch,

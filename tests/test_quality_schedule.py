@@ -1,22 +1,9 @@
-"""Daily quality schedule — 10-post budget, dedup, rerank (2026-08-29).
-
-Covers the channel-quality overhaul deliverable 3 contract:
-
-* Budget — exactly 2 market slots + up to 8 quality slots (10/day); fewer
-  candidates → unfilled slots rendered honestly; ``posted_today`` shrinks
-  the remaining quality budget.
-* No double-post — the same story_ref/URL can never occupy two slots
-  (stable-key dedup), near-duplicate copy collapses via embed-dedup
-  (qwen3-4B), and already-posted keys (``seen_keys``) are excluded.
-* Rerank — best-first via the 4B cross-encoder when reachable; fail-open
-  to the item's existing score when not (never invents content).
-
-All model calls are monkeypatched — these tests are offline and fast.
-"""
+"""Daily quality schedule — 10-post budget, dedup, rerank (2026-08-29)."""
 
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.quality_schedule import (
     EMBED_DEDUP_THRESHOLD,
@@ -72,11 +59,11 @@ def test_cosine_similarity_basic():
 
 @pytest.mark.asyncio
 async def test_build_schedule_full_day(monkeypatch):
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.quality_schedule.dedupe_by_embedding",
         lambda items, threshold=EMBED_DEDUP_THRESHOLD: (items, {}),
     )
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.quality_schedule.rerank_quality",
         lambda items: sorted(
             ({**i, "importance": 0.5} for i in items),
@@ -101,11 +88,11 @@ async def test_build_schedule_full_day(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_key_dedup_same_story_never_twice(monkeypatch):
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.quality_schedule.dedupe_by_embedding",
         lambda items, threshold=EMBED_DEDUP_THRESHOLD: (items, {}),
     )
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.quality_schedule.rerank_quality",
         lambda items: items,
     )
@@ -124,11 +111,11 @@ async def test_key_dedup_same_story_never_twice(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_seen_keys_excluded_global_no_double_post(monkeypatch):
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.quality_schedule.dedupe_by_embedding",
         lambda items, threshold=EMBED_DEDUP_THRESHOLD: (items, {}),
     )
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.quality_schedule.rerank_quality",
         lambda items: items,
     )
@@ -153,7 +140,7 @@ async def test_embed_dedup_collapses_near_duplicates(monkeypatch):
             [0.0, 1.0, 0.0, 1.0],  # unrelated
         ]
 
-    monkeypatch.setattr("rugmunchbot.channels.quality_schedule._embed_texts", _fake_embed)
+    _setattr("rugmunchbot.channels.quality_schedule._embed_texts", _fake_embed)
     items = [
         _item("story-1", title="Ethereum ETF sees record inflows"),
         _item("story-2", title="ETH ETF inflows hit all-time high"),
@@ -172,7 +159,7 @@ async def test_embed_dedup_fail_open_no_signal(monkeypatch):
     async def _no_signal(texts):
         return [[0.0] * 4 for _ in texts]
 
-    monkeypatch.setattr("rugmunchbot.channels.quality_schedule._embed_texts", _no_signal)
+    _setattr("rugmunchbot.channels.quality_schedule._embed_texts", _no_signal)
     items = [_item("a"), _item("b")]
     kept, notes = await dedupe_by_embedding(items)
     assert len(kept) == 2
@@ -199,7 +186,7 @@ async def test_rerank_fail_open_keeps_scores(monkeypatch):
         async def post(self, *a, **kw):
             raise httpx.ConnectError("down")
 
-    monkeypatch.setattr(httpx, "AsyncClient", _Down)
+    _setattr(httpx, "AsyncClient", _Down)
     items = [
         {**_item("a"), "score": 0.9},
         {**_item("b"), "score": 0.2},
@@ -211,11 +198,11 @@ async def test_rerank_fail_open_keeps_scores(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_posted_today_reduces_quality_slots(monkeypatch):
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.quality_schedule.dedupe_by_embedding",
         lambda items, threshold=EMBED_DEDUP_THRESHOLD: (items, {}),
     )
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.quality_schedule.rerank_quality",
         lambda items: items,
     )

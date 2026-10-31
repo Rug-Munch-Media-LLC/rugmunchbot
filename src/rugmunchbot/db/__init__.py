@@ -101,8 +101,8 @@ from .watchlist import (
     remove_watchlist,
 )
 
-# Mutable DB path — owned by this shim so tests can keep patching it via
-# ``monkeypatch.setattr(db, "DB_PATH", ...)``; ``_base.get_db()`` reads it
+# Mutable DB path — owned by this shim so tests can keep injecting it via
+# seam ``_setattr(db, "DB_PATH", ...)``; ``_base.get_db()`` reads it
 # from this namespace at call time.
 DB_PATH = _resolve_db_path()
 

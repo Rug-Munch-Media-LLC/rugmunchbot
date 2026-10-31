@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot._vendor.rag_pkg import qdrant_store as qs
 
@@ -98,8 +99,8 @@ async def test_empty_embedding_is_skipped_not_upserted(monkeypatch):
     async def _empty(_text: str) -> list[float]:
         return []
 
-    monkeypatch.setattr(qs, "get_embedding", _empty)
-    monkeypatch.setattr(qs, "get_qdrant_store", lambda _c=None: store)
+    _setattr(qs, "get_embedding", _empty)
+    _setattr(qs, "get_qdrant_store", lambda _c=None: store)
 
     assert await qs.upsert_rag_document("doc", "some text") is False
     assert store._client.upserts == [], "empty vector must never reach Qdrant"

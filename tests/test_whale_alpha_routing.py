@@ -11,6 +11,8 @@ Deliverables 1+2 of the 2026-08-29 quality overhaul:
 
 from __future__ import annotations
 
+from _di import _setattr
+
 # The whale tick's destination is the ALPHA channel (registration gate
 # resolves it via reg._chat_id — already asserted by registration).
 
@@ -25,11 +27,11 @@ def test_alpha_content_includes_kol_trades(monkeypatch):
     async def _no_rows(chain, limit):
         return []
 
-    monkeypatch.setattr(content, "_fetch_kol_trades", _no_kol)
-    monkeypatch.setattr(content, "_fetch_whale_moves", _no_rows)
-    monkeypatch.setattr(content, "_fetch_early_entries", _no_rows)
-    monkeypatch.setattr(content, "_fetch_smart_money", _no_rows)
-    monkeypatch.setattr(content, "_fetch_launches", _no_rows)
+    _setattr(content, "_fetch_kol_trades", _no_kol)
+    _setattr(content, "_fetch_whale_moves", _no_rows)
+    _setattr(content, "_fetch_early_entries", _no_rows)
+    _setattr(content, "_fetch_smart_money", _no_rows)
+    _setattr(content, "_fetch_launches", _no_rows)
 
     import asyncio
 
@@ -128,7 +130,7 @@ def test_alerts_digest_excludes_whale_event_types(monkeypatch):
 
     import rugmunchbot._vendor.alert_pipeline as vendor
 
-    monkeypatch.setattr(vendor, "get_recent_alerts", _fake_get_recent_alerts)
+    _setattr(vendor, "get_recent_alerts", _fake_get_recent_alerts)
     # The webhook fetch is invoked through content._fetch_pushed_webhook_alerts
     # which imports get_recent_alerts at call time — patch the module directly.
     import asyncio

@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import pytest
 
+from _di import _setattr
+
 from rugmunchbot import db
 from rugmunchbot.alert_worker import _format_alert
 from rugmunchbot.handlers.premium_watch import _api, _commands, _limits
@@ -81,9 +83,9 @@ def test_watch_refuses_past_the_free_quota(monkeypatch: pytest.MonkeyPatch) -> N
         calls.append(args)
         return {"watchers_n": 1}
 
-    monkeypatch.setattr(_api, "list_watches", fake_list)
-    monkeypatch.setattr(_api, "watch_token", fake_watch)
-    monkeypatch.setattr(db, "get_user_tier", lambda _uid: "free")
+    _setattr(_api, "list_watches", fake_list)
+    _setattr(_api, "watch_token", fake_watch)
+    _setattr(db, "get_user_tier", lambda _uid: "free")
     update = _update()
 
     _run(_commands.cmd_watch(update, _ctx(SOL)))
@@ -102,9 +104,9 @@ def test_watch_infers_chain_and_confirms_a_resubscribe(monkeypatch: pytest.Monke
         seen.update(token=token, chain=chain, chat_id=chat_id)
         return {"watchers_n": 3}
 
-    monkeypatch.setattr(_api, "list_watches", fake_list)
-    monkeypatch.setattr(_api, "watch_token", fake_watch)
-    monkeypatch.setattr(db, "get_user_tier", lambda _uid: "free")
+    _setattr(_api, "list_watches", fake_list)
+    _setattr(_api, "watch_token", fake_watch)
+    _setattr(db, "get_user_tier", lambda _uid: "free")
     update = _update()
 
     _run(_commands.cmd_watch(update, _ctx(SOL)))
@@ -122,7 +124,7 @@ def test_watch_rejects_an_address_that_is_neither_solana_nor_evm(
     async def boom(*args: Any) -> Any:
         raise AssertionError("no backend call for an unusable address")
 
-    monkeypatch.setattr(_api, "watch_token", boom)
+    _setattr(_api, "watch_token", boom)
     update = _update()
 
     _run(_commands.cmd_watch(update, _ctx("not-an-address")))
@@ -134,7 +136,7 @@ def test_unwatch_reports_absence_without_pretending(monkeypatch: pytest.MonkeyPa
     async def fake_unwatch(token: str, chain: str, chat_id: str) -> dict:
         return {"removed": False, "watchers_n": 0}
 
-    monkeypatch.setattr(_api, "unwatch_token", fake_unwatch)
+    _setattr(_api, "unwatch_token", fake_unwatch)
     update = _update()
 
     _run(_commands.cmd_unwatch(update, _ctx(SOL)))
@@ -146,8 +148,8 @@ def test_watchlist_shows_quota_and_per_row_unwatch(monkeypatch: pytest.MonkeyPat
     async def fake_list(chat_id: str) -> list[dict]:
         return [{"token": SOL, "chain": "solana", "watchers_n": 4}]
 
-    monkeypatch.setattr(_api, "list_watches", fake_list)
-    monkeypatch.setattr(db, "get_user_tier", lambda _uid: "pro")
+    _setattr(_api, "list_watches", fake_list)
+    _setattr(db, "get_user_tier", lambda _uid: "pro")
     update = _update()
 
     _run(_commands.cmd_watchlist(update, _ctx()))
@@ -164,7 +166,7 @@ def test_export_sends_the_canonical_bytes(monkeypatch: pytest.MonkeyPatch) -> No
     async def fake_export(token: str, chain: str) -> bytes:
         return body
 
-    monkeypatch.setattr(_api, "export_scan", fake_export)
+    _setattr(_api, "export_scan", fake_export)
     update = _update()
 
     _run(_commands.cmd_export(update, _ctx(SOL)))

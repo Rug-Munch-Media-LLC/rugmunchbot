@@ -22,11 +22,21 @@ PACKAGE = pathlib.Path(rugmunchbot.__file__).parent
 RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # premium is a domain layer: it talks to ports, never to the bot, the
     # presentation packages, or the integration/scanner packages.
-    ("premium", ("rugmunchbot.handlers", "rugmunchbot.bot", "rugmunchbot.commands",
-                 "rugmunchbot.tools", "rugmunchbot.channels")),
+    (
+        "premium",
+        (
+            "rugmunchbot.handlers",
+            "rugmunchbot.bot",
+            "rugmunchbot.commands",
+            "rugmunchbot.tools",
+            "rugmunchbot.channels",
+        ),
+    ),
     # the command registry is data: importable before Telegram exists.
-    ("command_registry", ("telegram", "rugmunchbot.handlers", "rugmunchbot.bot",
-                          "rugmunchbot.commands")),
+    (
+        "command_registry",
+        ("telegram", "rugmunchbot.handlers", "rugmunchbot.bot", "rugmunchbot.commands"),
+    ),
 )
 
 
@@ -92,6 +102,8 @@ def test_premium_never_imports_presentation_bot_or_integration() -> None:
 
 def test_command_registry_is_data_only() -> None:
     forbidden = dict(RULES)["command_registry"]
-    broken = {**scan("command_registry.py", forbidden),
-              **scan("_command_registry_data.py", forbidden)}
+    broken = {
+        **scan("command_registry.py", forbidden),
+        **scan("_command_registry_data.py", forbidden),
+    }
     assert broken == {}

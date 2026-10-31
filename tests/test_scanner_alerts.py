@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 import rugmunchbot.channels.scanner_alerts as sa
 import rugmunchbot.channels.scheduler._core as core
@@ -58,9 +59,7 @@ class _RecorderBot:
 @pytest.fixture
 def isolate(monkeypatch):
     """Stub the channel resolver + reset the global dedupe set."""
-    monkeypatch.setattr(
-        core, "_resolve_channel_id", lambda ch: "-100alerts" if ch == "alerts" else None
-    )
+    _setattr(core, "_resolve_channel_id", lambda ch: "-100alerts" if ch == "alerts" else None)
     core._posted_keys.setdefault("__global__", {}).clear()
     return True
 
@@ -99,7 +98,7 @@ class TestFetch:
             async def __aexit__(self, *a: Any) -> bool:
                 return False
 
-        monkeypatch.setattr(sa.httpx, "AsyncClient", _Boom)
+        _setattr(sa.httpx, "AsyncClient", _Boom)
         assert await sa.fetch_rag_alerts() == []
 
 
@@ -108,7 +107,7 @@ class TestDelivery:
         async def _fetch(minutes: int | None = None) -> list[dict[str, Any]]:
             return [_alert()]
 
-        monkeypatch.setattr(sa, "fetch_rag_alerts", _fetch)
+        _setattr(sa, "fetch_rag_alerts", _fetch)
         bot = _RecorderBot()
         stats = await sa.run_scanner_alert_watch(bot)
         assert stats["posted"] == 1
@@ -127,7 +126,7 @@ class TestDelivery:
         async def _fetch(minutes: int | None = None) -> list[dict[str, Any]]:
             return list(store)
 
-        monkeypatch.setattr(sa, "fetch_rag_alerts", _fetch)
+        _setattr(sa, "fetch_rag_alerts", _fetch)
         bot = _RecorderBot()
         stats1 = await sa.run_scanner_alert_watch(bot)
         stats2 = await sa.run_scanner_alert_watch(bot)
@@ -139,7 +138,7 @@ class TestDelivery:
         async def _fetch(minutes: int | None = None) -> list[dict[str, Any]]:
             return [_alert("retry-1")]
 
-        monkeypatch.setattr(sa, "fetch_rag_alerts", _fetch)
+        _setattr(sa, "fetch_rag_alerts", _fetch)
         bot = _RecorderBot(succeed=False)
         stats = await sa.run_scanner_alert_watch(bot)
         assert stats["failed"] == 1
@@ -148,7 +147,7 @@ class TestDelivery:
         assert stats2["seen"] == 1
 
     async def test_missing_channel_skips(self, monkeypatch) -> None:
-        monkeypatch.setattr(core, "_resolve_channel_id", lambda ch: None)
+        _setattr(core, "_resolve_channel_id", lambda ch: None)
         bot = _RecorderBot()
         stats = await sa.run_scanner_alert_watch(bot)
         assert stats["posted"] == 0

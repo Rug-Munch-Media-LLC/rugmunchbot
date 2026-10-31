@@ -1,21 +1,11 @@
-"""Portfolio command — honest backend contract (audit 2026-08-21 §F).
-
-The backend answers genuine no-data with 200+``{"data": null,
-"reason": "no_data"}`` and real failures with non-200. The command must:
-
-* render the no-data contract as a GRACEFUL empty state (not an error),
-* surface non-200 / network failures LOUDLY (never "$0.00 / no holdings"),
-* parse the enriched shape (``balance_usd`` / ``top_tokens``) AND generic
-  ``{"tokens": [...]}`` / ``{"balances": [...]}`` shapes,
-* report raw provider passthroughs (Alchemy ``result.tokenBalances`` —
-  no USD prices) as unvalued holdings instead of a fabricated $0.00.
-"""
+"""Portfolio command — honest backend contract (audit 2026-08-21 §F)."""
 
 from __future__ import annotations
 
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.commands import portfolio as pf
 from rugmunchbot.tools._client import BackendApiError
@@ -109,7 +99,7 @@ async def test_fetch_backend_error_is_loud_not_silent(monkeypatch):
     async def _boom(path: str, **kw: Any) -> dict[str, Any]:
         raise BackendApiError(f"HTTP 502 from {path}", status_code=502, url=path)
 
-    monkeypatch.setattr(pf, "backend_json_get", _boom)
+    _setattr(pf, "backend_json_get", _boom)
     result = await pf._fetch_portfolio_from_backend(EVM_ADDR)
     assert result["error"] is not None
     assert "502" in result["error"]
@@ -121,7 +111,7 @@ async def test_fetch_no_data_contract_graceful(monkeypatch):
     async def _ok(path: str, **kw: Any) -> dict[str, Any]:
         return {"data": None, "reason": "no_data"}
 
-    monkeypatch.setattr(pf, "backend_json_get", _ok)
+    _setattr(pf, "backend_json_get", _ok)
     result = await pf._fetch_portfolio_from_backend(EVM_ADDR)
     assert result["no_data"] is True
     assert result["error"] is None
@@ -166,7 +156,7 @@ async def _run_cmd(monkeypatch, body_or_exc: Any) -> list[str]:
             raise body_or_exc
         return body_or_exc
 
-    monkeypatch.setattr(pf, "backend_json_get", _stub)
+    _setattr(pf, "backend_json_get", _stub)
     update = FakeUpdate([EVM_ADDR])
     await pf.cmd_portfolio(update, FakeCtx([EVM_ADDR]))
     return update.message.replies  # type: ignore[attr-defined]

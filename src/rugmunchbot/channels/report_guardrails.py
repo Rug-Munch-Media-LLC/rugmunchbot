@@ -52,12 +52,14 @@ def _extract_dates(text: str) -> list[datetime]:
     for y, m, d in _ISO_DATE_RE.findall(text):
         try:
             out.append(datetime(int(y), int(m), int(d), tzinfo=UTC))
-        except ValueError:
+        except ValueError as e:
+            logger.debug("best-effort fallback: %s", e)
             continue
     for month, day, year in _PROSE_DATE_RE.findall(text):
         try:
             out.append(datetime(int(year), _MONTHS[month.lower()], int(day), tzinfo=UTC))
-        except (ValueError, KeyError):
+        except (ValueError, KeyError) as e:
+            logger.debug("best-effort fallback: %s", e)
             continue
     return out
 
@@ -98,7 +100,8 @@ async def validate_links(text: str, *, timeout_s: float = 6.0) -> list[str]:
         return []
     try:
         import httpx
-    except Exception:  # httpx missing — cannot validate, fail open
+    except Exception as e:  # httpx missing — cannot validate, fail open
+        logger.debug("best-effort fallback: %s", e)
         return []
     dead: list[str] = []
     try:
@@ -111,7 +114,8 @@ async def validate_links(text: str, *, timeout_s: float = 6.0) -> list[str]:
                         resp = await client.get(url)
                     if resp.status_code >= 400:
                         dead.append(url)
-                except Exception:  # noqa: S112 — network error is NOT a dead link (fail-open)
+                except Exception as e:  # network error is NOT a dead link (fail-open)
+                    logger.debug("best-effort fallback: %s", e)
                     continue
     except Exception as exc:  # fail-open
         logger.debug("report_guardrails:link_validation_failed err=%s", str(exc)[:120])

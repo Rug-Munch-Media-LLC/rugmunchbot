@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.scam_alerts import _publisher as pub
 
 
 def _alert(risk: int, ident: str = "x") -> dict:
-    return {"id": ident, "text": "100x gem guaranteed returns DM me",
-            "metadata": {"risk": risk, "channel": "alphacallsofficial"}}
+    return {
+        "id": ident,
+        "text": "100x gem guaranteed returns DM me",
+        "metadata": {"risk": risk, "channel": "alphacallsofficial"},
+    }
 
 
 def test_low_and_mid_risk_go_to_the_alerts_page_only():
@@ -23,7 +27,7 @@ def test_big_scam_also_reaches_main():
 
 
 def test_main_threshold_is_configurable(monkeypatch):
-    monkeypatch.setattr(pub, "MAIN_RISK", 7)
+    _setattr(pub, "MAIN_RISK", 7)
     assert pub.destinations_for(_alert(5)) == ("alerts",)
     assert pub.destinations_for(_alert(7)) == ("alerts", "main")
 

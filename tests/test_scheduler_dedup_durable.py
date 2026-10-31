@@ -16,6 +16,7 @@ All Redis interaction is mocked; no network in tests.
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels import scheduler_state
 from rugmunchbot.channels.scheduler import _core
@@ -25,7 +26,7 @@ from rugmunchbot.channels.scheduler import _core
 def _clean_state(monkeypatch):
     """Fresh in-memory dedupe state + durable layer disabled per test."""
     _core._posted_keys.clear()
-    monkeypatch.setattr(scheduler_state, "is_available", lambda: False)
+    _setattr(scheduler_state, "is_available", lambda: False)
     yield
     _core._posted_keys.clear()
 
@@ -45,9 +46,9 @@ def test_durable_check_catches_evicted_key(monkeypatch):
     def fake_has_posted(key: str) -> bool:
         return key in durable
 
-    monkeypatch.setattr(scheduler_state, "is_available", lambda: True)
-    monkeypatch.setattr(scheduler_state, "has_posted", fake_has_posted)
-    monkeypatch.setattr(scheduler_state, "spawn_persist", lambda *a, **k: None)
+    _setattr(scheduler_state, "is_available", lambda: True)
+    _setattr(scheduler_state, "has_posted", fake_has_posted)
+    _setattr(scheduler_state, "spawn_persist", lambda *a, **k: None)
 
     # Fill the window past the cap so the old key is evicted from memory.
     for i in range(_core._MAX_POSTED + 10):
@@ -60,8 +61,8 @@ def test_durable_check_catches_evicted_key(monkeypatch):
 
 def test_eviction_keeps_recent_keys(monkeypatch):
     """Eviction keeps the most recent half of the window (recent keys stay)."""
-    monkeypatch.setattr(scheduler_state, "is_available", lambda: True)
-    monkeypatch.setattr(scheduler_state, "spawn_persist", lambda *a, **k: None)
+    _setattr(scheduler_state, "is_available", lambda: True)
+    _setattr(scheduler_state, "spawn_persist", lambda *a, **k: None)
     newest = _core._MAX_POSTED + 9
     for i in range(newest + 1):
         _core._remember("rag_news", f"rag:https://x.example/fill-{i}")

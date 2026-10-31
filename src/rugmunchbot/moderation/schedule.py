@@ -9,12 +9,16 @@ adds an entry.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from rugmunchbot.moderation import audit, auth, chatconf, config, store
 from rugmunchbot.support.logging import get_logger
+
+logger = logging.getLogger(__name__)
+
 
 logger = get_logger("rmi_bot.moderation.schedule")
 
@@ -101,7 +105,8 @@ async def cmd_schedules(update: Any, context: Any) -> None:
     for entry_id, payload in sorted(entries.items(), key=lambda kv: _when(kv[1])):
         try:
             row = json.loads(payload)
-        except ValueError:
+        except ValueError as e:
+            logger.debug("best-effort fallback: %s", e)
             continue
         lines.append(f"<code>{entry_id}</code> {row.get('t')} — {str(row.get('text'))[:60]}")
     await message.reply_text("\n".join(lines), parse_mode="HTML")
@@ -110,7 +115,8 @@ async def cmd_schedules(update: Any, context: Any) -> None:
 def _when(payload: str) -> str:
     try:
         return str(json.loads(payload).get("t", "99:99"))
-    except ValueError:
+    except ValueError as e:
+        logger.debug("best-effort fallback: %s", e)
         return "99:99"
 
 
@@ -140,7 +146,8 @@ async def tick(context: Any, now: datetime | None = None) -> int:
         for entry_id, payload in (await store.all_fields(key)).items():
             try:
                 row = json.loads(payload)
-            except ValueError:
+            except ValueError as e:
+                logger.debug("best-effort fallback: %s", e)
                 continue
             if row.get("t") != hhmm or row.get("last") == stamp:
                 continue

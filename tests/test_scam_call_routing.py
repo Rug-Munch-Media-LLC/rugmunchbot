@@ -14,6 +14,7 @@ never the news channel. Contract:
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.router import ROUTE_SCAM_CATEGORY, route_news
 from rugmunchbot.channels.telegram_news._sources._channels import (
@@ -58,11 +59,11 @@ async def test_resolve_sources_sweeps_scam_channels(monkeypatch):
 
     # _channels.py binds discover_followed_channels at module scope — patch
     # the reference the source resolver actually calls.
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.telegram_news._sources._channels.discover_followed_channels",
         _fake_discover,
     )
-    monkeypatch.setattr(tg, "TG_NEWS_AUTO_DISCOVER", True)
+    _setattr(tg, "TG_NEWS_AUTO_DISCOVER", True)
 
     sources = await resolve_channel_sources(client=object())
     by_handle = {s["username"].lower(): s for s in sources}
@@ -90,7 +91,7 @@ async def test_channel_sources_tags_explicit_scam_handles(monkeypatch):
     """The explicit fallback list tags SCAM_CALL_CHANNELS as category scam."""
     from rugmunchbot.channels import telegram_news as tg
 
-    monkeypatch.setattr(tg, "TG_NEWS_CHANNELS", ["thepumpalert", "cointelegraph", "lookonchain"])
+    _setattr(tg, "TG_NEWS_CHANNELS", ["thepumpalert", "cointelegraph", "lookonchain"])
     sources = await resolve_channel_sources()  # client None → explicit list
     by_handle = {s["username"].lower(): s for s in sources}
     assert by_handle["thepumpalert"]["category"] == "scam"
@@ -121,7 +122,7 @@ def test_route_chat_id_accepts_alerts(monkeypatch):
     """``_route_chat_id`` resolves the alerts destination like the others."""
     from rugmunchbot.channels.scheduler._core import _route_chat_id
 
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.scheduler._core._chat_id",
         lambda ch: f"-100{ch}" if ch in ("news", "main", "alpha", "alerts") else None,
     )

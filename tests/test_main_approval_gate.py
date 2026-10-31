@@ -1,22 +1,4 @@
-"""Main-channel human-in-the-loop approval gate (2026-09-04).
-
-Covers the opt-in ``RMI_MAIN_APPROVAL_GATE``:
-
-* Disabled (default) → posts directly, no approval request to @rmi_admin_bot.
-* Enabled + admin chat set → sends the draft to the admin bot for approval and
-  does NOT post to main in the same tick.
-* Approve callback → posts the draft to main.
-* Reject callback → discards (no post) and keeps the dedupe mark.
-* No response (auto-post) → posts to main (fail-open).
-* Enabled but admin chat unset → fails open and posts directly.
-
-The actual photo/quality-gate send path is stubbed (``_post_photo_aware``) so
-these tests exercise the gate ROUTING logic in isolation — the image/quality
-gate has its own dedicated tests.
-
-NOTE: the dedupe ``_remember`` persists to a live Redis in this environment,
-so every test uses a UNIQUE story ref to stay deterministic across runs.
-"""
+"""Main-channel human-in-the-loop approval gate (2026-09-04)."""
 
 from __future__ import annotations
 
@@ -25,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.scheduler import _core, _posts_rag
 from rugmunchbot.channels.scheduler._posts_rag import _approval
@@ -32,19 +15,19 @@ from rugmunchbot.channels.scheduler._posts_rag import _approval
 
 @pytest.fixture(autouse=True)
 def _fresh_dedupe(monkeypatch):
-    monkeypatch.setattr(_core, "_posted_keys", {})
+    _setattr(_core, "_posted_keys", {})
     return
 
 
 @pytest.fixture(autouse=True)
 def _fresh_pending(monkeypatch):
-    monkeypatch.setattr(_approval, "_pending", {})
+    _setattr(_approval, "_pending", {})
     return
 
 
 @pytest.fixture(autouse=True)
 def _isolate_feed_data(monkeypatch, tmp_path):
-    monkeypatch.setattr(_posts_rag, "FEED_DATA", str(tmp_path))
+    _setattr(_posts_rag, "FEED_DATA", str(tmp_path))
     return
 
 
@@ -108,11 +91,11 @@ def _patch_env(monkeypatch, *, chat_id: str, drafts: list[dict[str, Any]]):
     async def _gate(text, image_url="", source=None, kind=None, **kw):
         return GateResult(ok=True, text=text, image_url=image_url or "")
 
-    monkeypatch.setattr(_posts_rag, "fetch_rag_drafts", _fetch)
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: chat_id)
-    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _no_news)
-    monkeypatch.setattr("rugmunchbot.support.image_policy.resolve_post_image", _resolve_image)
-    monkeypatch.setattr("rugmunchbot.support.quality_gate.pre_post_quality_gate", _gate)
+    _setattr(_posts_rag, "fetch_rag_drafts", _fetch)
+    _setattr(_posts_rag, "_chat_id", lambda ch: chat_id)
+    _setattr("rugmunchbot.channels.content.fetch_trending_news", _no_news)
+    _setattr("rugmunchbot.support.image_policy.resolve_post_image", _resolve_image)
+    _setattr("rugmunchbot.support.quality_gate.pre_post_quality_gate", _gate)
 
 
 def _stub_post(monkeypatch) -> list[tuple[str, str]]:
@@ -123,7 +106,7 @@ def _stub_post(monkeypatch) -> list[tuple[str, str]]:
         calls.append((chat_id, str(post)))
         return True
 
-    monkeypatch.setattr(_posts_rag, "_post_photo_aware", _post)
+    _setattr(_posts_rag, "_post_photo_aware", _post)
     return calls
 
 
@@ -131,7 +114,7 @@ def _stub_post(monkeypatch) -> list[tuple[str, str]]:
 async def test_gate_disabled_posts_directly(monkeypatch):
     """Default (gate off) → current behavior: post straight to main, no
     approval request to the admin bot."""
-    monkeypatch.setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", False)
+    _setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", False)
     bot = _Bot()
     posts = _stub_post(monkeypatch)
     _patch_env(monkeypatch, chat_id="-100main", drafts=[_draft()])
@@ -149,8 +132,8 @@ async def test_gate_disabled_posts_directly(monkeypatch):
 async def test_gate_enabled_sends_approval_not_post(monkeypatch):
     """Gate on + admin chat set → the draft goes to @rmi_admin_bot for
     approval and is NOT posted to main in the same tick."""
-    monkeypatch.setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", True)
-    monkeypatch.setattr(_posts_rag, "RMI_ADMIN_CHAT_ID", "-100admin")
+    _setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", True)
+    _setattr(_posts_rag, "RMI_ADMIN_CHAT_ID", "-100admin")
     bot = _Bot()
     posts = _stub_post(monkeypatch)
     _patch_env(monkeypatch, chat_id="-100main", drafts=[_draft()])
@@ -171,8 +154,8 @@ async def test_gate_enabled_sends_approval_not_post(monkeypatch):
 @pytest.mark.asyncio
 async def test_approve_callback_posts_to_main(monkeypatch):
     """Approve → the draft is posted to the main channel."""
-    monkeypatch.setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", True)
-    monkeypatch.setattr(_posts_rag, "RMI_ADMIN_CHAT_ID", "-100admin")
+    _setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", True)
+    _setattr(_posts_rag, "RMI_ADMIN_CHAT_ID", "-100admin")
     bot = _Bot()
     posts = _stub_post(monkeypatch)
     _patch_env(monkeypatch, chat_id="-100main", drafts=[_draft()])
@@ -191,8 +174,8 @@ async def test_approve_callback_posts_to_main(monkeypatch):
 @pytest.mark.asyncio
 async def test_reject_callback_discards(monkeypatch):
     """Reject → no post to main, dedupe mark kept (discarded, not retried)."""
-    monkeypatch.setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", True)
-    monkeypatch.setattr(_posts_rag, "RMI_ADMIN_CHAT_ID", "-100admin")
+    _setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", True)
+    _setattr(_posts_rag, "RMI_ADMIN_CHAT_ID", "-100admin")
     bot = _Bot()
     posts = _stub_post(monkeypatch)
     _patch_env(monkeypatch, chat_id="-100main", drafts=[_draft()])
@@ -212,8 +195,8 @@ async def test_reject_callback_discards(monkeypatch):
 @pytest.mark.asyncio
 async def test_auto_post_fires_after_timeout(monkeypatch):
     """No response → the auto-post callback posts to main (fail-open)."""
-    monkeypatch.setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", True)
-    monkeypatch.setattr(_posts_rag, "RMI_ADMIN_CHAT_ID", "-100admin")
+    _setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", True)
+    _setattr(_posts_rag, "RMI_ADMIN_CHAT_ID", "-100admin")
     bot = _Bot()
     posts = _stub_post(monkeypatch)
     _patch_env(monkeypatch, chat_id="-100main", drafts=[_draft()])
@@ -235,8 +218,8 @@ async def test_auto_post_fires_after_timeout(monkeypatch):
 async def test_gate_enabled_no_admin_chat_fails_open(monkeypatch):
     """Gate on but admin chat unset → fail open and post directly (never
     drop content)."""
-    monkeypatch.setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", True)
-    monkeypatch.setattr(_posts_rag, "RMI_ADMIN_CHAT_ID", "")
+    _setattr(_posts_rag, "RMI_MAIN_APPROVAL_GATE", True)
+    _setattr(_posts_rag, "RMI_ADMIN_CHAT_ID", "")
     bot = _Bot()
     posts = _stub_post(monkeypatch)
     _patch_env(monkeypatch, chat_id="-100main", drafts=[_draft()])

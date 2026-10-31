@@ -39,6 +39,21 @@ for _var in (
 
 
 @pytest.fixture(autouse=True)
+def _restore_di_seams():
+    """Restore every ``_di._setattr`` seam after each test (tests/_di.py contract).
+
+    ``_setattr`` registers the touched attribute on a module-level patch list;
+    without this teardown the seam leaks into every later test in the run
+    (89-test failure class, 2026-10-31 gate-repair lane).
+    """
+    from _di import restore_patches
+
+    restore_patches()
+    yield
+    restore_patches()
+
+
+@pytest.fixture(autouse=True)
 def _disable_durable_dedupe(monkeypatch):
     """Disable the durable Redis dedupe layer for EVERY test.
 

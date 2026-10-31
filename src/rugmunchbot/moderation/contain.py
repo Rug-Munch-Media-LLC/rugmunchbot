@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from rugmunchbot.moderation import audit, challenge, messages
@@ -88,18 +89,24 @@ def write(entry: dict[str, Any]) -> bool:
     return True
 
 
-async def escalate(
-    bot: Any,
-    chat_id: int,
-    user_id: int,
-    rule: str,
-    reason: str,
-    *,
-    action_id: str = "",
-    target: int = 0,
-    dry_run: bool = False,
-) -> bool:
+@dataclass
+class Escalation:
+    user_id: int
+    rule: str
+    reason: str
+    action_id: str = ""
+    target: int = 0
+    dry_run: bool = False
+
+
+async def escalate(bot: Any, chat_id: int, esc: Escalation) -> bool:
     """A containment action that failed is a security event: audit + tell a human."""
+    user_id = esc.user_id
+    rule = esc.rule
+    reason = esc.reason
+    action_id = esc.action_id
+    target = esc.target
+    dry_run = esc.dry_run
     record(chat_id, user_id, rule, "escalate", reason, dry_run, extra={"action_id": action_id})
     try:
         await bot.send_message(

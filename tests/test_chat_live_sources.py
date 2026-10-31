@@ -1,13 +1,8 @@
-"""Live-source citations, no-source refusal, and long-history compression.
-
-Covers the three guarantees the chat pipeline must keep:
-  1. every live number is attributed to the provider that fetched it,
-  2. a live-data question with no live source is REFUSED deterministically,
-  3. a long conversation is compressed (not blindly truncated) with its
-     addresses/tickers preserved.
-"""
+"""Live-source citations, no-source refusal, and long-history compression."""
 
 from __future__ import annotations
+
+from _di import _setattr
 
 from rugmunchbot.handlers.chat_ai._llm import _history
 from rugmunchbot.handlers.chat_ai._llm._citations import tool_citations
@@ -133,7 +128,7 @@ async def test_history_compression_uses_lane_and_reattaches_facts(monkeypatch):
     monkeypatch.delenv("CC_COMPRESS_PACKS_URL", raising=False)
     # Lane output that lost the address on purpose — the local check must win.
     stub = _StubClient({"compressed_prompt": "user asked about $WIF", "identifier_guard": "passed"})
-    monkeypatch.setattr(_history.httpx, "AsyncClient", lambda **_: stub)
+    _setattr(_history.httpx, "AsyncClient", lambda **_: stub)
 
     block = await compress_history(_long_history())
 
@@ -146,7 +141,7 @@ async def test_history_compression_uses_lane_and_reattaches_facts(monkeypatch):
 async def test_history_compression_fails_open(monkeypatch):
     monkeypatch.setenv("CC_COMPRESS_CHAT_HISTORY", "1")
     stub = _StubClient(exc=RuntimeError("8077 down"))
-    monkeypatch.setattr(_history.httpx, "AsyncClient", lambda **_: stub)
+    _setattr(_history.httpx, "AsyncClient", lambda **_: stub)
 
     block = await compress_history(_long_history())
 
@@ -159,7 +154,7 @@ async def test_history_compression_fails_open(monkeypatch):
 async def test_history_compression_is_disabled_by_env(monkeypatch):
     monkeypatch.setenv("CC_COMPRESS_CHAT_HISTORY", "0")
     stub = _StubClient(exc=AssertionError("lane must not be called"))
-    monkeypatch.setattr(_history.httpx, "AsyncClient", lambda **_: stub)
+    _setattr(_history.httpx, "AsyncClient", lambda **_: stub)
 
     block = await compress_history(_long_history())
 
@@ -194,7 +189,7 @@ async def test_fallback_refuses_and_skips_llm_when_no_live_source(monkeypatch):
         called.append("llm")
         return {"message": "invented", "provider": "x"}
 
-    monkeypatch.setattr(_fallback.chat_ai, "_call_remote_llm", _no_llm)
+    _setattr(_fallback.chat_ai, "_call_remote_llm", _no_llm)
     live = {"price_lookup": _res("price_lookup", False, "dexscreener:/defi/price")}
 
     result, sources, _actions, _rag, _market = await _fallback._build_fallback_answer(
@@ -223,7 +218,7 @@ async def test_fallback_merges_tool_citation_into_sources(monkeypatch):
         captured["sources"] = sources or []
         return {"message": "ok", "provider": "snappy", "rag_count": len(sources or [])}
 
-    monkeypatch.setattr(_fallback.chat_ai, "_call_remote_llm", _llm)
+    _setattr(_fallback.chat_ai, "_call_remote_llm", _llm)
     live = {
         "price_lookup": _res(
             "price_lookup", True, "dexscreener:/defi/price", {"pairs": [{"symbol": "BONK"}]}

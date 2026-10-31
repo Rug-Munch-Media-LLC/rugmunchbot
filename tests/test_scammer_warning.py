@@ -1,24 +1,11 @@
-"""Scammer-warning posts + solana_syndicate group seeding.
-
-Covers the 2026-08-29 ZachXBT Solana-syndicate deliverable:
-
-* seed integrity: the ``solana_syndicate`` group exists in SCAMMER_GROUPS,
-  the 10 verified handles map to it, and Ansem (``blknoiz06``) is excluded
-* warning formatter: HTML card cites ZachXBT, names the shilled token, and
-  carries the "reason not to buy anything they post" doctrine
-* collection: recorded calls whose identity resolves into a warning group
-  are surfaced (window-gated)
-* high-signal routing: shill/rug calls escalate to main, plain buys stay on
-  alerts
-* runner: posts to alerts (+ main/feed for high signal), deduped per
-  handle+token per day
-"""
+"""Scammer-warning posts + solana_syndicate group seeding."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.scammer_warning import (
     collect_group_shill_calls,
@@ -31,7 +18,7 @@ from rugmunchbot.channels.scammer_warning import (
 def tmp_db(monkeypatch, tmp_path):
     from rugmunchbot import db as db_pkg
 
-    monkeypatch.setattr(db_pkg, "DB_PATH", str(tmp_path / "test_bot.db"))
+    _setattr(db_pkg, "DB_PATH", str(tmp_path / "test_bot.db"))
     from rugmunchbot.db._base import init_db
 
     init_db()
@@ -257,9 +244,9 @@ async def test_post_scammer_warning_routes(tmp_db, monkeypatch):
         return True
 
     # Patch the source modules the function imports lazily at call time.
-    monkeypatch.setattr("rugmunchbot.channels.scheduler._core._safe_send", _fake_safe_send)
-    monkeypatch.setattr("rugmunchbot.config._resolve_channel_id", lambda role: f"chat-{role}")
-    monkeypatch.setattr(
+    _setattr("rugmunchbot.channels.scheduler._core._safe_send", _fake_safe_send)
+    _setattr("rugmunchbot.config._resolve_channel_id", lambda role: f"chat-{role}")
+    _setattr(
         "rugmunchbot.channels.scheduler._posts_rag.mirror_post_to_feed",
         lambda item: "post-123",
     )
@@ -295,9 +282,9 @@ async def test_plain_buy_stays_on_alerts(tmp_db, monkeypatch):
         sent.append(chat_id)
         return True
 
-    monkeypatch.setattr("rugmunchbot.channels.scheduler._core._safe_send", fake_safe_send)
-    monkeypatch.setattr("rugmunchbot.config._resolve_channel_id", lambda role: f"chat-{role}")
-    monkeypatch.setattr(
+    _setattr("rugmunchbot.channels.scheduler._core._safe_send", fake_safe_send)
+    _setattr("rugmunchbot.config._resolve_channel_id", lambda role: f"chat-{role}")
+    _setattr(
         "rugmunchbot.channels.scheduler._posts_rag.mirror_post_to_feed",
         lambda item: "post-123",
     )

@@ -1,9 +1,4 @@
-"""/rugmap — cluster summary caption, PNG metadata strip, handler wiring.
-
-Every backend call is a fake client and every render is either the real
-(single) map engine with a synthetic graph or a stub PNG, so the tests cover
-the contract without network, Telegram or a live RugMaps index.
-"""
+"""/rugmap — cluster summary caption, PNG metadata strip, handler wiring."""
 
 from __future__ import annotations
 
@@ -11,6 +6,7 @@ import io
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.commands import rugmap as rugmap_mod
 from rugmunchbot.commands._rugmap_caption import CAPTION_LIMIT, build_caption
@@ -273,8 +269,8 @@ def _ctx(args: list[str]) -> MagicMock:
 @pytest.mark.asyncio
 async def test_handler_posts_annotated_photo_with_summary(monkeypatch) -> None:
     client = _Client()
-    monkeypatch.setattr(rugmap_mod, "get_shared_client", lambda _t: client)
-    monkeypatch.setattr(rugmap_mod, "_render", AsyncMock(return_value=_map_png()))
+    _setattr(rugmap_mod, "get_shared_client", lambda _t: client)
+    _setattr(rugmap_mod, "_render", AsyncMock(return_value=_map_png()))
     up = _update()
 
     await rugmap_mod.cmd_rugmap(up, _ctx(["So11111111111111111111111111111111111111112"]))
@@ -292,8 +288,8 @@ async def test_handler_posts_annotated_photo_with_summary(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_handler_falls_back_to_text_without_graph(monkeypatch) -> None:
     client = _Client()
-    monkeypatch.setattr(rugmap_mod, "get_shared_client", lambda _t: client)
-    monkeypatch.setattr(rugmap_mod, "_fetch_token_graph", AsyncMock(return_value=None))
+    _setattr(rugmap_mod, "get_shared_client", lambda _t: client)
+    _setattr(rugmap_mod, "_fetch_token_graph", AsyncMock(return_value=None))
     up = _update()
 
     await rugmap_mod.cmd_rugmap(up, _ctx(["So11111111111111111111111111111111111111112"]))
@@ -308,7 +304,7 @@ async def test_handler_falls_back_to_text_without_graph(monkeypatch) -> None:
 @pytest.mark.parametrize("args", [[], ["not-an-address"]])
 async def test_handler_rejects_bad_input_before_any_fetch(monkeypatch, args: list[str]) -> None:
     client = _Client()
-    monkeypatch.setattr(rugmap_mod, "get_shared_client", lambda _t: client)
+    _setattr(rugmap_mod, "get_shared_client", lambda _t: client)
     up = _update()
 
     await rugmap_mod.cmd_rugmap(up, _ctx(args))

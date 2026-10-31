@@ -7,6 +7,7 @@ whose LLM dependency is stubbed at ``rugmunchbot.llm_config``.
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.formatters._scan_report_deepscan._analyst import (
     _as_dict,
@@ -143,7 +144,7 @@ async def test_render_analyst_read_empty_intel_never_calls_llm(
     def boom(*args: object, **kwargs: object) -> None:
         raise AssertionError("LLM must not be called for empty intel")
 
-    monkeypatch.setattr("rugmunchbot.llm_config.chat_with_fallback", boom)
+    _setattr("rugmunchbot.llm_config.chat_with_fallback", boom)
     assert await render_analyst_read_block({}) == ""
 
 
@@ -155,7 +156,7 @@ async def test_render_analyst_read_escapes_llm_output(
         assert tier == "snappy"
         return "Coordinated launch. <b>Be careful</b>."
 
-    monkeypatch.setattr("rugmunchbot.llm_config.chat_with_fallback", fake_chat)
+    _setattr("rugmunchbot.llm_config.chat_with_fallback", fake_chat)
     out = await render_analyst_read_block(_full_scan())
     assert out.startswith("\U0001f9e0 <b>Analyst Read</b>\n")
     assert "&lt;b&gt;Be careful&lt;/b&gt;" in out  # HTML-safe escape applied
@@ -168,11 +169,11 @@ async def test_render_analyst_read_failures_return_empty(
     async def explode(messages: object, tier: str) -> str:
         raise RuntimeError("rate limited")
 
-    monkeypatch.setattr("rugmunchbot.llm_config.chat_with_fallback", explode)
+    _setattr("rugmunchbot.llm_config.chat_with_fallback", explode)
     assert await render_analyst_read_block(_full_scan()) == ""
 
     async def blank(messages: object, tier: str) -> str:
         return "   "
 
-    monkeypatch.setattr("rugmunchbot.llm_config.chat_with_fallback", blank)
+    _setattr("rugmunchbot.llm_config.chat_with_fallback", blank)
     assert await render_analyst_read_block(_full_scan()) == ""

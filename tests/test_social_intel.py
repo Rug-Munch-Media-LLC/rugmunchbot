@@ -2,6 +2,8 @@
 
 import asyncio
 
+from _di import _setattr
+
 from rugmunchbot.tools.social_intel import social_intel
 
 
@@ -24,9 +26,9 @@ def test_no_signals_degrades_honestly(monkeypatch):
     async def empty_x(sym):
         return {}
 
-    monkeypatch.setattr(m, "_feed_sentiment", empty_feed)
-    monkeypatch.setattr(m, "_buzz", empty_buzz)
-    monkeypatch.setattr(m, "_x_intel", empty_x)
+    _setattr(m, "_feed_sentiment", empty_feed)
+    _setattr(m, "_buzz", empty_buzz)
+    _setattr(m, "_x_intel", empty_x)
     r = asyncio.run(m.social_intel(symbol="XYZ"))
     assert not r.ok
     assert "no social signals" in (r.data or {}).get("error", "")
@@ -41,8 +43,8 @@ def test_composite_narrative(monkeypatch):
     async def buzz(sym):
         return {"mentions_24h": 40, "unique_domains": 12}
 
-    monkeypatch.setattr(m, "_feed_sentiment", feed)
-    monkeypatch.setattr(m, "_buzz", buzz)
+    _setattr(m, "_feed_sentiment", feed)
+    _setattr(m, "_buzz", buzz)
     r = asyncio.run(m.social_intel(symbol="BTC"))
     assert r.ok
     d = r.data

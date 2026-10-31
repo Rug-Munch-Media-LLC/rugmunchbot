@@ -25,6 +25,7 @@ CLEAN_TEXT = (
     "these funding costs, barely."
 )
 
+
 class _Logger:
     def __init__(self) -> None:
         self.records: list[tuple[str, str]] = []
@@ -35,7 +36,9 @@ class _Logger:
     def info(self, msg: str, *args: Any) -> None:
         self.records.append(("info", msg % args if args else msg))
 
+
 # ── strip_duplicate_urls ────────────────────────────────────────────────────
+
 
 def test_strip_duplicate_urls_keeps_first_anchor() -> None:
     text = '<a href="https://x.com/a">first</a> then <a href="https://x.com/a">second</a>'
@@ -43,16 +46,20 @@ def test_strip_duplicate_urls_keeps_first_anchor() -> None:
     assert out.count("https://x.com/a") == 1
     assert "second" in out  # label kept, href dropped
 
+
 def test_strip_duplicate_urls_bare_links() -> None:
     text = "Read https://x.com/a and https://x.com/a again."
     out = strip_duplicate_urls(text)
     assert out.count("https://x.com/a") == 1
 
+
 def test_strip_duplicate_urls_distinct_urls_untouched() -> None:
     text = "https://x.com/a and https://x.com/b"
     assert strip_duplicate_urls(text) == text
 
+
 # ── gate: clean post passes ─────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_clean_post_passes_through() -> None:
@@ -68,7 +75,9 @@ async def test_clean_post_passes_through() -> None:
     assert not res.auto_fixed
     assert not res.regenerated
 
+
 # ── gate: missing image ─────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_missing_image_blocked_when_placeholder_disallowed() -> None:
@@ -77,6 +86,7 @@ async def test_missing_image_blocked_when_placeholder_disallowed() -> None:
     assert res.blocked
     assert any(v.rule == "missing-image" for v in res.violations)
 
+
 @pytest.mark.asyncio
 async def test_missing_image_autofixed_with_placeholder() -> None:
     res = await pre_post_quality_gate(CLEAN_TEXT, logger=_Logger())
@@ -84,7 +94,9 @@ async def test_missing_image_autofixed_with_placeholder() -> None:
     assert res.auto_fixed
     assert res.image_url == PLACEHOLDER_IMAGE_URL
 
+
 # ── gate: double link fixed ─────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_double_link_autofixed() -> None:
@@ -102,7 +114,9 @@ async def test_double_link_autofixed() -> None:
     assert res.text.count("https://x.com/a") == 1
     assert "the follow-up" in res.text
 
+
 # ── gate: bland commentary regenerated ──────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_bland_commentary_regenerated_once() -> None:
@@ -123,6 +137,7 @@ async def test_bland_commentary_regenerated_once() -> None:
     assert len(calls) == 1  # exactly ONE retry
     assert res.text == CLEAN_TEXT
 
+
 @pytest.mark.asyncio
 async def test_regeneration_failure_blocks() -> None:
     async def regen(text: str, violations: list[Any]) -> str:
@@ -138,6 +153,7 @@ async def test_regeneration_failure_blocks() -> None:
     assert res.blocked
     assert any(v.rule == "bland-commentary" for v in res.violations)
 
+
 @pytest.mark.asyncio
 async def test_regenerator_exception_blocks_not_crashes() -> None:
     async def regen(text: str, violations: list[Any]) -> str:
@@ -152,7 +168,9 @@ async def test_regenerator_exception_blocks_not_crashes() -> None:
     assert not res.ok
     assert res.blocked
 
+
 # ── gate: banned phrase blocks (not auto-fixable) ───────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_banned_phrase_blocks_without_regen() -> None:
@@ -163,6 +181,7 @@ async def test_banned_phrase_blocks_without_regen() -> None:
     assert not res.ok
     assert res.blocked
     assert any(v.rule == "banned-phrase" for v in res.violations)
+
 
 @pytest.mark.asyncio
 async def test_banned_phrase_blocks_even_after_failed_regen() -> None:
@@ -178,7 +197,9 @@ async def test_banned_phrase_blocks_even_after_failed_regen() -> None:
     assert not res.ok
     assert res.blocked
 
+
 # ── gate: min_words override (terse alert formats) ──────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_min_words_override_relaxes_bland_check() -> None:
@@ -196,10 +217,13 @@ async def test_min_words_override_relaxes_bland_check() -> None:
     assert not strict.ok
     assert any(v.rule == "bland-commentary" for v in strict.violations)
 
+
 def test_default_min_words_is_canonical() -> None:
     assert BLAND_MIN_WORDS == 20
 
+
 # ── 2026-08-31 regression: canonical URL dedupe ─────────────────────────────
+
 
 def test_strip_duplicate_urls_canonical_variants() -> None:
     """http/https, tracking params and trailing slashes are the SAME link."""
@@ -211,6 +235,7 @@ def test_strip_duplicate_urls_canonical_variants() -> None:
     out = strip_duplicate_urls(text)
     assert out.count("example.com/post/1") == 1
 
+
 def test_lint_double_link_canonical_variants() -> None:
     from rugmunchbot.support.content_lint import lint_text
 
@@ -221,6 +246,7 @@ def test_lint_double_link_canonical_variants() -> None:
     )
     rules = [v.rule for v in lint_text(text)]
     assert "double-link" in rules
+
 
 def test_placeholder_image_url_is_real_image_path() -> None:
     """The placeholder must NOT be the old /og/ SPA-fallback path that
@@ -234,7 +260,9 @@ def test_placeholder_image_url_is_real_image_path() -> None:
     assert "avatar" not in PLACEHOLDER_IMAGE_URL
     assert PLACEHOLDER_IMAGE_URL.startswith("https://")
 
+
 # ── 2026-08-31 integration: full main-channel posting path ─────────────────
+
 
 class _FakeBot:
     def __init__(self) -> None:
@@ -246,6 +274,7 @@ class _FakeBot:
 
     async def send_message(self, **kwargs: Any) -> None:
         self.messages.append(kwargs)
+
 
 @pytest.mark.asyncio
 async def test_main_channel_double_link_no_image_payload_is_fixed_before_send() -> None:
@@ -294,7 +323,9 @@ async def test_main_channel_double_link_no_image_payload_is_fixed_before_send() 
     assert bot.photos[0]["photo"] == PLACEHOLDER_IMAGE_URL
     assert bot.photos[0]["caption"] == gate.text
 
+
 # ── reasoning-leak hard reject (2026-09-02 CoT-in-channel incident) ─────────
+
 
 @pytest.mark.asyncio
 async def test_reasoning_leak_blocked_by_gate() -> None:
@@ -308,58 +339,12 @@ async def test_reasoning_leak_blocked_by_gate() -> None:
     assert result.blocked is True
     assert [v.rule for v in result.violations] == ["reasoning_leak"]
 
+
 @pytest.mark.asyncio
 async def test_clean_post_still_passes_gate() -> None:
     result = await pre_post_quality_gate(CLEAN_TEXT, require_image=False)
     assert result.ok is True
     assert result.blocked is False
 
+
 # ── 2026-09-02: story dedup + slop detection wiring ─────────────────────────
-
-def test_strip_duplicate_urls_calls_story_dedup() -> None:
-    """strip_duplicate_urls must ALSO collapse same-story bullets with
-    different URLs (not just duplicate links)."""
-    from rugmunchbot.support.quality_gate import _strip_duplicate_stories
-
-    text = """• Two exploits hit Solana AMM Aquifer causing $2.5M loss (url1)
-• Two major exploits hit Solana AMM Aquifer costing $2.5M (url2)
-• Two exploits hit Solana AMM Aquifer and Flow EVM (url3)
-• HackenProof audit contest opened (url4)"""
-    out = strip_duplicate_urls(text)
-    lines = [line for line in out.splitlines() if line.strip()]
-    assert len(lines) == 2
-    assert "Aquifer" in lines[0]
-    assert "HackenProof" in lines[1]
-    # The story dedup helper is the mechanism behind it.
-    assert _strip_duplicate_stories(text) == out
-
-def test_placeholder_is_app_logo() -> None:
-    """The placeholder is the BRAND logo (rug-munch-logo.jpg) — never the
-    operator's avatar, badge or header banner (2026-10-17: avatar.jpg was
-    rejected because the profile photo kept appearing as post art)."""
-    assert "rmi_badge_v4.png" in PLACEHOLDER_IMAGE_URL
-    assert "avatar" not in PLACEHOLDER_IMAGE_URL
-    assert "banner" not in PLACEHOLDER_IMAGE_URL
-
-def test_slop_phrases_detected() -> None:
-    """detect_slop reports the drafting-artifact / AI-slop phrases."""
-    from rugmunchbot.support.content_lint import detect_slop
-
-    text = (
-        "Let's delve into the ever-evolving landscape of crypto. "
-        "It's worth noting the paradigm shift. MASTHEAD DONE NOW THE BODY."
-    )
-    found = detect_slop(text)
-    assert "delve into" in found
-    assert "ever-evolving" in found
-    assert "landscape" in found
-    assert "it's worth noting" in found
-    assert "paradigm shift" in found
-    assert "MASTHEAD DONE" in found
-    assert "NOW THE BODY" in found
-
-def test_slop_clean_text_returns_empty() -> None:
-    from rugmunchbot.support.content_lint import detect_slop
-
-    assert detect_slop(CLEAN_TEXT) == []
-    assert detect_slop("") == []

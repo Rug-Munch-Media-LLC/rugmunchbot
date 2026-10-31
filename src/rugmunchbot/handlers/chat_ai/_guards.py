@@ -14,10 +14,8 @@ package module at call time instead of a module-level binding.
 
 from __future__ import annotations
 
-import bisect
-import math
-import re
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -31,6 +29,7 @@ from rugmunchbot.admin_state import track_ai_query, track_tokens
 from rugmunchbot.db._base import run_db
 from rugmunchbot.formatters import paywall_text
 from rugmunchbot.handlers.chat_ai._classify import _is_meaningful_question
+from rugmunchbot.handlers.chat_ai._fabrication_guard import apply_fabrication_guardrail
 from rugmunchbot.handlers.chat_ai._helpers import (
     _CHAT_DISABLED,
     _DEGENERATE_MESSAGE,
@@ -45,8 +44,6 @@ from rugmunchbot.handlers.chat_ai._quality import is_degenerate_answer, strip_th
 from rugmunchbot.handlers.chat_ai._trace import trace_answer
 from rugmunchbot.keyboards import back_kb, main_menu_kb, paywall_kb
 from rugmunchbot.support.logging import get_logger
-from rugmunchbot.tools import known_addresses, known_symbols
-from rugmunchbot.tools.guardrails import NO_LIVE_DATA_MESSAGE, fabrication_note, sanitize_answer
 
 if TYPE_CHECKING:
     import asyncio
@@ -56,145 +53,6 @@ if TYPE_CHECKING:
     from rugmunchbot.tools.registry import ToolResult
 
 logger = get_logger("rmi_bot.chat_ai")
-
-
-# ══════════════════════════════════════════════
-# NUMERIC-VERIFICATION (zero-fabrication, numbers layer)
-# ══════════════════════════════════════════════
-# The symbol/address guardrail (tools/guardrails.py::sanitize_answer) has no
-# way to catch a hallucinated NUMBER — "$420.69" or "+999%" carry no ticker
-# to strip. These helpers add the numbers layer: every ``$amount`` / ``±%``
-# claim in the answer is cross-checked (cheap regex + tolerant membership)
-# against the real numbers the live tools returned (market_overview /
-# price_lookup / scanner / rag_lookup payloads). A claim matching no fetched
-# datum is flagged inline — visibly, never silently stripped.
-
-# USD amounts: "$420.69", "$12,345", "$2.5M", "$50 million". A "$" followed
-# by a DIGIT — a "$" followed by LETTERS is a ticker (TOKEN_RE in
-# tools/guardrails.py) and is deliberately NOT matched here.
-_USD_CLAIM_RE = re.compile(
-    r"\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s*(K|M|B|million|billion|trillion))?\b",
-    re.IGNORECASE,
-)
-# Signed percentage moves: "+2.3%", "-12.5%". Unsigned percentages in prose
-# ("42% of supply") are not market claims of the +X%/-X% shape this pass
-# targets, so they are deliberately left alone.
-_PERCENT_CLAIM_RE = re.compile(r"([+-]\d+(?:\.\d+)?)\s*%")
-# Human-readable unit suffixes on $amount claims.
-_CLAIM_SUFFIX_MULT = {"k": 1e3, "m": 1e6, "b": 1e9, "million": 1e6, "billion": 1e9, "trillion": 1e12}
-# Tolerance rules: a claim is verified when some fetched datum lies within
-# REL_TOL relative (2%) — or ABS_FLOOR absolute (sub-cent prices) — of it.
-REL_TOL = 0.02
-ABS_FLOOR = 1e-9
-
-
-def _claim_value(raw: str, suffix: str | None) -> float | None:
-    """Parse a captured claim's number (+ optional K/M/B/million suffix)."""
-    try:
-        value = float(raw.replace(",", ""))
-    except ValueError:
-        return None
-    if suffix:
-        value *= _CLAIM_SUFFIX_MULT.get(suffix.lower(), 1.0)
-    return value
-
-
-def _walk_numeric(node: Any, out: list[float]) -> None:
-    """Collect every finite numeric leaf of a tool payload (dict/list/str)."""
-    if isinstance(node, bool):
-        return
-    if isinstance(node, (int, float)):
-        if math.isfinite(node):
-            out.append(float(node))
-        return
-    if isinstance(node, str):
-        # Numeric strings ("0.00001234") are real data (DexScreener etc.).
-        try:
-            value = float(node.replace(",", ""))
-        except ValueError:
-            return
-        if math.isfinite(value):
-            out.append(value)
-        return
-    if isinstance(node, dict):
-        for child in node.values():
-            _walk_numeric(child, out)
-    elif isinstance(node, (list, tuple)):
-        for child in node:
-            _walk_numeric(child, out)
-
-
-def _collect_numeric_facts(live_results: dict[str, ToolResult]) -> list[float]:
-    """Every real number the tools returned — the datum set to verify against.
-
-    Skips failed tools and web_search knowledge fallbacks (synthesized text,
-    not corroborating live data — mirrors the ``tools_ok`` gate in
-    ``_post_guardrail``).
-    """
-    out: list[float] = []
-    for result in live_results.values():
-        if not result.ok or (result.tool == "web_search" and str(result.source).startswith("knowledge")):
-            continue
-        if result.data is not None:
-            _walk_numeric(result.data, out)
-    return out
-
-
-def _within_tolerance(claim: float, known: list[float]) -> bool:
-    """Tolerant set-membership: is ``claim`` within tolerance of a datum?
-
-    ``known`` must be a sorted, deduplicated list of fetched numbers.
-    Bisection checks only the two nearest neighbors — O(log n) per claim,
-    no API calls, fully deterministic.
-    """
-    index = bisect.bisect_left(known, claim)
-    for datum in (known[index - 1] if index > 0 else None, known[index] if index < len(known) else None):
-        if datum is not None and abs(claim - datum) <= max(REL_TOL * abs(datum), ABS_FLOOR):
-            return True
-    return False
-
-
-def _verify_numeric_claims(answer: str, known_nums: list[float]) -> tuple[str, list[str]]:
-    """Flag inline every $amount / ±% claim that matches no fetched datum.
-
-    Verified claims (a fetched number within tolerance) are left untouched;
-    unmatched claims get ``" ⚠ unverified"`` appended after the number.
-    Returns ``(flagged_answer, flagged_claims)``. With an empty datum set the
-    answer is returned unchanged — no data means nothing to verify against
-    (the NO_LIVE_DATA path handles that).
-    """
-    known = sorted({k for k in known_nums if math.isfinite(k)})
-    if not known:
-        return answer, []
-    flagged: list[str] = []
-
-    def _flag(match: re.Match[str], value: float | None) -> str:
-        if value is None:
-            return match.group(0)
-        # Idempotency guard: never double-flag an already-flagged claim.
-        if answer[match.end() :].lstrip().startswith("⚠ unverified"):
-            return match.group(0)
-        if _within_tolerance(value, known):
-            return match.group(0)
-        flagged.append(match.group(0))
-        return f"{match.group(0)} ⚠ unverified"
-
-    answer = _USD_CLAIM_RE.sub(lambda m: _flag(m, _claim_value(m.group(1), m.group(2))), answer)
-    answer = _PERCENT_CLAIM_RE.sub(lambda m: _flag(m, _claim_value(m.group(1), None)), answer)
-
-    # Readability doctrine: >3 inline flags means the datum set is partial and
-    # the prose drowns in warnings. Collapse to one honest footnote instead.
-    inline = answer.count(" ⚠ unverified")
-    if inline > 3:
-        answer = answer.replace(" ⚠ unverified", "")
-        flagged = list(dict.fromkeys(flagged))
-        footer = (
-            "\n\n⚠ Some figures above could not be verified against live "
-            f"sources ({len(flagged)} unchecked). Treat them as indicative."
-        )
-        if "⚠" not in answer:
-            answer += footer
-    return answer, flagged
 
 
 _LLMGUARD_URL = "http://127.0.0.1:8016"
@@ -247,7 +105,9 @@ async def _ml_guard_output_scrub(text: str) -> str:
 
 async def _injection_warning(update: Update, category: str) -> None:
     """Reply to a prompt-injection attempt with a targeted warning."""
-    text = _INJECTION_MESSAGES.get(category, "I couldn't process that message. Ask me a normal question instead.")
+    text = _INJECTION_MESSAGES.get(
+        category, "I couldn't process that message. Ask me a normal question instead."
+    )
     kb = InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("\U0001f50d /scan — Audit a token", callback_data="run_scan")],
@@ -269,7 +129,11 @@ async def _scam_address_warning(update: Update, address: str) -> None:
     """Reply when the user shares a known scam address."""
     kb = InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("\U0001f50d /report — Report a scam", callback_data="run_report")],
+            [
+                InlineKeyboardButton(
+                    "\U0001f50d /report — Report a scam", callback_data="run_report"
+                )
+            ],
             [InlineKeyboardButton("\U0001f3d9\ufe0f Menu", callback_data="menu_main")],
         ]
     )
@@ -386,7 +250,9 @@ async def _run_entry_guards(
         logger.warning("owner-mode check failed (treating as non-owner): %s", str(exc)[:120])
 
     if await run_db(db.get_bot_state, "chat_enabled", "on") != "on":
-        await message.reply_text(_CHAT_DISABLED, parse_mode=ParseMode.HTML, reply_markup=main_menu_kb(user.id))
+        await message.reply_text(
+            _CHAT_DISABLED, parse_mode=ParseMode.HTML, reply_markup=main_menu_kb(user.id)
+        )
         return True
 
     # v6 anti-abuse: never forward prompt-injection attempts to the LLM.
@@ -436,149 +302,62 @@ async def _run_entry_guards(
     return False
 
 
+@dataclass
+class GuardrailContext:
+    user_id: int
+    provider: str
+    bridge_sources: list[dict[str, str]]
+    live_tools_task: asyncio.Task[dict[str, ToolResult]]
+    rag_result: ToolResult | None
+
+
 async def _post_guardrail(
-    answer: str,
-    *,
-    user_id: int,
-    provider: str,
-    bridge_sources: list[dict[str, str]],
-    live_tools_task: asyncio.Task[dict[str, ToolResult]],
-    rag_result: ToolResult | None,
+    answer: str, gctx: GuardrailContext
 ) -> tuple[str, dict[str, ToolResult], list[str], list[str], bool]:
     """Post-processing funnel every provider's answer flows through.
 
-    Think-strip → degenerate guard → bridge citations (local) →
-    zero-fabrication guardrail → honest no-live-data note → last-chance
-    degenerate guard. Returns ``(answer, live_results, stripped_syms,
-    stripped_addrs, answer_is_degenerate)`` — the extras feed the grounding
-    footer and the structured answer trace.
+    Request fields live on ``gctx`` (a :class:`GuardrailContext`).
+
+    Think-strip → degenerate guard → zero-fabrication guardrail (symbols,
+    addresses, numbers — see ``_fabrication_guard``) → honest no-live-data
+    note → last-chance degenerate guard → final output scrub. Returns
+    ``(answer, live_results, stripped_syms, stripped_addrs,
+    answer_is_degenerate)`` — the extras feed the grounding footer and the
+    structured answer trace.
     """
-    # ── THINK-STRIPPING (post-processing) ─────────────────────────────────
-    # Some providers emit visible <think>...</think>
-    # reasoning chains; the backend / remote providers can all surface
-    # them. Strip here — the single funnel every provider's answer flows
-    # through — so the user, the stored chat history, and the fabrication
-    # guardrail never see the chain. Handles complete + unterminated blocks
-    # (single shared implementation — see app.core.ai_guardrails.strip_think_tags).
+    # Single funnel every provider's answer flows through, so the user, the
+    # stored history and the guardrails never see a <think> chain.
     answer = strip_think_blocks(answer)
 
-    # ── DEGENERATE-OUTPUT GUARD (post-processing) ─────────────────────────
-    # A model can degenerate into a bare "-", punctuation-only output,
-    # or a token-repetition loop ("ioneerioneerioneer..."). Never surface
-    # that — replace it with the helpful fallback message. Runs BEFORE the
-    # fabrication guardrail: garbage carries no symbols worth verifying.
-    # (``answer_is_degenerate`` also suppresses the grounding footer below.)
+    user_id = gctx.user_id
+    provider = gctx.provider
+    live_tools_task = gctx.live_tools_task
+    rag_result = gctx.rag_result
     answer_is_degenerate = is_degenerate_answer(answer)
     if answer_is_degenerate:
-        logger.warning("AI chat degenerate answer replaced (user=%s provider=%s)", user_id, provider)
+        logger.warning(
+            "AI chat degenerate answer replaced (user=%s provider=%s)", user_id, provider
+        )
         answer = _DEGENERATE_MESSAGE
 
-    # (The old ``provider == "local"`` bridge-citation branch was removed —
-    # local models were decommissioned 2026-08-16 and no pipeline provider
-    # carries that value anymore.)
-
-    # ── ZERO-FABRICATION GUARDRAIL (post-processing) ────────────────────
-    # Strip/reject any token symbol or address the bot did NOT receive from
-    # a tool call. When no tool matched the question (general knowledge),
-    # there is nothing to verify against and the backend's own grounding
-    # rules apply — nothing is stripped.
-    #
-    # Backend path: the backend answer is grounded by ITS OWN tool layer +
-    # RAG, so we only strip when our bot-side tools independently returned
-    # data for this question (corroboration). If our tools all failed, the
-    # backend's grounding is authoritative.
-    #
-    # Fallback path (tools-only answers): bot-side tools are the ONLY
-    # real-data grounding, so the guardrail is strict — strip everything not
-    # returned by a tool, and say "no live data" when every tool failed.
-    # Re-join the live-tools task for the guardrail WITHOUT stalling the
-    # answer. The tools were started at the top of the pipeline, so by the
-    # time the answer is ready most are done (wait_for returns instantly for
-    # a finished task). A ~0.3s budget catches late arrivals; the old
-    # hardcoded 2.0s re-join added a full 2s to every answer's latency.
+    # Re-join the live-tools task with a short budget: they started at the top
+    # of the pipeline, so most are already done and wait_for returns instantly.
     live_results = await _run_live_tools_bounded(live_tools_task, 0.3, reuse_done=True)
-    # On the fallback path the direct RAG lookup is REAL grounding — merge it
-    # so its content symbols/addresses protect RAG-cited tickers and its
-    # success counts as corroboration. Never merged on the backend path
-    # (rag_result stays None there; the backend's own grounding is
-    # authoritative).
     if rag_result is not None and rag_result.ok:
+        # Fallback path only: the direct RAG lookup is real grounding.
         live_results["rag_lookup"] = rag_result
-    stripped_syms: list[str] = []
-    stripped_addrs: list[str] = []
-    was_fallback = provider == "tools"
-    if live_results:
-        # web_search's synthesized fallbacks (knowledge answer / honest
-        # no-live-data) are NOT corroborating live data — they carry no
-        # tool-verified symbols, so counting them would flip tools_ok and
-        # make the guardrail strip every ticker from a backend-grounded
-        # answer (empty known set). They ARE usable answers, so they still
-        # suppress the no-live-data note below.
-        tools_ok = any(
-            r.ok and not (r.tool == "web_search" and str(r.source).startswith("knowledge"))
-            for r in live_results.values()
-        )
-        if was_fallback or tools_ok:
-            known_syms = known_symbols(live_results)
-            known_addrs = known_addresses(live_results)
-            answer, stripped_syms, stripped_addrs = sanitize_answer(answer, known_syms, known_addrs)
-            if stripped_syms or stripped_addrs:
-                note = fabrication_note(stripped_syms, stripped_addrs)
-                if note:
-                    answer = f"{answer}{note}"
-                    logger.info(
-                        "guardrail stripped fabricated data user=%s syms=%s addrs=%s",
-                        user_id,
-                        stripped_syms[:5],
-                        stripped_addrs[:2],
-                    )
-            # ── NUMERIC-VERIFICATION PASS ─────────────────────────────
-            # The symbol/address guardrail above cannot catch hallucinated
-            # NUMBERS ("$420.69", "+999%") — there is no ticker to strip.
-            # Cross-check every $amount / ±% claim against the numbers the
-            # tools ACTUALLY returned (market_overview / price_lookup /
-            # scanner / rag payloads). A claim matching no fetched datum
-            # (within tolerance) is flagged inline — visibly, not silently
-            # stripped. Skipped entirely when the tools returned no numeric
-            # data: with nothing to compare against, the existing no-live-data
-            # / backend-grounding paths stay authoritative.
-            known_nums = _collect_numeric_facts(live_results)
-            if known_nums:
-                answer, flagged_nums = _verify_numeric_claims(answer, known_nums)
-                if flagged_nums:
-                    logger.info(
-                        "guardrail flagged unverified numbers user=%s nums=%s",
-                        user_id,
-                        flagged_nums[:5],
-                    )
-        # Honest no-live-data signal (FALLBACK path only): the question routed
-        # to tools but every source was down/rate-limited → the bot must not
-        # guess. The backend path has its own grounding + its own tool layer,
-        # so appending this there would be a false "no data". Suppressed when
-        # ANY tool produced a usable answer — including a web_search
-        # knowledge/no-live-data fallback (the honest message already lives
-        # inside that result, and the answer is not a dead end).
-        if was_fallback and not any(r.ok for r in live_results.values()):
-            answer = f"{answer}\n\n{NO_LIVE_DATA_MESSAGE}"
+    answer, stripped_syms, stripped_addrs = apply_fabrication_guardrail(
+        answer, user_id, live_results, provider == "tools"
+    )
 
-    # Last-chance degenerate guard: the fabrication guardrail can strip a
-    # short answer down to nothing (e.g. an answer that was only "$FAKE").
-    # Never send an empty/broken reply — replace with the helpful fallback.
     if is_degenerate_answer(answer):
+        # The guardrail can strip a short answer down to nothing — never send
+        # an empty or broken reply.
         logger.warning("AI chat answer degenerated after guardrail (user=%s)", user_id)
         answer = _DEGENERATE_MESSAGE
         answer_is_degenerate = True
 
-    # ── OUTPUT SANITIZATION (final scrub) ────────────────────────────────
-    # The backend chat path already runs ``sanitize_output`` (chat router /
-    # ai_router) before any response leaves the API. The bot path never did —
-    # so RAG/bridge context could leak internal identifiers (hostnames like
-    # internal hostnames, gopass paths, repo paths, delimiter
-    # tokens) straight into Telegram. Run the SAME scrub here, on the FINAL
-    # answer, so the snappy/long remote path AND the tools fallback path are
-    # both covered (this funnel is the single exit every provider uses).
-    # Deliberately last: the guardrail can append citation/no-live-data lines
-    # above, and the degenerate replacement must happen before this scrub.
+    # Final scrub, deliberately last: no internal identifier reaches Telegram.
     answer = sanitize_output(answer)
     answer = await _ml_guard_output_scrub(answer)
 

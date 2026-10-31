@@ -6,13 +6,14 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.scheduler import _core, _posts_daily as pd, _posts_rag
 
 
 @pytest.fixture(autouse=True)
 def _fresh_state(monkeypatch):
-    monkeypatch.setattr(_core, "_posted_keys", {})
+    _setattr(_core, "_posted_keys", {})
     pd._QUALITY_POSTED_TODAY.clear()
     return
 
@@ -29,7 +30,7 @@ def _isolate_feed_data(monkeypatch, tmp_path):
     to a per-test temp dir makes it structurally impossible for a successful
     daily-quality post in this module to reach the live mirror.
     """
-    monkeypatch.setattr(_posts_rag, "FEED_DATA", str(tmp_path))
+    _setattr(_posts_rag, "FEED_DATA", str(tmp_path))
     return
 
 
@@ -76,18 +77,18 @@ async def test_post_daily_quality_sends_and_mirrors(monkeypatch, tmp_path):
         mirrors.append(item)
         return "slug-z"
 
-    monkeypatch.setattr(pd, "_chat_id", lambda ch: "-100main" if ch == "main" else None)
-    monkeypatch.setattr(pd, "_safe_send", _send)
+    _setattr(pd, "_chat_id", lambda ch: "-100main" if ch == "main" else None)
+    _setattr(pd, "_safe_send", _send)
 
     async def _fresh():
         return [_draft("ref-1")]
 
-    monkeypatch.setattr(pd, "_fresh_main_drafts", _fresh)
-    monkeypatch.setattr(pd, "mirror_post_to_feed", _mirror)
-    monkeypatch.setattr(
+    _setattr(pd, "_fresh_main_drafts", _fresh)
+    _setattr(pd, "mirror_post_to_feed", _mirror)
+    _setattr(
         "rugmunchbot.channels.quality_schedule.rerank_quality", _fake_rerank_high, raising=False
     )
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.main_cap.main_cap",
         _Cap(admit=True, count=3),
         raising=False,
@@ -112,25 +113,21 @@ async def test_post_daily_quality_respects_budget_and_cap(monkeypatch):
         sent.append(text)
         return True
 
-    monkeypatch.setattr(pd, "_chat_id", lambda ch: "-100main" if ch == "main" else None)
-    monkeypatch.setattr(pd, "_safe_send", _send)
+    _setattr(pd, "_chat_id", lambda ch: "-100main" if ch == "main" else None)
+    _setattr(pd, "_safe_send", _send)
 
     async def _fresh():
         return [_draft("ref-1")]
 
-    monkeypatch.setattr(pd, "_fresh_main_drafts", _fresh)
-    monkeypatch.setattr(
-        "rugmunchbot.channels.main_cap.main_cap", _Cap(admit=False, count=10), raising=False
-    )
+    _setattr(pd, "_fresh_main_drafts", _fresh)
+    _setattr("rugmunchbot.channels.main_cap.main_cap", _Cap(admit=False, count=10), raising=False)
 
     assert await pd.post_daily_quality(_Ctx()) == 0
     assert sent == []
 
     # Budget exhausted by the job's own counter.
     pd._QUALITY_POSTED_TODAY[datetime.now(UTC).strftime("%Y%m%d")] = pd.QUALITY_SLOTS_PER_DAY
-    monkeypatch.setattr(
-        "rugmunchbot.channels.main_cap.main_cap", _Cap(admit=True, count=2), raising=False
-    )
+    _setattr("rugmunchbot.channels.main_cap.main_cap", _Cap(admit=True, count=2), raising=False)
     assert await pd.post_daily_quality(_Ctx()) == 0
     assert sent == []
 
@@ -144,19 +141,17 @@ async def test_post_daily_quality_releases_mark_on_failed_send(monkeypatch):
         fails[0] += 1
         return fails[0] > 1  # first fails, second succeeds
 
-    monkeypatch.setattr(pd, "_chat_id", lambda ch: "-100main" if ch == "main" else None)
-    monkeypatch.setattr(pd, "_safe_send", _send)
+    _setattr(pd, "_chat_id", lambda ch: "-100main" if ch == "main" else None)
+    _setattr(pd, "_safe_send", _send)
 
     async def _fresh():
         return [_draft("ref-1")]
 
-    monkeypatch.setattr(pd, "_fresh_main_drafts", _fresh)
-    monkeypatch.setattr(
+    _setattr(pd, "_fresh_main_drafts", _fresh)
+    _setattr(
         "rugmunchbot.channels.quality_schedule.rerank_quality", _fake_rerank_high, raising=False
     )
-    monkeypatch.setattr(
-        "rugmunchbot.channels.main_cap.main_cap", _Cap(admit=True, count=0), raising=False
-    )
+    _setattr("rugmunchbot.channels.main_cap.main_cap", _Cap(admit=True, count=0), raising=False)
 
     assert await pd.post_daily_quality(_Ctx()) == 0
     assert await pd.post_daily_quality(_Ctx()) == 1
@@ -203,9 +198,10 @@ async def test_fresh_drafts_falls_back_to_bot_sources_when_rag_empty(monkeypatch
             it["importance"] = 0.62 if "rekt.news" in it["story_ref"] else 0.05
         return sorted(items, key=lambda i: i.get("importance", 0.0), reverse=True)
 
-    monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.fetch_rag_drafts", _rag)
-    monkeypatch.setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
-    monkeypatch.setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
+    _setattr("rugmunchbot.channels.scheduler._posts_rag.fetch_rag_drafts", _rag)
+    _setattr("rugmunchbot.channels.content.fetch_trending_news", _news)
+    _setattr("rugmunchbot.channels.scheduler._posts_rag.rerank_quality", _rerank)
+
     # The unified fallback chain now goes rugbrain-news_v2 -> trending -> no-post.
     # Stub the rugbrain rail to [] so this test isolates the trending fallback
     # (mirrors tests/test_channel_rag_posting.py::_no_rag_news) instead of
@@ -213,7 +209,7 @@ async def test_fresh_drafts_falls_back_to_bot_sources_when_rag_empty(monkeypatch
     async def _no_rag_news(limit=5):
         return []
 
-    monkeypatch.setattr("rugmunchbot.channels.content.fetch_rag_news_items", _no_rag_news)
+    _setattr("rugmunchbot.channels.content.fetch_rag_news_items", _no_rag_news)
 
     drafts = await pd._fresh_main_drafts()
 
@@ -240,9 +236,7 @@ async def test_fresh_drafts_falls_back_to_bot_sources_when_rag_empty(monkeypatch
             }
         ]
 
-    monkeypatch.setattr(
-        "rugmunchbot.channels.scheduler._posts_rag.fetch_rag_drafts", _rag_populated
-    )
+    _setattr("rugmunchbot.channels.scheduler._posts_rag.fetch_rag_drafts", _rag_populated)
     prefs = await pd._fresh_main_drafts()
     assert prefs
     assert prefs[0]["story_ref"] == "exploit-1"

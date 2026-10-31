@@ -1,21 +1,11 @@
-"""WO-3 universal format law (2026-08-25).
-
-Covers /root/.knowledge/CONTENT-POSTING-SPEC.md:
-
-* ``enforce_format_law`` — the mandatory pre-send pass: wall-of-text
-  splitting, repeated-block dedupe, emoji-spam caps, ≤80-char bold
-  headlines, mid-text truncation artifacts, HTML-tag preservation,
-  idempotency.
-* ``_safe_send`` wiring — every send passes through the law.
-* ``_quality_gate`` — RAG drafts: template-fallback output is NEVER posted;
-  drafts scoring under ``RMI_RAG_POST_MIN_SCORE`` are discarded.
-"""
+"""WO-3 universal format law (2026-08-25)."""
 
 from __future__ import annotations
 
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.formatters import enforce_format_law
 from rugmunchbot.channels.formatters._format_law import (
@@ -173,7 +163,7 @@ async def test_safe_send_applies_format_law(monkeypatch) -> None:
         async def send_message(self, **kwargs: Any) -> None:
             captured.update(kwargs)
 
-    monkeypatch.setattr(_core, "_POST_RETRIES", 0)
+    _setattr(_core, "_POST_RETRIES", 0)
     wall = _blob(9)
     await _core._safe_send(_Bot(), "-100", wall)
     sent = captured["text"]
@@ -217,7 +207,7 @@ def test_gate_allows_demo_source_url_fixture() -> None:
 
 
 def test_gate_blocks_below_threshold_score(monkeypatch) -> None:
-    monkeypatch.setattr(_posts_rag, "RMI_RAG_POST_MIN_SCORE", 0.5)
+    _setattr(_posts_rag, "RMI_RAG_POST_MIN_SCORE", 0.5)
     assert _posts_rag._quality_gate({"text": "ok", "score": 0.2}).startswith("below_threshold")
 
 

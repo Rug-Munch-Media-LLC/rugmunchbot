@@ -1,10 +1,4 @@
-"""Test wave 29 — scan-family command handlers (_scan_handlers/_extras.py).
-
-Behavior probed via .venv/bin/python before asserting (2026-08-23).
-FakeUpdate/FakeCtx pattern from tests/test_portfolio_command.py; transports
-and scanner seams monkeypatched at the _extras module namespace (top-level
-imports).
-"""
+"""Test wave 29 — scan-family command handlers (_scan_handlers/_extras.py)."""
 
 from __future__ import annotations
 
@@ -13,6 +7,7 @@ from typing import Any
 
 import httpx
 import pytest
+from _di import _setattr
 
 from rugmunchbot.handlers._scan_handlers import _extras as ex
 
@@ -76,9 +71,9 @@ def _pair(**over: Any) -> dict[str, Any]:
 
 @pytest.fixture
 def owner(monkeypatch):
-    monkeypatch.setattr(ex, "is_owner", lambda uid: True)
+    _setattr(ex, "is_owner", lambda uid: True)
     calls: dict[str, int] = {"n": 0}
-    monkeypatch.setattr(
+    _setattr(
         ex.db, "increment_usage", lambda uid, scan=False: calls.__setitem__("n", calls["n"] + 1)
     )
     return calls
@@ -100,7 +95,7 @@ async def test_cmd_quick_hit_renders_price_card_with_keyboard(monkeypatch, owner
     async def _stub(url: str, timeout: float = 10) -> Any:
         return {"pairs": [_pair()]}
 
-    monkeypatch.setattr(ex, "http_get_json", _stub)
+    _setattr(ex, "http_get_json", _stub)
     u = FakeUpdate(["pepe"])
     await ex.cmd_quick(u, FakeCtx(["pepe"]))
     assert len(u.message.replies) == 1
@@ -118,7 +113,7 @@ async def test_cmd_quick_lookup_failure_shows_not_found(monkeypatch, owner) -> N
     async def _stub(url: str, timeout: float = 10) -> Any:
         return None
 
-    monkeypatch.setattr(ex, "http_get_json", _stub)
+    _setattr(ex, "http_get_json", _stub)
     u = FakeUpdate(["zzz"])
     await ex.cmd_quick(u, FakeCtx(["zzz"]))
     assert len(u.message.replies) == 1
@@ -131,7 +126,7 @@ async def test_cmd_quick_body_without_pairs_also_not_found(monkeypatch, owner) -
     async def _stub(url: str, timeout: float = 10) -> Any:
         return {"pairs": []}
 
-    monkeypatch.setattr(ex, "http_get_json", _stub)
+    _setattr(ex, "http_get_json", _stub)
     u = FakeUpdate(["zzz"])
     await ex.cmd_quick(u, FakeCtx(["zzz"]))
     assert "Could not find token" in u.message.replies[0]
@@ -158,9 +153,9 @@ async def test_cmd_deployer_no_args_shows_usage() -> None:
 
 @pytest.mark.asyncio
 async def test_cmd_deployer_rate_limited_non_owner_gets_paywall(monkeypatch) -> None:
-    monkeypatch.setattr(ex, "is_owner", lambda uid: False)
-    monkeypatch.setattr(ex.db, "check_rate_limit", lambda uid, kind: (False, 0, 0))
-    monkeypatch.setattr(ex.db, "get_user_tier", lambda uid: "free")
+    _setattr(ex, "is_owner", lambda uid: False)
+    _setattr(ex.db, "check_rate_limit", lambda uid, kind: (False, 0, 0))
+    _setattr(ex.db, "get_user_tier", lambda uid: "free")
     u = FakeUpdate(["0xabc"], uid=7)
     await ex.cmd_deployer(u, FakeCtx(["0xabc"]))
     assert len(u.message.replies) == 1
@@ -204,8 +199,8 @@ async def test_cmd_deployer_happy_path_full_render(monkeypatch, owner) -> None:
             "median_lifespan_hours": 3.7,
         }
 
-    monkeypatch.setattr(ex, "scan_token_v2", _scan)
-    monkeypatch.setattr(ex, "fetch_deployer_fingerprint", _fp)
+    _setattr(ex, "scan_token_v2", _scan)
+    _setattr(ex, "fetch_deployer_fingerprint", _fp)
     u = FakeUpdate(["0xtok"])
     await ex.cmd_deployer(u, FakeCtx(["0xtok"]))
     # Progress message first, then the final card lands via edit_text.
@@ -230,7 +225,7 @@ async def test_cmd_deployer_scanner_down_failure_card(monkeypatch, owner) -> Non
     async def _scan(target: str, chain: str | None) -> Any:
         return None
 
-    monkeypatch.setattr(ex, "scan_token_v2", _scan)
+    _setattr(ex, "scan_token_v2", _scan)
     u = FakeUpdate(["0xtok"])
     await ex.cmd_deployer(u, FakeCtx(["0xtok"]))
     out = u.message.sent.edits[-1]  # type: ignore[union-attr]
@@ -243,7 +238,7 @@ async def test_cmd_deployer_no_dev_data_card(monkeypatch, owner) -> None:
     async def _scan(target: str, chain: str | None) -> Any:
         return {"safety_score": 61, "risk_level": "low", "evidence": {}}
 
-    monkeypatch.setattr(ex, "scan_token_v2", _scan)
+    _setattr(ex, "scan_token_v2", _scan)
     u = FakeUpdate(["0xtok"])
     await ex.cmd_deployer(u, FakeCtx(["0xtok"]))
     out = u.message.sent.edits[-1]  # type: ignore[union-attr]
@@ -257,7 +252,7 @@ async def test_cmd_deployer_http_error_failure_card(monkeypatch, owner) -> None:
     async def _scan(target: str, chain: str | None) -> Any:
         raise httpx.ConnectError("boom")
 
-    monkeypatch.setattr(ex, "scan_token_v2", _scan)
+    _setattr(ex, "scan_token_v2", _scan)
     u = FakeUpdate(["0xtok"])
     await ex.cmd_deployer(u, FakeCtx(["0xtok"]))
     out = u.message.sent.edits[-1]  # type: ignore[union-attr]
@@ -318,7 +313,7 @@ async def test_cmd_hype_c5_backend_path_full_render(monkeypatch, owner) -> None:
             "/token-boosts/top/v1": FakeResp(200, []),
         }
     )
-    monkeypatch.setattr(ex, "get_shared_client", lambda t: client)
+    _setattr(ex, "get_shared_client", lambda t: client)
 
     async def _hype(addr: str, chain: str) -> Any:
         return {
@@ -333,7 +328,7 @@ async def test_cmd_hype_c5_backend_path_full_render(monkeypatch, owner) -> None:
             "decay_factor": 0.8,
         }
 
-    monkeypatch.setattr(ex, "fetch_hype_score", _hype)
+    _setattr(ex, "fetch_hype_score", _hype)
     u = FakeUpdate(["0x" + "cd" * 20])
     await ex.cmd_hype(u, FakeCtx(["0x" + "cd" * 20]))
     assert "Measuring hype..." in u.message.replies[0]
@@ -363,12 +358,12 @@ async def test_cmd_hype_local_fallback_math(monkeypatch, owner) -> None:
             "/token-boosts/top/v1": FakeResp(200, []),
         }
     )
-    monkeypatch.setattr(ex, "get_shared_client", lambda t: client)
+    _setattr(ex, "get_shared_client", lambda t: client)
 
     async def _hype(addr: str, chain: str) -> Any:
         return None  # backend unavailable -> local computation
 
-    monkeypatch.setattr(ex, "fetch_hype_score", _hype)
+    _setattr(ex, "fetch_hype_score", _hype)
     u = FakeUpdate(["0x" + "cd" * 20])
     await ex.cmd_hype(u, FakeCtx(["0x" + "cd" * 20]))
     out = u.message.sent.edits[-1]  # type: ignore[union-attr]
@@ -390,13 +385,13 @@ async def test_cmd_hype_symbol_resolved_via_dexscreener_search(monkeypatch, owne
             "/token-boosts/top/v1": FakeResp(200, []),
         }
     )
-    monkeypatch.setattr(ex, "get_shared_client", lambda t: client)
+    _setattr(ex, "get_shared_client", lambda t: client)
 
     async def _hype(a: str, c: str) -> Any:
         assert a == addr  # resolved from search, not the raw symbol
         return {"hype_score": 10, "signals": {}}
 
-    monkeypatch.setattr(ex, "fetch_hype_score", _hype)
+    _setattr(ex, "fetch_hype_score", _hype)
     u = FakeUpdate(["PEPE"])
     await ex.cmd_hype(u, FakeCtx(["PEPE"]))
     assert any("/search/?q=PEPE" in c for c in client.calls)
@@ -405,12 +400,12 @@ async def test_cmd_hype_symbol_resolved_via_dexscreener_search(monkeypatch, owne
 @pytest.mark.asyncio
 async def test_cmd_hype_tokens_endpoint_404_not_found(monkeypatch, owner) -> None:
     client = FakeClient({"/token-boosts/top/v1": FakeResp(200, [])})
-    monkeypatch.setattr(ex, "get_shared_client", lambda t: client)
+    _setattr(ex, "get_shared_client", lambda t: client)
 
     async def _hype(a: str, c: str) -> Any:
         return None
 
-    monkeypatch.setattr(ex, "fetch_hype_score", _hype)
+    _setattr(ex, "fetch_hype_score", _hype)
     u = FakeUpdate(["0x" + "cd" * 20])
     await ex.cmd_hype(u, FakeCtx(["0x" + "cd" * 20]))
     out = u.message.sent.edits[-1]  # type: ignore[union-attr]
@@ -425,12 +420,12 @@ async def test_cmd_hype_no_pairs_message(monkeypatch, owner) -> None:
             "/token-boosts/top/v1": FakeResp(200, []),
         }
     )
-    monkeypatch.setattr(ex, "get_shared_client", lambda t: client)
+    _setattr(ex, "get_shared_client", lambda t: client)
 
     async def _hype(a: str, c: str) -> Any:
         return None
 
-    monkeypatch.setattr(ex, "fetch_hype_score", _hype)
+    _setattr(ex, "fetch_hype_score", _hype)
     u = FakeUpdate(["0x" + "cd" * 20])
     await ex.cmd_hype(u, FakeCtx(["0x" + "cd" * 20]))
     out = u.message.sent.edits[-1]  # type: ignore[union-attr]
@@ -445,12 +440,12 @@ async def test_cmd_hype_unexpected_error_failure_card(monkeypatch, owner) -> Non
             "/token-boosts/top/v1": FakeResp(200, []),
         }
     )
-    monkeypatch.setattr(ex, "get_shared_client", lambda t: client)
+    _setattr(ex, "get_shared_client", lambda t: client)
 
     async def _hype(a: str, c: str) -> Any:
         raise ValueError("bad payload")
 
-    monkeypatch.setattr(ex, "fetch_hype_score", _hype)
+    _setattr(ex, "fetch_hype_score", _hype)
     u = FakeUpdate(["0x" + "cd" * 20])
     await ex.cmd_hype(u, FakeCtx(["0x" + "cd" * 20]))
     out = u.message.sent.edits[-1]  # type: ignore[union-attr]

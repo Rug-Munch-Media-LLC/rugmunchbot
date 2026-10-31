@@ -10,6 +10,8 @@ import importlib
 import inspect
 from typing import Any
 
+from _di import _setattr
+
 
 class _JQ:
     def __init__(self):
@@ -83,10 +85,10 @@ def _configure_channels(monkeypatch, *, enabled=(), chat_ids=None, opt_in=()):
     resolver = (chat_ids or {}).get
     # ``_register`` keeps its own bound copy; the split siblings resolve the
     # helper through ``_core`` at call time, so both need the fake.
-    monkeypatch.setattr(reg, "_chat_id", resolver)
-    monkeypatch.setattr(_core, "_chat_id", resolver)
+    _setattr(reg, "_chat_id", resolver)
+    _setattr(_core, "_chat_id", resolver)
     for flag, value in flags.items():
-        monkeypatch.setattr(_owner(flag), flag, value)
+        _setattr(_owner(flag), flag, value)
     for name in _OPT_IN_ENV:
         monkeypatch.delenv(name, raising=False)
     for name in opt_in:

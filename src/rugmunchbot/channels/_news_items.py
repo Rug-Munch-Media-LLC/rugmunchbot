@@ -8,8 +8,12 @@ is reimplemented per post type.
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
 
 #: Ranked stories rendered per post (top-K of the ranker).
 TOP_K = 8
@@ -32,7 +36,8 @@ def parse_published_at(raw: Any) -> datetime | None:
             return datetime.fromtimestamp(ts, tz=UTC)
         dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
         return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
-    except (ValueError, TypeError, OSError):
+    except (ValueError, TypeError, OSError) as e:
+        logger.debug("best-effort fallback: %s", e)
         return None
 
 
@@ -48,17 +53,19 @@ def article_score(article: dict[str, Any]) -> float:
     try:
         if raw is not None:
             return float(raw)
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
     q = article.get("quality")
     if isinstance(q, dict):
         try:
             return float(q.get("score") or 0.0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as e:
+            logger.debug("best-effort fallback: %s", e)
             return 0.0
     try:
         return float(q or 0.0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         return 0.0
 
 

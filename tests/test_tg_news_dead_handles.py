@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.scam_watch._config import SCAM_CHANNELS
 from rugmunchbot.channels.telegram_news._sources._channels import channel_sources
@@ -116,15 +117,15 @@ async def test_scam_watch_sweep_honors_cooldown_gate(monkeypatch):
     alive = "Caesars_Calls"
 
     # Cooldown the dead handle: the gate must skip it without an RPC.
-    monkeypatch.setattr(
+    _setattr(
         sw_discover,
         "is_channel_cooldown",
         lambda username: str(username).strip().lstrip("@").lower() == dead,
     )
     # Force the explicit source list so no discovery is needed.
-    monkeypatch.setattr(sw_discover, "SCAM_CHANNELS", [dead, alive])
-    monkeypatch.setattr(sw_mod, "SCAM_WATCH_MAX_DISCOVERED", 0)
-    monkeypatch.setattr(sw_mod, "SCAM_WATCH_ENABLED", True)
+    _setattr(sw_discover, "SCAM_CHANNELS", [dead, alive])
+    _setattr(sw_mod, "SCAM_WATCH_MAX_DISCOVERED", 0)
+    _setattr(sw_mod, "SCAM_WATCH_ENABLED", True)
 
     client = _FakeClient()
     articles = await sw_discover.sweep_scam_channels(client=client)

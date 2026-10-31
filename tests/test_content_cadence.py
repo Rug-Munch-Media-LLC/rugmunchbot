@@ -1,21 +1,11 @@
-"""The 3-unique-posts/day contract + image-per-story-type (2026-10-17).
-
-Operator doctrine: exactly THREE unique anchor posts per day on
-@cryptorugmuncher and the feed (morning Daily Rug / midday market report /
-evening wrap), each a different facet, no story in two of the three; PLUS
-major news as breaking throughout the day, deduped against the anchor.
-Every post type resolves to its correct brand image.
-
-Oracle note (AI-TEST-ORACLE-POLICY): each test drives the real resolver /
-real anchor contract and asserts exact outcomes — no tautological smoke
-checks. Redis is faked; no live services.
-"""
+"""The 3-unique-posts/day contract + image-per-story-type (2026-10-17)."""
 
 from __future__ import annotations
 
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels import _edition_dedup as dedup, report_anchor as anchor
 from rugmunchbot.support.post_graphics import (
@@ -55,7 +45,7 @@ def test_assert_anchor_contract_passes() -> None:
 
 def test_assert_anchor_contract_detects_drift(monkeypatch: pytest.MonkeyPatch) -> None:
     """A collapsed anchor (two editions sharing a post type) fails loudly."""
-    monkeypatch.setattr(
+    _setattr(
         anchor,
         "ANCHOR_EDITIONS",
         (("morning", "daily_rug"), ("midday", "daily_rug"), ("evening", "evening_wrap")),
@@ -117,7 +107,7 @@ def _story(url: str, title: str = "T") -> dict[str, Any]:
 def test_story_appears_in_at_most_one_edition(monkeypatch: pytest.MonkeyPatch) -> None:
     """A story marked by morning is excluded from midday AND evening."""
     fake = _FakeRedis()
-    monkeypatch.setattr(dedup, "_client", lambda: fake)
+    _setattr(dedup, "_client", lambda: fake)
 
     shared = _story("https://example.com/shared")
     dedup.mark_edition_stories("morning", [shared])
@@ -131,7 +121,7 @@ def test_story_appears_in_at_most_one_edition(monkeypatch: pytest.MonkeyPatch) -
 def test_distinct_stories_survive_each_edition(monkeypatch: pytest.MonkeyPatch) -> None:
     """A story not yet used by an earlier edition survives the filter."""
     fake = _FakeRedis()
-    monkeypatch.setattr(dedup, "_client", lambda: fake)
+    _setattr(dedup, "_client", lambda: fake)
 
     dedup.mark_edition_stories("morning", [_story("https://example.com/a")])
     fresh = _story("https://example.com/b")
@@ -141,7 +131,7 @@ def test_distinct_stories_survive_each_edition(monkeypatch: pytest.MonkeyPatch) 
 def test_additive_lane_excludes_all_anchor_stories(monkeypatch: pytest.MonkeyPatch) -> None:
     """The additive (news) lane drops a story ANY anchor edition carried."""
     fake = _FakeRedis()
-    monkeypatch.setattr(dedup, "_client", lambda: fake)
+    _setattr(dedup, "_client", lambda: fake)
 
     carried = _story("https://example.com/carried")
     dedup.mark_edition_stories("evening", [carried])
@@ -153,7 +143,7 @@ def test_additive_lane_excludes_all_anchor_stories(monkeypatch: pytest.MonkeyPat
 
 def test_additive_lane_fails_open_on_redis_down(monkeypatch: pytest.MonkeyPatch) -> None:
     """A Redis outage never blocks the additive lane (fail-open)."""
-    monkeypatch.setattr(dedup, "_client", lambda: None)
+    _setattr(dedup, "_client", lambda: None)
     stories = [_story("https://example.com/a"), _story("https://example.com/b")]
     assert anchor.exclude_report_stories(stories) == stories
 

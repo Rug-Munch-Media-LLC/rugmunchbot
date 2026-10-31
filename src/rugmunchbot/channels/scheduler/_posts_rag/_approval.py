@@ -1,26 +1,4 @@
-"""Main-channel human-in-the-loop approval gate.
-
-When ``RMI_MAIN_APPROVAL_GATE`` is enabled, main-channel drafts
-(@cryptorugmuncher) are NOT posted directly. Instead each draft is sent to
-@rmi_admin_bot with Approve / Reject / Edit inline buttons:
-
-* **Approve** → the draft is posted to the main channel (and mirrored to the
-  feed when ``mirror: true``, exactly like the direct path).
-* **Reject** → the draft is logged and discarded (its dedupe mark is kept so
-  it is never re-requested every tick).
-* **Edit** → the operator replies to the approval message with corrected text;
-  the draft is updated and re-sent for approval.
-* **No response within ``RMI_MAIN_APPROVAL_TIMEOUT_S``** → the draft
-  AUTO-POSTS (fail-open — the gate shapes rhythm, never blocks content).
-
-The gate is opt-in (default OFF). When disabled, ``post_rag_drafts`` posts
-directly exactly as before. When enabled but the admin chat id is unset, the
-gate degrades to fail-open (posts directly) rather than dropping content.
-
-State is in-memory by design: a restart clears pending approvals (the drafts
-were already marked seen, so they are not re-requested — acceptable for an
-opt-in operator-facing gate).
-"""
+"""Main-channel human-in-the-loop approval gate."""
 
 from __future__ import annotations
 
@@ -140,18 +118,25 @@ async def _mirror_if_needed(ctx: ContextTypes.DEFAULT_TYPE, item: dict[str, Any]
         await _pkg._alert_mirror_failure(ctx.bot, str(item.get("story_ref") or "")[:120])
 
 
+@dataclass
+class MainDraft:
+    text: str
+    item: dict[str, Any]
+    dedupe_key: str
+    content_type: str | None
+
+
 async def _request_main_approval(
-    ctx: ContextTypes.DEFAULT_TYPE,
-    chat_id: str,
-    text: str,
-    item: dict[str, Any],
-    dedupe_key: str,
-    content_type: str | None,
+    ctx: ContextTypes.DEFAULT_TYPE, chat_id: str, draft: MainDraft
 ) -> bool:
     """Send a main draft to @rmi_admin_bot for approval. Returns True when the
     approval request was sent (the draft is now pending). Fail-open: if the
     admin chat id is unset or the send fails, returns False so the caller
     falls back to posting directly (never drop content)."""
+    text = draft.text
+    item = draft.item
+    dedupe_key = draft.dedupe_key
+    content_type = draft.content_type
     admin_chat_id = _pkg.RMI_ADMIN_CHAT_ID
     if not admin_chat_id:
         _pkg.logger.warning(

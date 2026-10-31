@@ -1,15 +1,11 @@
-"""Test wave 30b — /mev /impersonation /deathclock /launches /cluster commands.
-
-Behavior probed via .venv/bin/python before asserting (2026-08-23).
-Backend seams (http_get_json/http_post_json) monkeypatched at the premium
-module namespace; Telegram fakes duck-typed per wave29/portfolio pattern.
-"""
+"""Test wave 30b — /mev /impersonation /deathclock /launches /cluster commands."""
 
 from __future__ import annotations
 
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.commands import premium as pm
 
@@ -52,8 +48,8 @@ def _stub_backend(monkeypatch, payload: Any = None, post_payload: Any = None) ->
         calls["post"] += 1
         return post_payload
 
-    monkeypatch.setattr(pm, "http_get_json", _get)
-    monkeypatch.setattr(pm, "http_post_json", _post)
+    _setattr(pm, "http_get_json", _get)
+    _setattr(pm, "http_post_json", _post)
     return calls
 
 
@@ -232,7 +228,7 @@ async def test_deathclock_single_arg_doubles_as_address(monkeypatch) -> None:
         seen["path"] = path
         return {"days_remaining": 10, "risk_level": "low"}
 
-    monkeypatch.setattr(pm, "http_get_json", _get)
+    _setattr(pm, "http_get_json", _get)
     u = FakeUpdate(["0xdeadbeef"])
     await pm.cmd_deathclock(u, FakeCtx(["0xdeadbeef"]))
     # args[0] becomes BOTH chain and address (probed behavior).

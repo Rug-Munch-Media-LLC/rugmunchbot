@@ -4,10 +4,11 @@ import runpy
 import sys
 
 import pytest
+from _di import _setattr
 
 
 def _run_module(argv, monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["content_lint", *argv])
+    _setattr(sys, "argv", ["content_lint", *argv])
     with pytest.raises(SystemExit) as exc:
         runpy.run_module("rugmunchbot.tools.content_lint", run_name="__main__")
     return exc.value.code

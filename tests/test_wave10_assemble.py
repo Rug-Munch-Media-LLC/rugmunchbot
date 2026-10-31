@@ -1,13 +1,9 @@
-"""Wave 10 — daily_market_summary._assemble: context serialization + gather.
-
-All expectations probed against the implementation before asserting (oracle
-policy). ``_serialize_context`` is pure; ``gather_summary_data`` is tested with
-monkeypatched fetchers (it must never raise and must degrade per-block).
-"""
+"""Wave 10 — daily_market_summary._assemble: context serialization + gather."""
 
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 import rugmunchbot.channels.daily_market_summary._assemble as asm
 from rugmunchbot.channels.daily_market_summary._assemble import (
@@ -120,7 +116,7 @@ def test_serialize_narrative_and_kol_blocks() -> None:
 
 @pytest.fixture(autouse=True)
 def _no_web_signals(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(asm, "DAILY_MARKET_SUMMARY_WEB_SIGNALS_ENABLED", False)
+    _setattr(asm, "DAILY_MARKET_SUMMARY_WEB_SIGNALS_ENABLED", False)
 
 
 async def test_gather_collects_all_blocks(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -150,13 +146,13 @@ async def test_gather_collects_all_blocks(monkeypatch: pytest.MonkeyPatch) -> No
         ("_fetch_news", ok_news),
         ("_fetch_global_metrics", ok_metrics),
     ]:
-        monkeypatch.setattr(asm, name, fn)
+        _setattr(asm, name, fn)
 
     # hermetic: intel lanes must not hit live qdrant in tests
     async def fake_intel():
         return {"whales": [{"content": "w", "source": "etherscan"}]}
 
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.daily_market_summary._fetch._fetch_rugbrain_intel",
         fake_intel,
     )
@@ -165,13 +161,13 @@ async def test_gather_collects_all_blocks(monkeypatch: pytest.MonkeyPatch) -> No
     async def fake_rag_intel():
         return [{"content": "rag hit", "collection": "news_v2", "score": 0.9}]
 
-    monkeypatch.setattr(asm, "_fetch_rag_intel", fake_rag_intel)
+    _setattr(asm, "_fetch_rag_intel", fake_rag_intel)
 
     # hermetic: reranker lane must not hit live rugbrain in tests
     async def fake_ranked(*a, **k):
         return []
 
-    monkeypatch.setattr("rugmunchbot.channels._news_rerank.fetch_top_ranked_stories", fake_ranked)
+    _setattr("rugmunchbot.channels._news_rerank.fetch_top_ranked_stories", fake_ranked)
     data = await gather_summary_data()
     assert set(data["sources"]) == {
         "prices",
@@ -195,27 +191,27 @@ async def test_gather_never_raises_on_fetcher_crash(monkeypatch: pytest.MonkeyPa
     async def empty():
         return {}
 
-    monkeypatch.setattr(asm, "_fetch_major_prices", boom)
-    monkeypatch.setattr(asm, "_fetch_market_condition", empty)
-    monkeypatch.setattr(asm, "_fetch_trending", boom)
-    monkeypatch.setattr(asm, "_fetch_movers", empty)
-    monkeypatch.setattr(asm, "_fetch_news", boom)
-    monkeypatch.setattr(asm, "_fetch_global_metrics", empty)
+    _setattr(asm, "_fetch_major_prices", boom)
+    _setattr(asm, "_fetch_market_condition", empty)
+    _setattr(asm, "_fetch_trending", boom)
+    _setattr(asm, "_fetch_movers", empty)
+    _setattr(asm, "_fetch_news", boom)
+    _setattr(asm, "_fetch_global_metrics", empty)
 
     async def boom_intel():
         raise ConnectionError("qdrant down")
 
-    monkeypatch.setattr(
+    _setattr(
         "rugmunchbot.channels.daily_market_summary._fetch._fetch_rugbrain_intel",
         boom_intel,
     )
-    monkeypatch.setattr(asm, "_fetch_rag_intel", boom_intel)
+    _setattr(asm, "_fetch_rag_intel", boom_intel)
 
     # hermetic: reranker lane must not hit live rugbrain in tests
     async def fake_ranked(*a, **k):
         return []
 
-    monkeypatch.setattr("rugmunchbot.channels._news_rerank.fetch_top_ranked_stories", fake_ranked)
+    _setattr("rugmunchbot.channels._news_rerank.fetch_top_ranked_stories", fake_ranked)
     data = await gather_summary_data()  # must not raise
     assert data["prices"] == {}
     assert data["trending"] == []

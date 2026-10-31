@@ -1,18 +1,10 @@
-"""/tweet + /tweets command and read_tweet/story_fetch X wiring tests.
-
-X ingestion is owned by rugbrain (RAG); the bot no longer fetches X posts.
-Covers the retired contract:
-
-* ``tools.read_tweet.parse_target`` — URL / numeric id / @handle classification
-* ``commands.tweet.format_tweet`` / ``format_tweet_list`` — safe HTML cards
-* ``cmd_tweet`` — usage + "moved to rugbrain" notice; NEVER scrapes/fabricates
-* ``read_tweet`` tool — always fails open with the moved notice
-* ``story_fetch`` X guard — x.com URLs refused, never the crawler
-"""
+"""/tweet + /tweets command and read_tweet/story_fetch X wiring tests."""
 
 from __future__ import annotations
 
 import asyncio
+
+from _di import _setattr
 
 from rugmunchbot.commands.tweet import cmd_tweet, format_tweet, format_tweet_list
 from rugmunchbot.tools import story_fetch as sf
@@ -215,7 +207,7 @@ def test_story_fetch_normal_url_still_works(monkeypatch):
     async def _fake_fetch_story(url, timeout):
         return fake_story
 
-    monkeypatch.setattr("rugmunchbot._vendor.rag_pkg.story_ingest.fetch_story", _fake_fetch_story)
+    _setattr("rugmunchbot._vendor.rag_pkg.story_ingest.fetch_story", _fake_fetch_story)
     res = asyncio.run(sf.story_fetch(url="https://example.com/article"))
     assert res.ok
     assert res.data["text"] == "hello world"

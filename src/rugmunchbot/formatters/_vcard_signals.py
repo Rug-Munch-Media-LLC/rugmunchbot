@@ -11,6 +11,7 @@ One public entry point: :func:`collect`.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -19,6 +20,8 @@ from rugmunchbot.formatters._scan_report_common._fields import _mint_auth
 from rugmunchbot.formatters._vcard_clusters import cluster_lines
 from rugmunchbot.formatters._vcard_fields import DASH, source_for
 from rugmunchbot.formatters._vcard_safety import safety_row
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -56,7 +59,8 @@ def _dev(r: dict[str, Any], ts: str) -> str:
         bits.append(
             f"rug-rate {rate_f * 100:.0f}%" + (f" ({rugs}/{total_i})" if rugs is not None else "")
         )
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         bits.append(f"rug-rate {DASH} (no deployer history)")
     funding = str(funder.get("funding_type") or "").strip()
     if funding:
@@ -76,7 +80,8 @@ def _kol(r: dict[str, Any], ts: str) -> str:
     size = block.get("registry_size") or r.get("kol_registry_size")
     try:
         size_i = int(size)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         size_i = 0
     if not matched and not size_i:
         return f"KOL       {DASH} \u00b7 engine: registry not queried"
@@ -129,7 +134,8 @@ def collect(r: dict[str, Any], ts: str = "") -> Signals:
         top10 = r["holder_concentration"].get("top10_pct", top10)
     try:
         top10_str = f"{float(top10):.1f}%"
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         top10_str = None
     if top10_str in ("0.0%", DASH):  # rule 2: never print an unmeasured zero
         top10_str = None

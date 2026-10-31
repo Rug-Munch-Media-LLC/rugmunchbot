@@ -1,23 +1,11 @@
-"""Telegram user → backend user linking + user-scoped API client.
-
-The backend keeps a per-Telegram-user account (``tg:<id>``) in Redis
-(``rmi:users:telegram``) and mints a per-user JWT through
-``POST /api/v1/auth/telegram`` (app/domains/auth/routes_telegram.py). That
-route validates Telegram WebApp-style auth data — HMAC-SHA256 over the
-sorted ``data_check`` string keyed with ``sha256(BOT_TOKEN)`` — which the
-bot can mint itself because it owns BOT_TOKEN. No browser handshake needed.
-
-JWTs are cached in-process for ~6 days (backend expiry is 7 days) so each
-command does at most one auth round-trip. All user-scoped calls send BOTH
-the per-user ``Authorization: Bearer`` (satisfies ``verify_session``) and
-the bot's ``X-API-Key`` (satisfies the auth middleware).
-"""
+"""Telegram user → backend user linking + user-scoped API client."""
 
 from __future__ import annotations
 
 import hashlib
 import hmac
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -189,23 +177,28 @@ async def remove_watchlist(
     )
 
 
+@dataclass
+class WatchlistAlertSpec:
+    entry_id: str
+    direction: str
+    price: float
+
+
 async def set_watchlist_alert(
     user_id: int,
-    entry_id: str,
-    direction: str,
-    price: float,
+    spec: WatchlistAlertSpec,
     username: str | None = None,
     first_name: str | None = None,
 ) -> dict[str, Any]:
     """PUT /api/v1/watchlist/{entry_id} — set alert_above or alert_below."""
-    field = "alert_above" if direction == "above" else "alert_below"
+    field = "alert_above" if spec.direction == "above" else "alert_below"
     return await _user_request(
         "PUT",
-        f"/api/v1/watchlist/{entry_id}",
+        f"/api/v1/watchlist/{spec.entry_id}",
         user_id,
         username,
         first_name,
-        json_body={field: price},
+        json_body={field: spec.price},
     )
 
 

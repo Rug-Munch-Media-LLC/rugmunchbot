@@ -9,9 +9,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
 
 LIVE_LEDGER = "/var/lib/rugmunchbot/scam_project_alerted.jsonl"
 DRYRUN_LEDGER = "/var/lib/rugmunchbot/scam_project_alerted.dryrun.jsonl"
@@ -54,13 +58,15 @@ def is_duplicate(fingerprint: str, path: Path) -> bool:
     """True when this fingerprint already posted (missing ledger = not seen)."""
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
+    except OSError as e:
+        logger.debug("best-effort fallback: %s", e)
         return False
     for line in lines:
         try:
             if json.loads(line).get("fp") == fingerprint:
                 return True
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.debug("best-effort fallback: %s", e)
             continue
     return False
 
@@ -80,5 +86,6 @@ def record(fingerprint: str, alert: dict[str, Any], path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row, sort_keys=True) + "\n")
-    except OSError:
+    except OSError as e:
+        logger.debug("best-effort fallback: %s", e)
         return

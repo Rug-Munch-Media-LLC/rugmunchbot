@@ -13,38 +13,9 @@ import json
 from datetime import UTC, datetime
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.scheduler._posts_rag import mirror_post_to_feed
-
-_UNSET = object()
-_PATCHES: list = []
-
-
-def _setattr(target, name, value=_UNSET) -> None:
-    """Set an attribute via DI (dotted path or live object), restored after test."""
-    import importlib
-
-    if value is _UNSET:
-        mod_path, _, attr = str(target).rpartition(".")
-        obj = importlib.import_module(mod_path)
-        new = name
-    else:
-        obj, attr, new = target, name, value
-    _PATCHES.append((obj, attr, getattr(obj, attr, None), hasattr(obj, attr)))
-    setattr(obj, attr, new)
-
-
-@pytest.fixture(autouse=True)
-def _restore():
-    """Restore every attribute ``_setattr`` touched, after each test."""
-    _PATCHES.clear()
-    yield
-    while _PATCHES:
-        obj, attr, old, had = _PATCHES.pop()
-        if had:
-            setattr(obj, attr, old)
-        else:
-            delattr(obj, attr)
 
 
 def test_mirror_post_to_feed_writes_json(tmp_path):

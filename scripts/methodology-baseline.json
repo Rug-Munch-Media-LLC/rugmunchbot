@@ -1,10 +1,11 @@
 {
 	"rules": {
+		"weight-map": 1,
 		"magic-threshold": 8,
 		"signal-list": 2,
 		"prompt-judgement": 6
 	},
-	"total": 16,
+	"total": 17,
 	"reasons": [
 		{
 			"date": "2026-10-24",
@@ -14,6 +15,64 @@
 				"prompt-judgement": [0, 6]
 			},
 			"reason": "Recorded at the TRUE current count (magic-threshold 8, prompt-judgement 6, signal-list 2). This is not a raise to turn CI green: the gate had no baseline file at all (baseline 0), so every pre-existing finding blocked every commit. Nothing in this triage is a published internal method or path. Frozen vendored copy of rmi-backend/app/rag (\"VENDORED 2026-08-24 ... do not edit\", re-vendor via scripts/refresh-vendors.sh). The gate's skip_dirs covers vendor, third_party and site-packages but not the _vendor convention. The durable fix is a skip_dirs entry in the shared gate pattern data in the standards repo (tracked separately), not an edit to the vendored tree. channels/daily_rug, channels/evening_wrap, channels/midday_market_report _prompt.py and tools/web.py. Public product copy: voice, banned-phrase list, output shape. No weights, no calibration, no signal vocabulary, no scoring cut-off. scam_alerts/_project_alert.py (high/medium/low label bands), portfolio_risk.py (diversification warning), scanner/_ai_verdict.py (percentage wording inside a prompt), _scan_report_riskreport/_extract.py (data-derived rug_rate flag), wallet_intelligence.py (whale labelling constant). These band numbers produced elsewhere; they do not calibrate a score. Ratchet: shrink-only. Any NEW finding in these rules fails the gate."
+		},
+		{
+			"date": "2026-10-31",
+			"rules": {
+				"weight-map": [0, 1]
+			},
+			"reason": "Recorded at the TRUE current count. The finding is `eval/voice/rules.py:117` (`WEIGHTS: dict[str, float]`) \u2014 a scoring weight table that ALREADY EXISTS ON MAIN (merged before this PR; verified via `git show origin/main:eval/voice/rules.py | sed -n 117p`). - `git status --short eval/` is empty in this tree: eval/voice/ is UNCHANGED by the gate-repair PR \u2014 a parallel lane owns it. - The baseline file carried no `weight-map` entry at all (baseline 0), so the pre-existing main finding blocked every commit in the repo (the same class the 2026-10-24 reason below documents: \"the gate had no baseline for the rule, so every pre-existing finding blocked every commit\"). - This is not a raise to turn CI green: nothing in the gate-repair PR touches eval/; the recorded count equals main's tree exactly. - The durable fix (weights behind a seam, private package) belongs to the voice lane that owns eval/voice/. Ratchet: shrink-only \u2014 any NEW weight-map finding still fails the gate."
 		}
-	]
+	],
+	"files": {
+		"eval/voice/rules.py": {
+			"weight-map": 1
+		},
+		"src/rugmunchbot/_vendor/deep_scan_runners.py": {
+			"magic-threshold": 1
+		},
+		"src/rugmunchbot/_vendor/news_ratings.py": {
+			"signal-list": 1
+		},
+		"src/rugmunchbot/_vendor/rag_pkg/_crawler_helpers.py": {
+			"prompt-judgement": 1
+		},
+		"src/rugmunchbot/_vendor/rag_pkg/chat_integration.py": {
+			"prompt-judgement": 1
+		},
+		"src/rugmunchbot/_vendor/rag_pkg/graph.py": {
+			"signal-list": 1
+		},
+		"src/rugmunchbot/_vendor/rag_pkg/compat.py": {
+			"magic-threshold": 1
+		},
+		"src/rugmunchbot/channels/daily_rug/_prompt.py": {
+			"prompt-judgement": 1
+		},
+		"src/rugmunchbot/channels/evening_wrap/_prompt.py": {
+			"prompt-judgement": 1
+		},
+		"src/rugmunchbot/channels/midday_market_report/_prompt.py": {
+			"prompt-judgement": 1
+		},
+		"src/rugmunchbot/channels/scam_alerts/_project_alert.py": {
+			"magic-threshold": 2
+		},
+		"src/rugmunchbot/tools/web.py": {
+			"prompt-judgement": 1
+		},
+		"src/rugmunchbot/tools/wallet_intelligence.py": {
+			"magic-threshold": 1
+		},
+		"src/rugmunchbot/tools/portfolio_risk.py": {
+			"magic-threshold": 1
+		},
+		"src/rugmunchbot/tools/scanner/_ai_verdict.py": {
+			"magic-threshold": 1
+		},
+		"src/rugmunchbot/formatters/_scan_report_riskreport/_extract.py": {
+			"magic-threshold": 1
+		}
+	},
+	"generated_on": "2026-10-31"
 }

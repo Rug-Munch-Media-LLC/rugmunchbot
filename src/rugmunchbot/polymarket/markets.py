@@ -15,12 +15,16 @@ number is dropped rather than scored on a guess.
 from __future__ import annotations
 
 import json
+import logging
 import math
 from datetime import UTC, datetime
 from typing import Any
 
 from rugmunchbot.polymarket.categories import classify_market
 from rugmunchbot.polymarket.models import SelectedMarket
+
+logger = logging.getLogger(__name__)
+
 
 EVENT_URL = "https://polymarket.com/event/{slug}"
 
@@ -30,7 +34,8 @@ def _num(value: Any) -> float | None:
         return None
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         return None
 
 
@@ -39,7 +44,8 @@ def _yes_price(market: dict[str, Any]) -> float | None:
     if isinstance(prices, str):
         try:
             prices = json.loads(prices)
-        except (json.JSONDecodeError, TypeError):
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.debug("best-effort fallback: %s", e)
             return None
     if not isinstance(prices, list) or not prices:
         return None
@@ -47,7 +53,8 @@ def _yes_price(market: dict[str, Any]) -> float | None:
     if isinstance(outcomes, str):
         try:
             outcomes = json.loads(outcomes)
-        except (json.JSONDecodeError, TypeError):
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.debug("best-effort fallback: %s", e)
             outcomes = None
     if isinstance(outcomes, list):
         for index, name in enumerate(outcomes):
@@ -70,7 +77,8 @@ def _hours_to_end(end_iso: Any, now: datetime) -> float | None:
         return None
     try:
         end = datetime.fromisoformat(end_iso.replace("Z", "+00:00"))
-    except ValueError:
+    except ValueError as e:
+        logger.debug("best-effort fallback: %s", e)
         return None
     if end.tzinfo is None:
         end = end.replace(tzinfo=UTC)

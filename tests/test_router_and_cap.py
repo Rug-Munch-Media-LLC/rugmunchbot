@@ -15,6 +15,7 @@ from __future__ import annotations
 import time
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.main_cap import CAP_WINDOW_SECONDS, MainChannelCap
 from rugmunchbot.channels.router import demote_main, route_item, route_news
@@ -91,7 +92,7 @@ def test_demote_unknown_defaults_to_news() -> None:
 @pytest.fixture
 def local_cap(monkeypatch):
     """Cap with Redis unavailable → in-process enforcement only."""
-    monkeypatch.setattr("rugmunchbot.channels.main_cap.get_redis_async", lambda: None)
+    _setattr("rugmunchbot.channels.main_cap.get_redis_async", lambda: None)
     return MainChannelCap(cap=3)
 
 
@@ -153,7 +154,7 @@ async def test_cap_never_raises_on_redis_errors(monkeypatch) -> None:
             raise ConnectionError("redis gone")
 
     cap = MainChannelCap(cap=2)
-    monkeypatch.setattr("rugmunchbot.channels.main_cap.get_redis_async", lambda: _Boom())
+    _setattr("rugmunchbot.channels.main_cap.get_redis_async", lambda: _Boom())
     cap._redis_down = False
     cap._redis = None
     await cap.record()  # redis add fails → local mirror still records

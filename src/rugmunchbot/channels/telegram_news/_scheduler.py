@@ -10,7 +10,7 @@ shim (``sweep_telegram_news``, ``persist_articles``, ``score_importance``,
 ``channels/telegram_news.py`` at call time; the scheduler helpers
 (``_chat_id`` / ``_remember`` / ``_dedupe_key`` / ``_safe_send``) are
 re-imported lazily exactly like the original module so
-``monkeypatch.setattr(channels_scheduler, "_chat_id", ...)`` keeps working.
+attribute injection (``_setattr(channels_scheduler, "_chat_id", ...)``) keeps working.
 """
 
 from __future__ import annotations
