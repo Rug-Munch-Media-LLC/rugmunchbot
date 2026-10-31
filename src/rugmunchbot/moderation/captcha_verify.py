@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import time
 from typing import Any
 
 from rugmunchbot.moderation import captcha as gate, challenge, contain, messages, state
@@ -10,6 +11,11 @@ from rugmunchbot.moderation.config import load_chat_policy
 from rugmunchbot.support.logging import get_logger
 
 logger = get_logger("rmi_bot.moderation.captcha_verify")
+
+#: Injectable time source for the answer bucket. Production keeps ``time.time``;
+#: tests freeze it so a 300s bucket boundary cannot race a member's tap (the
+#: flood_control clock seam, bcb52f6, is the same class of fix).
+clock: Any = time.time
 
 
 _audit = contain.record
@@ -36,7 +42,7 @@ async def handle_captcha_callback(update: Any, context: Any) -> bool:
         _audit(chat_id, user_id, "captcha_stale", "ignore", "no live challenge", policy.dry_run)
         await query.answer("This challenge expired. Ask an admin to release you.", show_alert=True)
         return True
-    if answer is not None and not challenge.accepts(chat_id, user_id, answer):
+    if answer is not None and not challenge.accepts(chat_id, user_id, answer, now=clock()):
         _audit(chat_id, user_id, "captcha_fail", "kick", "wrong answer", policy.dry_run)
         if policy.dry_run:
             await query.answer("Dry-run: would fail the captcha.")
