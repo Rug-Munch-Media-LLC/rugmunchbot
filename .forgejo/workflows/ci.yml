@@ -56,6 +56,12 @@ jobs:
 
   lint:
     needs: [changes]
+    # Per-STEP guard, never a job-level `if:`. A job skipped by its own
+    # condition reports `skipped`, which branch protection does not count
+    # as success: guarding the whole job would leave every docs-only PR
+    # forever waiting on CI / lint and CI / structure-gate (the deadlock
+    # class that froze standards#140 once a required context stopped
+    # reporting). Guard the expensive steps; let the job report green.
     runs-on: docker-x64
     container:
       image: nikolaik/python-nodejs:python3.12-nodejs22
@@ -238,6 +244,7 @@ jobs:
     # scripts/structure-baseline.json). Shrink freely; growth or NEW
     # offenders fail the build. Regenerate deliberately: --update-baseline.
     needs: [changes]
+    # Same per-step contract as `lint` above: the job must report green.
     runs-on: docker-x64
     container:
       image: nikolaik/python-nodejs:python3.11-nodejs22
