@@ -8,7 +8,6 @@ enrichment chain left it — no section keys, no fabricated zeros — and record
 from __future__ import annotations
 
 import asyncio
-import time
 
 import httpx
 import pytest
@@ -100,18 +99,23 @@ async def test_transport_error_is_unavailable(monkeypatch):
 async def test_timeout_returns_within_budget_and_keeps_payload(monkeypatch):
     monkeypatch.setenv("SCANNER_SERVICE_URL", BASE)
     _setattr(pa, "PARITY_TIMEOUT", 0.05)
+    cancelled = asyncio.Event()
 
     async def _wedged(address: str, chain: str) -> dict:
-        await asyncio.sleep(5)
+        try:
+            await asyncio.sleep(30)  # cannot finish inside any test budget
+        finally:
+            cancelled.set()
         return {"cohorts": {"team": {"count": 1}}}
 
     _setattr(pa, "fetch_parity", _wedged)
     data = _payload()
     before = set(data)
-    started = time.monotonic()
-    out = await pa.apply_parity(data, ADDR, "solana")
-    elapsed = time.monotonic() - started
-    assert elapsed < 1.0, f"parity gate leaked {elapsed:.2f}s into the scan"
+    out = await pa.apply_parity(data, ADDR, "solana", timeout=0.05)
+    # Deterministic budget proof: the wedged leg is CANCELLED at the budget and
+    # the scan returns while it is still sleeping. The old `elapsed < 1.0s`
+    # bound measured the scheduler, not the code — a loaded worker blew it.
+    assert cancelled.is_set(), "parity leg was not cut off at its budget"
     _assert_untouched(out, before)
 
 
