@@ -33,6 +33,19 @@ class _FakeRedis:
         return []
 
 
+class _SteppedClock:
+    """A clock the test drives explicitly — never the wall clock."""
+
+    def __init__(self, start: float = 1_000.0) -> None:
+        self.now = start
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
 @pytest.fixture
 def isolated_db(tmp_path, monkeypatch):
     """Point BOT_DB_PATH at a temp sqlite and disable redis."""
@@ -83,16 +96,32 @@ async def test_rate_limiter_fail_open_on_redis_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_flood_control_marks_abuse(tmp_path, monkeypatch):
-    monkeypatch.setenv("BOT_DB_PATH", str(tmp_path / "bot_users.db"))
+    from rugmunchbot import db
     from rugmunchbot.flood_control import FloodController
 
-    fc = FloodController(per_second=3, per_minute=20, redis_enabled=False)
+    # Hermetic: the module-level DB_PATH is resolved at import, so the test
+    # must patch it (not just the env) or it reads the shared bot DB and a
+    # frozen clock can no longer witness the window from a clean table.
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "bot_users.db"))
+
+    clock = _SteppedClock()
+    fc = FloodController(per_second=3, per_minute=20, redis_enabled=False, clock=clock)
     user = 777001
     for _ in range(3):
         ok, _, _ = await fc.check_and_count(user)
         assert ok is True, "request should pass"
+    # Frozen clock: the 4th message is inside the same one-second window, so
+    # the 3/s limit is the only thing that can decide the outcome.
     ok, _, _ = await fc.check_and_count(user)
-    assert ok is False
+    assert ok is False, "the 4th message inside one second must be marked as abuse"
+    # Still exactly a one-second window: half a second later it has not slid.
+    clock.advance(0.5)
+    ok, _, _ = await fc.check_and_count(user)
+    assert ok is False, "the window must not have slid yet at +0.5s"
+    # Past one second the earliest events leave the window and the user passes.
+    clock.advance(0.6)
+    ok, _, _ = await fc.check_and_count(user)
+    assert ok is True, "the 1s window slides after 1.1s"
 
 
 @pytest.mark.asyncio

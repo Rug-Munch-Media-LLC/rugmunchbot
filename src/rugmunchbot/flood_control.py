@@ -20,17 +20,7 @@ How the counters work (testable contract):
   refund_flood(user_id, receipt)
     - Undoes the count. Used by the message handler for tier-3 redirects
       (catch-all help text) which are NOT counted against the flood limit.
-    - /start and /help are CommandHandler commands and never reach the
-      free-text message handler, so they are never counted at all.
 
-Example:
-  allowed, retry_after, receipt = await check_flood(telegram_user_id)
-  if not allowed:
-      await update.message.reply_text(f"Slow down! Wait {retry_after}s.")
-      return
-  ... run AI chat tiers ...
-  if tier_3_redirect:
-      await refund_flood(telegram_user_id, receipt)
 """
 
 from __future__ import annotations
@@ -88,9 +78,11 @@ class FloodController:
         per_second: int = PER_SECOND_LIMIT,
         per_minute: int = PER_MINUTE_LIMIT,
         redis_enabled: bool = True,
+        clock: Any = time.time,
     ) -> None:
         self.per_second = per_second
         self.per_minute = per_minute
+        self._clock = clock  # injectable time source: same math, testable window
         # redis_enabled=False forces the SQLite fallback (used by tests and
         # deployments where the bot process has no Redis access).
         self._redis_enabled = redis_enabled
@@ -104,12 +96,17 @@ class FloodController:
             return None
         if self._redis is not None:
             return self._redis
-        if self._redis_failed_at and time.monotonic() - self._redis_failed_at < _REDIS_RETRY_BACKOFF:
+        if (
+            self._redis_failed_at
+            and time.monotonic() - self._redis_failed_at < _REDIS_RETRY_BACKOFF
+        ):
             return None
         try:
             import redis.asyncio as aioredis
 
-            client = aioredis.from_url(_redis_url(), socket_connect_timeout=2, decode_responses=True)
+            client = aioredis.from_url(
+                _redis_url(), socket_connect_timeout=2, decode_responses=True
+            )
             await client.ping()
             self._redis = client
             return client
@@ -177,7 +174,7 @@ class FloodController:
     # ── Redis sliding-window ZSET ────────────────────────────────────────
 
     async def _check_count_redis(self, redis: Any, user_id: int) -> tuple[bool, int, str | None]:
-        now = time.time()
+        now = self._clock()
         key = self._key(user_id)
         # Drop events outside the retention window, then read both counters.
         await redis.zremrangebyscore(key, "-inf", now - WINDOW_SECONDS)
@@ -197,7 +194,7 @@ class FloodController:
     # ── SQLite fallback (timestamp rows + cleanup) ───────────────────────
 
     async def _check_count_sqlite(self, user_id: int) -> tuple[bool, int, str | None]:
-        now = time.time()
+        now = self._clock()
         conn = db.get_db()
         try:
             self._ensure_table(conn)
@@ -220,7 +217,9 @@ class FloodController:
                 oldest_ts = row[0] if row and row[0] is not None else now
                 return False, self._retry_after(oldest_ts, now), None
 
-            cur = conn.execute("INSERT INTO flood_events (user_id, ts) VALUES (?, ?)", (user_id, now))
+            cur = conn.execute(
+                "INSERT INTO flood_events (user_id, ts) VALUES (?, ?)", (user_id, now)
+            )
             conn.commit()
             return True, 0, f"sqlite:{cur.lastrowid}"
         finally:
