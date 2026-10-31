@@ -1,10 +1,16 @@
 """_solana_onchain.py split part: logger, SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM, _T22_EXTENSION_NAMES, _CORE_BUDGET_S, _BUNDLE_BUDGET_S, _BUNDLE_MAX_TXS, _BUNDLE_TX_CONCURRENCY, _BUNDLE_MIN_WALLETS_PER_SLOT, _router, _rpc, _rpc_rotating, _encode_pubkey, _parse_mint_layout, _CACHE_TTL_S, _cache, _cache_get, _cache_set, resolve_mint_facts."""
+
 from __future__ import annotations
-from rugmunchbot.support.logging import get_logger
-from typing import Any
+
 import asyncio
-import base58
 import base64
+from typing import Any
+
+import base58
+
+from rugmunchbot.support.logging import get_logger
+
+from .solanaonchain_seam import seam
 
 logger = get_logger("rmi_bot.tools.scanner.solana_onchain")
 
@@ -32,6 +38,7 @@ _BUNDLE_TX_CONCURRENCY = 5
 
 _BUNDLE_MIN_WALLETS_PER_SLOT = 2
 
+
 def _router():
     """Resolve the vendored RPC router lazily (import-isolated, fail-open)."""
     try:
@@ -47,9 +54,10 @@ def _router():
     except ImportError:  # pragma: no cover - vendor always ships in practice
         return None
 
+
 async def _rpc(method: str, params: list[Any], timeout: float = 8.0) -> Any:
     """Single JSON-RPC call through the router; ``None`` on any failure."""
-    router = _router()
+    router = seam("_router", _router)()
     if router is None:
         return None
     try:
@@ -57,6 +65,7 @@ async def _rpc(method: str, params: list[Any], timeout: float = 8.0) -> Any:
     except Exception as exc:
         logger.debug("solana rpc %s failed: %s", method, exc)
         return None
+
 
 async def _rpc_rotating(
     method: str, params: list[Any], *, attempts: int = 3, timeout: float = 6.0
@@ -70,7 +79,7 @@ async def _rpc_rotating(
     """
     import httpx
 
-    router = _router()
+    router = seam("_router", _router)()
     if router is None:
         return None
     try:
@@ -102,6 +111,7 @@ async def _rpc_rotating(
                 await asyncio.sleep(0.4)
     return last
 
+
 def _encode_pubkey(raw: bytes) -> str | None:
     """Base58-encode a 32-byte pubkey, ``None`` for zeroed/invalid bytes."""
     if not raw or len(raw) != 32 or not any(raw):
@@ -110,6 +120,7 @@ def _encode_pubkey(raw: bytes) -> str | None:
         return base58.b58encode(raw).decode("ascii")
     except Exception:
         return None
+
 
 def _parse_mint_layout(data: bytes) -> dict[str, Any]:
     """Parse the 82-byte SPL mint layout (+ Token-2022 extensions)."""
@@ -153,9 +164,11 @@ def _parse_mint_layout(data: bytes) -> dict[str, Any]:
         facts["transfer_fee_pct"] = round(transfer_fee_bp / 100.0, 2)
     return facts
 
+
 _CACHE_TTL_S = 120.0
 
 _cache: dict[str, tuple[float, Any]] = {}
+
 
 def _cache_get(key: str) -> Any | None:
     import time
@@ -169,12 +182,14 @@ def _cache_get(key: str) -> Any | None:
         return None
     return val
 
+
 def _cache_set(key: str, val: Any) -> None:
     import time
 
     if len(_cache) > 512:  # bounded
         _cache.clear()
     _cache[key] = (time.monotonic(), val)
+
 
 async def resolve_mint_facts(mint: str) -> dict[str, Any] | None:
     """Resolve mint authority / freeze authority / program / tax from RPC.

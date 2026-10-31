@@ -1,10 +1,15 @@
 """_solana_onchain.py split part: enrich_scan_solana."""
+
 from __future__ import annotations
-from typing import Any
+
 import asyncio
-from .solanaonchain_p1 import _BUNDLE_BUDGET_S, _CORE_BUDGET_S, logger, resolve_mint_facts  # noqa: F401
-from .solanaonchain_p2 import resolve_deployer, resolve_holder_stats  # noqa: F401
-from .solanaonchain_p3 import detect_same_slot_bundle  # noqa: F401
+from typing import Any
+
+from .solanaonchain_p1 import _BUNDLE_BUDGET_S, _CORE_BUDGET_S, logger, resolve_mint_facts
+from .solanaonchain_p2 import resolve_deployer, resolve_holder_stats
+from .solanaonchain_p3 import detect_same_slot_bundle
+from .solanaonchain_seam import seam
+
 
 async def enrich_scan_solana(result: dict[str, Any], address: str, chain: str) -> dict[str, Any]:
     """Fill provider-missing scan fields from Solana RPC (fail-open).
@@ -34,16 +39,17 @@ async def enrich_scan_solana(result: dict[str, Any], address: str, chain: str) -
         # can never starve them on rate-limited public RPC.
         facts, holders, deployer = await asyncio.wait_for(
             asyncio.gather(
-                resolve_mint_facts(address),
-                resolve_holder_stats(address),
-                resolve_deployer(address),
+                seam("resolve_mint_facts", resolve_mint_facts)(address),
+                seam("resolve_holder_stats", resolve_holder_stats)(address),
+                seam("resolve_deployer", resolve_deployer)(address),
                 return_exceptions=True,
             ),
             timeout=_CORE_BUDGET_S,
         )
         try:
             bundle = await asyncio.wait_for(
-                detect_same_slot_bundle(address), timeout=_BUNDLE_BUDGET_S
+                seam("detect_same_slot_bundle", detect_same_slot_bundle)(address),
+                timeout=_BUNDLE_BUDGET_S,
             )
         except Exception:
             bundle = None
