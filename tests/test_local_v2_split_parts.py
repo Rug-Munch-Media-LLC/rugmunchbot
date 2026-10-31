@@ -168,7 +168,7 @@ def _legacy(monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]) -> None:
     monkeypatch.setattr(module, "_to_legacy_dict", lambda _result: dict(payload))
 
 
-def test_payload_aliases_and_market(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_payload_aliases_and_risk(monkeypatch: pytest.MonkeyPatch) -> None:
     _legacy(monkeypatch, {"safety_score": 70.0, "flags": ["f"], "modules_run": ["security"]})
     out = v2._to_v2_payload(_result(), "0xtok", "solana")
     assert out is not None
@@ -179,6 +179,12 @@ def test_payload_aliases_and_market(monkeypatch: pytest.MonkeyPatch) -> None:
     assert out["risk_flags"] == ["f"]
     assert out["holders"] == 42
     assert out["deployer_address"] == "0xdev"
+
+
+def test_payload_market_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    _legacy(monkeypatch, {"safety_score": 70.0, "flags": ["f"], "modules_run": ["security"]})
+    out = v2._to_v2_payload(_result(), "0xtok", "solana")
+    assert out is not None
     assert out["market"]["price_usd"] == 1.5
     assert out["market"]["price_change"]["h1"] == 1
 
