@@ -5,6 +5,10 @@ Rules, not vibes. Seven weighted checks produce a 0-1 score per sample in
 ``--min``, so it is a CI gate:
 
     python3 eval/voice/score.py --min 0.75
+
+The calibration (the weights behind "weighted") is resolved by
+``policy.load_weights()``: ``RMB_VOICE_WEIGHTS_FILE`` when set, otherwise the
+uniform shape-only example. The report names the source either way.
 """
 
 from __future__ import annotations
@@ -17,13 +21,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import metrics
+import policy
 import rules
 
 GOLD = Path(__file__).resolve().parent / "gold.json"
 
 
-def score_sample(sample: dict) -> dict:
+def score_sample(sample: dict, weights: dict[str, float] | None = None) -> dict:
     """Grade one sample's ``current`` text against every weighted rule."""
+    w = policy.example_weights() if weights is None else weights
     m = metrics.measure(sample["current"])
     notes: list[str] = []
 
@@ -89,7 +95,7 @@ def score_sample(sample: dict) -> dict:
         "structure": struct,
         "register": reg,
     }
-    total = sum(rules.WEIGHTS[k] * v for k, v in subs.items())
+    total = sum(w[k] * v for k, v in subs.items())
     if reg == 0.0:
         # Hard veto: a joke in a loss/security/error/moderation message is a
         # defect no amount of good structure can offset.
@@ -112,8 +118,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--top", type=int, default=5)
     args = ap.parse_args(argv)
 
+    cal = policy.load_weights()
     samples = json.loads(GOLD.read_text(encoding="utf-8"))
-    results = [score_sample(s) for s in samples]
+    results = [score_sample(s, cal.weights) for s in samples]
     aggregate = sum(r["score"] for r in results) / len(results)
     worst = sorted(results, key=lambda r: r["score"])[: args.top]
 
@@ -124,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
                     "aggregate": round(aggregate, 4),
                     "n": len(results),
                     "min": args.min,
+                    "calibration": cal.source,
                     "worst": worst,
                     "results": results,
                 },
@@ -133,7 +141,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(
             f"voice eval · {len(results)} samples · aggregate {aggregate:.4f} "
-            f"· gate {args.min:.2f} · {'PASS' if aggregate >= args.min else 'FAIL'}"
+            f"· gate {args.min:.2f} · calibration: {cal.source} · "
+            f"{'PASS' if aggregate >= args.min else 'FAIL'}"
         )
         print(f"\nworst {len(worst)}:")
         for r in worst:
