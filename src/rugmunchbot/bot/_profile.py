@@ -61,7 +61,7 @@ async def setup_bot_profile(app: Application[Any, Any, Any, Any, Any, Any]) -> N
         logger.info("Bot name set: %s", BOT_NAME)
     except (ValueError, TypeError, KeyError, OSError, TelegramError) as e:
         logger.debug("setup_bot_profile_error", exc_info=True)
-        logger.warning(f"Could not set name: {e}")
+        logger.warning("bot_profile_name_error", error=str(e))
     try:
         await bot.set_my_description(description=BOT_DESCRIPTION)
         logger.info("Bot description set")
