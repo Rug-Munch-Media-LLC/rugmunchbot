@@ -1,9 +1,4 @@
-"""Unit tests for the split ``_local_v2`` parts — pure mapping + engine dispatch.
-
-The split moved behaviour into ``localv2_p1..p4``; these tests pin the part
-that has no smoke coverage (the GoPlus mapping and the DataBus dispatch) and
-the legacy payload adapter. No network, no vendored engine is executed.
-"""
+"""Tests for the split _local_v2 parts: mapping, dispatch, payload adapter."""
 
 from __future__ import annotations
 
