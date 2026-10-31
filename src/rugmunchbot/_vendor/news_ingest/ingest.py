@@ -25,13 +25,13 @@ import json
 import os
 import re
 import time
-import xml.etree.ElementTree as ET
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any, Final
 
 import httpx
+from defusedxml import ElementTree as SafeET  # XXE-safe: stdlib ET expands entities
 
 from rugmunchbot._vendor.dedup import content_hash, url_hash
 from rugmunchbot._vendor.logging_shim import get_logger
@@ -831,7 +831,7 @@ def parse_rss_feed(xml_content: str) -> list[dict[str, Any]]:
         return []
 
     try:
-        root = ET.fromstring(xml_content)
+        root = SafeET.fromstring(xml_content)
         items = []
 
         # Handle both RSS and Atom formats

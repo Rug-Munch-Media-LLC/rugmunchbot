@@ -24,6 +24,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import os
+import tempfile
 from typing import Any
 
 import httpx
@@ -170,7 +171,7 @@ async def vision_ocr(image_path: str, prompt: str | None = None) -> str:
 
 
 async def capture_and_ocr(
-    url: str, *, out_path: str = "/tmp/opencode/shill_shot.png"  # noqa: S108 — ephemeral screenshot
+    url: str, *, out_path: str = os.path.join(tempfile.gettempdir(), "opencode", "shill_shot.png")
 ) -> dict[str, str]:
     """Convenience: capture a URL then OCR it. Returns {url, image_path, text}.
 

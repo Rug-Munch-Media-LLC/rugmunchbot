@@ -40,8 +40,9 @@ import json
 import logging
 import math
 import os
-import urllib.request
 from typing import Any
+
+import httpx
 
 logger = logging.getLogger("rugmunchbot.router")
 
@@ -189,7 +190,6 @@ CAPABILITY_EXEMPLARS: dict[str, list[str]] = {
 }
 
 _cap_centroids: dict[str, list[float]] | None = None
-
 #: Cheap keyword fallback if the local embedder is unavailable (still no network).
 _KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
     (
@@ -250,14 +250,14 @@ def _embed(texts: list[str]) -> list[list[float]] | None:
     """Local embeddings (free, on-box). Returns None if the embedder is down.
 
     NOTE: EMBED_URL comes from our own env config (a loopback llama.cpp server),
-    never from user input — hence the S310 suppression.
+    never from user input. httpx speaks http(s) only — no file:// handler (B310).
     """
     try:
-        body = json.dumps({"input": texts, "model": EMBED_MODEL}).encode()
-        req = urllib.request.Request(EMBED_URL, data=body, method="POST")  # noqa: S310
-        req.add_header("Content-Type", "application/json")
-        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
-            data = json.load(resp)
+        body = json.dumps({"input": texts, "model": EMBED_MODEL})
+        resp = httpx.post(
+            EMBED_URL, content=body, headers={"Content-Type": "application/json"}, timeout=30
+        )
+        data = resp.raise_for_status().json()
         return [d["embedding"] for d in data["data"]]
     except Exception as exc:  # router must never raise
         logger.warning("embed_unavailable", extra={"err": str(exc)[:120]})
