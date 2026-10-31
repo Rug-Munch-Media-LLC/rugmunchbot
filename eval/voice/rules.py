@@ -1,7 +1,11 @@
-"""Voice-eval policy: phrase lists, marker sets and rule weights.
+"""Voice-eval policy: phrase lists, marker sets and the sub-score names.
 
-This module is DATA, not logic — edit it to change what "good" means.
+This module is DATA, not logic - edit it to change what "good" measures.
 Every entry is matched case-insensitively against the sample's current output.
+
+The relative importance of the sub-scores is fleet calibration. It is resolved
+at run time by ``eval/voice/policy.py`` (env ``RMB_VOICE_WEIGHTS_FILE``) and is
+deliberately not published in this public repo.
 """
 
 from __future__ import annotations
@@ -24,7 +28,7 @@ BANNED_PHRASES: tuple[str, ...] = (
     "trust me bro",
     "this is financial advice",
     "can't lose",
-    "can't lose",
+    "can’t lose",  # noqa: RUF001 - the typographic apostrophe is the point: LLM output uses it
     "risk free",
     "risk-free",
     "free money",
@@ -96,7 +100,7 @@ JOKE_MARKERS: tuple[str, ...] = (
     "gg wp",
 )
 
-#: A call to action or a link — the third leg of headline + fact + CTA.
+#: A call to action or a link - the third leg of headline + fact + CTA.
 CTA_MARKERS: tuple[str, ...] = (
     "full story",
     "read more",
@@ -113,16 +117,17 @@ CTA_MARKERS: tuple[str, ...] = (
 #: Registers where a joke is a product defect, not a style choice.
 SERIOUS_CATEGORIES: tuple[str, ...] = ("loss", "error", "moderation", "security")
 
-#: Weights sum to 1.0. Changing these changes the fleet-wide baseline.
-WEIGHTS: dict[str, float] = {
-    "banned": 0.20,
-    "cliche": 0.15,
-    "spread": 0.15,
-    "emoji": 0.10,
-    "hedge": 0.10,
-    "structure": 0.15,
-    "register": 0.15,
-}
+#: The seven fixed sub-scores. Their relative importance is fleet calibration,
+#: resolved by policy.load_weights() - never a literal in this public repo.
+SUBSCORE_NAMES: tuple[str, ...] = (
+    "banned",
+    "cliche",
+    "spread",
+    "emoji",
+    "hedge",
+    "structure",
+    "register",
+)
 
 #: CI gate threshold.
 TARGET_MIN: float = 0.75
