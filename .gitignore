@@ -75,3 +75,8 @@ src/rugmunchbot/tools/cex_addresses_verified.json
 data/moderation_state.json
 # Moderation audit trail is runtime data (created on demand by JsonlAudit)
 data/moderation/audit.jsonl
+
+# Runtime state & test-tooling caches — regenerated, never track (tree-reconcile 2026-10-31)
+.test-selector-cache.json
+data/moderation/audit.jsonl
+data/moderation_state.json
