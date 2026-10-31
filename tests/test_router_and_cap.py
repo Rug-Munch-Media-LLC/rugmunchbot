@@ -114,19 +114,14 @@ class _SteppedClock:
 
 
 @pytest.fixture
-def clock() -> _SteppedClock:
-    return _SteppedClock()
-
-
-@pytest.fixture
-def local_cap(clock):
+def local_cap():
     """Cap with Redis unavailable → in-process enforcement only.
 
-    The clock is manual: window reads against the real clock raced under load
-    (same seam as flood_control's ``clock``, bcb52f6).
+    The clock is manual and frozen: window reads against the real clock raced
+    under load (same seam as flood_control's ``clock``, bcb52f6).
     """
     _setattr("rugmunchbot.channels.main_cap.get_redis_async", lambda: None)
-    return MainChannelCap(cap=3, clock=clock)
+    return MainChannelCap(cap=3, clock=_SteppedClock())
 
 
 @pytest.mark.asyncio
@@ -148,15 +143,18 @@ async def test_cap_denies_over_limit(local_cap) -> None:
 
 
 @pytest.mark.asyncio
-async def test_cap_window_slides(local_cap, clock) -> None:
+async def test_cap_window_slides() -> None:
+    step = _SteppedClock()
+    _setattr("rugmunchbot.channels.main_cap.get_redis_async", lambda: None)
+    cap = MainChannelCap(cap=3, clock=step)
     for _ in range(3):
-        await local_cap.record()
-    allowed, n = await local_cap.admission()
+        await cap.record()
+    allowed, n = await cap.admission()
     assert not allowed, "three posts fill a cap of three"
     assert n == 3
     # Move the clock past the window → the same three posts age out.
-    clock.advance(CAP_WINDOW_SECONDS + 10)
-    allowed, n = await local_cap.admission()
+    step.advance(CAP_WINDOW_SECONDS + 10)
+    allowed, n = await cap.admission()
     assert allowed
     assert n == 0
 
