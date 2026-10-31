@@ -119,6 +119,136 @@
 			"license": "our own digest of vendor docs; facts-only use",
 			"refresh_days": 60,
 			"feeds": ["docs/competitors/parity-2026-10-25.md"]
+		},
+		{
+			"id": "majorbots-docs-buybot",
+			"vendor": "Major",
+			"url": "https://docs.majorbots.io/docs/majorbuybot",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "majorbots-docs-trending",
+			"vendor": "Major",
+			"url": "https://docs.majorbots.io/docs/Trending",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "majorbots-docs-overview",
+			"vendor": "Major",
+			"url": "https://docs.majorbots.io/docs/overview",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "odin-docs-index",
+			"vendor": "Odin Tools",
+			"url": "https://docs.odin.tools/",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "odin-docs-thor-copy-trade",
+			"vendor": "Odin Tools",
+			"url": "https://docs.odin.tools/thor-trading-bot/thor-telegram-bot/copy-trade",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "telegram-profile-safeguardrobot",
+			"vendor": "Safeguard",
+			"url": "https://t.me/SafeguardRobot",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "telegram-profile-majorbuybot",
+			"vendor": "Major",
+			"url": "https://t.me/MajorBuyBot",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "telegram-profile-majortrending",
+			"vendor": "Major",
+			"url": "https://t.me/MajorTrending",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "telegram-profile-trenchscannerbot",
+			"vendor": "TrenchRadar",
+			"url": "https://t.me/TrenchScannerBot",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "telegram-profile-skeletonscanbot",
+			"vendor": "Skeleton",
+			"url": "https://t.me/Skeletonscanbot",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "okx-onchainos-meme-trench-scanner",
+			"vendor": "OKX",
+			"url": "https://web3.okx.com/onchainos/plugins/detail/meme-trench-scanner",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "github-marcus-rug-intel-org",
+			"vendor": "Marcus Rug Intel",
+			"url": "https://github.com/Marcus-Rug-Intel",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
+		},
+		{
+			"id": "pypi-rug-munch-mcp",
+			"vendor": "Marcus Rug Intel",
+			"url": "https://pypi.org/project/rug-munch-mcp/",
+			"kind": "docs",
+			"accessed": "2026-10-31",
+			"license": "public page; facts-only use, no redistribution",
+			"refresh_days": 30,
+			"feeds": ["docs"]
 		}
 	],
 	"refresh": {
