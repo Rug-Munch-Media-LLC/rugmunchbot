@@ -14,9 +14,12 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import rules
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 #: Environment variable naming the private calibration file (JSON object).
 ENV_FILE = "RMB_VOICE_WEIGHTS_FILE"
@@ -56,9 +59,13 @@ def _validated(raw: dict, source: str) -> Calibration:
     return Calibration(weights=weights, source=source)
 
 
-def load_weights() -> Calibration:
-    """Resolve the calibration: RMB_VOICE_WEIGHTS_FILE, else the uniform default."""
-    path = os.environ.get(ENV_FILE, "")
+def load_weights(env: Mapping[str, str] | None = None) -> Calibration:
+    """Resolve the calibration: RMB_VOICE_WEIGHTS_FILE, else the uniform default.
+
+    ``env`` defaults to ``os.environ``; tests inject an explicit mapping so
+    the loader stays a pure function of its inputs.
+    """
+    path = (os.environ if env is None else env).get(ENV_FILE, "")
     if not path:
         return Calibration(weights=example_weights(), source=EXAMPLE_SOURCE)
     data = json.loads(Path(path).read_text(encoding="utf-8"))

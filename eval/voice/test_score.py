@@ -86,40 +86,36 @@ def test_example_calibration_is_uniform():
     assert abs(sum(w.values()) - 1.0) < 1e-9
 
 
-def test_load_weights_defaults_to_example(monkeypatch):
+def test_load_weights_defaults_to_example():
     """No env: the eval runs on the uniform example, labelled as such."""
-    monkeypatch.delenv(policy.ENV_FILE, raising=False)
-    cal = policy.load_weights()
+    cal = policy.load_weights(env={})
     assert cal.weights == policy.example_weights()
     assert "example" in cal.source
 
 
-def test_load_weights_reads_private_file(tmp_path, monkeypatch):
+def test_load_weights_reads_private_file(tmp_path):
     """RMB_VOICE_WEIGHTS_FILE injects the real calibration over the interface."""
     path = tmp_path / "voice-calibration.json"
     path.write_text(json.dumps(dict.fromkeys(rules.SUBSCORE_NAMES, 1.0 / 7)))
-    monkeypatch.setenv(policy.ENV_FILE, str(path))
-    cal = policy.load_weights()
+    cal = policy.load_weights(env={policy.ENV_FILE: str(path)})
     assert set(cal.weights) == set(rules.SUBSCORE_NAMES)
     assert cal.source == str(path)
 
 
-def test_load_weights_rejects_incomplete_calibration(tmp_path, monkeypatch):
+def test_load_weights_rejects_incomplete_calibration(tmp_path):
     """A calibration missing a sub-score fails loud - no silent fallback."""
     path = tmp_path / "bad.json"
     path.write_text(json.dumps(dict.fromkeys(rules.SUBSCORE_NAMES[:3], 1.0 / 3)))
-    monkeypatch.setenv(policy.ENV_FILE, str(path))
     with pytest.raises(ValueError, match="exactly"):
-        policy.load_weights()
+        policy.load_weights(env={policy.ENV_FILE: str(path)})
 
 
-def test_load_weights_rejects_bad_sum(tmp_path, monkeypatch):
+def test_load_weights_rejects_bad_sum(tmp_path):
     """A calibration that does not sum to 1.0 is rejected, not coerced."""
     path = tmp_path / "bad.json"
     path.write_text(json.dumps(dict.fromkeys(rules.SUBSCORE_NAMES, 0.1)))
-    monkeypatch.setenv(policy.ENV_FILE, str(path))
     with pytest.raises(ValueError, match="sum"):
-        policy.load_weights()
+        policy.load_weights(env={policy.ENV_FILE: str(path)})
 
 
 def test_score_sample_accepts_injected_calibration():
