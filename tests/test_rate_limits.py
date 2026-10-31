@@ -1,6 +1,7 @@
 """Rate limiting + flood control (hermetic — no live Redis dependency)."""
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot._vendor.rag_pkg.rate_limiter import RateLimiter
 from rugmunchbot.flood_control import FloodController
@@ -46,7 +47,7 @@ def isolated_db(tmp_path, monkeypatch):
 async def test_rate_limiter_blocks_over_budget(monkeypatch):
     """With Redis up, the 6th request in the window must be blocked."""
     fake = _FakeRedis()
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
 
     limiter = RateLimiter(max_per_minute=5)
     for i in range(5):
@@ -59,7 +60,7 @@ async def test_rate_limiter_blocks_over_budget(monkeypatch):
 @pytest.mark.asyncio
 async def test_rate_limiter_fail_open_without_redis(monkeypatch):
     """No Redis = fail-open (return True), never block the pipeline."""
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: None)
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: None)
 
     limiter = RateLimiter(max_per_minute=1)
     for _ in range(3):
@@ -74,7 +75,7 @@ async def test_rate_limiter_fail_open_on_redis_error(monkeypatch):
     def _boom():
         raise RuntimeError("redis down")
 
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", _boom)
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", _boom)
 
     limiter = RateLimiter(max_per_minute=5)
     assert await limiter.check() is True

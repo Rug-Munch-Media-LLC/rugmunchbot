@@ -409,10 +409,9 @@ async def post_rag_drafts(ctx: ContextTypes.DEFAULT_TYPE) -> int:
                 requested = await _pkg._request_main_approval(
                     ctx,
                     chat_id,
-                    text,
-                    item,
-                    dedupe_key,
-                    rag_content_type,
+                    _pkg.MainDraft(
+                        text=text, item=item, dedupe_key=dedupe_key, content_type=rag_content_type
+                    ),
                 )
                 if requested:
                     # The draft is now pending operator approval. It is marked

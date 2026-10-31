@@ -13,6 +13,7 @@ import time
 import httpx
 import pytest
 import respx
+from _di import _setattr
 
 from rugmunchbot.tools.scanner import _parity_apply as pa
 
@@ -32,7 +33,7 @@ def _env(monkeypatch):
     """Start every test unconfigured; each test opts in to a URL."""
     monkeypatch.delenv("SCANNER_SERVICE_URL", raising=False)
     monkeypatch.delenv("SCANNER_DIRECT_URL", raising=False)
-    monkeypatch.setattr(pa, "PARITY_TIMEOUT", 0.3)
+    _setattr(pa, "PARITY_TIMEOUT", 0.3)
 
 
 def _payload() -> dict:
@@ -98,13 +99,13 @@ async def test_transport_error_is_unavailable(monkeypatch):
 
 async def test_timeout_returns_within_budget_and_keeps_payload(monkeypatch):
     monkeypatch.setenv("SCANNER_SERVICE_URL", BASE)
-    monkeypatch.setattr(pa, "PARITY_TIMEOUT", 0.05)
+    _setattr(pa, "PARITY_TIMEOUT", 0.05)
 
     async def _wedged(address: str, chain: str) -> dict:
         await asyncio.sleep(5)
         return {"cohorts": {"team": {"count": 1}}}
 
-    monkeypatch.setattr(pa, "fetch_parity", _wedged)
+    _setattr(pa, "fetch_parity", _wedged)
     data = _payload()
     before = set(data)
     started = time.monotonic()

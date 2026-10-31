@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
+from dataclasses import dataclass
 from html import escape
 from typing import TYPE_CHECKING, Any
 
@@ -44,7 +45,7 @@ from rugmunchbot.handlers.chat_ai._markup import (
     _tables_to_lists,
 )
 from rugmunchbot.handlers.chat_ai._parts import send_in_parts, split_in_parts
-from rugmunchbot.handlers.chat_ai._quality import strip_think_blocks
+from rugmunchbot.handlers.chat_ai._quality import GroundingContext, strip_think_blocks
 from rugmunchbot.handlers.chat_ai._trace import trace_answer
 from rugmunchbot.keyboards import back_kb
 from rugmunchbot.support.logging import get_logger
@@ -58,16 +59,11 @@ logger = get_logger("rmi_bot.chat_ai")
 
 
 def _grounding_source_labels(
-    *,
-    provider: str,
-    rag_count: int,
-    bridge_sources: list[dict[str, str]] | None = None,
-    live_results: dict[str, ToolResult] | None = None,
-    rag_result: ToolResult | None = None,
-    has_market_context: bool = False,
-    max_labels: int = 4,
+    ctx: GroundingContext, max_labels: int = 4
 ) -> tuple[list[tuple[str, bool]], int, int]:
     """Distinct, real source names behind an answer + the footer count.
+
+    Args live on ``ctx`` (the shared :class:`GroundingContext`).
 
     Returns ``(labels, count, distinct)``:
       * ``labels`` — up to ``max_labels`` distinct ``(name, is_ours)`` pairs
@@ -87,8 +83,12 @@ def _grounding_source_labels(
         render the "… +N more" truncation marker when ``labels`` hit the cap.
         Zero when nothing fed the answer.
     """
-    bridge_sources = bridge_sources or []
-    live_results = live_results or {}
+    provider = ctx.provider
+    rag_count = ctx.rag_count
+    bridge_sources = ctx.bridge_sources or []
+    live_results = ctx.live_results or {}
+    rag_result = ctx.rag_result
+    has_market_context = ctx.has_market_context
     # Canonical names for OUR OWN live-tool surfaces so the same internal
     # capability never double-counts (live security_scan == bridge scanner).
     _our_tool_labels = {
@@ -240,6 +240,24 @@ async def _edit_placeholder_if_slow(
         logger.debug("chat_ai interim placeholder edit skipped", exc_info=True)
 
 
+def _collect_answer_sources(
+    live_results: dict[str, ToolResult],
+    result: dict[str, Any],
+    bridge_sources: list[dict[str, str]],
+) -> list[str]:
+    """Distinct data sources that fed the answer, for the structured trace."""
+    sources: list[str] = []
+    for r in live_results.values():
+        if r.ok and r.source:
+            sources.append(r.source)
+    if result.get("provider") == "backend" and result.get("rag_count"):
+        sources.append("backend-rag")
+    sources.extend(
+        str(s.get("type")) for s in bridge_sources if isinstance(s, dict) and s.get("type")
+    )
+    return sources
+
+
 async def _send_and_trace_answer(
     message: Message,
     preliminary: Message,
@@ -276,35 +294,29 @@ async def _send_and_trace_answer(
     distinct_sources = 0
     if not answer_is_degenerate:
         source_labels, grounding_count, distinct_sources = _grounding_source_labels(
-            provider=str(result.get("provider") or ""),
-            rag_count=int(result.get("rag_count") or 0),
-            bridge_sources=bridge_sources,
-            live_results=live_results,
-            rag_result=rag_result,
-            has_market_context=has_market_context,
+            GroundingContext(
+                provider=str(result.get("provider") or ""),
+                rag_count=int(result.get("rag_count") or 0),
+                bridge_sources=bridge_sources,
+                live_results=live_results,
+                rag_result=rag_result,
+                has_market_context=has_market_context,
+            )
         )
     parts_sent = await _send_answer(
         message,
         answer,
         grounding_count,
-        source_labels=source_labels,
-        distinct_sources=distinct_sources,
-        actions=bridge_actions,
+        AnswerExtras(
+            source_labels=source_labels, distinct_sources=distinct_sources, actions=bridge_actions
+        ),
     )
 
     # ── Structured answer trace (JSON line via structlog) ────────────────
     # One machine-parseable event per answer: question, intent detected,
     # tools called, data sources hit, fabricated tokens (must be 0), latency,
     # LLM used — greppable directly in the bot logs.
-    data_sources: list[str] = []
-    for r in live_results.values():
-        if r.ok and r.source:
-            data_sources.append(r.source)
-    if result.get("provider") == "backend" and result.get("rag_count"):
-        data_sources.append("backend-rag")
-    data_sources.extend(
-        str(s.get("type")) for s in bridge_sources if isinstance(s, dict) and s.get("type")
-    )
+    data_sources = _collect_answer_sources(live_results, result, bridge_sources)
     trace_answer(
         question=text,
         user_id=user_id,
@@ -322,17 +334,23 @@ async def _send_and_trace_answer(
     )
 
 
+@dataclass
+class AnswerExtras:
+    source_labels: list[tuple[str, bool]] | None = None
+    distinct_sources: int | None = None
+    actions: list[dict[str, str]] | None = None
+
+
 async def _send_answer(
     message: Message,
     answer: str,
     grounding_count: int,
-    *,
-    source_labels: list[tuple[str, bool]] | None = None,
-    distinct_sources: int | None = None,
-    actions: list[dict[str, str]] | None = None,
+    extras: AnswerExtras | None = None,
 ) -> int:
     """Reply with the answer, split into Telegram-sized parts. Returns the
     number of parts actually sent (0 when there is nothing to send).
+
+    Args live on ``extras`` (an :class:`AnswerExtras`).
 
     v10 pipeline (all on the RAW text first, then escape):
       1. ``_normalize_llm_markup`` converts any RAW HTML the model emitted
@@ -371,6 +389,10 @@ async def _send_answer(
     ``actions`` (bridge-suggested buttons) are rendered as an inline
     keyboard on the last chunk when present; otherwise the back menu is used.
     """
+    extras = extras or AnswerExtras()
+    source_labels = extras.source_labels
+    distinct_sources = extras.distinct_sources
+    actions = extras.actions
     raw = _beautify_answer(
         _tables_to_lists(
             strip_think_blocks(_scrub_internal_api_refs(_normalize_llm_markup(answer)))

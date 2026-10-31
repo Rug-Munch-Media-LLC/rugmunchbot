@@ -13,6 +13,7 @@ import threading
 import time
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot import config, db
 from rugmunchbot.db._base import get_db, init_db
@@ -32,7 +33,7 @@ def _billing_mode(monkeypatch):
 @pytest.fixture
 def bot_db(tmp_path, monkeypatch):
     """A fresh schema per test, pointed at by the supported DB_PATH seam."""
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "bot.db"))
+    _setattr(db, "DB_PATH", str(tmp_path / "bot.db"))
     init_db()
     conn = get_db()
     conn.execute("INSERT INTO users (user_id, tier, tier_expires) VALUES (?, 'free', 0)", (USER,))

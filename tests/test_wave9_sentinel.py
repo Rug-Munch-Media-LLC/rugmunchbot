@@ -9,6 +9,7 @@ ImportError fallback yields an empty set).
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 import rugmunchbot.formatters._scan_report_sentinel as srs
 from rugmunchbot.formatters._scan_report_sentinel import _format_sentinel_pro, format_sentinel_flags
@@ -37,7 +38,7 @@ def test_no_sentinel_dict_renders_nothing() -> None:
 
 
 def test_bluechip_suppression(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(srs, "is_bluechip", lambda addr: True)
+    _setattr(srs, "is_bluechip", lambda addr: True)
     out = format_sentinel_flags(_report(FULL_FREE))
     assert "Known blue-chip" in out
     assert "concentration & lock signals suppressed" in out

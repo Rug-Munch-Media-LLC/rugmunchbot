@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import asyncio
 
+from _di import _setattr
+
 from rugmunchbot.commands.tweet import cmd_tweet, format_tweet, format_tweet_list
 from rugmunchbot.tools import story_fetch as sf
 from rugmunchbot.tools.read_tweet import parse_target, read_tweet
@@ -215,7 +217,7 @@ def test_story_fetch_normal_url_still_works(monkeypatch):
     async def _fake_fetch_story(url, timeout):
         return fake_story
 
-    monkeypatch.setattr("rugmunchbot._vendor.rag_pkg.story_ingest.fetch_story", _fake_fetch_story)
+    _setattr("rugmunchbot._vendor.rag_pkg.story_ingest.fetch_story", _fake_fetch_story)
     res = asyncio.run(sf.story_fetch(url="https://example.com/article"))
     assert res.ok
     assert res.data["text"] == "hello world"

@@ -16,12 +16,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rugmunchbot.channels.shill_alerts import config
+
+logger = logging.getLogger(__name__)
+
 
 if TYPE_CHECKING:
     import os
@@ -70,13 +74,15 @@ class AlertLedger:
         """Parsed rows; an unreadable/missing file is an empty ledger."""
         try:
             lines = self.path.read_text(encoding="utf-8").splitlines()
-        except OSError:
+        except OSError as e:
+            logger.debug("best-effort fallback: %s", e)
             return []
         out: list[dict[str, object]] = []
         for line in lines:
             try:
                 row = json.loads(line)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                logger.debug("best-effort fallback: %s", e)
                 continue
             if isinstance(row, dict) and row.get("k"):
                 out.append(row)
@@ -107,9 +113,10 @@ class AlertLedger:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(row, sort_keys=True) + "\n")
-        except OSError:
+        except OSError as e:
             # A full/unwritable volume must not break detection; the alert
             # simply loses its dedupe memory for this run.
+            logger.debug("best-effort fallback: %s", e)
             return
 
     def record(self, rec: AlertRecord, *, post: bool) -> bool:

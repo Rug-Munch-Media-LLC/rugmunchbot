@@ -36,7 +36,7 @@ from rugmunchbot.config import fmt_chain
 from rugmunchbot.formatters._base import footer_links, sep
 from rugmunchbot.formatters._vcard_evidence import normalize
 from rugmunchbot.formatters._vcard_fields import field_line, source_for, stamp
-from rugmunchbot.formatters._vcard_fit import fit_card
+from rugmunchbot.formatters._vcard_fit import CardLayout, fit_card
 from rugmunchbot.formatters._vcard_freshbuyers import first_buyer_lines
 from rugmunchbot.formatters._vcard_funding import funding_lines
 from rugmunchbot.formatters._vcard_intel import intel_lines
@@ -151,10 +151,12 @@ def format_verdict_card(
     tail.extend(["", f"Updated {ts}"])
 
     return fit_card(
-        base,
-        tail,
-        _forensic_variants(r),
-        _optional(r, ts),
-        max_chars=max_chars,
-        truncated=TRUNCATED,
+        CardLayout(
+            base=base,
+            tail=tail,
+            variants=_forensic_variants(r),
+            optional=_optional(r, ts),
+            max_chars=max_chars,
+            truncated=TRUNCATED,
+        )
     )

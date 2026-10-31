@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.scam_alerts import _publisher as pub
 
@@ -26,8 +27,8 @@ def tailer(monkeypatch, tmp_path):
     alerts = tmp_path / "shill_alerts.jsonl"
     cursor = tmp_path / "scam_alerts.cursor"
     alerts.write_text("", encoding="utf-8")
-    monkeypatch.setattr(pub, "SHILL_ALERTS_FILE", str(alerts))
-    monkeypatch.setattr(pub, "CURSOR_FILE", str(cursor))
+    _setattr(pub, "SHILL_ALERTS_FILE", str(alerts))
+    _setattr(pub, "CURSOR_FILE", str(cursor))
 
     def append(text: str) -> None:
         with open(alerts, "a", encoding="utf-8") as handle:

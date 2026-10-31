@@ -18,6 +18,8 @@ import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from _di import _setattr
+
 import rugmunchbot.channels.scheduler._posts_rag as _posts_rag
 from rugmunchbot.channels._report_mirror import FEED_TEXT_MAX, mirror_report
 from rugmunchbot.channels.evening_wrap import EVENING_WRAP_GRAPHIC
@@ -91,7 +93,7 @@ def test_feed_keeps_headline_and_full_commentary(tmp_path: Path) -> None:
 
 def test_feed_mirror_does_not_truncate_at_telegram_cap(tmp_path: Path, monkeypatch) -> None:
     """mirror_report ships the whole report and keeps the edition graphic."""
-    monkeypatch.setattr(_posts_rag, "FEED_DATA", str(tmp_path))
+    _setattr(_posts_rag, "FEED_DATA", str(tmp_path))
     report = "<b>━━━ The Midday Market Report ━━━</b>\n" + ("Analysis line. " * 350)
     url = "https://rugmunch.io/brand/rmi-midday-market-report.jpeg"
     deep_link = asyncio.run(

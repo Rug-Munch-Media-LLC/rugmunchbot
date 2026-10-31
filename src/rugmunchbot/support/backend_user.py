@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -189,23 +190,28 @@ async def remove_watchlist(
     )
 
 
+@dataclass
+class WatchlistAlertSpec:
+    entry_id: str
+    direction: str
+    price: float
+
+
 async def set_watchlist_alert(
     user_id: int,
-    entry_id: str,
-    direction: str,
-    price: float,
+    spec: WatchlistAlertSpec,
     username: str | None = None,
     first_name: str | None = None,
 ) -> dict[str, Any]:
     """PUT /api/v1/watchlist/{entry_id} — set alert_above or alert_below."""
-    field = "alert_above" if direction == "above" else "alert_below"
+    field = "alert_above" if spec.direction == "above" else "alert_below"
     return await _user_request(
         "PUT",
-        f"/api/v1/watchlist/{entry_id}",
+        f"/api/v1/watchlist/{spec.entry_id}",
         user_id,
         username,
         first_name,
-        json_body={field: price},
+        json_body={field: spec.price},
     )
 
 

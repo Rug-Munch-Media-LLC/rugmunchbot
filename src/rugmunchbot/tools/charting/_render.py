@@ -5,6 +5,7 @@ Extracted verbatim from the former single-module ``tools/charting.py``.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from rugmunchbot.tools.charting._constants import _SPARK_CHARS, _TIMEFRAMES, _Candle
@@ -143,18 +144,30 @@ def _levels_line(analysis: dict[str, Any]) -> str:
     return " · ".join(parts)
 
 
-def _render_chart(
-    snapshot: dict[str, Any],
-    timeframe: str,
-    unit: str,
-    candles: list[_Candle],
-    analysis: dict[str, Any],
-    closes: list[float],
-    source: str,
-    width: int,
-    height: int,
-) -> str:
+@dataclass
+class ChartCanvas:
+    snapshot: dict[str, Any]
+    timeframe: str
+    unit: str
+    candles: list[_Candle]
+    analysis: dict[str, Any]
+    closes: list[float]
+    source: str
+    width: int
+    height: int
+
+
+def _render_chart(canvas: ChartCanvas) -> str:
     """Assemble the Telegram-monospace ASCII chart block (text only)."""
+    snapshot = canvas.snapshot
+    timeframe = canvas.timeframe
+    unit = canvas.unit
+    candles = canvas.candles
+    analysis = canvas.analysis
+    closes = canvas.closes
+    source = canvas.source
+    width = canvas.width
+    height = canvas.height
     sym = snapshot.get("symbol") or "?"
     chain = snapshot.get("chain") or ""
     header = (

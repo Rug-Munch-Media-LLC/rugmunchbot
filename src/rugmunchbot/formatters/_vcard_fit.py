@@ -17,17 +17,27 @@ One public entry point: :func:`fit_card`.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 
-def fit_card(
-    base: list[str],
-    tail: list[str],
-    variants: list[list[str]],
-    optional: list[list[str]],
-    *,
-    max_chars: int,
-    truncated: str,
-) -> str:
+
+@dataclass
+class CardLayout:
+    base: list[str]
+    tail: list[str]
+    variants: list[list[str]]
+    optional: list[list[str]]
+    max_chars: int
+    truncated: str
+
+
+def fit_card(layout: CardLayout) -> str:
     """Join sections, dropping ``variants`` before ``optional`` before lines."""
+    base = layout.base
+    tail = layout.tail
+    variants = layout.variants
+    optional = layout.optional
+    max_chars = layout.max_chars
+    truncated = layout.truncated
     last = len(variants) - 1
     for index, variant in enumerate(variants):
         head = [*base, *variant, *tail]

@@ -11,6 +11,7 @@ loop. ``_helpers.py`` re-imports everything it needs from here.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -32,16 +33,20 @@ from rugmunchbot._vendor.ai_guardrails import strip_think_tags as strip_think_bl
 # ══════════════════════════════════════════════
 
 
-def _grounding_sources_count(
-    *,
-    provider: str,
-    rag_count: int,
-    bridge_sources: list[dict[str, str]] | None = None,
-    live_results: dict[str, ToolResult] | None = None,
-    rag_result: ToolResult | None = None,
-    has_market_context: bool = False,
-) -> int:
+@dataclass
+class GroundingContext:
+    provider: str
+    rag_count: int
+    bridge_sources: list[dict[str, str]] | None = None
+    live_results: dict[str, ToolResult] | None = None
+    rag_result: ToolResult | None = None
+    has_market_context: bool = False
+
+
+def _grounding_sources_count(ctx: GroundingContext) -> int:
     """Truthful count of the DISTINCT intelligence sources behind an answer.
+
+    Args are on ``ctx`` (a :class:`GroundingContext`).
 
     Buckets (each counts only real data):
 
@@ -60,14 +65,20 @@ def _grounding_sources_count(
     Only counts what actually returned data: failed tools (``ok=False``),
     empty source lists, and knowledge-fallback web results contribute zero.
     """
-    bridge_sources = bridge_sources or []
-    live_results = live_results or {}
+    provider = ctx.provider
+    rag_count = ctx.rag_count
+    bridge_sources = ctx.bridge_sources or []
+    live_results = ctx.live_results or {}
+    rag_result = ctx.rag_result
+    has_market_context = ctx.has_market_context
 
     # RAG grounding.
     if provider == "backend":
         rag_bucket = max(int(rag_count), 0)
     else:
-        rag_bucket = sum(1 for s in bridge_sources if isinstance(s, dict) and s.get("type") == "rag")
+        rag_bucket = sum(
+            1 for s in bridge_sources if isinstance(s, dict) and s.get("type") == "rag"
+        )
         if rag_result is not None and rag_result.ok and rag_bucket == 0:
             rag_bucket = 1  # direct lookup hit without typed bridge sources
     count = rag_bucket
@@ -88,7 +99,9 @@ def _grounding_sources_count(
     count += web_count
 
     # Live tools: distinct tool types that returned real data.
-    count += sum(1 for name, r in live_results.items() if name not in ("web_search", "rag_lookup") and r.ok)
+    count += sum(
+        1 for name, r in live_results.items() if name not in ("web_search", "rag_lookup") and r.ok
+    )
 
     # Market context: the daily digest / bridge market block fed the answer.
     if has_market_context:

@@ -19,6 +19,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.kol_scoreboard import (
     KolCall,
@@ -259,7 +260,7 @@ def test_format_hall_of_shame_post_subset_only():
 def tmp_db(monkeypatch, tmp_path):
     from rugmunchbot import db as db_pkg
 
-    monkeypatch.setattr(db_pkg, "DB_PATH", str(tmp_path / "test_bot.db"))
+    _setattr(db_pkg, "DB_PATH", str(tmp_path / "test_bot.db"))
     from rugmunchbot.db._base import init_db
 
     init_db()

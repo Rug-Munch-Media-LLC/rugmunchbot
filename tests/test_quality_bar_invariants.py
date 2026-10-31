@@ -21,6 +21,7 @@ quality campaign. Any change that violates them fails CI:
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.formatters import format_scan_report
 from rugmunchbot.formatters._base._risk import _verdict_sentence
@@ -192,10 +193,10 @@ async def test_q4_rpc_authority_overrides_provider_guess(monkeypatch: pytest.Mon
     async def none(*a: object, **k: object) -> None:
         return None
 
-    monkeypatch.setattr(so, "resolve_mint_facts", facts)
-    monkeypatch.setattr(so, "resolve_holder_stats", none)
-    monkeypatch.setattr(so, "resolve_deployer", none)
-    monkeypatch.setattr(so, "detect_same_slot_bundle", none)
+    _setattr(so, "resolve_mint_facts", facts)
+    _setattr(so, "resolve_holder_stats", none)
+    _setattr(so, "resolve_deployer", none)
+    _setattr(so, "detect_same_slot_bundle", none)
 
     # Provider GUESSED mintable=True; on-chain says renounced — RPC wins.
     result = {"chain": "solana", "mintable": True}

@@ -12,6 +12,7 @@ from typing import Any
 
 import base58
 import pytest
+from _di import _setattr
 
 from rugmunchbot.tools.scanner import _smart_money_token as smt, _solana_onchain as so
 
@@ -96,7 +97,7 @@ def _account_info_response(data: bytes, owner: str = so.SPL_TOKEN_PROGRAM) -> di
 
 
 def _patch_router(monkeypatch: pytest.MonkeyPatch, router: FakeRouter) -> None:
-    monkeypatch.setattr(so, "_router", lambda: router)
+    _setattr(so, "_router", lambda: router)
 
 
 # ── _parse_mint_layout ───────────────────────────────────────────────────
@@ -363,10 +364,10 @@ async def test_enrich_fills_authorities_and_tax(monkeypatch: pytest.MonkeyPatch)
     async def none(*a: Any, **k: Any) -> None:
         return None
 
-    monkeypatch.setattr(so, "resolve_mint_facts", fake_resolve)
-    monkeypatch.setattr(so, "resolve_holder_stats", none)
-    monkeypatch.setattr(so, "resolve_deployer", none)
-    monkeypatch.setattr(so, "detect_same_slot_bundle", none)
+    _setattr(so, "resolve_mint_facts", fake_resolve)
+    _setattr(so, "resolve_holder_stats", none)
+    _setattr(so, "resolve_deployer", none)
+    _setattr(so, "detect_same_slot_bundle", none)
 
     result: dict[str, Any] = {"address": WALLET_C, "chain": "solana"}
     out = await so.enrich_scan_solana(result, WALLET_C, "solana")
@@ -386,10 +387,10 @@ async def test_enrich_classic_spl_tax_defaults_zero(monkeypatch: pytest.MonkeyPa
     async def none(*a: Any, **k: Any) -> None:
         return None
 
-    monkeypatch.setattr(so, "resolve_mint_facts", fake_resolve)
-    monkeypatch.setattr(so, "resolve_holder_stats", none)
-    monkeypatch.setattr(so, "resolve_deployer", none)
-    monkeypatch.setattr(so, "detect_same_slot_bundle", none)
+    _setattr(so, "resolve_mint_facts", fake_resolve)
+    _setattr(so, "resolve_holder_stats", none)
+    _setattr(so, "resolve_deployer", none)
+    _setattr(so, "detect_same_slot_bundle", none)
 
     out = await so.enrich_scan_solana({"chain": "solana"}, WALLET_C, "solana")
     assert out["buy_tax"] == 0.0
@@ -407,10 +408,10 @@ async def test_enrich_never_overwrites_provider_deployer(monkeypatch: pytest.Mon
     async def none(*a: Any, **k: Any) -> None:
         return None
 
-    monkeypatch.setattr(so, "resolve_mint_facts", fake_resolve)
-    monkeypatch.setattr(so, "resolve_holder_stats", none)
-    monkeypatch.setattr(so, "resolve_deployer", fake_deployer)
-    monkeypatch.setattr(so, "detect_same_slot_bundle", none)
+    _setattr(so, "resolve_mint_facts", fake_resolve)
+    _setattr(so, "resolve_holder_stats", none)
+    _setattr(so, "resolve_deployer", fake_deployer)
+    _setattr(so, "detect_same_slot_bundle", none)
 
     out = await so.enrich_scan_solana(
         {"chain": "solana", "deployer_address": WALLET_A}, WALLET_C, "solana"
@@ -430,10 +431,10 @@ async def test_enrich_fail_open_on_budget_timeout(monkeypatch: pytest.MonkeyPatc
     async def boom(*a: Any, **k: Any) -> None:
         raise TimeoutError()
 
-    monkeypatch.setattr(so, "resolve_mint_facts", boom)
-    monkeypatch.setattr(so, "resolve_holder_stats", boom)
-    monkeypatch.setattr(so, "resolve_deployer", boom)
-    monkeypatch.setattr(so, "detect_same_slot_bundle", boom)
+    _setattr(so, "resolve_mint_facts", boom)
+    _setattr(so, "resolve_holder_stats", boom)
+    _setattr(so, "resolve_deployer", boom)
+    _setattr(so, "detect_same_slot_bundle", boom)
 
     result = {"chain": "solana", "risk_score": 41}
     out = await so.enrich_scan_solana(result, WALLET_C, "solana")
@@ -528,7 +529,7 @@ async def test_enrich_smart_money_merges_result(monkeypatch: pytest.MonkeyPatch)
             "source": "gmgn_token_scoped",
         }
 
-    monkeypatch.setattr(smt, "fetch_token_smart_money", fake_fetch)
+    _setattr(smt, "fetch_token_smart_money", fake_fetch)
     result: dict[str, Any] = {"gmgn": {"holders": {"holder_count": 10}}}
     out = await smt.enrich_scan_smart_money(result, WALLET_C, "solana")
     assert out["gmgn"]["smart_money"]["net_bought"] == 42.0
@@ -540,7 +541,7 @@ async def test_enrich_smart_money_skips_already_enriched(monkeypatch: pytest.Mon
     async def fail(*a: Any, **k: Any) -> None:
         raise AssertionError("must not be called")
 
-    monkeypatch.setattr(smt, "fetch_token_smart_money", fail)
+    _setattr(smt, "fetch_token_smart_money", fail)
     result = {"gmgn": {"smart_money": {"source": "gmgn_token_scoped", "net_bought": 1}}}
     out = await smt.enrich_scan_smart_money(result, WALLET_C, "solana")
     assert out["gmgn"]["smart_money"]["net_bought"] == 1
@@ -551,7 +552,7 @@ async def test_enrich_smart_money_fail_open(monkeypatch: pytest.MonkeyPatch) -> 
     async def none(*a: Any, **k: Any) -> None:
         return None
 
-    monkeypatch.setattr(smt, "fetch_token_smart_money", none)
+    _setattr(smt, "fetch_token_smart_money", none)
     result = {"risk_score": 10}
     out = await smt.enrich_scan_smart_money(result, WALLET_C, "solana")
     assert out == result

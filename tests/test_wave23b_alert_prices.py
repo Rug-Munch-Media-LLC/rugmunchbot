@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from _di import _setattr
+
 from rugmunchbot.handlers.alerts import _prices as ap
 
 if TYPE_CHECKING:
@@ -21,7 +23,7 @@ def test_empty_batch_short_circuits(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(*a: object, **k: object) -> None:
         raise AssertionError("resolver must not be called for an empty batch")
 
-    monkeypatch.setattr(ap, "resolve_with_fallback", boom)
+    _setattr(ap, "resolve_with_fallback", boom)
     import asyncio
 
     assert asyncio.run(ap._fetch_prices_batch([])) == {}
@@ -36,7 +38,7 @@ def _install_resolver(monkeypatch: pytest.MonkeyPatch) -> None:
             return res
         return await fallback()
 
-    monkeypatch.setattr(ap, "resolve_with_fallback", fake_resolve)
+    _setattr(ap, "resolve_with_fallback", fake_resolve)
 
 
 def test_own_data_primary_hit(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -47,8 +49,8 @@ def test_own_data_primary_hit(monkeypatch: pytest.MonkeyPatch) -> None:
         assert _EVM_A.lower() in path
         return {"cached": True, "data": {"price_usd": 1.23}}
 
-    monkeypatch.setattr(ap, "backend_get_json", fake_backend)
-    monkeypatch.setattr(ap, "detect_chain", lambda addr: "ethereum")
+    _setattr(ap, "backend_get_json", fake_backend)
+    _setattr(ap, "detect_chain", lambda addr: "ethereum")
 
     import asyncio
 
@@ -74,9 +76,9 @@ def test_partial_own_data_fills_rest_from_dexscreener(
         # the response cannot contain a pair for the own-data hit.
         return {"pairs": [{"baseToken": {"address": _EVM_B}, "priceUsd": "4.56"}]}
 
-    monkeypatch.setattr(ap, "backend_get_json", fake_backend)
-    monkeypatch.setattr(ap, "detect_chain", lambda addr: "ethereum")
-    monkeypatch.setattr(ap, "http_get_json", fake_http)
+    _setattr(ap, "backend_get_json", fake_backend)
+    _setattr(ap, "detect_chain", lambda addr: "ethereum")
+    _setattr(ap, "http_get_json", fake_http)
 
     import asyncio
 
@@ -96,9 +98,9 @@ def test_unknown_chain_skips_own_leg_entirely(monkeypatch: pytest.MonkeyPatch) -
     async def fake_http(url: str, **kw: Any) -> dict[str, Any]:
         return {"pairs": [{"baseToken": {"address": _EVM_A}, "priceUsd": "7"}]}
 
-    monkeypatch.setattr(ap, "backend_get_json", fail_backend)
-    monkeypatch.setattr(ap, "detect_chain", lambda addr: "unknown")
-    monkeypatch.setattr(ap, "http_get_json", fake_http)
+    _setattr(ap, "backend_get_json", fail_backend)
+    _setattr(ap, "detect_chain", lambda addr: "unknown")
+    _setattr(ap, "http_get_json", fake_http)
 
     import asyncio
 

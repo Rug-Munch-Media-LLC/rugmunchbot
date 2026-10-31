@@ -18,6 +18,7 @@ from rugmunchbot.tools.charting._pairs import (
     _resolve_pair,
 )
 from rugmunchbot.tools.charting._render import (
+    ChartCanvas,
     _bias,
     _candle_direction_row,
     _render_chart,
@@ -96,7 +97,17 @@ async def chart(
             )
         closes = [float(c["close"]) for c in candles]
         chart_text = _render_chart(
-            snapshot, tf, unit, candles, analysis, closes, source, width, height
+            ChartCanvas(
+                snapshot=snapshot,
+                timeframe=tf,
+                unit=unit,
+                candles=candles,
+                analysis=analysis,
+                closes=closes,
+                source=source,
+                width=width,
+                height=height,
+            )
         )
         return ToolResult(
             tool="chart",

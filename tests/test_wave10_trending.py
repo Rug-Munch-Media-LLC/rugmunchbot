@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 import pytest
+from _di import _setattr
 
 import rugmunchbot.handlers._trending as tr
 
@@ -23,7 +24,7 @@ async def test_cg_trending_maps_coins_to_pseudo_news(monkeypatch: pytest.MonkeyP
             "coins": [{"item": {"name": "WIF", "symbol": "WIF", "id": "dogwifcoin", "score": 3}}]
         }
 
-    monkeypatch.setattr(tr, "http_get_json", fake_cg)
+    _setattr(tr, "http_get_json", fake_cg)
     items = await tr._fetch_cg_trending_news()
     assert items == [
         {
@@ -41,7 +42,7 @@ async def test_cg_trending_fails_open(body: Any, monkeypatch: pytest.MonkeyPatch
     async def fake_cg(url: str, timeout: int = 8) -> Any:
         return body
 
-    monkeypatch.setattr(tr, "http_get_json", fake_cg)
+    _setattr(tr, "http_get_json", fake_cg)
     assert await tr._fetch_cg_trending_news() is None
 
 
@@ -85,8 +86,8 @@ def _install(
     async def fake_boosts(url: str, timeout: int = 15) -> list[dict[str, Any]]:
         return boosted
 
-    monkeypatch.setattr(tr, "http_get_any", fake_boosts)
-    monkeypatch.setattr(tr, "get_shared_client", lambda t=15: client)
+    _setattr(tr, "http_get_any", fake_boosts)
+    _setattr(tr, "get_shared_client", lambda t=15: client)
 
 
 async def test_dexscreener_chain_filter_and_quality_gates(
@@ -119,5 +120,5 @@ async def test_dexscreener_non_list_body_fails_open(
     async def fake_boosts(url: str, timeout: int = 15) -> Any:
         return {"error": "down"}
 
-    monkeypatch.setattr(tr, "http_get_any", fake_boosts)
+    _setattr(tr, "http_get_any", fake_boosts)
     assert await tr._fetch_dexscreener_trending(chain="solana") is None

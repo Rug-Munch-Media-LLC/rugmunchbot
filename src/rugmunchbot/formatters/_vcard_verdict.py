@@ -20,9 +20,13 @@ One public entry point: :func:`verdict`.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from rugmunchbot.formatters._scan_report_common import _risk_level_word
+
+logger = logging.getLogger(__name__)
+
 
 RANK_WORD = {3: "AVOID", 2: "HIGH RISK", 1: "MEDIUM RISK", 0: "LOW RISK"}
 UNSUPPORTED = "INSUFFICIENT EVIDENCE"
@@ -51,7 +55,8 @@ def _score_rank(r: dict[str, Any]) -> int | None:
         return None
     try:
         score = float(raw)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         return None
     return {"HIGH": 2, "MEDIUM": 1, "LOW": 0}.get(_risk_level_word(score), 1)
 
@@ -70,7 +75,8 @@ def _dev_rank(r: dict[str, Any]) -> int | None:
     raw = profile.get("rug_rate", evidence.get("rug_rate") if isinstance(evidence, dict) else None)
     try:
         rate = float(raw)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         return None
     return 2 if rate >= 0.5 else 1 if rate >= 0.2 else 0
 
@@ -87,8 +93,8 @@ def _hard_fail_reasons(r: dict[str, Any]) -> list[str]:
     try:
         if float(r.get("sell_tax", 0) or 0) >= 0.5:
             out.append("sell tax >= 50%")
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
     return out
 
 
@@ -96,7 +102,8 @@ def verdict(r: dict[str, Any], signals: Any, ts: str) -> tuple[str, str]:
     """Return ``(head_word, why_line)`` for the card's first two blocks."""
     try:
         score = float(r.get("risk_score", 0) or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         score = 0.0
     fails = _hard_fail_reasons(r)
     if signals.hard_fail and not fails:

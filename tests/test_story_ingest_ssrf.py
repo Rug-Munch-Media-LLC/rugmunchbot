@@ -8,6 +8,7 @@ metadata endpoints (169.254.169.254) are off-limits for a consumer bot.
 import socket
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot._vendor.rag_pkg.story_ingest import (
     StoryFetchError,
@@ -31,7 +32,7 @@ from rugmunchbot._vendor.rag_pkg.story_ingest import (
         "192.168.1.1",
         "169.254.169.254",  # cloud metadata
         "169.254.0.1",
-        "100.64.0.1",  # CGNAT (RFC 6598 doc range — gitleaks:allow)
+        "100.120.0.1",  # CGNAT (RFC 6598 range — ipaddress.is_private)
         "100.127.255.254",
         "0.0.0.0",  # noqa: S104 — test string, not a bind
         "192.0.2.1",  # documentation
@@ -82,7 +83,7 @@ def test_host_resolves_to_private(monkeypatch: pytest.MonkeyPatch) -> None:
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
         raise OSError("no address")
 
-    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+    _setattr(socket, "getaddrinfo", fake_getaddrinfo)
     assert _host_is_private("internal.example.com") is True
     assert _host_is_private("public.example.com") is False
 
@@ -91,7 +92,7 @@ def test_host_unresolvable_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None
     def fake_getaddrinfo(host: str, _port: int, proto: int = socket.IPPROTO_TCP) -> list:
         raise OSError("no address")
 
-    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+    _setattr(socket, "getaddrinfo", fake_getaddrinfo)
     assert _host_is_private("does-not-exist.invalid") is True
 
 
@@ -111,7 +112,7 @@ def test_validate_rejects_private_hostname(monkeypatch: pytest.MonkeyPatch) -> N
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", 0))]
         raise OSError("no address")
 
-    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+    _setattr(socket, "getaddrinfo", fake_getaddrinfo)
     with pytest.raises(StoryFetchError, match="private/internal"):
         _validate_url("http://talos.internal:8000/admin")
 
@@ -120,7 +121,7 @@ def test_validate_accepts_public_url(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_getaddrinfo(host: str, _port: int, proto: int = socket.IPPROTO_TCP) -> list:
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
 
-    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+    _setattr(socket, "getaddrinfo", fake_getaddrinfo)
     assert _validate_url("https://example.com/article") == "https://example.com/article"
 
 

@@ -89,11 +89,13 @@ async def hold(
         await contain.escalate(
             bot,
             chat_id,
-            user_id,
-            "entrance_quarantine_failed",
-            f"quarantine could not mute: {error}",
-            action_id=action_id,
-            target=settings.quarantine_channel_id,
+            contain.Escalation(
+                user_id=user_id,
+                rule="entrance_quarantine_failed",
+                reason=f"quarantine could not mute: {error}",
+                action_id=action_id,
+                target=settings.quarantine_channel_id,
+            ),
         )
     if settings.quarantine_channel_id:
         text = (

@@ -272,6 +272,7 @@ from . import (  # noqa: E402,F401  (submodules re-exported)
     _main,
 )
 from ._approval import (  # noqa: E402
+    MainDraft as MainDraft,
     _handle_approval_edit_reply as _handle_approval_edit_reply,
     _request_main_approval as _request_main_approval,
     handle_approval_callback as handle_approval_callback,

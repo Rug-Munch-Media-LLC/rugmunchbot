@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.support import dual_publish as dp
 
@@ -18,12 +19,12 @@ from rugmunchbot.support import dual_publish as dp
 @pytest.fixture(autouse=True)
 def _isolate(tmp_path, monkeypatch):
     """Point the feed store at a temp dir so tests never touch the real store."""
-    monkeypatch.setattr(dp, "_feed_data_dir", lambda: str(tmp_path))
+    _setattr(dp, "_feed_data_dir", lambda: str(tmp_path))
     return tmp_path
 
 
 def test_publish_to_site_success_reports_site_ok(monkeypatch):
-    monkeypatch.setattr(dp, "_mirror", lambda item: "post-123")
+    _setattr(dp, "_mirror", lambda item: "post-123")
     st = dp.publish_to_site({"text": "hi", "story_ref": "ref-1"})
     assert st.site is True
     assert st.queued is False
@@ -33,7 +34,7 @@ def test_publish_to_site_success_reports_site_ok(monkeypatch):
 
 
 def test_publish_to_site_failure_queues(monkeypatch, tmp_path):
-    monkeypatch.setattr(dp, "_mirror", lambda item: None)
+    _setattr(dp, "_mirror", lambda item: None)
     st = dp.publish_to_site({"text": "hi", "story_ref": "ref-2"})
     assert st.site is False
     assert st.queued is True
@@ -44,17 +45,17 @@ def test_publish_to_site_failure_queues(monkeypatch, tmp_path):
 
 
 def test_queue_drains_when_site_recovers(monkeypatch, tmp_path):
-    monkeypatch.setattr(dp, "_mirror", lambda item: None)
+    _setattr(dp, "_mirror", lambda item: None)
     dp.publish_to_site({"text": "hi", "story_ref": "ref-3"})
     # Site recovers — the next drain flushes the backlog.
-    monkeypatch.setattr(dp, "_mirror", lambda item: "post-999")
+    _setattr(dp, "_mirror", lambda item: "post-999")
     landed = dp.drain_retry_queue()
     assert landed == 1
     assert json.loads((tmp_path / "feed_retry_queue.json").read_text()) == []
 
 
 def test_queue_dedupes_by_story_ref(monkeypatch, tmp_path):
-    monkeypatch.setattr(dp, "_mirror", lambda item: None)
+    _setattr(dp, "_mirror", lambda item: None)
     dp.publish_to_site({"text": "a", "story_ref": "ref-4"})
     dp.publish_to_site({"text": "b", "story_ref": "ref-4"})
     queue = json.loads((tmp_path / "feed_retry_queue.json").read_text())

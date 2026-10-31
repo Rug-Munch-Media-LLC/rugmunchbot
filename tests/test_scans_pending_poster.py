@@ -11,6 +11,7 @@ Contract (2026-08-29 scans-of-interest fix):
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 
 def test_pending_namespace_does_not_collide_with_full_card() -> None:
@@ -74,12 +75,12 @@ async def _patch_env(monkeypatch: pytest.MonkeyPatch, *, notes: list[dict]) -> _
         return [], list(fresh), False
 
     recorder = _Recorder()
-    monkeypatch.setattr(ps, "fetch_scan_notes", _fetch_scan_notes)
-    monkeypatch.setattr(ps, "fetch_suspect_scan_notes", _fetch_suspect)
-    monkeypatch.setattr(ps, "attach_scan_commentary", _no_commentary)
-    monkeypatch.setattr(ps, "_score_and_partition", _score_and_partition)
-    monkeypatch.setattr(ps, "_chat_id", lambda ch: "-100scans" if ch == "scans" else None)
-    monkeypatch.setattr(ps, "_post_photo_aware", recorder)
+    _setattr(ps, "fetch_scan_notes", _fetch_scan_notes)
+    _setattr(ps, "fetch_suspect_scan_notes", _fetch_suspect)
+    _setattr(ps, "attach_scan_commentary", _no_commentary)
+    _setattr(ps, "_score_and_partition", _score_and_partition)
+    _setattr(ps, "_chat_id", lambda ch: "-100scans" if ch == "scans" else None)
+    _setattr(ps, "_post_photo_aware", recorder)
     return recorder
 
 

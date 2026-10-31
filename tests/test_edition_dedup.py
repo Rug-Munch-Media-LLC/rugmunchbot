@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from _di import _setattr
+
 from rugmunchbot.channels import _edition_dedup as dedup
 
 if TYPE_CHECKING:
@@ -81,7 +83,7 @@ def test_story_hash_prefers_url() -> None:
 def test_three_way_no_story_in_two(monkeypatch: pytest.MonkeyPatch) -> None:
     """A story used by the morning is excluded from midday AND evening."""
     fake = _FakeRedis()
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
     shared = _story("https://x.com/shared")
     morning_only = _story("https://x.com/m")
     midday_only = _story("https://x.com/d")
@@ -103,14 +105,14 @@ def test_three_way_no_story_in_two(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_morning_has_no_prior_editions(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: _FakeRedis())
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: _FakeRedis())
     stories = [_story("https://x.com/1")]
     assert dedup.exclude_prior_editions(stories, before="morning") == stories
 
 
 def test_legacy_morning_aliases(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _FakeRedis()
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
     stories = [_story("https://x.com/1"), _story("https://x.com/2")]
     dedup.mark_morning_stories(stories)
     key = dedup.morning_posted_key()
@@ -125,20 +127,20 @@ def _story_list() -> list[dict[str, Any]]:
 
 
 def test_exclude_no_key_passthrough(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: _FakeRedis())
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: _FakeRedis())
     stories = [_story("https://x.com/9")]
     assert dedup.exclude_prior_editions(stories, before="evening") == stories
 
 
 def test_fail_open_on_redis_down(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: _FakeRedis(down=True))
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: _FakeRedis(down=True))
     stories = [_story("https://x.com/1")]
     dedup.mark_edition_stories("morning", stories)  # must not raise
     assert dedup.exclude_prior_editions(stories, before="evening") == stories
 
 
 def test_fail_open_on_no_client(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: None)
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: None)
     stories = [_story("https://x.com/1")]
     dedup.mark_edition_stories("morning", stories)  # must not raise
     assert dedup.exclude_prior_editions(stories, before="evening") == stories

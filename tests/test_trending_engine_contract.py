@@ -23,7 +23,9 @@ PAYLOAD = {
             "token_address": "So11111111111111111111111111111111111111112",
             "symbol": "PAID",
             "score": 0.73,
-            "evidence": [{"source": "dexscreener", "signal": "volume_24h", "value": 6500000, "paid": True}],
+            "evidence": [
+                {"source": "dexscreener", "signal": "volume_24h", "value": 6500000, "paid": True}
+            ],
             "paid": True,
             "paid_only": False,
             "disclosures": ["dexscreener_boost$500"],
@@ -34,7 +36,9 @@ PAYLOAD = {
             "token_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
             "symbol": "ORGANIC",
             "score": 0.51,
-            "evidence": [{"source": "dexscreener", "signal": "volume_24h", "value": 1200000, "paid": False}],
+            "evidence": [
+                {"source": "dexscreener", "signal": "volume_24h", "value": 1200000, "paid": False}
+            ],
             "paid": False,
             "paid_only": False,
             "disclosures": [],

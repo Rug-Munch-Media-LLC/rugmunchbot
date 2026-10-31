@@ -6,6 +6,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from _di import _setattr
 
 import rugmunchbot.config as botcfg
 from rugmunchbot.moderation import config, store, welcome
@@ -40,7 +41,7 @@ def cfg_path(_rig, tmp_path):
 
 @pytest.fixture(autouse=True)
 def _rig(tmp_path, monkeypatch):
-    monkeypatch.setattr(botcfg, "OWNER_IDS", {OWNER_ID}, raising=False)
+    _setattr(botcfg, "OWNER_IDS", {OWNER_ID}, raising=False)
     store.use_backend(store.MemoryStore())
     store.reset_memory()
     path = tmp_path / "moderation.json"

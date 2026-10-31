@@ -29,9 +29,13 @@ def _docstrings(tree: ast.AST) -> set[int]:
         if not isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
             continue
         body = node.body
-        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
-            if isinstance(body[0].value.value, str):
-                skipped.add(id(body[0].value))
+        if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            skipped.add(id(body[0].value))
     return skipped
 
 

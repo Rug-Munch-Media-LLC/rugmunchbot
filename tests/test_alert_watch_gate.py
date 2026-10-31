@@ -76,7 +76,9 @@ def test_a_failing_tier_lookup_floors_to_free() -> None:
 def test_gate_holds_in_quiet_hours_and_drops_a_repeat() -> None:
     watch_gate.configure(read_tier=lambda _uid: "pro", quiet=ALWAYS_QUIET)
     assert watch_gate.admit(_item()) == "hold"
-    watch_gate.configure(read_tier=lambda _uid: "pro")
+    # A fixed clock at noon keeps the production-default quiet window
+    # (22:00-06:00 UTC) out of the way regardless of when the suite runs.
+    watch_gate.configure(read_tier=lambda _uid: "pro", clock=lambda: 12 * 3600 + 1)
     assert watch_gate.admit(_item()) == "send"
     assert watch_gate.admit(_item()) == "drop", "the same event must not page twice"
 

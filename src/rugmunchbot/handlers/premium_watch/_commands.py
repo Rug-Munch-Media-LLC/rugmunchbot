@@ -11,6 +11,7 @@ like neither Solana nor EVM is rejected before any backend call.
 
 from __future__ import annotations
 
+import logging
 from io import BytesIO
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,9 @@ from telegram.constants import ParseMode
 from rugmunchbot import db
 from rugmunchbot.formatters import detect_chain, footer_links, short_addr
 from rugmunchbot.handlers.premium_watch import _api, _limits
+
+logger = logging.getLogger(__name__)
+
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -69,6 +73,7 @@ async def cmd_watch(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             return
         result = await _api.watch_token(address, chain, chat_id)
     except _api.PremiumWatchError as exc:
+        logger.debug("best-effort fallback: %s", exc)
         await message.reply_text(f"❌ Could not watch that token: {exc}")
         return
     title = symbol or short_addr(address)
@@ -100,6 +105,7 @@ async def cmd_unwatch(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         result = await _api.unwatch_token(address, chain, str(user.id))
     except _api.PremiumWatchError as exc:
+        logger.debug("best-effort fallback: %s", exc)
         await message.reply_text(f"❌ Could not remove that watch: {exc}")
         return
     if not result.get("removed"):
@@ -123,6 +129,7 @@ async def cmd_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         rows = await _api.list_watches(str(user.id))
     except _api.PremiumWatchError as exc:
+        logger.debug("best-effort fallback: %s", exc)
         await message.reply_text(f"❌ Could not load your watchlist: {exc}")
         return
     tier = db.get_user_tier(user.id)
@@ -167,6 +174,7 @@ async def cmd_export(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         body = await _api.export_scan(address, chain)
     except _api.PremiumWatchError as exc:
+        logger.debug("best-effort fallback: %s", exc)
         await note.edit_text(f"❌ Export failed: {exc}")
         return
     filename = f"scan_{chain}_{short_addr(address).replace('...', '_')}.json"

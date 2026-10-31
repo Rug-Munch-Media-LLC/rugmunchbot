@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.config import TIERS
 from rugmunchbot.handlers.owner import _users as u
@@ -36,24 +37,22 @@ class FakeCtx:
 
 @pytest.fixture
 def owner_env(monkeypatch):
-    monkeypatch.setattr(u, "is_owner", lambda uid: True)
+    _setattr(u, "is_owner", lambda uid: True)
     tier_calls: list[tuple[Any, ...]] = []
-    monkeypatch.setattr(u.db, "get_user_by_id", lambda tid: {"id": tid})
-    monkeypatch.setattr(
-        u.db, "set_user_tier", lambda tid, tier, days: tier_calls.append((tid, tier, days))
-    )
+    _setattr(u.db, "get_user_by_id", lambda tid: {"id": tid})
+    _setattr(u.db, "set_user_tier", lambda tid, tier, days: tier_calls.append((tid, tier, days)))
     return tier_calls
 
 
 @pytest.mark.asyncio
 async def test_non_owner_denied(monkeypatch):
-    monkeypatch.setattr(u, "is_owner", lambda uid: False)
+    _setattr(u, "is_owner", lambda uid: False)
     calls: list[str] = []
 
     async def _deny(update, ctx) -> None:
         calls.append("denied")
 
-    monkeypatch.setattr(u, "_deny_admin_attempt", _deny)
+    _setattr(u, "_deny_admin_attempt", _deny)
     upd = FakeUpdate()
     await u.cmd_admin_set_tier(upd, FakeCtx(["123", next(iter(TIERS))]))
     assert calls == ["denied"]
@@ -104,7 +103,7 @@ async def test_default_days_30_when_omitted(owner_env):
 
 @pytest.mark.asyncio
 async def test_unknown_user_still_blocked_before_set(owner_env, monkeypatch):
-    monkeypatch.setattr(u.db, "get_user_by_id", lambda tid: None)
+    _setattr(u.db, "get_user_by_id", lambda tid: None)
     upd = FakeUpdate()
     await u.cmd_admin_set_tier(upd, FakeCtx(["404", next(iter(TIERS))]))
     assert any("not found" in r for r in upd.message.replies)

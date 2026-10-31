@@ -49,7 +49,12 @@ def test_voice_variants_are_clean() -> None:
 
 def test_no_new_banned_phrase_in_bot_chrome() -> None:
     pinned = _baseline()
-    observed = {f"{rel}::{phrase}" for rel, hits in scan_all().items() for h in hits for phrase in [h.split(":", 1)[1]]}
+    observed = {
+        f"{rel}::{phrase}"
+        for rel, hits in scan_all().items()
+        for h in hits
+        for phrase in [h.split(":", 1)[1]]
+    }
     new_hits = sorted(observed - pinned)
     assert not new_hits, "new banned phrase in bot-facing text:\n" + "\n".join(new_hits)
     stale = sorted(pinned - observed)

@@ -12,10 +12,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from _premium_support import _Clock, _open_gate
 
 from rugmunchbot.config import TIERS
-from _premium_support import _Clock, _open_gate
-from rugmunchbot.premium import deepscan_job, gating, quota, watch_alerts
+from rugmunchbot.premium import deepscan_job, quota, watch_alerts
 
 
 def _tier(name: str):
@@ -107,5 +107,3 @@ def test_quiet_hours_hold_without_counting_a_send_and_release_later() -> None:
     assert gate.held_count(1) == 1
     assert gate.release(1) == ["token-q"]
     assert gate.held_count(1) == 0
-
-

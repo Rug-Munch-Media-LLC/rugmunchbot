@@ -40,6 +40,7 @@ from __future__ import annotations
 import json
 import math
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -279,16 +280,21 @@ async def _snapshot_signals(address: str, symbol: str) -> dict[str, float] | Non
 # ── Tool handler ──────────────────────────────────────────────────────────
 
 
-async def pattern_recall(
-    *,
-    address: str = "",
-    symbol: str = "",
-    chain: str = "",
-    signals: dict[str, float] | None = None,
-    top_k: int = _DEFAULT_TOP_K,
-    min_similarity: float = _DEFAULT_MIN_SIMILARITY,
-) -> ToolResult:
+@dataclass
+class PatternRecallQuery:
+    address: str = ""
+    symbol: str = ""
+    chain: str = ""
+    signals: dict[str, float] | None = None
+    top_k: int = _DEFAULT_TOP_K
+    min_similarity: float = _DEFAULT_MIN_SIMILARITY
+
+
+async def pattern_recall(query: PatternRecallQuery | None = None, **overrides: Any) -> ToolResult:
     """Recall similar patterns seen before for a token's scan signals.
+
+    Args live on ``query`` (a :class:`PatternRecallQuery`); ``overrides`` are
+    applied on top for tool-registry compatibility.
 
     Fuzzy-matches the query (explicit ``signals``, or a real DexScreener
     snapshot derived from ``address``/``symbol``) against every pattern stored
@@ -312,6 +318,17 @@ async def pattern_recall(
         ``summary_text``. ``ok=False`` only when Redis is down or there is
         no token / no comparable signals.
     """
+    query = query or PatternRecallQuery()
+    for k, v in overrides.items():
+        if not hasattr(query, k):
+            raise TypeError(f"unknown pattern_recall option: {k}")
+        setattr(query, k, v)
+    address = query.address
+    symbol = query.symbol
+    chain = query.chain
+    signals = query.signals
+    top_k = query.top_k
+    min_similarity = query.min_similarity
     patterns = await _all_patterns()
     if patterns is None:
         return ToolResult(
@@ -395,14 +412,17 @@ async def pattern_recall(
         )
 
     if matches:
-        parts = [f"{count}x {label}" for label, count in sorted(outcome_counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+        parts = [
+            f"{count}x {label}"
+            for label, count in sorted(outcome_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        ]
         plural = "s" if len(matches) != 1 else ""
-        summary = (
-            f"{len(matches)} similar pattern{plural} seen before (of {len(patterns)} in memory): {', '.join(parts)}"
-        )
+        summary = f"{len(matches)} similar pattern{plural} seen before (of {len(patterns)} in memory): {', '.join(parts)}"
     else:
         plural = "s" if len(patterns) != 1 else ""
-        summary = f"No similar patterns in memory ({len(patterns)} pattern{plural} stored, none matched)."
+        summary = (
+            f"No similar patterns in memory ({len(patterns)} pattern{plural} stored, none matched)."
+        )
 
     return ToolResult(
         tool="pattern_recall",

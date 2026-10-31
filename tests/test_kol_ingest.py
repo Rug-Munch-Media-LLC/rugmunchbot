@@ -12,6 +12,7 @@ import asyncio
 import json
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot import db
 from rugmunchbot.data import kol_ingest
@@ -21,7 +22,7 @@ from rugmunchbot.data import kol_ingest
 def temp_db(tmp_path, monkeypatch):
     """Point the bot DB at a fresh temp file and init the schema."""
     db_path = tmp_path / "bot.db"
-    monkeypatch.setattr(db, "DB_PATH", str(db_path))
+    _setattr(db, "DB_PATH", str(db_path))
     from rugmunchbot.db._base import init_db
 
     init_db()
@@ -105,7 +106,7 @@ def test_flag_wall_of_shame_appends_evidence_row(temp_db, tmp_path, monkeypatch)
     # Point Wall of Shame at a temp dir so we don't mutate the real data.
     data_dir = tmp_path / "wall_of_shame"
     data_dir.mkdir()
-    monkeypatch.setattr(kol_ingest, "_DATA_DIR", data_dir)
+    _setattr(kol_ingest, "_DATA_DIR", data_dir)
     count = kol_ingest.flag_wall_of_shame([rec])
     assert count == 1
     wall_of_shame_path = data_dir / "wall_of_shame.json"
@@ -116,7 +117,7 @@ def test_flag_wall_of_shame_appends_evidence_row(temp_db, tmp_path, monkeypatch)
 
 def test_upsert_kol_embedding_fail_open(monkeypatch):
     """A dead embedder/Qdrant path must never raise (returns False)."""
-    monkeypatch.setattr(kol_ingest, "upsert_kol_embedding", lambda *a, **k: False)
+    _setattr(kol_ingest, "upsert_kol_embedding", lambda *a, **k: False)
     ok_ = asyncio.run(kol_ingest._embed(["x"]))
     # _embed hits the local qwen3 layer; if unreachable it returns [] or 2560-dim
     # zero-padded vectors, never raises.

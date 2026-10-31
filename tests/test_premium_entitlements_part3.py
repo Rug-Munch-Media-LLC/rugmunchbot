@@ -12,11 +12,11 @@ from __future__ import annotations
 import re
 
 import pytest
+from _premium_support import _Clock, _open_gate
 
 from rugmunchbot.config import TIERS
 from rugmunchbot.handlers.premium_watch import _limits
-from _premium_support import _Clock, _open_gate
-from rugmunchbot.premium import gating, watch_alerts
+from rugmunchbot.premium import watch_alerts
 
 
 def _tier(name: str):

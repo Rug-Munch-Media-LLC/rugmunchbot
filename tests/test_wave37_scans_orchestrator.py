@@ -17,6 +17,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.tools.scanner import _scans
 
@@ -56,18 +57,12 @@ class StubHTTP:
 @pytest.fixture
 def no_enrich(monkeypatch):
     """Silence GMGN/risk/solana/smart-money/RAG enrichment + sol price."""
-    monkeypatch.setattr(
-        _scans._scanner, "enrich_scan_with_gmgn", AsyncMock(side_effect=lambda r, a, c: r)
-    )
-    monkeypatch.setattr(_scans._scanner, "enrich_scan", None)
-    monkeypatch.setattr(
-        _scans._scanner, "enrich_scan_solana", AsyncMock(side_effect=lambda r, a, c: r)
-    )
-    monkeypatch.setattr(
-        _scans._scanner, "enrich_scan_smart_money", AsyncMock(side_effect=lambda r, a, c: r)
-    )
-    monkeypatch.setattr(_scans, "get_sol_price", AsyncMock(return_value=100.0), raising=False)
-    monkeypatch.setattr(_scans._scanner, "should_index_scan", lambda r, source="": False)
+    _setattr(_scans._scanner, "enrich_scan_with_gmgn", AsyncMock(side_effect=lambda r, a, c: r))
+    _setattr(_scans._scanner, "enrich_scan", None)
+    _setattr(_scans._scanner, "enrich_scan_solana", AsyncMock(side_effect=lambda r, a, c: r))
+    _setattr(_scans._scanner, "enrich_scan_smart_money", AsyncMock(side_effect=lambda r, a, c: r))
+    _setattr(_scans, "get_sol_price", AsyncMock(return_value=100.0), raising=False)
+    _setattr(_scans._scanner, "should_index_scan", lambda r, source="": False)
 
 
 @pytest.mark.asyncio

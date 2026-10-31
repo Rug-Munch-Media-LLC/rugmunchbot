@@ -11,13 +11,14 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels.scheduler import _core, _posts_rag
 
 
 @pytest.fixture(autouse=True)
 def _fresh_dedupe(monkeypatch):
-    monkeypatch.setattr(_core, "_posted_keys", {})
+    _setattr(_core, "_posted_keys", {})
     return
 
 
@@ -79,14 +80,14 @@ def _critical_draft(**overrides: Any) -> dict[str, Any]:
 @pytest.mark.asyncio
 async def test_fast_lane_posts_critical_fresh(monkeypatch):
     sender = _Recorder()
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: "-100alerts")
-    monkeypatch.setattr(
+    _setattr(_posts_rag, "_chat_id", lambda ch: "-100alerts")
+    _setattr(
         _posts_rag,
         "fetch_rag_drafts",
         _fake([_critical_draft()]),
     )
     sender = _PhotoRecorder()
-    monkeypatch.setattr(_posts_rag, "_post_photo_aware", sender)
+    _setattr(_posts_rag, "_post_photo_aware", sender)
 
     assert await _posts_rag.post_rag_fast_lane(_Ctx()) == 1
     assert len(sender.calls) == 1
@@ -98,13 +99,13 @@ async def test_fast_lane_posts_critical_fresh(monkeypatch):
 @pytest.mark.asyncio
 async def test_fast_lane_skips_non_critical(monkeypatch):
     sender = _Recorder()
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: "-100alerts")
-    monkeypatch.setattr(
+    _setattr(_posts_rag, "_chat_id", lambda ch: "-100alerts")
+    _setattr(
         _posts_rag,
         "fetch_rag_drafts",
         _fake([_critical_draft(severity="high")]),
     )
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
+    _setattr(_posts_rag, "_safe_send", sender)
 
     assert await _posts_rag.post_rag_fast_lane(_Ctx()) == 0
     assert sender.calls == []
@@ -115,10 +116,10 @@ async def test_fast_lane_shares_dedupe_with_slow_lane(monkeypatch):
     """A story the fast lane delivered must not post again via slow lane."""
     draft = _critical_draft()
     sender = _Recorder()
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: "-100alerts")
-    monkeypatch.setattr(_posts_rag, "fetch_rag_drafts", _fake([draft]))
+    _setattr(_posts_rag, "_chat_id", lambda ch: "-100alerts")
+    _setattr(_posts_rag, "fetch_rag_drafts", _fake([draft]))
     sender = _PhotoRecorder()
-    monkeypatch.setattr(_posts_rag, "_post_photo_aware", sender)
+    _setattr(_posts_rag, "_post_photo_aware", sender)
 
     assert await _posts_rag.post_rag_fast_lane(_Ctx()) == 1
 
@@ -133,9 +134,9 @@ async def test_fast_lane_rejects_stale_critical(monkeypatch):
 
     old = _critical_draft(ts=(datetime.now(UTC) - timedelta(hours=12)).isoformat())
     sender = _Recorder()
-    monkeypatch.setattr(_posts_rag, "_chat_id", lambda ch: "-100alerts")
-    monkeypatch.setattr(_posts_rag, "fetch_rag_drafts", _fake([old]))
-    monkeypatch.setattr(_posts_rag, "_safe_send", sender)
+    _setattr(_posts_rag, "_chat_id", lambda ch: "-100alerts")
+    _setattr(_posts_rag, "fetch_rag_drafts", _fake([old]))
+    _setattr(_posts_rag, "_safe_send", sender)
 
     assert await _posts_rag.post_rag_fast_lane(_Ctx()) == 0
     assert sender.calls == []

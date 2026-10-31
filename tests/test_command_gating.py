@@ -11,6 +11,7 @@ import asyncio
 import inspect
 from types import SimpleNamespace
 
+from _di import _setattr
 from command_surface_helpers import FakeUpdate, callbacks, noop
 
 from rugmunchbot.bot._menu_guard import ADMIN_MENU_COMMANDS
@@ -61,7 +62,7 @@ def test_owner_command_refuses_a_non_owner_before_working():
 def test_premium_command_refuses_free_tier(monkeypatch):
     from rugmunchbot.handlers import whalewatch
 
-    monkeypatch.setattr(whalewatch.db, "get_user_tier", lambda _uid: "free")
+    _setattr(whalewatch.db, "get_user_tier", lambda _uid: "free")
     update = FakeUpdate("/whalewatch 0xabc")
     asyncio.run(whalewatch.cmd_whalewatch(update, SimpleNamespace(args=["0xabc"], bot=None)))
     assert any("Scout tier" in reply for reply in update.message.replies)

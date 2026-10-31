@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot._vendor.news_ingest.models import NewsArticle
 from rugmunchbot.channels.shill_watch import (
@@ -169,22 +170,18 @@ def _patch_alerts_io(monkeypatch, safe_send, *, main=False):
             return "-100main"
         return "-100alerts" if channel == "alerts" else None
 
-    monkeypatch.setattr(_core, "_chat_id", _chat)
-    monkeypatch.setattr(_core, "_safe_send", safe_send)
+    _setattr(_core, "_chat_id", _chat)
+    _setattr(_core, "_safe_send", safe_send)
 
 
 def _patch_evidence(monkeypatch, *, capture=None, persist=None, screenshot=False, tg_capture=False):
     """One seam for the screenshot/scan evidence lane's flags and I/O."""
     if capture is not None:
-        monkeypatch.setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", capture)
+        _setattr("rugmunchbot.tools.shill_shot.capture_and_ocr", capture)
     if persist is not None:
-        monkeypatch.setattr(
-            "rugmunchbot.channels.shill_watch._evidence._persist_shill_evidence", persist
-        )
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._evidence.SHILL_SCREENSHOT_ENABLED", screenshot
-    )
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._evidence.TG_CAPTURE_ENABLED", tg_capture)
+        _setattr("rugmunchbot.channels.shill_watch._evidence._persist_shill_evidence", persist)
+    _setattr("rugmunchbot.channels.shill_watch._evidence.SHILL_SCREENSHOT_ENABLED", screenshot)
+    _setattr("rugmunchbot.channels.shill_watch._evidence.TG_CAPTURE_ENABLED", tg_capture)
 
 
 def _patch_scanner_lane(monkeypatch, *, v2=None, legacy=None):
@@ -192,11 +189,11 @@ def _patch_scanner_lane(monkeypatch, *, v2=None, legacy=None):
     import rugmunchbot.scanner
     from rugmunchbot.channels import shill_watch
 
-    monkeypatch.setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", True)
+    _setattr(shill_watch, "SHILL_SCANNER_EVIDENCE_ENABLED", True)
     if v2 is not None:
-        monkeypatch.setattr(rugmunchbot.scanner, "scan_token_v2", v2)
+        _setattr(rugmunchbot.scanner, "scan_token_v2", v2)
     if legacy is not None:
-        monkeypatch.setattr(rugmunchbot.scanner, "scan_token", legacy)
+        _setattr(rugmunchbot.scanner, "scan_token", legacy)
 
 
 def _stub_runner(monkeypatch, *, importance=0.6):
@@ -211,15 +208,11 @@ def _stub_runner(monkeypatch, *, importance=0.6):
         campaign.importance = importance
         return importance
 
-    monkeypatch.setattr(_core, "_posted_keys", {})
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score
-    )
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
-    monkeypatch.setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False
-    )
+    _setattr(_core, "_posted_keys", {})
+    _setattr("rugmunchbot.channels.shill_watch._runner._score_shill_campaign", _fake_score)
+    _setattr("rugmunchbot.channels.shill_watch._runner.SHILL_SCREENSHOT_ENABLED", False)
+    _setattr("rugmunchbot.channels.shill_watch._runner.TG_CAPTURE_ENABLED", False)
+    _setattr("rugmunchbot.channels.shill_watch._scoring.SHILL_SCANNER_EVIDENCE_ENABLED", False)
 
 
 @pytest.mark.asyncio
@@ -251,9 +244,7 @@ async def test_run_posts_to_alerts_and_dedupes(monkeypatch):
 
         bot = _Bot()
 
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
-    )
+    _setattr("rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep)
     _patch_alerts_io(monkeypatch, _fake_send)
 
     posted = await shill_watch.run_shill_watch(_Ctx())
@@ -296,9 +287,7 @@ async def test_run_releases_mark_on_failed_send(monkeypatch):
 
         bot = _Bot()
 
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
-    )
+    _setattr("rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep)
     _patch_alerts_io(monkeypatch, _fake_send)
 
     assert await shill_watch.run_shill_watch(_Ctx()) == 0  # send failed
@@ -383,9 +372,7 @@ async def test_run_holds_below_importance_floor(monkeypatch):
 
         bot = _Bot()
 
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
-    )
+    _setattr("rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep)
     _patch_alerts_io(monkeypatch, _fake_send)
 
     assert await shill_watch.run_shill_watch(_Ctx()) == 0  # below floor → held
@@ -421,9 +408,7 @@ async def test_run_escalates_main_at_gate(monkeypatch):
 
         bot = _Bot()
 
-    monkeypatch.setattr(
-        "rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep
-    )
+    _setattr("rugmunchbot.channels.shill_watch._runner._sweep_shill_sources", _fake_sweep)
     _patch_alerts_io(monkeypatch, _fake_send, main=True)
 
     posted = await shill_watch.run_shill_watch(_Ctx())

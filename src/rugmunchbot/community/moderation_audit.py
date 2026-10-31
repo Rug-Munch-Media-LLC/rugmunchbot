@@ -9,13 +9,19 @@ writes are best-effort: a failure is logged and never blocks a decision.
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from collections import deque
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 from rugmunchbot.support.logging import get_logger
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = ["MAX_AUDIT", "MAX_PERSISTED", "AuditLog", "JsonlAudit", "default_sink"]
 
@@ -60,11 +66,15 @@ class JsonlAudit:
                 for raw in handle:
                     try:
                         row = json.loads(raw)
-                    except ValueError:
+                    except ValueError as e:
+                        logger.debug("best-effort fallback: %s", e)
                         continue
-                    if isinstance(row, dict) and (chat_id is None or row.get("chat_id") == int(chat_id)):
+                    if isinstance(row, dict) and (
+                        chat_id is None or row.get("chat_id") == int(chat_id)
+                    ):
                         rows.append(row)
-        except OSError:
+        except OSError as e:
+            logger.debug("best-effort fallback: %s", e)
             return []
         return rows[-limit:][::-1]
 
@@ -72,14 +82,16 @@ class JsonlAudit:
         try:
             with self.path.open("rb") as handle:
                 return sum(1 for _ in handle)
-        except OSError:
+        except OSError as e:
+            logger.debug("best-effort fallback: %s", e)
             return 0
 
     def _trim(self) -> None:
         """Rewrite the file keeping the newest ``max_rows`` rows."""
         try:
             lines = self.path.read_text(encoding="utf-8").splitlines()
-        except OSError:
+        except OSError as e:
+            logger.debug("best-effort fallback: %s", e)
             return
         kept = lines[-self.max_rows :]
         tmp = self.path.with_suffix(".tmp")

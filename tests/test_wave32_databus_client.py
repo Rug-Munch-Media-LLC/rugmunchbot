@@ -12,6 +12,7 @@ Offline: HTTP stubbed at the httpx boundary. Contracts:
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.tools import databus as db
 from rugmunchbot.tools.scanner import _providers as prov
@@ -58,7 +59,7 @@ async def test_databus_price_parses_pair(monkeypatch):
     async def fake_shared_client(timeout):
         return FakeClient()
 
-    monkeypatch.setattr(db, "get_shared_client", fake_shared_client)
+    _setattr(db, "get_shared_client", fake_shared_client)
     out = await db.databus_price("So11111111111111111111111111111111111111112")
     assert out == {"price_usd": 1.23, "change_24h": 5.5, "volume_24h": 999.0, "source": "databus"}
 
@@ -72,7 +73,7 @@ async def test_databus_price_fail_open(monkeypatch):
     async def fake_shared_client(timeout):
         return FakeClient()
 
-    monkeypatch.setattr(db, "get_shared_client", fake_shared_client)
+    _setattr(db, "get_shared_client", fake_shared_client)
     assert await db.databus_price("mint") is None
     assert await db.databus_price("") is None  # empty guard
 
@@ -89,7 +90,7 @@ async def test_databus_memoizes_within_ttl(monkeypatch):
     async def fake_shared_client(timeout):
         return FakeClient()
 
-    monkeypatch.setattr(db, "get_shared_client", fake_shared_client)
+    _setattr(db, "get_shared_client", fake_shared_client)
     await db.databus_price("mint")
     await db.databus_price("mint")
     assert calls["n"] == 1  # second hit served from memo
@@ -107,7 +108,7 @@ async def test_databus_wallet_and_scan_fail_open(monkeypatch):
     async def fake_shared_client(timeout):
         return FakeClient()
 
-    monkeypatch.setattr(db, "get_shared_client", fake_shared_client)
+    _setattr(db, "get_shared_client", fake_shared_client)
     assert await db.databus_wallet("addr") is None
     assert await db.databus_token_scan("addr", chain="ethereum") is None
 
@@ -144,7 +145,7 @@ async def test_databus_rung_fires_when_free_providers_empty(monkeypatch):
             "risk_score": 55,
         }
 
-    monkeypatch.setattr(db, "databus_token_scan", fake_scan)
+    _setattr(db, "databus_token_scan", fake_scan)
 
     class FakeHTTP:
         async def __aenter__(self):
@@ -177,7 +178,7 @@ async def test_databus_rung_skipped_when_goplus_answered(monkeypatch):
         fired["databus"] = True
         return {}
 
-    monkeypatch.setattr(db, "databus_token_scan", fake_scan)
+    _setattr(db, "databus_token_scan", fake_scan)
 
     class FakeResponse:
         status_code = 200

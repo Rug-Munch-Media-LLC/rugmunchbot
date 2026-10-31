@@ -7,6 +7,7 @@ never disagree about the token, the presets or the emoji.
 
 from __future__ import annotations
 
+import logging
 from html import escape
 from typing import Any
 
@@ -21,6 +22,9 @@ from rugmunchbot.buybot.state import get_state
 from rugmunchbot.buybot.store import bot_client, load_config, save_config
 from rugmunchbot.community.auth import require_chat_admin
 from rugmunchbot.support.logging import get_logger
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = ["SETUP_HINT", "TEMPLATE_TEXT", "register_buybot", "status_card"]
 
@@ -62,7 +66,8 @@ def _reason(error: ValueError) -> str:
     if callable(errors):
         try:
             return str(errors()[0].get("msg", error)).removeprefix("Value error, ")
-        except (IndexError, KeyError, TypeError):
+        except (IndexError, KeyError, TypeError) as e:
+            logger.debug("best-effort fallback: %s", e)
             return str(error)
     return str(error)
 
@@ -120,6 +125,7 @@ async def cmd_buybot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             return
         updated = apply_intent(config, intent)
     except ValueError as error:
+        logger.debug("best-effort fallback: %s", error)
         await _send(update, f"⚠️ {escape(_reason(error))}")
         return
     if await _persist(update, context, updated):
@@ -159,7 +165,8 @@ async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
     try:
         amount = float(context.args[0]) if context.args else config.presets[0]
-    except (IndexError, TypeError, ValueError):
+    except (IndexError, TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         await _send(update, f"⚠️ {escape(USAGE['presets'])}")
         return
     if amount <= 0:

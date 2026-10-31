@@ -59,7 +59,7 @@ def test_serious_keys_never_rotate() -> None:
 
 def test_no_unfilled_placeholders() -> None:
     ctx = _full_context()
-    for key, (_reg, variants) in VARIANTS.items():
+    for key, (_reg, _variants) in VARIANTS.items():
         assert any("{" not in render(key, ctx, message_id=i) for i in range(4)), key
 
 

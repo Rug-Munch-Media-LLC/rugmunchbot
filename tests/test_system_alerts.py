@@ -6,6 +6,7 @@ import logging
 from unittest.mock import AsyncMock
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.support import system_alerts
 from rugmunchbot.support.system_alerts import send_system_alert
@@ -13,7 +14,7 @@ from rugmunchbot.support.system_alerts import send_system_alert
 
 @pytest.fixture(autouse=True)
 def _admin_chat_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(system_alerts, "ADMIN_CHAT_ID", "12345")
+    _setattr(system_alerts, "ADMIN_CHAT_ID", "12345")
 
 
 @pytest.mark.asyncio
@@ -33,7 +34,7 @@ async def test_sends_formatted_message() -> None:
 async def test_no_chat_id_logs_and_skips(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    monkeypatch.setattr(system_alerts, "ADMIN_CHAT_ID", "")
+    _setattr(system_alerts, "ADMIN_CHAT_ID", "")
     bot = AsyncMock()
     with caplog.at_level(logging.WARNING):
         await send_system_alert(bot, "high", "scanner", "boom")

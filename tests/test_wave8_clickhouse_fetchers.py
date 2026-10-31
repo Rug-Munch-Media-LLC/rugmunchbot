@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 import rugmunchbot.channels.clickhouse_fetchers as chf
 from rugmunchbot.channels.clickhouse_fetchers import (
@@ -88,7 +89,7 @@ async def test_fetch_whale_moves_via_mocked_ch(monkeypatch: pytest.MonkeyPatch) 
         captured["params"] = params
         return [_whale_row("txA", "f", "t", "TokX", 50_000.0)]
 
-    monkeypatch.setattr(chf, "_ch_query", fake_query)
+    _setattr(chf, "_ch_query", fake_query)
     moves = await fetch_whale_moves(chain="solana", limit=3, min_value_usd=10_000.0)
     assert len(moves) == 1
     assert moves[0]["token_symbol"] == "TokX"
@@ -133,7 +134,7 @@ async def test_smart_money_feed_failure_fails_open(monkeypatch: pytest.MonkeyPat
     async def boom(**kw: Any) -> dict[str, Any]:
         raise ConnectionError("feed down")
 
-    monkeypatch.setattr(chf, "smart_money_feed", boom)
+    _setattr(chf, "smart_money_feed", boom)
     assert await fetch_smart_money_wallets("solana", 5) == []
 
 
@@ -141,7 +142,7 @@ async def test_smart_money_feed_non_dict_fails_open(monkeypatch: pytest.MonkeyPa
     async def weird(**kw: Any) -> Any:
         return ["not", "a", "dict"]
 
-    monkeypatch.setattr(chf, "smart_money_feed", weird)
+    _setattr(chf, "smart_money_feed", weird)
     assert await fetch_smart_money_wallets("solana", 5) == []
 
 
@@ -162,7 +163,7 @@ async def test_smart_money_feed_normalizes_wallets(monkeypatch: pytest.MonkeyPat
             ]
         }
 
-    monkeypatch.setattr(chf, "smart_money_feed", feed)
+    _setattr(chf, "smart_money_feed", feed)
     out = await fetch_smart_money_wallets("solana", 5)
     assert len(out) == 2
     assert out[0]["address"] == "WalletAAA"  # stripped

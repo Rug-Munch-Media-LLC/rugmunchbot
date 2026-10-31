@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import TypeAdapter, ValidationError
 
-from rugmunchbot.community.audit import append_audit
+from rugmunchbot.community.audit import AuditChange, append_audit
 from rugmunchbot.community.config_models import (
     FEATURE_FIELDS,
     MODERATION_FIELDS,
@@ -59,7 +59,13 @@ async def update_setting(
     settings.updated_by = user_id
     if not await save_settings(settings, client):
         return False, "could not save settings (storage unavailable)"
-    await append_audit(chat_id, user_id, _audit_name(key, sub_key), previous, value, client=client)
+    await append_audit(
+        chat_id,
+        AuditChange(
+            user_id=user_id, key=_audit_name(key, sub_key), old_value=previous, new_value=value
+        ),
+        client=client,
+    )
     return True, None
 
 

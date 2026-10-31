@@ -15,6 +15,7 @@ Three defects, each caught here:
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot._vendor.news_ingest.models import NewsArticle
 from rugmunchbot.channels import importance
@@ -68,19 +69,19 @@ def test_fallback_keeps_alpha_channel_separation() -> None:
 
 @pytest.fixture(autouse=True)
 def _reset_breaker(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(importance, "_consecutive_reranker_failures", 0)
-    monkeypatch.setattr(importance, "_reranker_cooldown_until", 0.0)
+    _setattr(importance, "_consecutive_reranker_failures", 0)
+    _setattr(importance, "_reranker_cooldown_until", 0.0)
 
 
 async def test_score_importance_scores_past_the_batch_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(importance, "MAX_ARTICLES_PER_BATCH", 2)
+    _setattr(importance, "MAX_ARTICLES_PER_BATCH", 2)
 
     async def _fake_rerank(query: str, texts: list[str]) -> dict[int, float]:
         return dict.fromkeys(range(len(texts)), 0.5)
 
-    monkeypatch.setattr(importance, "_rerank_query", _fake_rerank)
+    _setattr(importance, "_rerank_query", _fake_rerank)
     articles = [_art(f"story {i}") for i in range(5)]
     scored = await score_importance(articles)
 
@@ -90,12 +91,12 @@ async def test_score_importance_scores_past_the_batch_limit(
 
 
 async def test_breaker_counts_once_per_call_not_per_chunk(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(importance, "MAX_ARTICLES_PER_BATCH", 2)
+    _setattr(importance, "MAX_ARTICLES_PER_BATCH", 2)
 
     async def _dead_rerank(query: str, texts: list[str]) -> dict[int, float]:
         return {}
 
-    monkeypatch.setattr(importance, "_rerank_query", _dead_rerank)
+    _setattr(importance, "_rerank_query", _dead_rerank)
     scored = await score_importance([_art(f"s{i}") for i in range(5)])
 
     assert len(scored) == 5

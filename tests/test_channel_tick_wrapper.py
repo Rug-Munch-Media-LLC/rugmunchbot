@@ -12,13 +12,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-SCHEDULER = (
-    Path(__file__).resolve().parents[1]
-    / "src"
-    / "rugmunchbot"
-    / "channels"
-    / "scheduler"
-)
+SCHEDULER = Path(__file__).resolve().parents[1] / "src" / "rugmunchbot" / "channels" / "scheduler"
 
 # Registrations were split into ``_register_<family>.py``; the guard must read
 # the whole family or a wrapped job in a sibling file reads as missing.

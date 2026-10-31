@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 
 import pytest
+from _di import _setattr
 from telegram import Chat, Message, Update, User
 from telegram.ext import CommandHandler
 
@@ -41,8 +42,8 @@ def test_command_reg_flood_gate_blocks_before_handler(monkeypatch):
         return (False, 7, None)
 
     # Patch the controller the wrapper uses, and force the env gate on.
-    monkeypatch.setattr(cmds, "_check_flood", _fake_check_flood)
-    monkeypatch.setattr(cmds, "_COMMAND_FLOOD_ENABLED", True)
+    _setattr(cmds, "_check_flood", _fake_check_flood)
+    _setattr(cmds, "_COMMAND_FLOOD_ENABLED", True)
 
     handler_called = {"n": 0}
 
@@ -75,7 +76,7 @@ def test_command_reg_flood_gate_blocks_before_handler(monkeypatch):
         text="/scan",
     )
     # PTB TelegramObject is frozen — patch the class method, not the instance.
-    monkeypatch.setattr(Message, "reply_text", fake_reply_text)
+    _setattr(Message, "reply_text", fake_reply_text)
     update = Update(update_id=1, message=msg)
 
     async def run():
@@ -98,13 +99,13 @@ def test_command_reg_flood_gate_allows_when_under_limit(monkeypatch):
     async def _fake_check_flood(user_id):
         return (True, 0, "rcpt")
 
-    monkeypatch.setattr(cmds, "_check_flood", _fake_check_flood)
-    monkeypatch.setattr(cmds, "_COMMAND_FLOOD_ENABLED", True)
+    _setattr(cmds, "_check_flood", _fake_check_flood)
+    _setattr(cmds, "_COMMAND_FLOOD_ENABLED", True)
     # Activity tracking writes to the DB / Redis — stub it so the test is
     # hermetic (the wrapper must still call the handler).
     record_calls: list[str] = []
-    monkeypatch.setattr(cmds.db, "record_activity", lambda **kw: record_calls.append("activity"))
-    monkeypatch.setattr(cmds, "track_command", lambda name: record_calls.append(f"tracked:{name}"))
+    _setattr(cmds.db, "record_activity", lambda **kw: record_calls.append("activity"))
+    _setattr(cmds, "track_command", lambda name: record_calls.append(f"tracked:{name}"))
 
     called = {"n": 0}
 

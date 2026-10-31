@@ -12,6 +12,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
+from _di import _setattr
 
 import rugmunchbot.tools.scanner._deployer as dep
 
@@ -68,7 +69,7 @@ async def test_enrichment_fills_deployer_profile_from_clickhouse(monkeypatch):
             "label": "SERIAL RUGGER",
         }
 
-    monkeypatch.setattr(
+    _setattr(
         "rugmunch_scanner.unified.engines.deployer_profiles.get_deployer_profile",
         _fake_profile,
     )
@@ -85,7 +86,7 @@ async def test_enrichment_fills_deployer_profile_from_clickhouse(monkeypatch):
 @pytest.mark.asyncio
 async def test_enrichment_never_clobbers_scan_provided_profile(monkeypatch):
     existing = {"total_tokens_launched": 1, "label": "FROM SCAN"}
-    monkeypatch.setattr(
+    _setattr(
         "rugmunch_scanner.unified.engines.deployer_profiles.get_deployer_profile",
         None,  # would explode if called → proves it isn't
     )
@@ -111,7 +112,7 @@ async def test_enrichment_bundle_from_own_engine_maps_shape(monkeypatch):
             "source": "own",
         }
 
-    monkeypatch.setattr(
+    _setattr(
         "rugmunch_scanner.unified.engines.own_bundle_detect.get_own_bundle_analysis",
         _fake_bundle,
     )
@@ -130,12 +131,8 @@ async def test_enrichment_indexer_legs_timeboxed_and_fail_open(monkeypatch):
     async def _cancel(*a, **k):
         raise TimeoutError()
 
-    monkeypatch.setattr(
-        "rugmunch_scanner.unified.engines.deployer_profiles.get_deployer_profile", _cancel
-    )
-    monkeypatch.setattr(
-        "rugmunch_scanner.unified.engines.own_bundle_detect.get_own_bundle_analysis", _cancel
-    )
+    _setattr("rugmunch_scanner.unified.engines.deployer_profiles.get_deployer_profile", _cancel)
+    _setattr("rugmunch_scanner.unified.engines.own_bundle_detect.get_own_bundle_analysis", _cancel)
     with patch.object(dep, "http_get_json", side_effect=ConnectionError("offline")):
         out = await dep._supplement_deployer_socials(
             _base_result(deployer_address="0x" + "cd" * 20), "0x" + "ab" * 20, "ethereum"
@@ -181,7 +178,7 @@ async def test_scan_cache_counters_hit_and_miss(monkeypatch):
     import rugmunchbot.tools.security as sec
 
     fake = _FakeRedis()
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
 
     addr = "0x" + "ee" * 20
 
@@ -212,7 +209,7 @@ async def test_scan_cache_fresh_bypass_counts_neither(monkeypatch):
     import rugmunchbot.tools.security as sec
 
     fake = _FakeRedis()
-    monkeypatch.setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
+    _setattr("rugmunchbot._vendor.redis_client.get_redis", lambda: fake)
 
     async def _fake_post(path, **kw):
         return {"risk_score": 7}

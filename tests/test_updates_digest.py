@@ -12,10 +12,12 @@ Covers:
 from __future__ import annotations
 
 import os
-
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 from rugmunchbot.channels.scheduler import _core, _posts_updates as up
 

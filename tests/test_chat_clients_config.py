@@ -1,22 +1,24 @@
 """Config/owner helpers in chat_ai/_llm/_clients.py (pure, env-driven)."""
 
+from _di import _setattr
+
 from rugmunchbot.handlers.chat_ai._llm import _clients
 
 
 def test_owner_mode_true_false_and_fail_closed(monkeypatch):
-    monkeypatch.setattr("rugmunchbot.states.is_owner", lambda uid: uid == 42)
+    _setattr("rugmunchbot.states.is_owner", lambda uid: uid == 42)
     assert _clients._owner_mode(42) is True
     assert _clients._owner_mode(7) is False
 
     def _boom(uid):
         raise RuntimeError("states broken")
 
-    monkeypatch.setattr("rugmunchbot.states.is_owner", _boom)
+    _setattr("rugmunchbot.states.is_owner", _boom)
     assert _clients._owner_mode(42) is False  # fail-closed on any error
 
 
 def test_owner_augment_messages_copy_on_write(monkeypatch):
-    monkeypatch.setattr("rugmunchbot.states.is_owner", lambda uid: uid == 42)
+    _setattr("rugmunchbot.states.is_owner", lambda uid: uid == 42)
     msgs = [{"role": "system", "content": "base"}, {"role": "user", "content": "hi"}]
     out = _clients._owner_augment_messages(msgs, 42)
     assert out is not msgs
@@ -30,7 +32,7 @@ def test_owner_augment_messages_copy_on_write(monkeypatch):
 
 
 def test_local_chat_first_enabled_env_gate(monkeypatch):
-    monkeypatch.setattr("rugmunchbot.llm_config.LOCAL_LLM_ENABLED", True)
+    _setattr("rugmunchbot.llm_config.LOCAL_LLM_ENABLED", True)
     monkeypatch.setenv("RMI_LOCAL_CHAT_FIRST", "1")
     assert _clients._local_chat_first_enabled() is True
 
@@ -38,7 +40,7 @@ def test_local_chat_first_enabled_env_gate(monkeypatch):
     assert _clients._local_chat_first_enabled() is False
 
     monkeypatch.delenv("RMI_LOCAL_CHAT_FIRST", raising=False)
-    monkeypatch.setattr("rugmunchbot.llm_config.LOCAL_LLM_ENABLED", False)
+    _setattr("rugmunchbot.llm_config.LOCAL_LLM_ENABLED", False)
     assert _clients._local_chat_first_enabled() is False
 
 

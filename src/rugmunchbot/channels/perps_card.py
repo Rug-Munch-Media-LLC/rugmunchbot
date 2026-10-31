@@ -14,11 +14,15 @@ the numbers mean for the next 24h.
 from __future__ import annotations
 
 import html
+import logging
 from typing import Any
 
 from rugmunchbot.channels.formatters._primitives import NewsPost
 from rugmunchbot.referrals import DISCLOSURE, Referral
 from rugmunchbot.support.post_graphics import graphic_for
+
+logger = logging.getLogger(__name__)
+
 
 _HEADER = "\U0001f4ca <b>PERPS DESK</b>"
 _SUB = "<i>Where the leverage sits, and what holding it costs tonight.</i>"
@@ -32,7 +36,8 @@ def _usd(v: Any) -> str:
     """Compact USD: $1.24B / $14.2M / $940K. '?' when unparsable."""
     try:
         n = float(v)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         return "?"
     if n >= 1e9:
         return f"${n / 1e9:.2f}B"
@@ -46,7 +51,8 @@ def _usd(v: Any) -> str:
 def _price(v: Any) -> str:
     try:
         n = float(v)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         return "?"
     return f"${n:,.2f}" if n < 1000 else f"${n:,.0f}"
 
@@ -59,7 +65,8 @@ def _funding(row: dict[str, Any]) -> str:
         return ""
     try:
         pct = float(rate) * 100
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         return ""
     where = f" on {html.escape(str(venue))}" if venue else ""
     return f"funding {pct:+.4f}%/h{where}"

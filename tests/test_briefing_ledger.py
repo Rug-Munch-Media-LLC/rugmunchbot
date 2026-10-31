@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import pytest
 
+from _di import _setattr
+
 from rugmunchbot.channels.telegram_news import _ledger as ledger
 
 
@@ -59,7 +61,7 @@ def _patch_redis(monkeypatch: pytest.MonkeyPatch, fake: _FakeRedis) -> None:
     # fixture in conftest.py stubs it to ``None`` for every test — so patching
     # ``redis_client.get_redis`` alone is shadowed and the fake never reaches
     # the ledger. Override ``_get_client`` directly (monkeypatch restores it).
-    monkeypatch.setattr(ledger, "_get_client", lambda: fake if not fake.down else None)
+    _setattr(ledger, "_get_client", lambda: fake if not fake.down else None)
 
 
 def test_content_hash_is_stable_and_normalized() -> None:
@@ -137,7 +139,7 @@ def test_fail_open_on_redis_down(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_fail_open_no_redis_client(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ledger, "_get_client", lambda: None)
+    _setattr(ledger, "_get_client", lambda: None)
     report = " ".join(["word"] * 120)
     # Fresh text → not a known duplicate even without Redis.
     result = ledger.evaluate_report(report, namespace="morning_rug", min_words=100)

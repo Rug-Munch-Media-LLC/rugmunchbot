@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from _di import _setattr
 
 import rugmunchbot.config as botcfg
 from rugmunchbot.moderation import chatconf, config, store
@@ -21,7 +22,7 @@ def cfg_path(_rig, tmp_path):
 
 @pytest.fixture(autouse=True)
 def _rig(tmp_path, monkeypatch):
-    monkeypatch.setattr(botcfg, "OWNER_IDS", {OWNER_ID}, raising=False)
+    _setattr(botcfg, "OWNER_IDS", {OWNER_ID}, raising=False)
     store.use_backend(store.MemoryStore())
     store.reset_memory()
     path = tmp_path / "moderation.json"

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.handlers.chat_ai._llm._sources import _source_is_junk
 from rugmunchbot.tools.scanner._resolve_target import (
@@ -31,7 +32,7 @@ async def test_address_passes_through(monkeypatch) -> None:
         called = True
         raise AssertionError("search called for address input")
 
-    monkeypatch.setattr("rugmunchbot.tools.scanner._resolve_target.http_get_json", _boom)
+    _setattr("rugmunchbot.tools.scanner._resolve_target.http_get_json", _boom)
     r = await resolve_scan_target(addr)
     assert isinstance(r, ResolvedTarget)
     assert not called
@@ -62,7 +63,7 @@ async def test_ticker_resolves_to_deepest_liquidity_pair(monkeypatch) -> None:
     async def _fake_get(url: str, **k: Any):
         return pairs
 
-    monkeypatch.setattr("rugmunchbot.tools.scanner._resolve_target.http_get_json", _fake_get)
+    _setattr("rugmunchbot.tools.scanner._resolve_target.http_get_json", _fake_get)
     r = await resolve_scan_target("$smolcat")
     assert r is not None
     assert r.address == "BBBbig"  # deepest liquidity among SYMBOL matches
@@ -75,7 +76,7 @@ async def test_unresolvable_ticker_fails_closed(monkeypatch) -> None:
     async def _empty(url: str, **k: Any):
         return {"pairs": []}
 
-    monkeypatch.setattr("rugmunchbot.tools.scanner._resolve_target.http_get_json", _empty)
+    _setattr("rugmunchbot.tools.scanner._resolve_target.http_get_json", _empty)
     assert await resolve_scan_target("$nosuchtoken") is None
 
 

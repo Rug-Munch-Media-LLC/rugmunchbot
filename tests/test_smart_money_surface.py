@@ -16,6 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.handlers.smart_money import cmd_smartmoney
 from rugmunchbot.smart_money import (
@@ -69,7 +70,7 @@ async def test_hl_post_renders_from_live_fixture(monkeypatch):
     async def fake(path, params=None, timeout=12.0):
         return action if "action" in path else liqs
 
-    monkeypatch.setattr(hl, "backend_json", fake)
+    _setattr(hl, "backend_json", fake)
     feed = await fetch_hl(limit=4)
     assert feed.ok
     assert feed.source.startswith("hyperliquid")
@@ -86,7 +87,7 @@ async def test_prediction_post_shows_level_not_invented_shift(monkeypatch):
     async def fake(path, params=None, timeout=12.0):
         return body
 
-    monkeypatch.setattr(predictions, "backend_json", fake)
+    _setattr(predictions, "backend_json", fake)
     feed = await fetch_predictions(limit=3)
     assert feed.ok
     post = render_prediction(feed, feed.items[0])
@@ -145,7 +146,7 @@ async def test_handler_fallback_names_sources(monkeypatch):
             kind="moves", note="no rows", tried=("smart-money/moves", "databus.smart_money")
         )
 
-    monkeypatch.setattr("rugmunchbot.handlers.smart_money.fetch_moves", empty)
+    _setattr("rugmunchbot.handlers.smart_money.fetch_moves", empty)
 
     class Msg:
         def __init__(self):

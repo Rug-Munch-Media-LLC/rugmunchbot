@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.commands import portfolio as pf
 from rugmunchbot.tools._client import BackendApiError
@@ -109,7 +110,7 @@ async def test_fetch_backend_error_is_loud_not_silent(monkeypatch):
     async def _boom(path: str, **kw: Any) -> dict[str, Any]:
         raise BackendApiError(f"HTTP 502 from {path}", status_code=502, url=path)
 
-    monkeypatch.setattr(pf, "backend_json_get", _boom)
+    _setattr(pf, "backend_json_get", _boom)
     result = await pf._fetch_portfolio_from_backend(EVM_ADDR)
     assert result["error"] is not None
     assert "502" in result["error"]
@@ -121,7 +122,7 @@ async def test_fetch_no_data_contract_graceful(monkeypatch):
     async def _ok(path: str, **kw: Any) -> dict[str, Any]:
         return {"data": None, "reason": "no_data"}
 
-    monkeypatch.setattr(pf, "backend_json_get", _ok)
+    _setattr(pf, "backend_json_get", _ok)
     result = await pf._fetch_portfolio_from_backend(EVM_ADDR)
     assert result["no_data"] is True
     assert result["error"] is None
@@ -166,7 +167,7 @@ async def _run_cmd(monkeypatch, body_or_exc: Any) -> list[str]:
             raise body_or_exc
         return body_or_exc
 
-    monkeypatch.setattr(pf, "backend_json_get", _stub)
+    _setattr(pf, "backend_json_get", _stub)
     update = FakeUpdate([EVM_ADDR])
     await pf.cmd_portfolio(update, FakeCtx([EVM_ADDR]))
     return update.message.replies  # type: ignore[attr-defined]

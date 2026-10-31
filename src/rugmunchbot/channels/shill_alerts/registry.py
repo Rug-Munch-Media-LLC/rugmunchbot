@@ -19,9 +19,13 @@ an empty registry means "no channels to monitor", and the lane degrades.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
 
 _REPO = Path(__file__).resolve().parents[4]
 _DEFAULT_TXT = (
@@ -60,7 +64,8 @@ def _from_txt(path: Path) -> list[Channel]:
     """Coverage-lane handle list: one per line, ``#`` comments ignored."""
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
+    except OSError as e:
+        logger.debug("best-effort fallback: %s", e)
         return []
     out: list[Channel] = []
     for line in lines:
@@ -74,7 +79,8 @@ def _from_trust(path: Path) -> list[Channel]:
     """Bot registry (channel_trust.json) — the current rugbrain format."""
     try:
         from rugmunchbot.channels.channel_trust import load_channel_trust
-    except Exception:  # pragma: no cover - import guard for island builds
+    except Exception as e:  # pragma: no cover - import guard for island builds
+        logger.debug("best-effort fallback: %s", e)
         return []
     registry = load_channel_trust(path)
     return [
@@ -94,7 +100,8 @@ def _from_vendor_json(path: Path) -> list[Channel]:
     """Vendored backend registry: ``{"channels": [{username, kind, ...}]}``."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         return []
     rows = payload.get("channels") if isinstance(payload, dict) else payload
     out: list[Channel] = []
@@ -121,7 +128,8 @@ def _from_any_json(path: Path) -> list[Channel]:
     """A JSON file whose schema we must detect — trust vs vendor, one place."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError) as e:
+        logger.debug("best-effort fallback: %s", e)
         return []
     rows = payload.get("channels") if isinstance(payload, dict) else payload
     looks_like_trust = isinstance(rows, list) and any(

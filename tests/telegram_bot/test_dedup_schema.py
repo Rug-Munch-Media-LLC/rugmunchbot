@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from _di import _setattr
 
 import rugmunchbot._vendor.rugbrain_client as rb_client
 from rugmunchbot.channels.content._rag_news import (
@@ -52,7 +53,7 @@ async def test_fetch_rag_news_uses_base_collection_name(monkeypatch):
         captured["rerank"] = rerank
         return []
 
-    monkeypatch.setattr(rb_client, "rugbrain_search", _fake_search)
+    _setattr(rb_client, "rugbrain_search", _fake_search)
     monkeypatch.delenv("RMI_RAG_NEWS_COLLECTION", raising=False)
 
     result = await fetch_rag_news_items(limit=5)

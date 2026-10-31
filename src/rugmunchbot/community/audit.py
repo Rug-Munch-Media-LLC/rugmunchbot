@@ -9,6 +9,7 @@ swallowed: a broken audit sink must never block a settings write.
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -41,15 +42,20 @@ def audit_key(chat_id: int) -> str:
     return f"{AUDIT_KEY_PREFIX}{chat_id}"
 
 
-async def append_audit(
-    chat_id: int,
-    user_id: int,
-    key: str,
-    old_value: Any = None,
-    new_value: Any = None,
-    client: Any = None,
-) -> None:
+@dataclass
+class AuditChange:
+    user_id: int
+    key: str
+    old_value: Any = None
+    new_value: Any = None
+
+
+async def append_audit(chat_id: int, change: AuditChange, client: Any = None) -> None:
     """Append one entry, trimming the list to :data:`AUDIT_MAX_ENTRIES`."""
+    user_id = change.user_id
+    key = change.key
+    old_value = change.old_value
+    new_value = change.new_value
     redis = resolve_client(client)
     if redis is None:
         logger.warning("audit_skipped_redis_unavailable chat_id=%s", chat_id)

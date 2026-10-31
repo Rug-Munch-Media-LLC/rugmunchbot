@@ -4,7 +4,7 @@
 Owns the connection factory (``get_db``), schema bootstrap (``init_db``) and
 DB path resolution (``_resolve_db_path``). The ``DB_PATH`` attribute itself is
 owned by the package shim (``db/__init__.py``) so tests can keep patching it
-via ``monkeypatch.setattr(db, "DB_PATH", ...)`` — ``get_db`` reads the path
+via seam ``_setattr(db, "DB_PATH", ...)`` — ``get_db`` reads the path
 dynamically from the package namespace at call time.
 
 Async usage: the sync ``sqlite3`` API cannot be awaited. Async callers should
@@ -63,8 +63,8 @@ _DEFAULT_DB_PATH = _resolve_db_path()
 def _db_path() -> str:
     """Return the effective DB path.
 
-    Reads ``DB_PATH`` from the package shim so runtime monkeypatching
-    (``monkeypatch.setattr(db, "DB_PATH", ...)``) keeps working after the split.
+    Reads ``DB_PATH`` from the package shim so runtime seam injection
+    (``_setattr(db, "DB_PATH", ...)``) keeps working after the split.
     """
     pkg = sys.modules.get("rugmunchbot.db")
     if pkg is not None:

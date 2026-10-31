@@ -16,6 +16,7 @@ The tests are offline: every embed tier is monkeypatched.
 from __future__ import annotations
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot._vendor.news_ingest.models import NewsArticle
 from rugmunchbot.channels.telegram_news import _dedup
@@ -62,8 +63,8 @@ async def test_embed_candidate_prefers_deepinfra(monkeypatch):
         called.append("local")
         return _vec(1.0)
 
-    monkeypatch.setattr(_dedup, "_embed_deepinfra", _fake_deepinfra)
-    monkeypatch.setattr(_dedup, "_embed_local", _fake_local)
+    _setattr(_dedup, "_embed_deepinfra", _fake_deepinfra)
+    _setattr(_dedup, "_embed_local", _fake_local)
 
     vec = await _dedup._embed_candidate("test")
     assert len(vec) == 8
@@ -83,8 +84,8 @@ async def test_embed_candidate_falls_back_to_local(monkeypatch):
         called.append("local")
         return _vec(1.0)
 
-    monkeypatch.setattr(_dedup, "_embed_deepinfra", _fake_deepinfra)
-    monkeypatch.setattr(_dedup, "_embed_local", _fake_local)
+    _setattr(_dedup, "_embed_deepinfra", _fake_deepinfra)
+    _setattr(_dedup, "_embed_local", _fake_local)
 
     vec = await _dedup._embed_candidate("test")
     assert len(vec) == 8
@@ -101,7 +102,7 @@ async def test_dedup_collapses_paraphrase(monkeypatch):
     async def _fake_candidate(text):
         return _vec(0.9)
 
-    monkeypatch.setattr(_dedup, "_embed_candidate", _fake_candidate)
+    _setattr(_dedup, "_embed_candidate", _fake_candidate)
 
     a1 = NewsArticle(
         title="Trump's Digital Gold pushes Bitcoin to new high",
@@ -129,7 +130,7 @@ async def test_dedup_keeps_distinct(monkeypatch):
         # Distinct stories → orthogonal embeddings (cosine 0 < threshold).
         return _basis(0) if "rug" in text.lower() else _basis(1)
 
-    monkeypatch.setattr(_dedup, "_embed_candidate", _fake_candidate)
+    _setattr(_dedup, "_embed_candidate", _fake_candidate)
 
     a1 = NewsArticle(
         title="Solana memecoin rug pulls for $2M",

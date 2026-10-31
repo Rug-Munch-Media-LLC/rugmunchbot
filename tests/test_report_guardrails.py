@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot.channels import report_guardrails as rg
 
@@ -94,7 +95,7 @@ async def test_validate_links_detects_dead(monkeypatch: pytest.MonkeyPatch) -> N
     import httpx
 
     fake = _FakeClient({"https://dead.com": 404, "https://ok.com": 200})
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: fake)
+    _setattr(httpx, "AsyncClient", lambda **kw: fake)
     dead = await rg.validate_links("https://ok.com and https://dead.com")
     assert dead == ["https://dead.com"]
 
@@ -104,7 +105,7 @@ async def test_validate_links_fail_open_on_network_error(monkeypatch: pytest.Mon
     import httpx
 
     fake = _FakeClient({}, raise_on={"https://flaky.com"})
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: fake)
+    _setattr(httpx, "AsyncClient", lambda **kw: fake)
     dead = await rg.validate_links("https://flaky.com")
     assert dead == []
 
@@ -114,7 +115,7 @@ async def test_report_guardrails_combines(monkeypatch: pytest.MonkeyPatch) -> No
     import httpx
 
     fake = _FakeClient({"https://dead.com": 500})
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: fake)
+    _setattr(httpx, "AsyncClient", lambda **kw: fake)
     ok, reasons = await rg.report_guardrails(f"Stale claim from {_iso(40)}. Link https://dead.com")
     assert ok is False
     assert any("stale" in r for r in reasons)
@@ -126,7 +127,7 @@ async def test_report_guardrails_clean(monkeypatch: pytest.MonkeyPatch) -> None:
     import httpx
 
     fake = _FakeClient({"https://ok.com": 200})
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: fake)
+    _setattr(httpx, "AsyncClient", lambda **kw: fake)
     ok, reasons = await rg.report_guardrails(f"Fresh {_iso(0.1)}. Link https://ok.com")
     assert ok is True
     assert reasons == []

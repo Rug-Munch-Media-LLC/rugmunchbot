@@ -14,6 +14,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from _di import _setattr
 
 from rugmunchbot import alert_worker, states
 
@@ -79,7 +80,7 @@ def _item(**over: Any) -> dict[str, Any]:
 async def test_pop_alert_parses_valid_item(monkeypatch: pytest.MonkeyPatch) -> None:
     item = _item()
     fake = FakeRedis([json.dumps(item)])
-    monkeypatch.setattr(alert_worker, "get_redis_async", lambda: fake)
+    _setattr(alert_worker, "get_redis_async", lambda: fake)
     got = await alert_worker.pop_alert()
     assert got == item
 
@@ -89,7 +90,7 @@ async def test_pop_alert_malformed_json_logs_and_returns_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = FakeRedis(["{not-json!!"])
-    monkeypatch.setattr(alert_worker, "get_redis_async", lambda: fake)
+    _setattr(alert_worker, "get_redis_async", lambda: fake)
     # Must not raise — a poison message cannot kill the tick.
     assert await alert_worker.pop_alert() is None
 
@@ -97,16 +98,16 @@ async def test_pop_alert_malformed_json_logs_and_returns_none(
 @pytest.mark.asyncio
 async def test_pop_alert_non_dict_json_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = FakeRedis([json.dumps([1, 2, 3]), json.dumps("a string")])
-    monkeypatch.setattr(alert_worker, "get_redis_async", lambda: fake)
+    _setattr(alert_worker, "get_redis_async", lambda: fake)
     assert await alert_worker.pop_alert() is None
     assert await alert_worker.pop_alert() is None
 
 
 @pytest.mark.asyncio
 async def test_pop_alert_empty_queue_and_missing_redis(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(alert_worker, "get_redis_async", lambda: FakeRedis([]))
+    _setattr(alert_worker, "get_redis_async", lambda: FakeRedis([]))
     assert await alert_worker.pop_alert() is None
-    monkeypatch.setattr(alert_worker, "get_redis_async", lambda: None)
+    _setattr(alert_worker, "get_redis_async", lambda: None)
     assert await alert_worker.pop_alert() is None
 
 
@@ -243,7 +244,7 @@ async def test_requeue_increments_retry_and_deadletters_at_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = FakeRedis()
-    monkeypatch.setattr(alert_worker, "get_redis_async", lambda: fake)
+    _setattr(alert_worker, "get_redis_async", lambda: fake)
 
     item = _item(event_id="evt-retry")
     await alert_worker._requeue_or_deadletter(item)
@@ -264,8 +265,8 @@ async def test_deliver_pending_alerts_drains_queue_and_requeues_failures(
     good = _item(event_id="evt-ok", user_id=1)
     failing = _item(event_id="evt-nope", user_id=2)
     fake = FakeRedis([json.dumps(good), json.dumps(failing)])
-    monkeypatch.setattr(alert_worker, "get_redis_async", lambda: fake)
-    monkeypatch.setattr(alert_worker, "SEND_DELAY", 0)
+    _setattr(alert_worker, "get_redis_async", lambda: fake)
+    _setattr(alert_worker, "SEND_DELAY", 0)
 
     send = AsyncMock(
         side_effect=lambda chat_id, **kw: (

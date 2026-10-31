@@ -29,7 +29,10 @@ def test_registered_provider_is_used() -> None:
         return {"token": token, "chain": chain}
 
     scan_port.register(fake)
-    assert asyncio.run(service.scan_payload("mint", "solana")) == {"token": "mint", "chain": "solana"}
+    assert asyncio.run(service.scan_payload("mint", "solana")) == {
+        "token": "mint",
+        "chain": "solana",
+    }
     assert calls == [("mint", "solana")]
 
 
@@ -41,7 +44,9 @@ def test_explicit_provider_wins_over_the_registered_one() -> None:
         return {"from": "explicit"}
 
     scan_port.register(registered)
-    assert asyncio.run(service.scan_payload("m", "solana", scanner=explicit)) == {"from": "explicit"}
+    assert asyncio.run(service.scan_payload("m", "solana", scanner=explicit)) == {
+        "from": "explicit"
+    }
 
 
 def test_none_payload_becomes_an_empty_dict() -> None:
