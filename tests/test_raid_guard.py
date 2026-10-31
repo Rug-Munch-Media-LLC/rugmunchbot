@@ -109,3 +109,16 @@ def test_settings_resolution_order_is_env_then_chat_block(monkeypatch):
     assert guard_settings.from_env().raid_joins == 12
     assert guard_settings.for_chat(CHAT_ID).raid_joins == 12
     assert guard_settings.from_env().raid_window_s == GuardSettings().raid_window_s
+
+
+def test_modraid_is_registered_to_the_canonical_handler():
+    """/modraid must resolve on import: a registry entry naming a missing
+    handler made the whole moderation package unimportable (2026-10-25 audit).
+    ``raid_cmd`` is the single implementation; ``raidmode`` is the detector.
+    """
+    from rugmunchbot.moderation import raidmode, register
+
+    assert register.COMMANDS["modraid"] is raid_cmd.cmd_modraid
+    assert not hasattr(raidmode, "cmd_modraid"), "duplicate /modraid in raidmode"
+    for name, handler in register.COMMANDS.items():
+        assert callable(handler), f"/{name} has no callable handler"
