@@ -12,7 +12,9 @@ sys.path.insert(0, str(HERE))
 import score  # noqa: E402
 
 GOOD = {
-    "id": "fix-good", "category": "security", "serious": True,
+    "id": "fix-good",
+    "category": "security",
+    "serious": True,
     "current": (
         "🔴 Liquidity removed from $SCAM\n"
         "The deployer withdrew 100% of the pool. Holders cannot exit at any price.\n"
@@ -22,7 +24,9 @@ GOOD = {
 }
 
 CLICHE = {
-    "id": "fix-cliche", "category": "content", "serious": False,
+    "id": "fix-cliche",
+    "category": "content",
+    "serious": False,
     "current": (
         "In today's fast-paced crypto landscape, it's important to note that "
         "navigating the ever-evolving market is a game-changer. Let's dive in."
@@ -30,7 +34,9 @@ CLICHE = {
 }
 
 JOKING_LOSS = {
-    "id": "fix-joking-loss", "category": "loss", "serious": True,
+    "id": "fix-joking-loss",
+    "category": "loss",
+    "serious": True,
     "current": "Liquidation hit. lol better luck next time anon 😂",
 }
 
@@ -58,5 +64,6 @@ def test_joking_loss_message_fails():
 def test_gate_exit_codes(tmp_path):
     """--min above the aggregate exits non-zero; --min 0 exits zero."""
     cmd = [sys.executable, str(HERE / "score.py")]
-    assert subprocess.run(cmd + ["--min", "1.01"], capture_output=True).returncode != 0
-    assert subprocess.run(cmd + ["--min", "0"], capture_output=True).returncode == 0
+
+    assert subprocess.run([*cmd, "--min", "1.01"], capture_output=True).returncode != 0  # noqa: S603
+    assert subprocess.run([*cmd, "--min", "0"], capture_output=True).returncode == 0  # noqa: S603

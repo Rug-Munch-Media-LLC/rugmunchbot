@@ -11,6 +11,8 @@ Covers:
 
 from __future__ import annotations
 
+import os
+
 from typing import Any
 
 import pytest
@@ -173,9 +175,28 @@ async def test_post_without_chat_id_is_loud_error(monkeypatch):
     assert any_reason, "the ERROR must name the config source so it is actionable"
 
 
+@pytest.fixture
+def live_updates_channel() -> Iterator[None]:
+    """Take @rmiupdates out of dry-run (the routing gate default is dry-run)."""
+    key = "RMI_CHANNEL_RMIUPDATES_DRY_RUN"
+    previous = os.environ.get(key)
+    os.environ[key] = "0"
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+
+
 @pytest.mark.asyncio
-async def test_post_once_per_day_and_release_on_failure(monkeypatch):
-    monkeypatch.setattr(up, "_chat_id", lambda ch: "-100upd")
+async def test_post_once_per_day_and_release_on_failure(monkeypatch, live_updates_channel):
+    # ``_chat_id("updates")`` resolves from the channels registry fallback, so
+    # no patch is needed — only the live gate and the git probe are pinned.
+    # The digest is silent unless one of REPO_DIRS saw a commit in 24h; those
+    # paths are host-specific, so pin the probe instead of the ambient tree.
+    monkeypatch.setattr(up, "_git_commits_since", lambda repo, since: ["abc1234 feat: x"])
 
     async def _no_probes() -> list[str]:
         return ["✅ rag-api"]

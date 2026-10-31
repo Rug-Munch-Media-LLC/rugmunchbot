@@ -128,8 +128,16 @@ jobs:
           source .venv/bin/activate
           diff-cover coverage.xml --compare-branch=origin/main --fail-under=46
       - name: Upload coverage
-        uses: actions/upload-artifact@v5.0.0
+        # Forgejo act_runner implements only the artifact v1 API. Every
+        # upload-artifact@v4+ release ships @actions/artifact v2, which raises
+        # GHESNotSupportedError and emits a workflow `::error::` -> the step
+        # exits 1 and fails an otherwise green test job (observed on 4f9e10b:
+        # pytest 3065 passed, diff-cover 100%, job failed on this step alone).
+        # Pin the v1-API major, and keep a report upload non-gating: its
+        # failure must never decide the test verdict.
+        uses: actions/upload-artifact@v3
         if: always()
+        continue-on-error: true
         with:
           name: coverage-report
           path: |

@@ -117,6 +117,18 @@ def decide(
     return Decision(channel, category, severity, True, live, "ok", None, policy)
 
 
+def release_slot(channel: str) -> None:
+    """Return one reserved rate slot after the send failed.
+
+    ``decide`` reserves the slot *before* the transport call, so a failed send
+    would otherwise burn the channel's hourly budget and suppress the retry
+    that the dedupe ``_release`` just permitted.
+    """
+    bucket = _BUCKETS.get(channel)
+    if bucket:
+        bucket.pop()
+
+
 def reset_buckets() -> None:
     """Clear the sliding windows (tests / dry-run reports)."""
     _BUCKETS.clear()

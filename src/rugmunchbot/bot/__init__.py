@@ -24,7 +24,6 @@ from rugmunchbot.bot._commands import (
     _BOT_COMMANDS as _BOT_COMMANDS,
     _reg as _reg,
 )
-from rugmunchbot.bot._entry import main as main
 from rugmunchbot.bot._gates import (
     _send_ban_notice as _send_ban_notice,
     install_ban_gate as install_ban_gate,
@@ -51,6 +50,24 @@ from rugmunchbot.config import (
 from rugmunchbot.handlers.alerts import (
     MONITOR_CHECK_INTERVAL as MONITOR_CHECK_INTERVAL,
 )
+
+
+def __getattr__(name: str):
+    """Resolve ``main`` lazily.
+
+    ``_entry`` imports ``handlers.market`` at module scope, and
+    ``handlers.market`` imports ``rugmunchbot.bot.variants``: an eager
+    ``from ._entry import main`` here re-enters this half-initialised package
+    and breaks ``import rugmunchbot.handlers.market`` whenever the market
+    package is the first thing imported. Deferring ``main`` keeps
+    ``from rugmunchbot.bot import main`` working without the cycle.
+    """
+    if name == "main":
+        from rugmunchbot.bot._entry import main
+
+        return main
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "close_headless_on_shutdown",

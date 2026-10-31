@@ -58,7 +58,17 @@ def test_custom_window_and_duplicate_insert(temp_db: None) -> None:
 
 
 def test_expired_window_is_inactive_and_pruned(temp_db: None) -> None:
-    assert db.add_monitor(4242, TOKEN, "solana", days=-1) is True
+    # ``claim_monitor_slot`` refuses ``days <= 0`` on purpose: an unbounded or
+    # already-dead window must never be written (that row is a free permanent
+    # monitor). So expire a real window by moving it into the past instead.
+    assert db.add_monitor(4242, TOKEN, "solana", days=1) is True
+    conn = db.get_db()
+    conn.execute(
+        "UPDATE monitors SET expires_at = ? WHERE user_id = 4242",
+        (int(time.time()) - 60,),
+    )
+    conn.commit()
+    conn.close()
 
     assert db.get_active_monitors() == [], "an expired window is not active"
     assert db.expire_monitors() == 1

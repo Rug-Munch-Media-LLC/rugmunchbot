@@ -18,7 +18,7 @@ from rugmunchbot import llm_config
 
 
 @pytest.fixture(autouse=True)
-def _hermetic_llm_lanes(respx_mock, monkeypatch):
+def _hermetic_llm_lanes(respx_mock, env):
     """Keep every test off live LLM endpoints.
 
     ``chat_with_fallback`` fronts the tier chain with the capability router
@@ -28,7 +28,7 @@ def _hermetic_llm_lanes(respx_mock, monkeypatch):
     assert the tier chain, so the router is disabled and the local lane is
     mocked to a refused connection (which fails open to "").
     """
-    monkeypatch.setattr(llm_config, "RMI_CAPABILITY_ROUTER", False)
+    env["RMI_CAPABILITY_ROUTER"] = "false"
     respx_mock.post(llm_config.LOCAL_LLM_URL).mock(
         side_effect=httpx.ConnectError("local lane disabled in tests")
     )
@@ -73,14 +73,14 @@ async def test_chat_with_fallback_unknown_tier_fails_open():
 
 
 @pytest.mark.asyncio
-async def test_chat_with_fallback_missing_key_fails_open(monkeypatch):
+async def test_chat_with_fallback_missing_key_fails_open(env):
     # Blank EVERY leg (Groq, Gemini, DeepInfra, KiloCode, OpenRouter) or a live
     # lane answers instead of failing open. (OpenCode Zen removed 2026-09-18.)
-    monkeypatch.setattr(llm_config, "GROQ_API_KEY", "")
-    monkeypatch.setattr(llm_config, "GEMINI_API_KEY", "")
-    monkeypatch.setattr(llm_config, "DEEPINFRA_API_KEY", "")
-    monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "")
-    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "")
+    env["GROQ_API_KEY"] = ""
+    env["GEMINI_API_KEY"] = ""
+    env["DEEPINFRA_API_KEY"] = ""
+    env["OPENROUTER_BACKUP_API_KEY"] = ""
+    env["KILOCODE_API_KEY"] = ""
     assert (
         await llm_config.chat_with_fallback([{"role": "user", "content": "hi"}], tier="snappy")
         == ""
@@ -88,11 +88,18 @@ async def test_chat_with_fallback_missing_key_fails_open(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_chat_with_fallback_http_error_then_fallback_retry(respx_mock, monkeypatch):
+async def test_chat_with_fallback_http_error_then_fallback_retry(respx_mock, env):
     """Primary (DeepInfra) 500 -> KiloCode StepFlash fallback succeeds."""
-    monkeypatch.setattr(llm_config, "DEEPINFRA_API_KEY", "sk-test-deepinfra")
-    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-test-kilocode")
-    monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "sk-test")
+    env["DEEPINFRA_API_KEY"] = "lane-test-deepinfra"
+    env["KILOCODE_API_KEY"] = "lane-test-kilocode"
+    env["OPENROUTER_BACKUP_API_KEY"] = "lane-test"
+    # Lane keys are read with os.getenv at import. On a dev host conftest.py
+    # loads the real env file, so these legs fired; in CI no env file exists,
+    # both legs were skipped for a blank key, and the chain fell through to the
+    # unmocked KiloCode leg. Pin the keys this test needs instead of inheriting
+    # the host's provisioning.
+    env["GROQ_API_KEY"] = "lane-test-groq"
+    env["GEMINI_API_KEY"] = "lane-test-gemini"
     snappy = llm_config.get_snappy_config()
     import httpx
 
@@ -110,9 +117,11 @@ async def test_chat_with_fallback_http_error_then_fallback_retry(respx_mock, mon
 
 
 @pytest.mark.asyncio
-async def test_chat_with_fallback_snappy_direct_hit(respx_mock, monkeypatch):
-    monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "sk-test")
-    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-test-kilocode")
+async def test_chat_with_fallback_snappy_direct_hit(respx_mock, env):
+    env["OPENROUTER_BACKUP_API_KEY"] = "lane-test"
+    env["KILOCODE_API_KEY"] = "lane-test-kilocode"
+    # The primary leg only fires when its key is set (see _chat_once).
+    env["GROQ_API_KEY"] = "lane-test-groq"
     snappy = llm_config.get_snappy_config()
     import httpx
 
@@ -126,10 +135,12 @@ async def test_chat_with_fallback_snappy_direct_hit(respx_mock, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_chat_completion_wrapper_ai_router_shape(respx_mock, monkeypatch):
+async def test_chat_completion_wrapper_ai_router_shape(respx_mock, env):
     """briefing calls chat_completion(messages, model, task_type, temperature, max_tokens) -> dict."""
-    monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "sk-test")
-    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-test-kilocode")
+    env["OPENROUTER_BACKUP_API_KEY"] = "lane-test"
+    env["KILOCODE_API_KEY"] = "lane-test-kilocode"
+    # The primary leg only fires when its key is set (see _chat_once).
+    env["GROQ_API_KEY"] = "lane-test-groq"
     long_cfg = llm_config.get_long_config()
     import httpx
 
@@ -149,28 +160,28 @@ async def test_chat_completion_wrapper_ai_router_shape(respx_mock, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_chat_completion_wrapper_fail_open(monkeypatch):
+async def test_chat_completion_wrapper_fail_open(env):
     # Blank EVERY leg (Groq, Gemini, DeepInfra, Kilo, OpenRouter) or a live lane
     # answers instead of failing open. (OpenCode Zen removed 2026-09-18.)
-    monkeypatch.setattr(llm_config, "GROQ_API_KEY", "")
-    monkeypatch.setattr(llm_config, "GEMINI_API_KEY", "")
-    monkeypatch.setattr(llm_config, "DEEPINFRA_API_KEY", "")
-    monkeypatch.setattr(llm_config, "OPENROUTER_BACKUP_API_KEY", "")
-    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "")
+    env["GROQ_API_KEY"] = ""
+    env["GEMINI_API_KEY"] = ""
+    env["DEEPINFRA_API_KEY"] = ""
+    env["OPENROUTER_BACKUP_API_KEY"] = ""
+    env["KILOCODE_API_KEY"] = ""
     result = await llm_config.chat_completion([{"role": "user", "content": "x"}], task_type="chat")
     assert result == {}
 
 
-def _mock_groq_gemini_kilo(respx_mock, monkeypatch, kilo_router):
+def _mock_groq_gemini_kilo(respx_mock, env, kilo_router):
     """Blank Groq+Gemini+Kilo keys; mock the Groq/Gemini/Kilo HTTP legs.
 
     Chain (2026-10-15): Groq → Gemini → kilo-sibling → kilo-auto → DeepInfra.
     """
     import httpx
 
-    monkeypatch.setattr(llm_config, "GROQ_API_KEY", "sk-groq")
-    monkeypatch.setattr(llm_config, "GEMINI_API_KEY", "sk-gemini")
-    monkeypatch.setattr(llm_config, "KILOCODE_API_KEY", "sk-kilo")
+    env["GROQ_API_KEY"] = "lane-groq"
+    env["GEMINI_API_KEY"] = "lane-gemini"
+    env["KILOCODE_API_KEY"] = "lane-kilo"
     long_cfg = llm_config.get_long_config()
     respx_mock.post(long_cfg["base_url"]).mock(return_value=httpx.Response(500))
     respx_mock.post(long_cfg["fallback_base_url"]).mock(return_value=httpx.Response(429))
@@ -178,7 +189,7 @@ def _mock_groq_gemini_kilo(respx_mock, monkeypatch, kilo_router):
 
 
 @pytest.mark.asyncio
-async def test_kilo_nemotron_rung_serves_before_kilo_auto(respx_mock, monkeypatch):
+async def test_kilo_nemotron_rung_serves_before_kilo_auto(respx_mock, env):
     """Groq + Gemini fail → the KiloCode sibling (laguna) serves before kilo-auto."""
     import httpx
 
@@ -193,7 +204,7 @@ async def test_kilo_nemotron_rung_serves_before_kilo_auto(respx_mock, monkeypatc
             return httpx.Response(200, json={"choices": [{"message": {"content": "kilo sibling"}}]})
         return httpx.Response(500)
 
-    _mock_groq_gemini_kilo(respx_mock, monkeypatch, _kilo_router)
+    _mock_groq_gemini_kilo(respx_mock, env, _kilo_router)
     answer = await llm_config.chat_with_fallback(
         [{"role": "user", "content": "hi"}], tier="long", max_tokens=50
     )
@@ -204,7 +215,7 @@ async def test_kilo_nemotron_rung_serves_before_kilo_auto(respx_mock, monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_kilo_auto_last_resort_serves_when_all_else_fails(respx_mock, monkeypatch):
+async def test_kilo_auto_last_resort_serves_when_all_else_fails(respx_mock, env):
     """Full outage of Groq + Gemini + the Kilo sibling → kilo-auto/free serves."""
     import httpx
 
@@ -218,7 +229,7 @@ async def test_kilo_auto_last_resort_serves_when_all_else_fails(respx_mock, monk
             )
         return httpx.Response(500)
 
-    _mock_groq_gemini_kilo(respx_mock, monkeypatch, _kilo_router)
+    _mock_groq_gemini_kilo(respx_mock, env, _kilo_router)
     answer = await llm_config.chat_with_fallback(
         [{"role": "user", "content": "hi"}], tier="long", max_tokens=50
     )

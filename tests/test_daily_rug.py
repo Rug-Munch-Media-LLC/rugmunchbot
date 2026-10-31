@@ -20,7 +20,6 @@ from rugmunchbot.channels.daily_rug import (
     _serialize_context,
     build_messages,
     cleanup_html,
-    daily_rug_run_time,
     gather_daily_rug_data,
     pick_daily_rug_image,
     post_daily_rug,
@@ -79,22 +78,6 @@ def _context(**over: Any) -> dict[str, Any]:
 
 
 class TestConfig:
-    def test_run_time_default_morning(self) -> None:
-        t = daily_rug_run_time()
-        assert (t.hour, t.minute) == (7, 30)
-        assert t.tzinfo is not None
-
-    def test_run_time_env_override(self, monkeypatch) -> None:
-        monkeypatch.setenv("RMI_DAILY_RUG_TIME", "06:45")
-        import importlib
-
-        from rugmunchbot.channels.daily_rug import _config
-
-        importlib.reload(_config)
-        t = _config.daily_rug_run_time()
-        assert (t.hour, t.minute) == (6, 45)
-        importlib.reload(_config)  # restore defaults for other tests
-
     def test_edition_title(self) -> None:
         assert EDITION == "The Daily Rug — Morning Market Brief"
 

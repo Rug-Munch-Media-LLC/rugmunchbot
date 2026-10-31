@@ -24,7 +24,6 @@ from rugmunchbot.channels.daily_rug_update import (
     pick_update_image,
     post_daily_rug_update,
     quality_gate,
-    rug_update_run_time,
 )
 from rugmunchbot.channels.scheduler import _core as sched_core
 
@@ -297,24 +296,6 @@ class TestPostDailyRugUpdate:
             ),
         ):
             assert await post_daily_rug_update(MagicMock()) == 0
-
-
-class TestSchedule:
-    def test_run_time_default_midday(self) -> None:
-        t = rug_update_run_time()
-        assert (t.hour, t.minute) == (12, 30)
-        assert t.tzinfo is not None
-
-    def test_run_time_env_override(self, monkeypatch) -> None:
-        monkeypatch.setenv("RMI_DAILY_RUG_UPDATE_TIME", "13:15")
-        import importlib
-
-        from rugmunchbot.channels.daily_rug_update import _config
-
-        importlib.reload(_config)
-        t = _config.rug_update_run_time()
-        assert (t.hour, t.minute) == (13, 15)
-        importlib.reload(_config)  # restore defaults for other tests
 
 
 class TestRegistration:

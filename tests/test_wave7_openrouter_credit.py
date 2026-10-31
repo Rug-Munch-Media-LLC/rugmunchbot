@@ -81,15 +81,15 @@ def test_summary_never_renders_a_key() -> None:
 # ── fetch_openrouter_credit ─────────────────────────────────────────────
 
 
-async def test_fetch_missing_key_fails_closed_structured(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("rugmunchbot.llm_config.OPENROUTER_BACKUP_API_KEY", "")
+async def test_fetch_missing_key_fails_closed_structured(env) -> None:
+    env["OPENROUTER_BACKUP_API_KEY"] = ""
     out = await fetch_openrouter_credit()
     assert out == {"ok": False, "error": "key_not_configured"}
 
 
 @respx.mock
-async def test_fetch_ok_derives_remaining(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("rugmunchbot.llm_config.OPENROUTER_BACKUP_API_KEY", "test-key")
+async def test_fetch_ok_derives_remaining(env) -> None:
+    env["OPENROUTER_BACKUP_API_KEY"] = "test-key"
     route = respx.get(OPENROUTER_KEY_ENDPOINT).mock(
         return_value=httpx.Response(
             200, json={"data": {"usage": 3.0, "limit": 10.0, "is_free_tier": False}}
@@ -107,8 +107,8 @@ async def test_fetch_ok_derives_remaining(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @respx.mock
-async def test_fetch_uncapped_key_keeps_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("rugmunchbot.llm_config.OPENROUTER_BACKUP_API_KEY", "test-key")
+async def test_fetch_uncapped_key_keeps_none(env) -> None:
+    env["OPENROUTER_BACKUP_API_KEY"] = "test-key"
     respx.get(OPENROUTER_KEY_ENDPOINT).mock(
         return_value=httpx.Response(200, json={"data": {"usage": 1.0, "limit": None}})
     )
@@ -119,24 +119,24 @@ async def test_fetch_uncapped_key_keeps_none(monkeypatch: pytest.MonkeyPatch) ->
 
 
 @respx.mock
-async def test_fetch_http_error_code_surfaced(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("rugmunchbot.llm_config.OPENROUTER_BACKUP_API_KEY", "test-key")
+async def test_fetch_http_error_code_surfaced(env) -> None:
+    env["OPENROUTER_BACKUP_API_KEY"] = "test-key"
     respx.get(OPENROUTER_KEY_ENDPOINT).mock(return_value=httpx.Response(401))
     out = await fetch_openrouter_credit()
     assert out == {"ok": False, "error": "http_401"}
 
 
 @respx.mock
-async def test_fetch_bad_json_fail_open(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("rugmunchbot.llm_config.OPENROUTER_BACKUP_API_KEY", "test-key")
+async def test_fetch_bad_json_fail_open(env) -> None:
+    env["OPENROUTER_BACKUP_API_KEY"] = "test-key"
     respx.get(OPENROUTER_KEY_ENDPOINT).mock(return_value=httpx.Response(200, text="not-json"))
     out = await fetch_openrouter_credit()
     assert out == {"ok": False, "error": "bad_json"}
 
 
 @respx.mock
-async def test_fetch_network_error_fail_open(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("rugmunchbot.llm_config.OPENROUTER_BACKUP_API_KEY", "test-key")
+async def test_fetch_network_error_fail_open(env) -> None:
+    env["OPENROUTER_BACKUP_API_KEY"] = "test-key"
     respx.get(OPENROUTER_KEY_ENDPOINT).mock(side_effect=httpx.ConnectError("boom"))
     out = await fetch_openrouter_credit()
     assert out == {"ok": False, "error": "network"}

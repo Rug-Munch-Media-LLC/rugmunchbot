@@ -47,8 +47,9 @@ so a tap can never look like a settlement. Install an adapter once:
 
 ```python
 from rugmunchbot.buybot import BuybotState, SwapService
+
 state: BuybotState = app.bot_data["buybot_state"]
-state.swap_service(my_adapter)        # only path to "submitted"
+state.swap_service(my_adapter)  # only path to "submitted"
 ```
 
 The adapter implements `async def buy(self, request: BuyRequest) -> str` and returns the

@@ -347,6 +347,11 @@ async def post_updates_digest(ctx: Any) -> int:
     ok = await _post_photo_aware(ctx.bot, chat_id, post, _safe_send, content_type="update")
     if not ok:
         _release("updates", dedupe_key)
+        # decide() reserved the hourly slot before the send; hand it back or
+        # the retry this _release just allowed would be rate_limited instead.
+        from rugmunchbot.channels.routing import release_slot
+
+        release_slot("rmiupdates")
         return 0
     logger.info("channels:updates posted date=%s", today)
     return 1
