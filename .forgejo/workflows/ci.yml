@@ -156,9 +156,19 @@ jobs:
         # diluted total coverage 30% -> 24%; re-based to measured reality and
         # raised as test waves land (wave7-10 2026-08-22: 27% measured -> floor
         # 26%; next: _extras + deepscan sentinel + command handlers -> target 30%).
+        # Parallelism only -- identical test selection, identical coverage
+        # flags, identical ratchet floors. Measured 2026-10-31 on this tree:
+        # sequential 242 s vs -n 4 = 81 s; same 3095 passed / 1 skipped;
+        # coverage.xml line-rate 0.5803 both ways. Capped at 4 workers so a
+        # busy runner (16 cores, 2 job slots) is never oversubscribed.
+        env:
+          # sys.monitoring core (Python 3.12) for LINE coverage; safe because
+          # the repo sets no branch coverage (no [tool.coverage] branch=true).
+          COVERAGE_CORE: sysmon
         run: |
           source .venv/bin/activate
           python -m pytest tests/ -q --tb=short \
+            -n 4 --dist loadscope \
             --cov=src/rugmunchbot \
             --cov-report=term \
             --cov-report=xml:coverage.xml \

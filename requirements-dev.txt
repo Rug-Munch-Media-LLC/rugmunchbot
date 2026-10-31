@@ -3,6 +3,7 @@
 pytest>=8.0
 pytest-asyncio>=0.23
 pytest-cov>=5.0
+pytest-xdist>=3.8  # -n auto-parallel test execution in CI
 respx>=0.21
 python-dotenv>=1.0
 diff-cover>=9.0
