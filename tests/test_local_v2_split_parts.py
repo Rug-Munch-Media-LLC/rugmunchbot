@@ -38,9 +38,6 @@ def install_engine():
             sys.modules[name] = mod
 
 
-# ── _to_goplus_checks ────────────────────────────────────────────────────
-
-
 def test_goplus_maps_every_engine_flag() -> None:
     checks = v2._to_goplus_checks(
         {
@@ -78,8 +75,6 @@ def test_goplus_tax_threshold_is_ten_percent() -> None:
     assert checks["BUY_TAX"]["status"] == "fail"
     assert "SELL_TAX" not in checks
 
-
-# ── engine dispatchers ───────────────────────────────────────────────────
 
 SECURITY_MOD = "rugmunch_scanner.unified.engines.own_security_analysis"
 HOLDER_MOD = "rugmunch_scanner.unified.engines.own_holder_analysis"
@@ -148,9 +143,6 @@ async def test_databus_dispatch_and_unknown_chain(install_engine) -> None:
 async def test_databus_dispatch_never_raises(install_engine) -> None:
     install_engine(HOLDER_MOD, "get_own_holder_analysis", RuntimeError("boom"))
     assert await v2._databus_fetch("holder_data", token_address="tok") is v2._MISS
-
-
-# ── _to_v2_payload ───────────────────────────────────────────────────────
 
 
 def _result(**over: Any) -> SimpleNamespace:
